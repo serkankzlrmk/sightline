@@ -1,0 +1,226 @@
+"""
+ReliefWeb ChromaDB Vector Store
+Persistent semantic search over ingested report chunks.
+
+Usage:
+    from reliefweb_api.vector_store import VectorStore
+
+    vs = VectorStore()
+    results = vs.search("Sudan flooding health", n_results=5, country="Sudan")
+"""
+
+from pathlib import Path
+from typing import List, Dict, Optional
+
+try:
+    import chromadb
+    from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+except ImportError:
+    raise ImportError(
+        "chromadb is required. Install it with: pip install chromadb"
+    )
+
+# Force ONNX Runtime to skip TensorRT provider — avoids ~3 sec retry on every query
+# when nvinfer_10.dll (TensorRT) is not installed.
+import os as _os
+_os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
+_os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
+
+# ============================================================================
+# CONFIG
+# ============================================================================
+
+CHROMA_DIR = "reliefweb_chroma"
+COLLECTION_NAME = "reliefweb_chunks"
+
+
+# ============================================================================
+# VECTOR STORE
+# ============================================================================
+
+class VectorStore:
+    """
+    ChromaDB-backed semantic search over ReliefWeb report chunks.
+
+    Each chunk is stored with metadata:
+      report_id, chunk_index, source_type, title, date, source,
+      primary_country, all_countries, themes, url
+
+    Deduplication: chunk IDs are "{report_id}_{chunk_index}",
+    so checking for "{report_id}_0" is a fast existence test.
+    """
+
+    def __init__(self, persist_dir: str = CHROMA_DIR):
+        self.persist_dir = persist_dir
+        self.client = chromadb.PersistentClient(path=persist_dir)
+        self.ef = DefaultEmbeddingFunction()
+        self.collection = self.client.get_or_create_collection(
+            name=COLLECTION_NAME,
+            embedding_function=self.ef,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+    # -------------------------------------------------------------------------
+    # DEDUPLICATION
+    # -------------------------------------------------------------------------
+
+    def report_exists(self, report_id: int) -> bool:
+        """Fast check: does chunk 0 of this report exist in the vector DB?"""
+        result = self.collection.get(ids=[f"{report_id}_0"], include=[])
+        return len(result["ids"]) > 0
+
+    # -------------------------------------------------------------------------
+    # INSERT
+    # -------------------------------------------------------------------------
+
+    def add_report(
+        self,
+        report_id: int,
+        chunks: List[Dict],
+        report_meta: Dict,
+    ) -> int:
+        """
+        Embed and add all chunks for one report.
+
+        Args:
+            report_id: Integer report ID
+            chunks: List of {"source_type": "pdf"|"html", "content": str}
+            report_meta: Parsed metadata.json dict (used for metadata fields)
+
+        Returns:
+            Number of chunks added.
+        """
+        if not chunks:
+            return 0
+
+        # ---- flatten metadata ----
+        sources = report_meta.get("source", [])
+        source_name = sources[0].get("shortname", "") if sources else ""
+
+        date_obj = report_meta.get("date", {})
+        date_str = (
+            date_obj.get("original", date_obj.get("created", ""))
+            if isinstance(date_obj, dict) else str(date_obj)
+        )[:10]
+
+        countries = report_meta.get("countries", [])
+        primary_country = (
+            countries[0].get("shortname", countries[0].get("name", ""))
+            if countries else ""
+        )
+        all_countries = ", ".join(
+            c.get("shortname", c.get("name", "")) for c in countries[:8]
+        )
+        themes = [t.get("name", "") for t in report_meta.get("themes", [])]
+        themes_str = ", ".join(themes[:6])
+
+        # ---- build ChromaDB lists ----
+        ids = [f"{report_id}_{i}" for i in range(len(chunks))]
+        documents = [c["content"] for c in chunks]
+        metadatas = [
+            {
+                "report_id": report_id,
+                "chunk_index": i,
+                "source_type": chunks[i]["source_type"],
+                "title": report_meta.get("title", ""),
+                "date": date_str,
+                "source": source_name,
+                "primary_country": primary_country,
+                "all_countries": all_countries,
+                "themes": themes_str,
+                "url": report_meta.get("url", ""),
+            }
+            for i in range(len(chunks))
+        ]
+
+        # ChromaDB handles batching internally
+        self.collection.add(ids=ids, documents=documents, metadatas=metadatas)
+        return len(chunks)
+
+    # -------------------------------------------------------------------------
+    # SEARCH
+    # -------------------------------------------------------------------------
+
+    def search(
+        self,
+        query: str,
+        n_results: int = 5,
+        country: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Semantic search over all ingested chunks.
+
+        Args:
+            query: Natural language search query
+            n_results: Max chunks to return
+            country: Filter by primary_country (exact match)
+            source: Filter by source org shortname (e.g. 'UNHCR')
+
+        Returns:
+            List of dicts with rank, similarity, report_id, title, date,
+            source, countries, source_type, url, chunk_preview (first 400 chars)
+        """
+        total = self.collection.count()
+        if total == 0:
+            return []
+
+        # Build optional where filter
+        where = None
+        conditions = []
+        if country:
+            conditions.append({"primary_country": {"$eq": country}})
+        if source:
+            conditions.append({"source": {"$eq": source}})
+
+        if len(conditions) == 1:
+            where = conditions[0]
+        elif len(conditions) > 1:
+            where = {"$and": conditions}
+
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=min(n_results, total),
+            where=where,
+            include=["documents", "metadatas", "distances"],
+        )
+
+        output = []
+        for doc, meta, dist in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+        ):
+            output.append({
+                "rank": len(output) + 1,
+                "similarity": round(1 - dist, 3),
+                "report_id": meta.get("report_id"),
+                "title": meta.get("title"),
+                "date": meta.get("date"),
+                "source": meta.get("source"),
+                "countries": meta.get("all_countries"),
+                "source_type": meta.get("source_type"),
+                "url": meta.get("url"),
+                "chunk_preview": doc[:400],
+            })
+
+        return output
+
+    # -------------------------------------------------------------------------
+    # STATS
+    # -------------------------------------------------------------------------
+
+    def get_stats(self) -> Dict:
+        return {
+            "total_chunks": self.collection.count(),
+            "collection": COLLECTION_NAME,
+            "persist_dir": str(Path(self.persist_dir).resolve()),
+        }
+
+
+# ============================================================================
+# FACTORY
+# ============================================================================
+
+def get_vector_store(persist_dir: str = CHROMA_DIR) -> VectorStore:
+    return VectorStore(persist_dir)

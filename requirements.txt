@@ -1,0 +1,41 @@
+# ReliefWeb AI Platform — merged requirements
+# Install: pip install -r requirements.txt
+
+# Web framework
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# HTTP
+requests>=2.28.0
+
+# PDF processing
+PyPDF2>=3.0.0
+
+# LangChain / LangGraph (agent)
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-ollama>=0.1.0
+langchain-openai>=0.1.0
+langgraph>=0.1.0
+
+# Vector store
+chromadb>=0.5.0
+
+# Embeddings (chromadb default)
+sentence-transformers>=2.3.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Math tool (reliefweb agent)
+sympy>=1.12.0
+
+# SITREP pipeline — clustering & NLP
+numpy>=1.26.0
+scikit-learn>=1.4.0
+umap-learn>=0.5.6
+hdbscan>=0.8.38
+
+# Agent — web search tool (optional, for web_search toggle)
+duckduckgo-search>=6.0
+langchain-community>=0.0.38

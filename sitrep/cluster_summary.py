@@ -1,0 +1,238 @@
+"""
+sitrep_pipeline/cluster_summary.py
+Her cluster için cevapları tek bir narrative özetle birleştirir.
+
+Orijinal Stage 4 (4-Summary for each cluster.ipynb) mantığı:
+1. Her cevap için citation numaralarına offset ekle (çakışma önleme)
+2. Tüm cevapları birleştir → LLM ile narrative entegrasyon
+3. Her cluster için SITREP başlığı üret
+"""
+
+import re
+import logging
+from typing import List, Dict
+
+from config import LLM_MAX_TOKENS_SUMMARY, LLM_MAX_TOKENS_HEADLINE, LLM_MODEL_ANSWERS, LLM_TEMPERATURE_ANSWERS
+import llm_client
+
+logger = logging.getLogger(__name__)
+
+# Orijinaldeki offset: her cevap için +i*10
+CITATION_OFFSET_STEP: int = 10
+
+
+# ---------------------------------------------------------------------------
+# Citation offset uygulama
+# ---------------------------------------------------------------------------
+
+def _apply_citation_offset(answer_text: str, offset: int) -> str:
+    """
+    Cevap metnindeki tüm [n] citation'larını [n + offset] ile değiştirir.
+    Büyük numaradan küçüğe doğru replaces (çakışma önleme).
+    """
+    citations_found = set(re.findall(r"\[(\d+)\]", answer_text))
+    sorted_citations = sorted([int(c) for c in citations_found], reverse=True)
+
+    modified = answer_text
+    for old_num in sorted_citations:
+        new_num = old_num + offset
+        modified = re.sub(
+            r"\[{}\]".format(re.escape(str(old_num))),
+            "[{}]".format(new_num),
+            modified,
+        )
+    return modified
+
+
+def _offset_contexts(
+    new_citations: List[int],
+    new_used_contexts: List[str],
+    offset: int,
+) -> Dict[int, str]:
+    """
+    {old_citation_num: context_text} → {old_citation_num + offset: context_text}
+    """
+    result: Dict[int, str] = {}
+    for old_num, ctx in zip(new_citations, new_used_contexts):
+        result[old_num + offset] = ctx
+    return result
+
+
+def _offset_contexts_meta(
+    new_citations: List[int],
+    new_used_contexts_meta: List[Dict],
+    offset: int,
+) -> Dict[int, Dict]:
+    """
+    {old_citation_num: meta_dict} → {old_citation_num + offset: meta_dict}
+    meta_dict = {title: str, url: str, ...}
+    """
+    result: Dict[int, Dict] = {}
+    for old_num, meta in zip(new_citations, new_used_contexts_meta):
+        result[old_num + offset] = meta or {}
+    return result
+
+
+# ---------------------------------------------------------------------------
+# LLM prompts
+# ---------------------------------------------------------------------------
+
+_INTEGRATE_SYSTEM = (
+    "You are a helpful assistant specialized in combining humanitarian report text "
+    "into cohesive narratives while preserving all citations."
+)
+
+_INTEGRATE_USER_TEMPLATE = """\
+Your task is to integrate the following pieces of text into a single, cohesive, and flowing narrative. The goal is to present as much of the original information as possible, not to summarize it briefly.
+
+The text contains information with citations, formatted as `[number]`. It is crucial that you adhere to the following rules:
+
+1.  **Integrate all key information**: Combine sentences and ideas from the input to form a comprehensive and coherent text. Aim to include a good portion, if not all, of the provided details.
+2.  **Maintain original citations**: Every piece of information you include in the integrated text must retain its original citation(s).
+3.  **Handle citations when combining**: If you rephrase or combine sentences containing information from multiple sources, ensure that *all* relevant original citation numbers for that combined information are included at the end of the new sentence. For example, if a new sentence merges details from original sentences cited `[1]` and `[5]`, the new sentence should be followed by `[1][5]`.
+4.  **Ensure logical flow**: Arrange the information in a way that creates a natural and readable progression of ideas, even if it means reordering content from the original input.
+5.  **Avoid external knowledge**: Your output must be based *solely* on the information provided in the input text. Do not introduce any outside facts or personal opinions.
+
+Here is the text to integrate:
+{text_to_integrate}
+"""
+
+_TITLE_USER_TEMPLATE = """\
+You are creating a title for a situational report.
+
+Read the following summary and generate a title that:
+- Clearly identifies the situation, topic, or issue being reported
+- Is appropriate for a professional situational report (SITREP style)
+- Is direct and informative (8-12 words)
+- Uses clear, actionable language suitable for decision-makers
+- Does not include meta-phrases like "Report on" or "Summary of"
+
+Summary:
+{summary_text}
+
+Return only the title, nothing else.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Ana fonksiyon
+# ---------------------------------------------------------------------------
+
+def generate_cluster_summaries(
+    postprocessed_answers: List[Dict],
+    clusters: Dict,
+) -> Dict:
+    """
+    Her cluster için cevapları birleştirip narrative özet ve başlık üretir.
+
+    Args:
+        postprocessed_answers: citation_postprocess.postprocess_citations() çıktısı
+        clusters              : clustering.run_clustering() çıktısı
+
+    Returns:
+        {
+          cluster_id: {
+            "summary"      : str,   # citation'lı narrative metin
+            "used_contexts": {citation_num: text, ...},
+            "title"        : str,   # SITREP başlığı
+          }
+        }
+    """
+    # Cevapları cluster_id'ye göre grupla
+    cluster_groups: Dict[str, List[Dict]] = {}
+    for answer in postprocessed_answers:
+        cid = str(answer["cluster_id"])
+        cluster_groups.setdefault(cid, []).append(answer)
+
+    final_output: Dict = {}
+
+    for cluster_id, answers in cluster_groups.items():
+        logger.info(
+            "Cluster %s özeti üretiliyor (%d cevap)", cluster_id, len(answers)
+        )
+
+        # 1. Citation offset uygula
+        modified_texts: List[str] = []
+        merged_contexts: Dict[int, str] = {}
+        merged_meta: Dict[int, Dict] = {}  # citation_num → {title, url}
+
+        for i, answer in enumerate(answers):
+            offset = i * CITATION_OFFSET_STEP
+            original_answer = answer.get("updated_retrieved_answer", answer.get("retrieved_answer", ""))
+
+            # Sadece citation içeren cevapları dahil et
+            if "[" not in original_answer:
+                continue
+
+            modified_text = _apply_citation_offset(original_answer, offset)
+            modified_texts.append(modified_text)
+
+            # Context ve metadata mapping'ini güncelle
+            ctx_map = _offset_contexts(
+                answer.get("new_citations", []),
+                answer.get("new_used_contexts", []),
+                offset,
+            )
+            merged_contexts.update(ctx_map)
+
+            meta_map = _offset_contexts_meta(
+                answer.get("new_citations", []),
+                answer.get("new_used_contexts_meta", []),
+                offset,
+            )
+            merged_meta.update(meta_map)
+
+        if not modified_texts:
+            logger.warning("Cluster %s: no answers with citations, skipping summary.", cluster_id)
+            headline = clusters.get(cluster_id, {}).get("cluster_headline", f"Cluster {cluster_id}")
+            final_output[cluster_id] = {
+                "summary": "",
+                "used_contexts": {},
+                "used_contexts_meta": {},
+                "title": headline,
+            }
+            continue
+
+        # 2. Tüm metinleri birleştir
+        combined_text = "\n\n".join(modified_texts)
+        integrate_prompt = _INTEGRATE_USER_TEMPLATE.format(text_to_integrate=combined_text)
+
+        # 3. Narrative entegrasyon
+        try:
+            summary = llm_client.chat_simple(
+                user_prompt=integrate_prompt,
+                system_prompt=_INTEGRATE_SYSTEM,
+                max_tokens=LLM_MAX_TOKENS_SUMMARY,
+                model=LLM_MODEL_ANSWERS,
+                temperature=LLM_TEMPERATURE_ANSWERS,
+            )
+        except Exception as exc:
+            logger.error("Cluster %s narrative integration failed: %s", cluster_id, exc)
+            summary = combined_text  # Ham metni kullan
+
+        # 4. Başlık üret
+        title_prompt = _TITLE_USER_TEMPLATE.format(summary_text=summary[:1500])
+        try:
+            title = llm_client.chat_simple(
+                user_prompt=title_prompt,
+                max_tokens=LLM_MAX_TOKENS_HEADLINE,
+                model=LLM_MODEL_ANSWERS,
+                temperature=LLM_TEMPERATURE_ANSWERS,
+            )
+            title = title.strip().strip('"').strip("'")
+        except Exception as exc:
+            logger.warning("Cluster %s title generation failed: %s", cluster_id, exc)
+            title = clusters.get(cluster_id, {}).get("cluster_headline", f"Cluster {cluster_id}")
+
+        final_output[cluster_id] = {
+            "summary": summary.strip(),
+            "used_contexts": merged_contexts,
+            "used_contexts_meta": merged_meta,
+            "title": title,
+        }
+
+        logger.info(
+            "  Cluster %s tamamlandı: başlık='%s'", cluster_id, title
+        )
+
+    return final_output

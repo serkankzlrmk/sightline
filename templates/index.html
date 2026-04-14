@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRC Data Platform</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     TOP NAVIGATION — 4 tabs
+     ═══════════════════════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-logo">
+    <span class="nav-trc-badge">TRC</span>
+    <span class="sub">Humanitarian Data Platform</span>
+  </div>
+  <div class="tab-group">
+    <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">🗄️ Database</button>
+    <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">🤖 Agent</button>
+    <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">📋 SITREP</button>
+    <button class="tab-btn" id="tab-ingest" onclick="switchTab('ingest')">📥 Ingest</button>
+  </div>
+  <div class="busy-dot" id="busy-dot" title="Agent is running..."></div>
+  <button class="nav-reset" id="agent-reset-btn" onclick="resetChat()">↺ Reset</button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN CONTENT AREA
+     ═══════════════════════════════════════════════ -->
+<div class="main">
+
+  <!-- ─── TAB 1: VERİTABANI ─────────────────────── -->
+  <div class="panel" id="panel-db">
+    <div class="reports-wrap">
+      <!-- Stats row -->
+      <div class="stats-row" id="stats-row">
+        <div class="stat-pill">📄 <strong id="s-reports">—</strong> Reports</div>
+        <div class="stat-pill">🧩 <strong id="s-chunks">—</strong> Chunks</div>
+        <button class="refresh-btn" onclick="reloadReports()">↻ Refresh</button>
+      </div>
+      <!-- Filters -->
+      <div class="filters">
+        <input  class="fi wide" id="f-search"  placeholder="🔍 Search title..."    oninput="dbFilter()">
+        <select class="fi"      id="f-country" onchange="applyFilters()"><option value="">All Countries</option></select>
+        <select class="fi"      id="f-source"  onchange="applyFilters()"><option value="">All Sources</option></select>
+        <input  class="fi"      id="f-from"    type="date" title="Start date" onchange="applyFilters()">
+        <input  class="fi"      id="f-to"      type="date" title="End date"   onchange="applyFilters()">
+        <span class="fi-count"  id="f-count"></span>
+      </div>
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="rtable">
+          <thead>
+            <tr>
+              <th onclick="sortBy('report_id')">ID</th>
+              <th onclick="sortBy('date')" class="sorted">Date ↓</th>
+              <th onclick="sortBy('primary_country')">Country</th>
+              <th onclick="sortBy('source')">Source</th>
+              <th onclick="sortBy('title')">Title</th>
+              <th>Format</th>
+              <th>PDF</th>
+              <th onclick="sortBy('total_chunks')" class="chunks-cell">Chunk</th>
+            </tr>
+          </thead>
+          <tbody id="rtbody">
+            <tr><td colspan="8" class="empty"><div class="icon">⏳</div>Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TAB 2: AGENT CHAT ─────────────────────── -->
+  <div class="panel active" id="panel-agent">
+    <!-- Chat sidebar (conversation list) -->
+    <aside class="chat-sidebar" id="chat-sidebar">
+      <button class="chat-new-btn" id="chat-new-btn" onclick="newChat()">+ New Chat</button>
+      <div class="chat-list" id="chat-list"></div>
+    </aside>
+    <!-- Chat main area -->
+    <div class="chat-main">
+      <div class="chat-messages" id="chat-messages">
+        <div class="msg assistant">
+          <div class="msg-avatar">AI</div>
+          <div class="msg-body">
+            Hello! I'm connected to the TRC humanitarian data platform.<br><br>
+            What I can do:
+            <ul>
+              <li>Search reports by country, theme, or source</li>
+              <li>Download reports and save them to the local database</li>
+              <li>Run semantic queries and summaries over downloaded reports</li>
+            </ul>
+            <br>
+            Example: <em>"Fetch and download Sudan health reports"</em><br>
+            or: <em>"What's happening in Iran in the last month?"</em>
+          </div>
+        </div>
+      </div>
+      <div class="chat-footer">
+        <textarea class="chat-textarea" id="chat-input"
+          placeholder="Type your message... (Enter = send, Shift+Enter = new line)"
+          rows="2"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TAB 3: SITREP ─────────────────────────── -->
+  <div class="panel" id="panel-sitrep">
+    <!-- SITREP has its own sidebar+main split layout -->
+    <div class="sitrep-layout">
+
+      <!-- Sidebar -->
+      <aside class="sitrep-sidebar">
+        <div class="sitrep-brand">
+          <span class="brand-icon">📋</span>
+          <div>
+            <h1>SITREP</h1>
+            <span>Pipeline Interface</span>
+          </div>
+        </div>
+
+        <div class="sidebar-run">
+          <button id="btn-toggle-form">＋ New Report</button>
+          <div id="run-form" class="run-form hidden">
+            <input id="inp-country" placeholder="Country  (e.g. Sudan)" autocomplete="off">
+            <input id="inp-event"   placeholder="Event  (optional)" autocomplete="off">
+            <input id="inp-themes"  placeholder="Themes  (optional, comma-separated)" autocomplete="off">
+            <label>
+              <input type="checkbox" id="chk-skip-cache">
+              Skip cache (restart from scratch)
+            </label>
+            <button id="btn-run">▶ Run</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section-title">Available Reports</div>
+        <div id="sitrep-reports-list"><div class="sidebar-empty">Loading...</div></div>
+      </aside>
+
+      <!-- Main area -->
+      <div class="sitrep-main">
+        <!-- Welcome view -->
+        <div id="view-welcome" class="sitrep-view">
+          <div class="welcome-icon">📋</div>
+          <div class="welcome-title">SITREP Pipeline</div>
+          <div class="welcome-sub">
+            Open an existing report from the sidebar or create a new one using the form above.
+          </div>
+        </div>
+
+        <!-- Pipeline running view -->
+        <div id="view-pipeline" class="sitrep-view hidden">
+          <div class="pipeline-title">
+            <span id="pipeline-title-text">Pipeline running…</span>
+            <span id="pipeline-spinner" class="spin">⏳</span>
+          </div>
+          <div class="steps-grid" id="steps-grid"></div>
+          <div class="log-wrap">
+            <div class="log-header">
+              <span class="log-header-title">📟 LIVE LOG</span>
+              <span class="log-dot running" id="log-dot"></span>
+            </div>
+            <div id="log-console"></div>
+          </div>
+        </div>
+
+        <!-- Report view -->
+        <div id="view-report" class="sitrep-view hidden">
+          <div id="report-content"></div>
+        </div>
+      </div>
+
+    </div><!-- /.sitrep-layout -->
+  </div><!-- /#panel-sitrep -->
+
+  <!-- ─── TAB 4: INGEST ─────────────────────────── -->
+  <div class="panel" id="panel-ingest">
+    <div class="ingest-wrap">
+
+      <!-- ── Manual Query ───────────────────────── -->
+      <div class="ingest-section">
+        <div class="ingest-section-hdr">
+          <span>🔍</span>
+          <h3>Manual Query — Direct API (No Tokens)</h3>
+        </div>
+
+        <div class="mq-form">
+          <input  class="fi" id="mq-country"   placeholder="Country (e.g. Sudan)">
+          <input  class="fi" id="mq-query"     placeholder="Keyword (e.g. health)">
+          <select class="fi" id="mq-source">
+            <option value="">All Sources</option>
+            <option>UNHCR</option><option>WFP</option><option>UNICEF</option>
+            <option>OCHA</option><option>WHO</option><option>IRC</option>
+            <option>MSF</option><option>IOM</option><option>NRC</option>
+            <option>FAO</option><option>IFRC</option><option>ICRC</option>
+          </select>
+          <select class="fi" id="mq-theme">
+            <option value="">All Themes</option>
+            <option>Health</option>
+            <option>Food and Nutrition</option>
+            <option>Education</option>
+            <option>Protection</option>
+            <option>Shelter and Non-Food Items</option>
+            <option>Water Sanitation Hygiene</option>
+            <option>Logistics and Telecommunications</option>
+            <option>Mine Action</option>
+          </select>
+          <select class="fi" id="mq-format">
+            <option value="">All Formats</option>
+            <option>Situation Report</option>
+            <option>News and Press Release</option>
+            <option>Assessment</option>
+            <option>Appeal</option>
+            <option>Map</option>
+            <option>Infographic</option>
+            <option>Analysis</option>
+          </select>
+          <select class="fi" id="mq-language">
+            <option value="">All Languages</option>
+            <option value="en">English</option>
+            <option value="ar">Arabic</option>
+            <option value="fr">French</option>
+            <option value="es">Spanish</option>
+          </select>
+          <input class="fi" id="mq-from" type="date" title="From date">
+          <input class="fi" id="mq-to"   type="date" title="To date">
+          <input class="fi" id="mq-limit" type="number" placeholder="Limit (50)" value="50" min="1" max="100" style="max-width:90px">
+        </div>
+
+        <div class="mq-actions">
+          <button class="btn btn-primary"   id="mq-search-btn"  onclick="mqSearch()">🔍 Search</button>
+          <button class="btn btn-secondary" id="mq-dl-sel-btn"  onclick="mqDownloadSelected()" disabled>⬇ Download Selected</button>
+          <button class="btn btn-secondary" id="mq-dl-new-btn"  onclick="mqDownloadNew()"      disabled>⬇ Download All New</button>
+          <label class="mq-sel-all-label">
+            <input type="checkbox" id="mq-select-all" onchange="mqToggleAll(this.checked)"> Select all
+          </label>
+          <span class="fi-count" id="mq-count" style="margin-left:auto"></span>
+        </div>
+
+        <div id="mq-status" class="ingest-status" style="display:none"></div>
+
+        <div class="table-wrap">
+          <table class="rtable">
+            <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th>ID</th>
+                <th>Date</th>
+                <th>Country</th>
+                <th>Source</th>
+                <th>Title</th>
+                <th>Format</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="mq-tbody">
+              <tr><td colspan="8" class="empty"><div class="icon">🔍</div>Enter filters above and click Search</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Upload PDF ─────────────────────────── -->
+      <div class="ingest-section">
+        <div class="ingest-section-hdr">
+          <span>📤</span>
+          <h3>Upload Report — Manual PDF Ingest</h3>
+        </div>
+        <p class="ingest-hint">Upload a PDF with custom metadata. ID will be auto-generated with a <strong>TR-</strong> prefix.</p>
+
+        <form id="upload-form" onsubmit="return uploadReport(event)" enctype="multipart/form-data">
+          <div class="up-grid">
+
+            <div class="form-group up-full">
+              <label>Title *</label>
+              <input class="fi" id="up-title" required placeholder="Report title">
+            </div>
+
+            <div class="form-group">
+              <label>Source Organization *</label>
+              <input class="fi" id="up-source" required placeholder="e.g. UNHCR, WFP" list="up-source-list">
+              <datalist id="up-source-list">
+                <option value="UNHCR"><option value="WFP"><option value="UNICEF">
+                <option value="OCHA"><option value="WHO"><option value="IRC">
+                <option value="MSF"><option value="IOM"><option value="NRC">
+                <option value="FAO"><option value="IFRC"><option value="ICRC">
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label>Format *</label>
+              <input class="fi" id="up-format" required placeholder="e.g. Situation Report" list="up-format-list">
+              <datalist id="up-format-list">
+                <option value="Situation Report"><option value="Assessment">
+                <option value="Analysis"><option value="Appeal">
+                <option value="News and Press Release"><option value="Map">
+                <option value="Infographic"><option value="Other">
+              </datalist>
+            </div>
+
+            <div class="form-group up-full">
+              <label>Country / Countries *</label>
+              <div class="tag-box" id="up-country-tags"></div>
+              <div class="tag-input-row">
+                <input class="fi" id="up-country-input" placeholder="Type country and press Enter" list="up-country-list">
+                <button type="button" class="btn btn-secondary" onclick="tagAdd('country')">+ Add</button>
+              </div>
+              <datalist id="up-country-list">
+                <option value="Afghanistan"><option value="Bangladesh"><option value="Burkina Faso">
+                <option value="Central African Republic"><option value="Chad"><option value="Colombia">
+                <option value="Democratic Republic of the Congo"><option value="Ethiopia">
+                <option value="Haiti"><option value="Indonesia"><option value="Iran">
+                <option value="Iraq"><option value="Jordan"><option value="Kenya">
+                <option value="Lebanon"><option value="Libya"><option value="Mali">
+                <option value="Mozambique"><option value="Myanmar"><option value="Niger">
+                <option value="Nigeria"><option value="Pakistan"><option value="Palestine">
+                <option value="Philippines"><option value="Somalia"><option value="South Sudan">
+                <option value="Sudan"><option value="Syria"><option value="Turkey">
+                <option value="Uganda"><option value="Ukraine"><option value="Venezuela">
+                <option value="Yemen">
+              </datalist>
+            </div>
+
+            <div class="form-group up-full">
+              <label>Themes</label>
+              <div class="tag-box" id="up-theme-tags"></div>
+              <div class="tag-input-row">
+                <input class="fi" id="up-theme-input" placeholder="Select or type a theme" list="up-theme-list">
+                <button type="button" class="btn btn-secondary" onclick="tagAdd('theme')">+ Add</button>
+              </div>
+              <datalist id="up-theme-list">
+                <option value="Health"><option value="Food and Nutrition">
+                <option value="Education"><option value="Protection">
+                <option value="Shelter and Non-Food Items"><option value="Water Sanitation Hygiene">
+                <option value="Logistics and Telecommunications"><option value="Mine Action">
+                <option value="Coordination"><option value="Gender">
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label>Language *</label>
+              <select class="fi" id="up-language" required>
+                <option value="">— Select —</option>
+                <option value="en">English</option>
+                <option value="tr">Turkish</option>
+                <option value="ar">Arabic</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="ru">Russian</option>
+                <option value="de">German</option>
+                <option value="pt">Portuguese</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Report Date *</label>
+              <input class="fi" id="up-date" type="date" required>
+            </div>
+
+            <div class="form-group up-full">
+              <label>PDF File *</label>
+              <input class="fi up-file" type="file" id="up-pdf" accept=".pdf" required>
+            </div>
+
+          </div>
+
+          <div class="up-submit-row">
+            <button type="submit" class="btn btn-primary" id="up-submit-btn">📤 Upload &amp; Ingest</button>
+            <button type="button" class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
+          </div>
+        </form>
+
+        <div id="up-status" class="ingest-status" style="display:none"></div>
+
+        <div id="up-history" style="display:none;margin-top:18px">
+          <h4 style="font-size:13px;color:var(--text-muted);margin:0 0 8px">Recently Uploaded</h4>
+          <div class="table-wrap">
+            <table class="rtable">
+              <thead><tr><th>TR ID</th><th>Title</th><th>Source</th><th>Country</th><th>Date</th><th>Chunks</th></tr></thead>
+              <tbody id="up-history-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /#panel-ingest -->
+
+</div><!-- /.main -->
+
+<!-- ═══════════════════════════════════════════════
+     DB REPORT DETAIL MODAL
+     ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="db-modal" onclick="if(event.target===this)closeDbModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="m-title"></div>
+      <button class="modal-close" onclick="closeDbModal()">✕</button>
+    </div>
+    <div class="modal-bdy">
+      <div class="dg">
+        <div class="di"><label>Report ID</label><p id="m-id" style="font-family:monospace;font-size:13px"></p></div>
+        <div class="di"><label>Date</label><p id="m-date"></p></div>
+        <div class="di full"><label>Country / Countries</label><p id="m-countries"></p></div>
+        <div class="di"><label>Organization</label><p id="m-source"></p></div>
+        <div class="di"><label>Format</label><p id="m-format"></p></div>
+        <div class="di"><label>PDF Pages</label><p id="m-pdf"></p></div>
+        <div class="di"><label>Total Chunks</label><p id="m-chunks"></p></div>
+        <div class="di full"><label>Themes</label><p id="m-themes"></p></div>
+      </div>
+      <div style="margin-top:4px">
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#64748b;font-weight:600;">
+          Content Preview (First Chunk)
+        </label>
+        <div class="chunk-box" id="m-preview" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="modal-ftr">
+      <button class="btn btn-secondary" onclick="askAbout()">💬 Ask About This</button>
+      <a class="btn btn-primary" id="m-link" href="#" target="_blank">↗ Open on ReliefWeb</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SITREP CITATION MODAL
+     ═══════════════════════════════════════════════ -->
+<div id="sitrep-modal-overlay" class="sitrep-modal-overlay hidden">
+  <div class="sitrep-modal-box">
+    <div class="sitrep-modal-head">
+      <h3 id="sitrep-modal-heading">Source</h3>
+      <button class="sitrep-modal-close" id="sitrep-modal-close-btn">×</button>
+    </div>
+    <div class="sitrep-modal-body">
+      <div class="modal-source-link">
+        <a id="sitrep-modal-source-link" href="#" target="_blank" rel="noopener noreferrer">
+          <span id="sitrep-modal-title">—</span>
+          <span class="modal-link-icon">↗</span>
+        </a>
+      </div>
+      <div class="modal-label">Cited Text</div>
+      <div class="sitrep-modal-context" id="sitrep-modal-context"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
