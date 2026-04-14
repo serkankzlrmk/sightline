@@ -48,8 +48,31 @@ function esc(s) {
 // alias for SITREP code
 const escHtml = esc;
 
+// LaTeX notation → Unicode cleanup (runs before markdown parse)
+const _latexMap = {
+  '\\rightarrow':  '→', '\\leftarrow':   '←', '\\leftrightarrow': '↔',
+  '\\Rightarrow':  '⇒', '\\Leftarrow':   '⇐', '\\Leftrightarrow': '⇔',
+  '\\geq':         '≥', '\\leq':         '≤', '\\neq':  '≠',
+  '\\approx':      '≈', '\\pm':          '±', '\\times': '×',
+  '\\div':         '÷', '\\infty':       '∞', '\\sum':  '∑',
+  '\\prod':        '∏', '\\sqrt':        '√', '\\alpha': 'α',
+  '\\beta':        'β', '\\gamma':       'γ', '\\delta': 'δ',
+  '\\lambda':      'λ', '\\mu':          'μ', '\\pi':    'π',
+  '\\sigma':       'σ', '\\omega':       'ω', '\\theta': 'θ',
+  '\\cdot':        '·', '\\dots':        '…', '\\ldots': '…',
+  '\\degree':      '°', '\\checkmark':   '✓', '\\star':  '★',
+};
+function cleanLatex(text) {
+  // Replace $\cmd$ and \cmd patterns
+  return text.replace(/\$\\([a-zA-Z]+)\$/g, (_, cmd) =>
+    _latexMap['\\' + cmd] || cmd
+  ).replace(/\\([a-zA-Z]+)/g, (m, cmd) =>
+    _latexMap['\\' + cmd] || m
+  );
+}
+
 function md(text) {
-  try   { return marked.parse(text, { breaks: true, gfm: true }); }
+  try   { return marked.parse(cleanLatex(text), { breaks: true, gfm: true }); }
   catch { return esc(text).replace(/\n/g, '<br>'); }
 }
 
