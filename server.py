@@ -722,7 +722,7 @@ def api_ingest_search():
     date_to    = (data.get("date_to")     or "").strip()
     fmt_type   = (data.get("format_type") or "").strip()
     language   = (data.get("language")    or "").strip()
-    limit      = min(int(data.get("limit") or 50), 500)
+    limit      = min(int(data.get("limit") or 50), 1000)
 
     # New advanced filters (matching agent capabilities)
     disaster       = (data.get("disaster")       or "").strip()

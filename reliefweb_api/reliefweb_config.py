@@ -28,7 +28,7 @@ PDF_DOWNLOAD_TIMEOUT = 60   # For PDF downloads
 # LIMITS AND CONSTRAINTS
 # ========================================================================
 
-REPORT_LIMIT_MAX = 500
+REPORT_LIMIT_MAX = 1000
 REPORT_LIMIT_DEFAULT = 25
 DISASTER_LIMIT_MAX = 50
 DISASTER_LIMIT_DEFAULT = 20
