@@ -197,6 +197,19 @@
             <option>MSF</option><option>IOM</option><option>NRC</option>
             <option>FAO</option><option>IFRC</option><option>ICRC</option>
           </select>
+          <input  class="fi" id="mq-source-full" placeholder="Source full name (e.g. Turkish Red Crescent Society)">
+          <select class="fi" id="mq-org-type">
+            <option value="">All Org Types</option>
+            <option>International NGO</option>
+            <option>National NGO</option>
+            <option>Government</option>
+            <option>International Organization</option>
+            <option>United Nations</option>
+            <option>Academic and Research Institution</option>
+            <option>Donor</option>
+            <option>Media</option>
+            <option>Red Cross / Red Crescent</option>
+          </select>
           <select class="fi" id="mq-theme">
             <option value="">All Themes</option>
             <option>Health</option>
@@ -208,6 +221,27 @@
             <option>Logistics and Telecommunications</option>
             <option>Mine Action</option>
           </select>
+          <select class="fi" id="mq-disaster-type">
+            <option value="">All Disaster Types</option>
+            <option>Drought</option>
+            <option>Earthquake</option>
+            <option>Epidemic</option>
+            <option>Flash Flood</option>
+            <option>Flood</option>
+            <option>Food Insecurity</option>
+            <option>Complex Emergency</option>
+            <option>Cyclone</option>
+            <option>Heat Wave</option>
+            <option>Cold Wave</option>
+            <option>Land Slide</option>
+            <option>Mud Slide</option>
+            <option>Fire</option>
+            <option>Storm Surge</option>
+            <option>Tsunami</option>
+            <option>Volcano</option>
+            <option>Wild Fire</option>
+          </select>
+          <input  class="fi" id="mq-disaster" placeholder="Disaster name (e.g. Turkey-Syria Earthquake)">
           <select class="fi" id="mq-format">
             <option value="">All Formats</option>
             <option>Situation Report</option>
@@ -227,7 +261,7 @@
           </select>
           <input class="fi" id="mq-from" type="date" title="From date">
           <input class="fi" id="mq-to"   type="date" title="To date">
-          <input class="fi" id="mq-limit" type="number" placeholder="Limit (50)" value="50" min="1" max="100" style="max-width:90px">
+          <input class="fi" id="mq-limit" type="number" placeholder="Limit (50)" value="50" min="1" max="500" style="max-width:90px">
         </div>
 
         <div class="mq-actions">

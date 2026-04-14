@@ -722,19 +722,36 @@ def api_ingest_search():
     date_to    = (data.get("date_to")     or "").strip()
     fmt_type   = (data.get("format_type") or "").strip()
     language   = (data.get("language")    or "").strip()
-    limit      = min(int(data.get("limit") or 50), 100)
+    limit      = min(int(data.get("limit") or 50), 500)
+
+    # New advanced filters (matching agent capabilities)
+    disaster       = (data.get("disaster")       or "").strip()
+    disaster_type  = (data.get("disaster_type")  or "").strip()
+    source_full    = (data.get("source_fullname") or "").strip()
+    org_type       = (data.get("organization_type") or "").strip()
+    primary_country = (data.get("primary_country") or "").strip()
 
     filters = []
     if country:
         filters.append({"field": "country.name", "value": normalize_country_name(country)})
+    if primary_country:
+        filters.append({"field": "primary_country.name", "value": normalize_country_name(primary_country)})
     if theme:
         filters.append({"field": "theme.name", "value": theme})
     if source_org:
         filters.append({"field": "source.shortname", "value": source_org})
+    if source_full:
+        filters.append({"field": "source.name", "value": source_full})
+    if org_type:
+        filters.append({"field": "source.type.name", "value": org_type})
     if fmt_type:
         filters.append({"field": "format.name", "value": fmt_type})
     if language:
         filters.append({"field": "language.code", "value": language})
+    if disaster:
+        filters.append({"field": "disaster.name", "value": disaster})
+    if disaster_type:
+        filters.append({"field": "disaster_type.name", "value": disaster_type})
     if date_from or date_to:
         df = {"field": "date.original", "value": {}}
         if date_from:

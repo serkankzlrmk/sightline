@@ -916,15 +916,24 @@ function mqSearch() {
     country:     document.getElementById('mq-country').value.trim(),
     query:       document.getElementById('mq-query').value.trim(),
     source_org:  document.getElementById('mq-source').value,
+    source_fullname: document.getElementById('mq-source-full').value.trim(),
+    organization_type: document.getElementById('mq-org-type').value,
     theme:       document.getElementById('mq-theme').value,
+    disaster_type: document.getElementById('mq-disaster-type').value,
+    disaster:    document.getElementById('mq-disaster').value.trim(),
     format_type: document.getElementById('mq-format').value,
     language:    document.getElementById('mq-language').value,
     date_from:   document.getElementById('mq-from').value,
     date_to:     document.getElementById('mq-to').value,
     limit:       parseInt(document.getElementById('mq-limit').value) || 50
   };
-  if (!payload.country && !payload.query && !payload.source && !payload.theme) {
-    mqStatus('Please enter at least one filter (country, keyword, source, or theme).', 'warning');
+  // At least one filter must be set
+  const hasFilter = payload.country || payload.query || payload.source_org || payload.theme
+    || payload.source_fullname || payload.organization_type || payload.disaster_type
+    || payload.disaster || payload.format_type || payload.language
+    || payload.date_from || payload.date_to;
+  if (!hasFilter) {
+    mqStatus('Please enter at least one filter.', 'warning');
     return;
   }
   const tbody = document.getElementById('mq-tbody');
