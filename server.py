@@ -42,7 +42,7 @@ from flask_cors import CORS
 
 from config import (
     SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
-    DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
+    DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -90,25 +90,124 @@ def _require_api_key(f):
 _relief_agent = None
 _agent_lock   = threading.Lock()
 
-# Multi-chat: { chat_id: { "title": str, "messages": [...], "created": float } }
+# Multi-chat: SQLite-backed persistence (survives server restarts)
 import time as _time
-_chats: dict    = {}
 _chats_lock     = threading.Lock()
 _active_chat_id = None
 _agent_busy     = False
 
+def _chats_db():
+    """Return a connection to the chats SQLite database."""
+    conn = sqlite3.connect(str(CHATS_DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+def _init_chats_db():
+    """Create chats tables if they don't exist."""
+    conn = _chats_db()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS chats (
+            id       TEXT PRIMARY KEY,
+            title    TEXT NOT NULL DEFAULT 'New Chat',
+            created  REAL NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id  TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+            role     TEXT NOT NULL,
+            content  TEXT NOT NULL,
+            ts       REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_chatmsg_chat ON chat_messages(chat_id);
+    """)
+    conn.close()
+
+_init_chats_db()
+
 def _new_chat_id():
     return uuid.uuid4().hex[:8]
+
+def _db_chat_exists(chat_id):
+    conn = _chats_db()
+    row = conn.execute("SELECT 1 FROM chats WHERE id = ?", (chat_id,)).fetchone()
+    conn.close()
+    return row is not None
+
+def _db_create_chat(chat_id, title="New Chat"):
+    conn = _chats_db()
+    conn.execute("INSERT INTO chats (id, title, created) VALUES (?, ?, ?)",
+                 (chat_id, title, _time.time()))
+    conn.commit()
+    conn.close()
+
+def _db_get_all_chats():
+    conn = _chats_db()
+    rows = conn.execute(
+        "SELECT c.id, c.title, c.created, COUNT(m.id) AS msg_count "
+        "FROM chats c LEFT JOIN chat_messages m ON m.chat_id = c.id "
+        "GROUP BY c.id ORDER BY c.created DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def _db_add_message(chat_id, role, content):
+    conn = _chats_db()
+    conn.execute("INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, ?, ?, ?)",
+                 (chat_id, role, content, _time.time()))
+    conn.commit()
+    conn.close()
+
+def _db_get_messages(chat_id):
+    conn = _chats_db()
+    rows = conn.execute(
+        "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY id",
+        (chat_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def _db_rename_chat(chat_id, title):
+    conn = _chats_db()
+    conn.execute("UPDATE chats SET title = ? WHERE id = ?", (title, chat_id))
+    conn.commit()
+    conn.close()
+
+def _db_delete_chat(chat_id):
+    conn = _chats_db()
+    conn.execute("DELETE FROM chat_messages WHERE chat_id = ?", (chat_id,))
+    conn.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
+    conn.commit()
+    conn.close()
+
+def _db_clear_messages(chat_id):
+    conn = _chats_db()
+    conn.execute("DELETE FROM chat_messages WHERE chat_id = ?", (chat_id,))
+    conn.execute("UPDATE chats SET title = 'New Chat' WHERE id = ?", (chat_id,))
+    conn.commit()
+    conn.close()
 
 def _ensure_active_chat():
     """Return the active chat_id, creating one if needed."""
     global _active_chat_id
     with _chats_lock:
-        if _active_chat_id is None or _active_chat_id not in _chats:
+        if _active_chat_id is None or not _db_chat_exists(_active_chat_id):
             cid = _new_chat_id()
-            _chats[cid] = {"title": "New Chat", "messages": [], "created": _time.time()}
+            _db_create_chat(cid)
             _active_chat_id = cid
         return _active_chat_id
+
+def _load_langchain_messages(chat_id):
+    """Load messages from DB as LangChain message objects."""
+    from langchain_core.messages import HumanMessage, AIMessage
+    rows = _db_get_messages(chat_id)
+    msgs = []
+    for r in rows:
+        if r["role"] == "user":
+            msgs.append(HumanMessage(content=r["content"]))
+        elif r["role"] == "assistant":
+            msgs.append(AIMessage(content=r["content"]))
+    return msgs
 
 
 def _get_agent():
@@ -144,9 +243,7 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
             resp = mini.invoke(prompt)
             title = resp.content.strip().strip('"\'').strip()[:60]
             if title:
-                with _chats_lock:
-                    if chat_id in _chats:
-                        _chats[chat_id]["title"] = title
+                _db_rename_chat(chat_id, title)
         except Exception:
             logger.debug("Chat title generation failed, keeping default")
     threading.Thread(target=_do, daemon=True).start()
@@ -265,16 +362,7 @@ def health():
 @app.route("/api/agent/chats")
 def api_agent_chats():
     """List all chats, newest first."""
-    items = []
-    with _chats_lock:
-        for cid, c in _chats.items():
-            items.append({
-                "id":       cid,
-                "title":    c["title"],
-                "created":  c["created"],
-                "msg_count": len(c["messages"]),
-            })
-    items.sort(key=lambda x: x["created"], reverse=True)
+    items = _db_get_all_chats()
     return jsonify({"chats": items, "active": _active_chat_id})
 
 
@@ -283,9 +371,8 @@ def api_agent_chats_new():
     """Create a new chat and make it active."""
     global _active_chat_id
     cid = _new_chat_id()
-    with _chats_lock:
-        _chats[cid] = {"title": "New Chat", "messages": [], "created": _time.time()}
-        _active_chat_id = cid
+    _db_create_chat(cid)
+    _active_chat_id = cid
     return jsonify({"id": cid})
 
 
@@ -293,7 +380,7 @@ def api_agent_chats_new():
 def api_agent_chats_select(chat_id):
     """Switch active chat."""
     global _active_chat_id
-    if chat_id not in _chats:
+    if not _db_chat_exists(chat_id):
         return jsonify({"error": "Chat not found"}), 404
     _active_chat_id = chat_id
     return jsonify({"ok": True, "id": chat_id})
@@ -302,16 +389,9 @@ def api_agent_chats_select(chat_id):
 @app.route("/api/agent/chats/<chat_id>/messages")
 def api_agent_chats_messages(chat_id):
     """Return all messages for a chat (for rendering on switch)."""
-    if chat_id not in _chats:
+    if not _db_chat_exists(chat_id):
         return jsonify({"error": "Chat not found"}), 404
-    from langchain_core.messages import HumanMessage, AIMessage
-    msgs = []
-    with _chats_lock:
-        for m in _chats[chat_id]["messages"]:
-            if isinstance(m, HumanMessage):
-                msgs.append({"role": "user", "content": m.content})
-            elif isinstance(m, AIMessage):
-                msgs.append({"role": "assistant", "content": m.content})
+    msgs = _db_get_messages(chat_id)
     return jsonify({"messages": msgs})
 
 
@@ -321,10 +401,9 @@ def api_agent_chats_rename(chat_id):
     title = (data.get("title") or "").strip()[:100]
     if not title:
         return jsonify({"error": "title required"}), 400
-    if chat_id not in _chats:
+    if not _db_chat_exists(chat_id):
         return jsonify({"error": "Chat not found"}), 404
-    with _chats_lock:
-        _chats[chat_id]["title"] = title
+    _db_rename_chat(chat_id, title)
     return jsonify({"ok": True})
 
 
@@ -332,13 +411,11 @@ def api_agent_chats_rename(chat_id):
 def api_agent_chats_delete(chat_id):
     """Delete a chat."""
     global _active_chat_id
-    if chat_id not in _chats:
+    if not _db_chat_exists(chat_id):
         return jsonify({"error": "Chat not found"}), 404
-    with _chats_lock:
-        del _chats[chat_id]
-        if _active_chat_id == chat_id:
-            _active_chat_id = None
-    # Ensure there's always at least one chat
+    _db_delete_chat(chat_id)
+    if _active_chat_id == chat_id:
+        _active_chat_id = None
     _ensure_active_chat()
     return jsonify({"ok": True, "active": _active_chat_id})
 
@@ -364,10 +441,9 @@ def api_agent_chat():
         _agent_busy = True
 
         try:
-            with _chats_lock:
-                chat = _chats[chat_id]
-                chat["messages"].append(HumanMessage(content=user_message))
-                messages_snapshot = list(chat["messages"])
+            # Save user message to DB and load full history
+            _db_add_message(chat_id, "user", user_message)
+            messages_snapshot = _load_langchain_messages(chat_id)
 
             agent = _get_agent()
             full_response = ""
@@ -398,11 +474,13 @@ def api_agent_chat():
                     yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name})}\n\n"
 
             if full_response:
-                with _chats_lock:
-                    _chats[chat_id]["messages"].append(AIMessage(content=full_response))
+                _db_add_message(chat_id, "assistant", full_response)
 
                 # Auto-generate title with LLM after first exchange
-                if _chats[chat_id]["title"] == "New Chat":
+                conn = _chats_db()
+                row = conn.execute("SELECT title FROM chats WHERE id = ?", (chat_id,)).fetchone()
+                conn.close()
+                if row and row["title"] == "New Chat":
                     _generate_chat_title(chat_id, user_message, full_response)
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -428,18 +506,17 @@ def api_agent_chat():
 def api_agent_chat_reset():
     """Reset the active chat (clear messages)."""
     chat_id = _ensure_active_chat()
-    with _chats_lock:
-        _chats[chat_id]["messages"] = []
-        _chats[chat_id]["title"] = "New Chat"
+    _db_clear_messages(chat_id)
     return jsonify({"ok": True})
 
 
 @app.route("/api/agent/chat/status")
 def api_agent_chat_status():
     chat_id = _ensure_active_chat()
+    msg_count = len(_db_get_messages(chat_id))
     return jsonify({
         "busy": _agent_busy,
-        "history_len": len(_chats.get(chat_id, {}).get("messages", [])),
+        "history_len": msg_count,
         "active_chat": chat_id,
     })
 

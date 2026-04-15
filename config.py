@@ -28,6 +28,7 @@ os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 PROJECT_ROOT = Path(__file__).parent
 DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", str(PROJECT_ROOT / "reliefweb_downloads")))
 DB_PATH       = Path(os.getenv("DB_PATH",       str(PROJECT_ROOT / "reliefweb.db")))
+CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))
 
 # Create local dirs if they don't exist
 DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
