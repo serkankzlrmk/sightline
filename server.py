@@ -897,7 +897,7 @@ def api_ingest_search():
 @app.route("/api/ingest/download", methods=["POST"])
 def api_ingest_download():
     """Download + ingest selected reports into SQLite + ChromaDB."""
-    from reliefweb_api.ingest_pipeline import is_ingested, auto_ingest
+    from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
     from reliefweb_api.download_manager import get_download_manager
 
     data       = request.get_json(silent=True) or {}
@@ -913,9 +913,11 @@ def api_ingest_download():
     results = {"downloaded": [], "skipped": [], "errors": []}
 
     for rid in report_ids:
-        if is_ingested(rid, str(DB_PATH)):
+        if is_ingested(rid, str(DB_PATH)) and is_ingested_with_pdf(rid, str(DB_PATH)):
             results["skipped"].append({"report_id": rid, "reason": "already_in_db"})
             continue
+
+        re_download = is_ingested(rid, str(DB_PATH)) and not is_ingested_with_pdf(rid, str(DB_PATH))
         try:
             dl = manager.download_report(
                 rid,
@@ -924,11 +926,14 @@ def api_ingest_download():
                 include_metadata=True,
             )
             ingest = auto_ingest(rid, str(DOWNLOADS_DIR), str(DB_PATH))
-            results["downloaded"].append({
+            entry = {
                 "report_id":    rid,
                 "title":        dl.get("title", ""),
                 "chunks_added": ingest.get("chunks_added", 0),
-            })
+            }
+            if re_download:
+                entry["note"] = "Re-downloaded to fetch missing PDF content"
+            results["downloaded"].append(entry)
         except Exception as e:
             results["errors"].append({"report_id": rid, "error": str(e)})
 

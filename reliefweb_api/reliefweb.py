@@ -1034,14 +1034,16 @@ def download_report_to_folder(report_id: int, output_dir: str = "reliefweb_downl
         if not isinstance(report_id, int) or report_id < 1:
             return format_error("InvalidInput", "Report ID must be a positive integer")
 
-        # --- dedup check ---
-        from .ingest_pipeline import is_ingested, auto_ingest
-        if is_ingested(report_id):
+        # --- dedup check (allow re-download if PDF missing) ---
+        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
+        if is_ingested(report_id) and is_ingested_with_pdf(report_id):
             return format_response({
                 "status": "already_ingested",
                 "report_id": report_id,
-                "message": "Report already in knowledge base. Skipping download.",
+                "message": "Report already in knowledge base (with PDF). Skipping download.",
             })
+
+        re_download = is_ingested(report_id) and not is_ingested_with_pdf(report_id)
 
         # --- download ---
         manager = get_download_manager(output_dir)
@@ -1055,6 +1057,8 @@ def download_report_to_folder(report_id: int, output_dir: str = "reliefweb_downl
         # --- auto-ingest into SQLite + ChromaDB ---
         ingest_result = auto_ingest(report_id, output_dir)
         result["ingested"] = ingest_result
+        if re_download:
+            result["note"] = "Re-downloaded to fetch missing PDF content"
 
         return format_response(result)
 
@@ -1100,16 +1104,18 @@ def download_reports_batch(report_ids: list, output_dir: str = "reliefweb_downlo
             if rid < 1:
                 return format_error("InvalidInput", f"Invalid report ID: {rid}")
 
-        from .ingest_pipeline import is_ingested, auto_ingest
+        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
 
         manager = get_download_manager(output_dir)
         results = {"downloaded": [], "skipped": [], "errors": []}
 
         for rid in report_ids:
-            # --- dedup check ---
-            if is_ingested(rid):
+            # --- dedup check (allow re-download if PDF missing) ---
+            if is_ingested(rid) and is_ingested_with_pdf(rid):
                 results["skipped"].append({"report_id": rid, "reason": "already_in_db"})
                 continue
+
+            re_download = is_ingested(rid) and not is_ingested_with_pdf(rid)
 
             # --- download ---
             try:
@@ -1125,13 +1131,16 @@ def download_reports_batch(report_ids: list, output_dir: str = "reliefweb_downlo
 
             # --- auto-ingest ---
             ingest_result = auto_ingest(rid, output_dir)
-            results["downloaded"].append({
+            entry = {
                 "report_id": rid,
                 "title": dl.get("title", ""),
                 "files": dl.get("files", {}),
                 "chunks_added": ingest_result.get("chunks_added", 0),
                 "ingested": ingest_result.get("success", False),
-            })
+            }
+            if re_download:
+                entry["note"] = "Re-downloaded to fetch missing PDF content"
+            results["downloaded"].append(entry)
 
         results["summary"] = {
             "total": len(report_ids),

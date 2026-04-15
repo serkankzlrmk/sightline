@@ -90,6 +90,15 @@ class DatabaseManager:
         ).fetchone()
         return row is not None
 
+    def report_has_pdf(self, report_id: int) -> bool:
+        """Return True if report exists AND has_pdf=1."""
+        row = self.conn.execute(
+            "SELECT has_pdf FROM reports WHERE report_id = ?", (report_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        return bool(row[0])
+
     # -------------------------------------------------------------------------
     # INSERT
     # -------------------------------------------------------------------------

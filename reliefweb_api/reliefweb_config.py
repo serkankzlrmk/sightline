@@ -22,7 +22,7 @@ RELIEFWEB_SOURCES_API = f"{RELIEFWEB_API_BASE}/sources"
 
 API_TIMEOUT_SHORT = 30      # For simple queries
 API_TIMEOUT_LONG = 60       # For complex queries / PDF downloads
-PDF_DOWNLOAD_TIMEOUT = 60   # For PDF downloads
+PDF_DOWNLOAD_TIMEOUT = 120   # For PDF downloads
 
 # ========================================================================
 # LIMITS AND CONSTRAINTS
@@ -37,8 +37,8 @@ BLOG_LIMIT_DEFAULT = 10
 SUMMARY_DAYS_DEFAULT = 7
 
 # PDF Constraints
-PDF_SIZE_LIMIT = 15_000_000  # 15 MB in bytes
-PDF_SIZE_LIMIT_MB = 15
+PDF_SIZE_LIMIT = 50_000_000  # 50 MB in bytes
+PDF_SIZE_LIMIT_MB = 50
 
 # Content Limits
 SUMMARY_CHAR_LIMIT = 700

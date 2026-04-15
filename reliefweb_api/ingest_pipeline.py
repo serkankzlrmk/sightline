@@ -35,6 +35,14 @@ def is_ingested(report_id: int, db_path: str = DEFAULT_DB_PATH) -> bool:
     return result
 
 
+def is_ingested_with_pdf(report_id: int, db_path: str = DEFAULT_DB_PATH) -> bool:
+    """Return True if report is ingested AND has PDF content."""
+    db = DatabaseManager(db_path)
+    result = db.report_has_pdf(report_id)
+    db.close()
+    return result
+
+
 # ============================================================================
 # AUTO-INGEST A DOWNLOADED REPORT
 # ============================================================================
