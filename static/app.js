@@ -52,6 +52,8 @@ const escHtml = esc;
 const _latexMap = {
   '\\rightarrow':  '→', '\\leftarrow':   '←', '\\leftrightarrow': '↔',
   '\\Rightarrow':  '⇒', '\\Leftarrow':   '⇐', '\\Leftrightarrow': '⇔',
+  '\\uparrow':     '↑', '\\downarrow':   '↓', '\\updownarrow': '↕',
+  '\\Uparrow':     '⇑', '\\Downarrow':   '⇓',
   '\\geq':         '≥', '\\leq':         '≤', '\\neq':  '≠',
   '\\approx':      '≈', '\\pm':          '±', '\\times': '×',
   '\\div':         '÷', '\\infty':       '∞', '\\sum':  '∑',
@@ -61,14 +63,25 @@ const _latexMap = {
   '\\sigma':       'σ', '\\omega':       'ω', '\\theta': 'θ',
   '\\cdot':        '·', '\\dots':        '…', '\\ldots': '…',
   '\\degree':      '°', '\\checkmark':   '✓', '\\star':  '★',
+  '\\triangle':    '△', '\\bullet':      '•', '\\circ':  '○',
+  '\\sim':         '∼', '\\cong':        '≅', '\\propto': '∝',
+  '\\in':          '∈', '\\notin':       '∉', '\\subset': '⊂',
+  '\\supset':      '⊃', '\\cup':         '∪', '\\cap':   '∩',
+  '\\forall':      '∀', '\\exists':      '∃', '\\nabla':  '∇',
+  '\\partial':     '∂', '\\emptyset':    '∅',
 };
 function cleanLatex(text) {
-  // Replace $\cmd$ and \cmd patterns
-  return text.replace(/\$\\([a-zA-Z]+)\$/g, (_, cmd) =>
-    _latexMap['\\' + cmd] || cmd
-  ).replace(/\\([a-zA-Z]+)/g, (m, cmd) =>
+  // First: expand $...$ blocks (may contain multiple commands + text)
+  text = text.replace(/\$([^$]+)\$/g, (_, inner) =>
+    inner.replace(/\\([a-zA-Z]+)/g, (m, cmd) =>
+      _latexMap['\\' + cmd] || cmd
+    )
+  );
+  // Then: standalone \cmd not inside $...$
+  text = text.replace(/\\([a-zA-Z]+)/g, (m, cmd) =>
     _latexMap['\\' + cmd] || m
   );
+  return text;
 }
 
 function md(text) {
@@ -95,11 +108,11 @@ function switchTab(name) {
 // TAB 2 — AGENT CHAT (multi-chat)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const WELCOME_HTML = `
+const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
-    <div class="msg-avatar">AI</div>
+    <div class="msg-label">AgenTRC</div>
     <div class="msg-body">
-      Hello! I'm connected to the TRC humanitarian data platform.<br><br>
+      Hello! I'm connected to the Turkish Red Crescent Data Platform.<br><br>
       What I can do:
       <ul>
         <li>Search reports by country, theme, or source</li>
@@ -109,30 +122,56 @@ const WELCOME_HTML = `
       Example: <em>"Fetch and download Sudan health reports"</em><br>
       or: <em>"What's happening in Iran in the last month?"</em>
     </div>
-  </div>`;
+  </div>
+</div>`;
 
 function addMsg(role, html) {
+  // Ensure chat-center container exists inside chat-messages
+  let center = chatDiv.querySelector('.chat-center');
+  if (!center) {
+    center = document.createElement('div');
+    center.className = 'chat-center';
+    chatDiv.appendChild(center);
+  }
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + role;
-  wrap.innerHTML = `
-    <div class="msg-avatar">${role === 'user' ? 'You' : 'AI'}</div>
-    <div class="msg-body">${html}</div>`;
-  chatDiv.appendChild(wrap);
+  if (role === 'user') {
+    wrap.innerHTML = `<div class="msg-body">${html}</div>`;
+  } else {
+    wrap.innerHTML = `
+      <div class="msg-label">AgenTRC</div>
+      <div class="msg-body">${html}</div>`;
+  }
+  center.appendChild(wrap);
   chatDiv.scrollTop = chatDiv.scrollHeight;
   return wrap.querySelector('.msg-body');
 }
 
 function addToolInd(name) {
+  let center = chatDiv.querySelector('.chat-center');
+  if (!center) {
+    center = document.createElement('div');
+    center.className = 'chat-center';
+    chatDiv.appendChild(center);
+  }
   const el = document.createElement('div');
   el.className = 'tool-ind';
   el.innerHTML = `<div class="spin"></div><span><strong>${esc(name)}</strong> running...</span>`;
-  chatDiv.appendChild(el);
+  center.appendChild(el);
   chatDiv.scrollTop = chatDiv.scrollHeight;
   return el;
 }
 
 function clearToolInds() {
   chatDiv.querySelectorAll('.tool-ind').forEach(e => e.remove());
+}
+
+// ── Sidebar toggle ───────────────────
+function toggleChatSidebar() {
+  const sb = document.getElementById('chat-sidebar');
+  const ov = document.getElementById('chat-sidebar-overlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('open', open);
 }
 
 async function sendMessage() {
@@ -146,7 +185,7 @@ async function sendMessage() {
 
   isStreaming = true;
   sendBtn.disabled    = true;
-  sendBtn.textContent = '...';
+  sendBtn.innerHTML   = '<div class="spin" style="width:16px;height:16px;border-width:2px"></div>';
   busyDot.classList.add('visible');
 
   currentAiEl   = addMsg('assistant',
@@ -206,7 +245,7 @@ async function sendMessage() {
   } finally {
     isStreaming          = false;
     sendBtn.disabled     = false;
-    sendBtn.textContent  = 'Send ↑';
+    sendBtn.innerHTML    = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>';
     busyDot.classList.remove('visible');
     currentAiEl          = null;
     chatDiv.scrollTop    = chatDiv.scrollHeight;
@@ -237,8 +276,8 @@ async function loadChatList() {
       item.innerHTML = `
         <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
         <span class="chat-item-actions">
-          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}')" title="Rename">R</button>
-          <button class="chat-item-btn delete" onclick="event.stopPropagation(); deleteChat('${c.id}')" title="Delete">X</button>
+          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}', this)" title="Rename">R</button>
+          <button class="chat-item-btn delete" onclick="event.stopPropagation(); confirmDeleteChat('${c.id}', this)" title="Delete">X</button>
         </span>`;
       item.addEventListener('click', () => selectChat(c.id));
       list.appendChild(item);
@@ -277,30 +316,90 @@ async function selectChat(chatId) {
     }
     currentAiText = '';
     await loadChatList();
+    // Close sidebar after selecting
+    const sb = document.getElementById('chat-sidebar');
+    const ov = document.getElementById('chat-sidebar-overlay');
+    if (sb) sb.classList.remove('open');
+    if (ov) ov.classList.remove('open');
   } catch { /* ignore */ }
 }
 
-async function renameChat(chatId) {
-  const title = prompt('Chat title:');
-  if (!title) return;
-  try {
-    await fetch(`/api/agent/chats/${chatId}/rename`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    });
-    await loadChatList();
-  } catch { /* ignore */ }
+function renameChat(chatId, btn) {
+  const item = btn.closest('.chat-item');
+  if (!item || item.querySelector('.rename-confirm')) return;
+  const current = item.querySelector('.chat-item-title')?.textContent || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'rename-confirm';
+  overlay.innerHTML = `
+    <input class="rc-input" type="text" value="${esc(current)}" maxlength="120" />
+    <button class="rc-ok">OK</button>
+    <button class="rc-cancel">X</button>`;
+  overlay.addEventListener('click', e => e.stopPropagation());
+  item.appendChild(overlay);
+  const inp = overlay.querySelector('.rc-input');
+  inp.focus();
+  inp.select();
+  const doRename = async () => {
+    const title = inp.value.trim();
+    if (!title || title === current) { overlay.remove(); return; }
+    try {
+      await fetch(`/api/agent/chats/${chatId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      await loadChatList();
+    } catch { overlay.remove(); }
+  };
+  overlay.querySelector('.rc-ok').addEventListener('click', doRename);
+  overlay.querySelector('.rc-cancel').addEventListener('click', () => overlay.remove());
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doRename();
+    if (e.key === 'Escape') overlay.remove();
+  });
 }
 
-async function deleteChat(chatId) {
-  if (!confirm('Delete this chat?')) return;
+function confirmDeleteChat(chatId, btn) {
+  const item = btn.closest('.chat-item');
+  if (!item || item.querySelector('.delete-confirm')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'delete-confirm';
+  overlay.innerHTML = `
+    <span class="dc-label">Delete this chat?</span>
+    <button class="dc-yes" onclick="event.stopPropagation(); executeDeleteChat('${chatId}', this)">Delete</button>
+    <button class="dc-no" onclick="event.stopPropagation(); this.closest('.delete-confirm').remove()">Cancel</button>`;
+  overlay.addEventListener('click', e => e.stopPropagation());
+  item.appendChild(overlay);
+}
+
+async function executeDeleteChat(chatId, btn) {
+  const item = btn.closest('.chat-item');
+  if (item) {
+    item.style.transition = 'all .3s ease';
+    item.style.transform = 'translateX(-100%)';
+    item.style.opacity = '0';
+  }
   try {
-    await fetch(`/api/agent/chats/${chatId}`, { method: 'DELETE' });
-    chatDiv.innerHTML = WELCOME_HTML;
-    currentAiText = '';
-    await loadChatList();
-  } catch { /* ignore */ }
+    const r = await fetch(`/api/agent/chats/${chatId}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (d.ok && d.active) {
+      const mr = await fetch(`/api/agent/chats/${d.active}/messages`);
+      const msgs = await mr.json();
+      chatDiv.innerHTML = '';
+      if (msgs.messages && msgs.messages.length > 0) {
+        for (const m of msgs.messages) {
+          if (m.role === 'user') addMsg('user', esc(m.content));
+          else addMsg('assistant', md(m.content));
+        }
+      } else {
+        chatDiv.innerHTML = WELCOME_HTML;
+      }
+      currentAiText = '';
+    }
+    setTimeout(() => loadChatList(), 300);
+  } catch {
+    if (item) { item.style.transform = ''; item.style.opacity = ''; }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -706,8 +805,9 @@ function renderSitrepReport(report, filename) {
         <div class="report-subtitle">${escHtml(evt)}</div>
       </div>
       <div class="report-actions">
+        <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">Discuss with AgenTRC</button>
         <a class="btn-sm" href="/api/sitrep/report?file=${encodeURIComponent(filename)}"
-           download="${escHtml(filename)}">⬇ JSON</a>
+           download="${escHtml(filename)}">Download JSON</a>
       </div>
     </div>`;
 
@@ -896,6 +996,100 @@ function showSitrepView(name) {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.toggle('hidden', v !== name);
   });
+}
+
+// ── SITREP → AgenTRC discuss ────────────────────────────────────────────────
+async function discussSitrepWithAgent() {
+  if (!sitrepActiveFile) return;
+
+  // Fetch the full report JSON
+  let report;
+  try {
+    const resp = await fetch(`/api/sitrep/report?file=${encodeURIComponent(sitrepActiveFile)}`);
+    report = await resp.json();
+    if (report.error) throw new Error(report.error);
+  } catch (err) {
+    alert('Could not load SITREP report: ' + err.message);
+    return;
+  }
+
+  // Build a comprehensive context string
+  const raw = report.file_name || sitrepActiveFile.replace(/_report\.json$/, '');
+  const parts = raw.replace(/_/g, ' ').split(/\s+/);
+  const country = parts[0];
+  const evt = parts.slice(1).join(' ');
+
+  let ctx = `**SITREP Report Context: ${country} — ${evt}**\n\n`;
+  ctx += `I have analyzed a SITREP report for **${country}** regarding **${evt}**. Here is the full analysis:\n\n`;
+
+  // Summary
+  if (report.summary) {
+    ctx += `## Executive Summary\n${report.summary}\n\n`;
+    const sCtx = report.summary_contexts || {};
+    const sLinks = Object.values(sCtx).filter(s => s.url).map(s => `- [${s.title || 'Source'}](${s.url})`);
+    if (sLinks.length) ctx += `**Summary Sources:**\n${sLinks.join('\n')}\n\n`;
+  }
+
+  // Clusters with Q&A and sources
+  const clusters = report.clusters || [];
+  clusters.forEach(cluster => {
+    const headline = cluster.cluster_headline || `Cluster ${cluster.cluster_id}`;
+    ctx += `## ${headline}\n`;
+    const qas = cluster.questions_and_answers || [];
+    qas.forEach((qa, i) => {
+      const answer = qa.updated_retrieved_answer || qa.retrieved_answer || 'No answer available';
+      ctx += `**Q${i + 1}: ${qa.question}**\n${answer}\n\n`;
+    });
+    // Gather all sources for this cluster
+    const seenUrls = new Set();
+    qas.forEach(qa => {
+      Object.values(qa.used_contexts || {}).forEach(s => {
+        if (s.url && !seenUrls.has(s.url)) {
+          seenUrls.add(s.url);
+          ctx += `- [${s.title || 'Source'}](${s.url})\n`;
+        }
+      });
+    });
+    ctx += '\n';
+  });
+
+  ctx += `---\nYou can now ask me any detailed questions about this SITREP report, its sources, findings, or request deeper analysis on specific topics.`;
+
+  // Create a new chat with this context pre-loaded
+  try {
+    const r = await fetch('/api/agent/chats/new-with-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `SITREP: ${country} — ${evt}`,
+        context: ctx,
+      }),
+    });
+    const d = await r.json();
+    if (!d.id) throw new Error('Failed to create chat');
+
+    // Switch to Agent tab
+    switchTab('agent');
+
+    // Load messages for this new chat (will show the context message)
+    const mr = await fetch(`/api/agent/chats/${d.id}/messages`);
+    const msgs = await mr.json();
+    chatDiv.innerHTML = '';
+    if (msgs.messages && msgs.messages.length > 0) {
+      for (const m of msgs.messages) {
+        if (m.role === 'user') addMsg('user', esc(m.content));
+        else addMsg('assistant', md(m.content));
+      }
+    }
+    currentAiText = '';
+    await loadChatList();
+
+    // Focus input
+    const inp = document.getElementById('chat-input');
+    if (inp) inp.focus();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TRC Data Platform</title>
+  <title>Turkish Red Crescent Data Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -13,12 +16,12 @@
      ═══════════════════════════════════════════════ -->
 <nav class="nav">
   <div class="nav-logo">
-    <span class="nav-trc-badge">TRC</span>
-    <span class="sub">Humanitarian Data Platform</span>
+    <img class="nav-logo-img" src="/static/logo.png" alt="TRC">
+    <span class="sub">Turkish Red Crescent Data Platform</span>
   </div>
   <div class="tab-group">
     <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">Database</button>
-    <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">Agent</button>
+    <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">AgenTRC</button>
     <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">SITREP</button>
     <button class="tab-btn" id="tab-ingest" onclick="switchTab('ingest')">Ingest</button>
   </div>
@@ -74,35 +77,54 @@
 
   <!-- ─── TAB 2: AGENT CHAT ─────────────────────── -->
   <div class="panel active" id="panel-agent">
-    <!-- Chat sidebar (conversation list) -->
+    <!-- Sidebar overlay (Gemini-style slide drawer) -->
+    <div class="chat-sidebar-overlay" id="chat-sidebar-overlay" onclick="toggleChatSidebar()"></div>
     <aside class="chat-sidebar" id="chat-sidebar">
+      <div class="chat-sidebar-head">
+        <button class="sidebar-close-btn" onclick="toggleChatSidebar()" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+        <span class="sidebar-head-title">Chats</span>
+      </div>
       <button class="chat-new-btn" id="chat-new-btn" onclick="newChat()">+ New Chat</button>
       <div class="chat-list" id="chat-list"></div>
     </aside>
-    <!-- Chat main area -->
+    <!-- Chat main (centered Gemini-style) -->
     <div class="chat-main">
-      <div class="chat-messages" id="chat-messages">
-        <div class="msg assistant">
-          <div class="msg-avatar">AI</div>
-          <div class="msg-body">
-            Hello! I'm connected to the TRC humanitarian data platform.<br><br>
-            What I can do:
-            <ul>
-              <li>Search reports by country, theme, or source</li>
-              <li>Download reports and save them to the local database</li>
-              <li>Run semantic queries and summaries over downloaded reports</li>
-            </ul>
-            <br>
-            Example: <em>"Fetch and download Sudan health reports"</em><br>
-            or: <em>"What's happening in Iran in the last month?"</em>
+      <div class="chat-topbar">
+        <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" onclick="toggleChatSidebar()" title="Chat history">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <span class="topbar-title">AgenTRC</span>
+      </div>
+      <div class="chat-scroll" id="chat-messages">
+        <div class="chat-center">
+          <div class="msg assistant">
+            <div class="msg-label">AgenTRC</div>
+            <div class="msg-body">
+              Hello! I'm connected to the Turkish Red Crescent Data Platform.<br><br>
+              What I can do:
+              <ul>
+                <li>Search reports by country, theme, or source</li>
+                <li>Download reports and save them to the local database</li>
+                <li>Run semantic queries and summaries over downloaded reports</li>
+              </ul>
+              <br>
+              Example: <em>"Fetch and download Sudan health reports"</em><br>
+              or: <em>"What's happening in Iran in the last month?"</em>
+            </div>
           </div>
         </div>
       </div>
       <div class="chat-footer">
-        <textarea class="chat-textarea" id="chat-input"
-          placeholder="Type your message... (Enter = send, Shift+Enter = new line)"
-          rows="2"></textarea>
-        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+        <div class="chat-input-wrap">
+          <textarea class="chat-textarea" id="chat-input"
+            placeholder="Message TRC AI..."
+            rows="1"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>

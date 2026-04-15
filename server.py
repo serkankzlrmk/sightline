@@ -378,6 +378,24 @@ def api_agent_chats_new():
     return jsonify({"id": cid})
 
 
+@app.route("/api/agent/chats/new-with-context", methods=["POST"])
+def api_agent_chats_new_with_context():
+    """Create a new chat pre-loaded with a context message (e.g. SITREP)."""
+    global _active_chat_id
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "New Chat")[:120]
+    context_text = (data.get("context") or "").strip()
+    if not context_text:
+        return jsonify({"error": "context required"}), 400
+    cid = _new_chat_id()
+    _db_create_chat(cid)
+    _db_rename_chat(cid, title)
+    # Inject `system`-style context as an assistant message so the agent sees it
+    _db_add_message(cid, "assistant", context_text)
+    _active_chat_id = cid
+    return jsonify({"id": cid, "active": cid})
+
+
 @app.route("/api/agent/chats/<chat_id>/select", methods=["POST"])
 def api_agent_chats_select(chat_id):
     """Switch active chat."""
