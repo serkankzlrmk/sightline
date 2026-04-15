@@ -157,12 +157,15 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 - **get_report_full_content(report_id)**
   Full body text of a specific report
 
-### DOWNLOAD + INGEST (auto-deduplicates)
+### DOWNLOAD + INGEST (smart dedup — re-downloads if PDF missing)
 - **download_report_to_folder(report_id, output_dir)**
   Download one report and auto-ingest into local DB.
+  If the report is already in the DB WITH a PDF, it is skipped.
+  If the report is in the DB but WITHOUT a PDF (has_pdf=0), it is RE-DOWNLOADED to fetch the missing PDF.
 
 - **download_reports_batch(report_ids, output_dir)**
-  Download multiple reports. Checks DB first — only downloads NEW reports.
+  Download multiple reports. Same smart dedup: skips only if report has both data AND PDF.
+  Reports missing their PDF are re-downloaded automatically.
 
 - **download_and_read_full_pdf(report_id)**
   Download and read PDF content directly (in-context, not saved).
@@ -180,7 +183,10 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 5. **When user mentions an organization by local/informal name** (e.g. "Kızılay", "Ärzte ohne Grenzen"):
    → use search_sources to find the correct shortname, then use it in search_sitreps.
 6. **Global/cross-country search**: If user doesn't specify a country, search_sitreps WITHOUT country.
-7. **Download deduplication**: download tools auto-skip existing reports.
+7. **Download deduplication**: download tools auto-skip reports that already have BOTH data and PDF.
+   If a report exists in the DB but is missing its PDF (has_pdf=0), download tools will
+   RE-DOWNLOAD it to fetch the missing PDF. So the user CAN re-download a report to update/fix it.
+   Tell users: "Bu rapor PDF'siz kayıtlıymış, tekrar indirip PDF'ini alıyorum." when this happens.
 8. **Parse natural language filters**:
    - "UNHCR" → source_org="UNHCR"
    - "sağlık" / "health" → theme="Health"
