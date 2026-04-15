@@ -125,7 +125,7 @@ function addMsg(role, html) {
 function addToolInd(name) {
   const el = document.createElement('div');
   el.className = 'tool-ind';
-  el.innerHTML = `<div class="spin"></div><span>🔧 <strong>${esc(name)}</strong> running...</span>`;
+  el.innerHTML = `<div class="spin"></div><span><strong>${esc(name)}</strong> running...</span>`;
   chatDiv.appendChild(el);
   chatDiv.scrollTop = chatDiv.scrollHeight;
   return el;
@@ -161,7 +161,7 @@ async function sendMessage() {
     });
 
     if (resp.status === 429) {
-      currentAiEl.innerHTML = '<span style="color:#d97706">⚠️ Agent is busy, please wait.</span>';
+      currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
       return;
     }
 
@@ -190,7 +190,7 @@ async function sendMessage() {
           if (!currentAiText) currentAiEl.innerHTML = '';
           addToolInd(evt.name);
         } else if (evt.type === 'error') {
-          currentAiEl.innerHTML = `<span style="color:#dc2626">❌ Error: ${esc(evt.text)}</span>`;
+          currentAiEl.innerHTML = `<span style="color:#dc2626">Error: ${esc(evt.text)}</span>`;
           clearToolInds();
         } else if (evt.type === 'done') {
           clearToolInds();
@@ -200,7 +200,7 @@ async function sendMessage() {
     }
   } catch (err) {
     if (currentAiEl) {
-      currentAiEl.innerHTML = `<span style="color:#dc2626">❌ Connection error: ${esc(err.message)}</span>`;
+      currentAiEl.innerHTML = `<span style="color:#dc2626">Connection error: ${esc(err.message)}</span>`;
     }
     clearToolInds();
   } finally {
@@ -237,8 +237,8 @@ async function loadChatList() {
       item.innerHTML = `
         <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
         <span class="chat-item-actions">
-          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}')" title="Rename">✏️</button>
-          <button class="chat-item-btn delete" onclick="event.stopPropagation(); deleteChat('${c.id}')" title="Delete">🗑️</button>
+          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}')" title="Rename">R</button>
+          <button class="chat-item-btn delete" onclick="event.stopPropagation(); deleteChat('${c.id}')" title="Delete">X</button>
         </span>`;
       item.addEventListener('click', () => selectChat(c.id));
       list.appendChild(item);
@@ -401,7 +401,7 @@ function renderTable() {
   document.getElementById('f-count').textContent = data.length + ' reports';
 
   if (!data.length) {
-    body.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">🔍</div>No results found</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon"></div>No results found</td></tr>';
     return;
   }
 
@@ -439,8 +439,8 @@ async function openDbReport(id) {
     document.getElementById('m-countries').textContent = (r.all_countries || []).join(', ') || '—';
     document.getElementById('m-source').textContent    = r.source || '—';
     document.getElementById('m-format').textContent    = r.format_type || '—';
-    document.getElementById('m-pdf').textContent       = r.has_pdf ? `✅ Available (${r.pdf_pages} pages)` : '❌ None';
-    document.getElementById('m-chunks').textContent    = r.has_content ? `✅ Available (${r.total_chunks} chunks)` : '❌ None';
+    document.getElementById('m-pdf').textContent       = r.has_pdf ? `Available (${r.pdf_pages} pages)` : 'None';
+    document.getElementById('m-chunks').textContent    = r.has_content ? `Available (${r.total_chunks} chunks)` : 'None';
 
     let themes = r.themes_list || [];
     if (!themes.length) { try { themes = JSON.parse(r.themes || '[]'); } catch {} }
@@ -474,16 +474,16 @@ function askAbout() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const STEPS = [
-  { id: 0, name: "Chroma Connection",   icon: "🔌" },
-  { id: 1, name: "Chunk Loading",       icon: "📦" },
-  { id: 2, name: "Clustering",          icon: "🧩" },
-  { id: 3, name: "Question Generation", icon: "❓" },
-  { id: 4, name: "Question Filtering",  icon: "🔍" },
-  { id: 5, name: "RAG Answering",       icon: "🤖" },
-  { id: 6, name: "Citation Validation", icon: "🔗" },
-  { id: 7, name: "Cluster Summary",     icon: "📝" },
-  { id: 8, name: "Executive Summary",   icon: "📋" },
-  { id: 9, name: "Report Assembly",     icon: "📄" },
+  { id: 0, name: "Chroma Connection",   icon: "1" },
+  { id: 1, name: "Chunk Loading",       icon: "2" },
+  { id: 2, name: "Clustering",          icon: "3" },
+  { id: 3, name: "Question Generation", icon: "4" },
+  { id: 4, name: "Question Filtering",  icon: "5" },
+  { id: 5, name: "RAG Answering",       icon: "6" },
+  { id: 6, name: "Citation Validation", icon: "7" },
+  { id: 7, name: "Cluster Summary",     icon: "8" },
+  { id: 8, name: "Executive Summary",   icon: "9" },
+  { id: 9, name: "Report Assembly",     icon: "10" },
 ];
 
 const STEP_RE  = /\[INFO\]\s+pipeline:\s+\[(\d)\]/;
@@ -511,7 +511,7 @@ function setSitrepStepState(idx, state) {
   const card = document.getElementById(`step-card-${idx}`);
   if (!card) return;
   card.className = `step-card ${state}`;
-  const iconMap = { waiting: STEPS[idx].icon, active: '⏳', cached: '⚡', done: '✅', error: '❌' };
+  const iconMap = { waiting: STEPS[idx].icon, active: '○', cached: '⚡', done: '✓', error: '✗' };
   card.querySelector('.step-icon').textContent = iconMap[state] || STEPS[idx].icon;
 }
 
@@ -570,7 +570,7 @@ function connectSSE(jobId) {
       es.close();
       if (dot) dot.className = status === 'done' ? 'log-dot done' : 'log-dot error';
       const spinner = document.getElementById('pipeline-spinner');
-      if (spinner) { spinner.className = ''; spinner.textContent = status === 'done' ? '✅' : '❌'; }
+      if (spinner) { spinner.className = ''; spinner.textContent = status === 'done' ? '✓' : '✗'; }
 
       if (status === 'done') {
         for (let i = 0; i <= sitrepCurrentStep; i++)
@@ -614,7 +614,7 @@ async function runPipeline() {
   const dot = document.getElementById('log-dot');
   if (dot) dot.className = 'log-dot running';
   const spinner = document.getElementById('pipeline-spinner');
-  if (spinner) { spinner.className = 'spin'; spinner.textContent = '⏳'; }
+  if (spinner) { spinner.className = 'spin'; spinner.textContent = ''; }
   const titleEl = document.getElementById('pipeline-title-text');
   if (titleEl) titleEl.textContent = `${country} / ${event || country}  —  running…`;
 
@@ -702,7 +702,7 @@ function renderSitrepReport(report, filename) {
   let html = `
     <div class="report-header">
       <div>
-        <div class="report-title">🌍 ${escHtml(country)}</div>
+        <div class="report-title">${escHtml(country)}</div>
         <div class="report-subtitle">${escHtml(evt)}</div>
       </div>
       <div class="report-actions">
@@ -716,7 +716,7 @@ function renderSitrepReport(report, filename) {
     html += `
       <div class="sitrep-section-card">
         <div class="sitrep-section-header" onclick="toggleCard(this)">
-          <span>📋</span> Executive Summary
+          <span>Executive Summary</span>
           <span class="toggle-icon">▾</span>
         </div>
         <div class="sitrep-section-body">
@@ -861,7 +861,7 @@ function buildSummarySourcesList(summaryCtx) {
         <span class="source-item-icon">↗</span>
       </a>`;
   });
-  return `<div class="sources-section"><div class="sources-title">🔗 Sources (${entries.length})</div>${items}</div>`;
+  return `<div class="sources-section"><div class="sources-title">Sources (${entries.length})</div>${items}</div>`;
 }
 
 function buildSourcesListFromArray(sources) {
@@ -881,7 +881,7 @@ function buildSourcesListFromArray(sources) {
         <span class="source-item-icon">↗</span>
       </a>`;
   });
-  return `<div class="sources-section"><div class="sources-title">🔗 Sources (${valid.length})</div>${items}</div>`;
+  return `<div class="sources-section"><div class="sources-title">Sources (${valid.length})</div>${items}</div>`;
 }
 
 function toggleCard(header) {
@@ -992,7 +992,7 @@ function mqSearch() {
 function mqRenderTable() {
   const tbody = document.getElementById('mq-tbody');
   if (!mqResults.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">🔍</div>No results found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon"></div>No results found.</td></tr>';
     return;
   }
   tbody.innerHTML = mqResults.map((r, i) => {
@@ -1037,7 +1037,7 @@ function mqDownloadNew() {
 }
 
 function mqDoDownload(ids) {
-  mqStatus(`⏳ Downloading and ingesting ${ids.length} report(s)…`, 'info');
+  mqStatus(`Downloading and ingesting ${ids.length} report(s)…`, 'info');
   document.getElementById('mq-dl-sel-btn').disabled = true;
   document.getElementById('mq-dl-new-btn').disabled = true;
   document.getElementById('mq-search-btn').disabled = true;
@@ -1134,7 +1134,7 @@ function uploadReport(e) {
 
   const btn = document.getElementById('up-submit-btn');
   btn.disabled = true;
-  upStatus('⏳ Uploading and ingesting…', 'info');
+  upStatus('Uploading and ingesting…', 'info');
 
   fetch('/api/ingest/upload', { method: 'POST', body: fd })
   .then(r => r.json())

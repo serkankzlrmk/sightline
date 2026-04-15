@@ -17,10 +17,10 @@
     <span class="sub">Humanitarian Data Platform</span>
   </div>
   <div class="tab-group">
-    <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">🗄️ Database</button>
-    <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">🤖 Agent</button>
-    <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">📋 SITREP</button>
-    <button class="tab-btn" id="tab-ingest" onclick="switchTab('ingest')">📥 Ingest</button>
+    <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">Database</button>
+    <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">Agent</button>
+    <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">SITREP</button>
+    <button class="tab-btn" id="tab-ingest" onclick="switchTab('ingest')">Ingest</button>
   </div>
   <div class="busy-dot" id="busy-dot" title="Agent is running..."></div>
   <button class="nav-reset" id="agent-reset-btn" onclick="resetChat()">↺ Reset</button>
@@ -36,13 +36,13 @@
     <div class="reports-wrap">
       <!-- Stats row -->
       <div class="stats-row" id="stats-row">
-        <div class="stat-pill">📄 <strong id="s-reports">—</strong> Reports</div>
-        <div class="stat-pill">🧩 <strong id="s-chunks">—</strong> Chunks</div>
+        <div class="stat-pill"><strong id="s-reports">—</strong> Reports</div>
+        <div class="stat-pill"><strong id="s-chunks">—</strong> Chunks</div>
         <button class="refresh-btn" onclick="reloadReports()">↻ Refresh</button>
       </div>
       <!-- Filters -->
       <div class="filters">
-        <input  class="fi wide" id="f-search"  placeholder="🔍 Search title..."    oninput="dbFilter()">
+        <input  class="fi wide" id="f-search"  placeholder="Search title..."    oninput="dbFilter()">
         <select class="fi"      id="f-country" onchange="applyFilters()"><option value="">All Countries</option></select>
         <select class="fi"      id="f-source"  onchange="applyFilters()"><option value="">All Sources</option></select>
         <input  class="fi"      id="f-from"    type="date" title="Start date" onchange="applyFilters()">
@@ -65,7 +65,7 @@
             </tr>
           </thead>
           <tbody id="rtbody">
-            <tr><td colspan="8" class="empty"><div class="icon">⏳</div>Loading...</td></tr>
+            <tr><td colspan="8" class="empty"><div class="icon"></div>Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -115,7 +115,7 @@
       <!-- Sidebar -->
       <aside class="sitrep-sidebar">
         <div class="sitrep-brand">
-          <span class="brand-icon">📋</span>
+          <span class="brand-icon">SR</span>
           <div>
             <h1>SITREP</h1>
             <span>Pipeline Interface</span>
@@ -144,7 +144,7 @@
       <div class="sitrep-main">
         <!-- Welcome view -->
         <div id="view-welcome" class="sitrep-view">
-          <div class="welcome-icon">📋</div>
+          <div class="welcome-icon">SITREP</div>
           <div class="welcome-title">SITREP Pipeline</div>
           <div class="welcome-sub">
             Open an existing report from the sidebar or create a new one using the form above.
@@ -155,12 +155,12 @@
         <div id="view-pipeline" class="sitrep-view hidden">
           <div class="pipeline-title">
             <span id="pipeline-title-text">Pipeline running…</span>
-            <span id="pipeline-spinner" class="spin">⏳</span>
+            <span id="pipeline-spinner" class="spin"></span>
           </div>
           <div class="steps-grid" id="steps-grid"></div>
           <div class="log-wrap">
             <div class="log-header">
-              <span class="log-header-title">📟 LIVE LOG</span>
+              <span class="log-header-title">LIVE LOG</span>
               <span class="log-dot running" id="log-dot"></span>
             </div>
             <div id="log-console"></div>
@@ -183,7 +183,6 @@
       <!-- ── Manual Query ───────────────────────── -->
       <div class="ingest-section">
         <div class="ingest-section-hdr">
-          <span>🔍</span>
           <h3>Manual Query — Direct API (No Tokens)</h3>
         </div>
 
@@ -265,7 +264,7 @@
         </div>
 
         <div class="mq-actions">
-          <button class="btn btn-primary"   id="mq-search-btn"  onclick="mqSearch()">🔍 Search</button>
+          <button class="btn btn-primary"   id="mq-search-btn"  onclick="mqSearch()">Search</button>
           <button class="btn btn-secondary" id="mq-dl-sel-btn"  onclick="mqDownloadSelected()" disabled>⬇ Download Selected</button>
           <button class="btn btn-secondary" id="mq-dl-new-btn"  onclick="mqDownloadNew()"      disabled>⬇ Download All New</button>
           <label class="mq-sel-all-label">
@@ -291,7 +290,7 @@
               </tr>
             </thead>
             <tbody id="mq-tbody">
-              <tr><td colspan="8" class="empty"><div class="icon">🔍</div>Enter filters above and click Search</td></tr>
+              <tr><td colspan="8" class="empty"><div class="icon"></div>Enter filters above and click Search</td></tr>
             </tbody>
           </table>
         </div>
@@ -300,7 +299,6 @@
       <!-- ── Upload PDF ─────────────────────────── -->
       <div class="ingest-section">
         <div class="ingest-section-hdr">
-          <span>📤</span>
           <h3>Upload Report — Manual PDF Ingest</h3>
         </div>
         <p class="ingest-hint">Upload a PDF with custom metadata. ID will be auto-generated with a <strong>TR-</strong> prefix.</p>
@@ -402,7 +400,7 @@
           </div>
 
           <div class="up-submit-row">
-            <button type="submit" class="btn btn-primary" id="up-submit-btn">📤 Upload &amp; Ingest</button>
+            <button type="submit" class="btn btn-primary" id="up-submit-btn">Upload &amp; Ingest</button>
             <button type="button" class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
           </div>
         </form>
@@ -453,7 +451,7 @@
       </div>
     </div>
     <div class="modal-ftr">
-      <button class="btn btn-secondary" onclick="askAbout()">💬 Ask About This</button>
+      <button class="btn btn-secondary" onclick="askAbout()">Ask About This</button>
       <a class="btn btn-primary" id="m-link" href="#" target="_blank">↗ Open on ReliefWeb</a>
     </div>
   </div>
