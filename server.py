@@ -95,6 +95,8 @@ import time as _time
 _chats_lock     = threading.Lock()
 _active_chat_id = None
 _agent_busy     = False
+_agent_busy_since = 0.0   # timestamp when agent became busy
+_AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
 
 def _chats_db():
     """Return a connection to the chats SQLite database."""
@@ -422,12 +424,17 @@ def api_agent_chats_delete(chat_id):
 
 @app.route("/api/agent/chat", methods=["POST"])
 def api_agent_chat():
-    global _agent_busy
+    global _agent_busy, _agent_busy_since
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
     if not user_message:
         return jsonify({"error": "empty message"}), 400
+
+    # Auto-unlock if stuck (client disconnected, finally didn't run)
+    if _agent_busy and (_time.time() - _agent_busy_since) > _AGENT_BUSY_TIMEOUT:
+        logger.warning("Agent busy flag stuck for >%ds, auto-resetting", _AGENT_BUSY_TIMEOUT)
+        _agent_busy = False
 
     if _agent_busy:
         return jsonify({"error": "Agent meşgul, lütfen bekleyin"}), 429
@@ -437,8 +444,9 @@ def api_agent_chat():
     from langchain_core.messages import HumanMessage, AIMessage
 
     def generate():
-        global _agent_busy
+        global _agent_busy, _agent_busy_since
         _agent_busy = True
+        _agent_busy_since = _time.time()
 
         try:
             # Save user message to DB and load full history
@@ -508,6 +516,14 @@ def api_agent_chat_reset():
     chat_id = _ensure_active_chat()
     _db_clear_messages(chat_id)
     return jsonify({"ok": True})
+
+
+@app.route("/api/agent/chat/unlock", methods=["POST"])
+def api_agent_chat_unlock():
+    """Force-unlock the agent busy flag (emergency reset)."""
+    global _agent_busy
+    _agent_busy = False
+    return jsonify({"ok": True, "was_busy": True})
 
 
 @app.route("/api/agent/chat/status")
