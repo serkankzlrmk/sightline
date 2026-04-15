@@ -21,8 +21,8 @@ RELIEFWEB_SOURCES_API = f"{RELIEFWEB_API_BASE}/sources"
 # ========================================================================
 
 API_TIMEOUT_SHORT = 30      # For simple queries
-API_TIMEOUT_LONG = 60       # For complex queries / PDF downloads
-PDF_DOWNLOAD_TIMEOUT = 120   # For PDF downloads
+API_TIMEOUT_LONG = 120      # For complex queries
+PDF_DOWNLOAD_TIMEOUT = 180   # For large PDF downloads (up to 50 MB)
 
 # ========================================================================
 # LIMITS AND CONSTRAINTS

@@ -30,6 +30,7 @@ from .reliefweb_config import (
     RELIEFWEB_SOURCES_API,
     API_TIMEOUT_SHORT,
     API_TIMEOUT_LONG,
+    PDF_DOWNLOAD_TIMEOUT,
     REPORT_LIMIT_MAX,
     REPORT_LIMIT_DEFAULT,
     DISASTER_LIMIT_MAX,
@@ -959,7 +960,7 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
             })
         
         # Download PDF
-        pdf_response = requests.get(pdf_url, timeout=API_TIMEOUT_LONG, verify=False)
+        pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=False)
         pdf_response.raise_for_status()
         
         # Write to temporary file

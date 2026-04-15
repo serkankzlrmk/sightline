@@ -13,6 +13,7 @@ import logging
 
 from .reliefweb_config import (
     API_TIMEOUT_LONG,
+    PDF_DOWNLOAD_TIMEOUT,
     RELIEFWEB_REPORTS_API,
     RELIEFWEB_APPNAME,
     PDF_SIZE_LIMIT,
@@ -107,7 +108,7 @@ class DownloadManager:
                 return None
             
             # Download
-            pdf_response = requests.get(pdf_url, timeout=API_TIMEOUT_LONG, verify=False)
+            pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=False)
             pdf_response.raise_for_status()
             
             pdf_path = output_dir / pdf_filename
