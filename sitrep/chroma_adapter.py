@@ -59,6 +59,31 @@ class ChromaAdapter:
         countries.discard("")
         return sorted(countries)
 
+    def list_themes(self) -> List[str]:
+        """DB'deki benzersiz tema değerlerini döndür."""
+        results = self.collection.get(include=["metadatas"])
+        themes: set = set()
+        for m in results["metadatas"]:
+            raw = m.get("themes", "")
+            if raw:
+                for t in raw.split(","):
+                    t = t.strip()
+                    if t:
+                        themes.add(t)
+        return sorted(themes)
+
+    def get_date_range(self, country: str) -> Dict:
+        """Belirli bir ülke için mevcut tarih aralığını döndür."""
+        chunks = self.get_chunks_by_country(country, limit=5000)
+        if not chunks:
+            return {"min": None, "max": None, "count": 0}
+        dates = sorted(set(c.get("date", "")[:10] for c in chunks if c.get("date")))
+        return {
+            "min": dates[0] if dates else None,
+            "max": dates[-1] if dates else None,
+            "count": len(chunks),
+        }
+
     # ------------------------------------------------------------------
     # Veri çekme
     # ------------------------------------------------------------------
@@ -85,24 +110,45 @@ class ChromaAdapter:
         self,
         country: str,
         themes: Optional[List[str]] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
         limit: int = 2000,
     ) -> List[Dict]:
         """
-        Ülke filtresi zorunlu; temalar opsiyonel (OR mantığı ile filtreler).
-        themes listesi boşsa sadece ülke filtresine göre çeker.
+        Ülke filtresi zorunlu; temalar ve tarih aralığı opsiyonel.
+        themes: OR mantığı ile filtreler. Boşsa sadece ülke filtresine göre çeker.
+        date_from / date_to: ISO format (YYYY-MM-DD). Chunk metadata 'date' alanına göre filtreler.
 
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
         """
-        if not themes:
+        if not themes and not date_from and not date_to:
             return self.get_chunks_by_country(country, limit)
 
         # Chroma'nın $contains operatörü olmadığı için ülkeden çekip Python'da filtrele
         raw = self.get_chunks_by_country(country, limit=limit * 2)
-        filtered = [
-            c for c in raw
-            if any(t.lower() in c["themes"].lower() for t in themes)
-        ]
+        filtered = raw
+
+        # Tema filtresi (OR mantığı)
+        if themes:
+            filtered = [
+                c for c in filtered
+                if any(t.lower() in c["themes"].lower() for t in themes)
+            ]
+
+        # Tarih filtresi
+        if date_from or date_to:
+            def _date_in_range(chunk_date: str) -> bool:
+                if not chunk_date:
+                    return False
+                d = chunk_date[:10]  # "YYYY-MM-DD" kısmını al
+                if date_from and d < date_from:
+                    return False
+                if date_to and d > date_to:
+                    return False
+                return True
+            filtered = [c for c in filtered if _date_in_range(c.get("date", ""))]
+
         return filtered[:limit]
 
     # ------------------------------------------------------------------

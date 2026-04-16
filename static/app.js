@@ -84,8 +84,17 @@ function cleanLatex(text) {
   return text;
 }
 
+// Configure marked to open links in new tab
+const _markedRenderer = new marked.Renderer();
+_markedRenderer.link = function(href, title, text) {
+  // marked v5+ passes an object; v4 passes positional args
+  if (typeof href === 'object') { title = href.title; text = href.text; href = href.href; }
+  const t = title ? ` title="${esc(title)}"` : '';
+  return `<a href="${esc(href)}"${t} target="_blank" rel="noopener noreferrer">${text}</a>`;
+};
+
 function md(text) {
-  try   { return marked.parse(cleanLatex(text), { breaks: true, gfm: true }); }
+  try   { return marked.parse(cleanLatex(text), { breaks: true, gfm: true, renderer: _markedRenderer }); }
   catch { return esc(text).replace(/\n/g, '<br>'); }
 }
 
@@ -101,7 +110,7 @@ function switchTab(name) {
   if (resetBtn) resetBtn.style.display = (name === 'agent') ? '' : 'none';
 
   if (name === 'db') reloadReports();
-  if (name === 'sitrep') loadSitrepReportsList();
+  if (name === 'sitrep') { loadSitrepReportsList(); loadThemePills(); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -573,16 +582,16 @@ function askAbout() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const STEPS = [
-  { id: 0, name: "Chroma Connection",   icon: "1" },
-  { id: 1, name: "Chunk Loading",       icon: "2" },
-  { id: 2, name: "Clustering",          icon: "3" },
-  { id: 3, name: "Question Generation", icon: "4" },
-  { id: 4, name: "Question Filtering",  icon: "5" },
-  { id: 5, name: "RAG Answering",       icon: "6" },
-  { id: 6, name: "Citation Validation", icon: "7" },
-  { id: 7, name: "Cluster Summary",     icon: "8" },
-  { id: 8, name: "Executive Summary",   icon: "9" },
-  { id: 9, name: "Report Assembly",     icon: "10" },
+  { id: 0,  name: "Chroma Connection",   icon: "1" },
+  { id: 1,  name: "Chunk Loading",       icon: "2" },
+  { id: 2,  name: "Clustering",          icon: "3" },
+  { id: 3,  name: "Question Generation", icon: "4" },
+  { id: 4,  name: "Question Filtering",  icon: "5" },
+  { id: 5,  name: "RAG Answering",       icon: "6" },
+  { id: 6,  name: "Citation Validation", icon: "7" },
+  { id: 7,  name: "Cluster Summary",     icon: "8" },
+  { id: 8,  name: "Exec + Narrative",    icon: "9" },
+  { id: 9,  name: "Report Assembly",     icon: "10" },
 ];
 
 const STEP_RE  = /\[INFO\]\s+pipeline:\s+\[(\d)\]/;
@@ -698,8 +707,14 @@ async function runPipeline() {
   const event   = document.getElementById('inp-event').value.trim();
   if (!country) { alert('Country name is required.'); return; }
 
-  const themesRaw = document.getElementById('inp-themes').value.trim();
-  const themes    = themesRaw ? themesRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+  // Collect selected theme pills
+  const themes = [];
+  document.querySelectorAll('#theme-pills .theme-pill.selected').forEach(el => {
+    themes.push(el.dataset.theme);
+  });
+
+  const dateFrom  = document.getElementById('inp-date-from').value || '';
+  const dateTo    = document.getElementById('inp-date-to').value || '';
   const skipCache = document.getElementById('chk-skip-cache').checked;
 
   document.getElementById('btn-run').disabled = true;
@@ -724,7 +739,7 @@ async function runPipeline() {
     const resp = await fetch('/api/sitrep/run', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ country, event, themes, skip_cache: skipCache }),
+      body:    JSON.stringify({ country, event, themes, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
     });
     const { job_id, error } = await resp.json();
     if (error) { alert('Error: ' + error); document.getElementById('btn-run').disabled = false; return; }
@@ -793,10 +808,15 @@ async function openSitrepReport(filename, itemEl) {
 }
 
 function renderSitrepReport(report, filename) {
+  _currentReportData = report;
+  _currentReportFile = filename;
+
   const raw     = report.file_name || filename.replace(/_report\.json$/, '');
   const parts   = raw.replace(/_/g, ' ').split(/\s+/);
   const country = parts[0];
   const evt     = parts.slice(1).join(' ');
+
+  const hasNarrative = !!(report.narrative_html && report.narrative_html.trim());
 
   let html = `
     <div class="report-header">
@@ -810,6 +830,38 @@ function renderSitrepReport(report, filename) {
            download="${escHtml(filename)}">Download JSON</a>
       </div>
     </div>`;
+
+  // Filters meta (themes, date range)
+  const rThemes = report.themes || [];
+  const rDateFrom = report.date_from || '';
+  const rDateTo   = report.date_to   || '';
+  if (rThemes.length || rDateFrom || rDateTo) {
+    let metaParts = [];
+    if (rThemes.length) metaParts.push(`<span class="report-meta-label">Themes:</span> ${rThemes.map(t => `<span class="report-meta-pill">${escHtml(t)}</span>`).join(' ')}`);
+    if (rDateFrom || rDateTo) metaParts.push(`<span class="report-meta-label">Date Range:</span> ${escHtml(rDateFrom || '…')} → ${escHtml(rDateTo || '…')}`);
+    html += `<div class="report-meta-bar">${metaParts.join('<span class="report-meta-sep">|</span>')}</div>`;
+  }
+
+  // View toggle (only if narrative exists)
+  if (hasNarrative) {
+    html += `
+      <div class="report-view-toggle">
+        <button class="report-view-btn active" data-mode="narrative" onclick="switchReportView('narrative')">Narrative Report</button>
+        <button class="report-view-btn" data-mode="qa" onclick="switchReportView('qa')">Q&A View</button>
+      </div>`;
+  }
+
+  // ── Narrative view ──
+  if (hasNarrative) {
+    const narrSources = report.narrative_sources || {};
+    html += `<div id="report-narrative-view" class="report-view-section">`;
+    html += `<div class="narrative-body">${renderNarrativeCitations(md(report.narrative_html), narrSources)}</div>`;
+    html += buildNarrativeSourcesList(narrSources);
+    html += `</div>`;
+  }
+
+  // ── Q&A view ──
+  html += `<div id="report-qa-view" class="report-view-section ${hasNarrative ? 'hidden' : ''}">`;
 
   if (report.summary) {
     const summaryCtx = report.summary_contexts || {};
@@ -864,7 +916,48 @@ function renderSitrepReport(report, filename) {
     html += '<div style="color:var(--text-muted);font-size:14px;padding:20px">No clusters found.</div>';
   }
 
+  html += `</div>`; // close report-qa-view
+
   document.getElementById('report-content').innerHTML = html;
+}
+
+// ── Narrative citation helpers ───────────────────────────────────────────────
+
+function renderNarrativeCitations(htmlText, narrativeSources) {
+  // Replace [N] in already-rendered HTML with clickable citation spans
+  return htmlText.replace(/\[(\d+)\]/g, (match, num) => {
+    const src = narrativeSources && (narrativeSources[num] || narrativeSources[String(num)]);
+    if (!src) return `<span class="citation" style="background:#94a3b8">[${num}]</span>`;
+    const ctxTitle = encodeURIComponent(src.title || '');
+    const ctxUrl   = encodeURIComponent(src.url || '');
+    const ctxDate  = encodeURIComponent(src.date || '');
+    return `<span class="citation" onclick="showCitation(${num},'${ctxDate}','${ctxTitle}','${ctxUrl}')">[${num}]</span>`;
+  });
+}
+
+function buildNarrativeSourcesList(narrativeSources) {
+  const entries = Object.entries(narrativeSources)
+    .filter(([, src]) => src && (src.url || src.title))
+    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+  if (!entries.length) return '';
+  let items = '';
+  entries.forEach(([num, src]) => {
+    let domain = '';
+    try { domain = new URL(src.url || '').hostname.replace(/^www\./, ''); } catch {}
+    const href  = src.url ? escHtml(src.url) : '#';
+    const noUrl = src.url ? '' : 'style="opacity:0.6;pointer-events:none"';
+    items += `
+      <a class="source-item" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
+        <span class="source-item-num">${escHtml(num)}</span>
+        <span class="source-item-body">
+          <div class="source-item-title">${escHtml(src.title || '—')}</div>
+          ${src.date ? `<div class="source-item-domain">${escHtml(src.date)}</div>` : ''}
+          ${domain ? `<div class="source-item-domain">${escHtml(domain)}</div>` : ''}
+        </span>
+        <span class="source-item-icon">↗</span>
+      </a>`;
+  });
+  return `<div class="sources-section"><div class="sources-title">Sources (${entries.length})</div>${items}</div>`;
 }
 
 // ── Citation helpers ─────────────────────────────────────────────────────────
@@ -996,6 +1089,75 @@ function showSitrepView(name) {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.toggle('hidden', v !== name);
   });
+}
+
+// ── Theme pills loader ──────────────────────────────────────────────────────
+async function loadThemePills() {
+  const container = document.getElementById('theme-pills');
+  if (!container) return;
+  try {
+    const resp = await fetch('/api/sitrep/themes');
+    const themes = await resp.json();
+    if (!themes.length || themes.error) {
+      container.innerHTML = '<span class="theme-pills-empty">No themes in DB</span>';
+      return;
+    }
+    container.innerHTML = '';
+    themes.forEach(t => {
+      const pill = document.createElement('span');
+      pill.className = 'theme-pill';
+      pill.dataset.theme = t;
+      pill.textContent = t;
+      pill.addEventListener('click', () => pill.classList.toggle('selected'));
+      container.appendChild(pill);
+    });
+  } catch {
+    container.innerHTML = '<span class="theme-pills-empty">Could not load themes</span>';
+  }
+}
+
+// ── Country date-range hint ─────────────────────────────────────────────────
+async function fetchCountryDateRange(country) {
+  const hint = document.getElementById('date-range-hint');
+  if (!hint) return;
+  if (!country) { hint.textContent = ''; return; }
+  try {
+    const resp = await fetch(`/api/sitrep/date-range/${encodeURIComponent(country)}`);
+    const data = await resp.json();
+    if (data.error || !data.count) {
+      hint.textContent = `No data found for "${country}"`;
+      return;
+    }
+    hint.textContent = `${data.count} chunks · ${data.min} → ${data.max}`;
+    // Auto-fill date inputs with available range
+    const dfEl = document.getElementById('inp-date-from');
+    const dtEl = document.getElementById('inp-date-to');
+    if (dfEl && !dfEl.value) dfEl.value = data.min;
+    if (dtEl && !dtEl.value) dtEl.value = data.max;
+  } catch {
+    hint.textContent = '';
+  }
+}
+
+// ── Narrative / Q&A report toggle ────────────────────────────────────────────
+let _currentReportData = null;
+let _currentReportFile = null;
+
+function switchReportView(mode) {
+  document.querySelectorAll('.report-view-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.report-view-btn[data-mode="${mode}"]`)?.classList.add('active');
+
+  const qaView   = document.getElementById('report-qa-view');
+  const narrView = document.getElementById('report-narrative-view');
+  if (!qaView || !narrView) return;
+
+  if (mode === 'narrative') {
+    qaView.classList.add('hidden');
+    narrView.classList.remove('hidden');
+  } else {
+    qaView.classList.remove('hidden');
+    narrView.classList.add('hidden');
+  }
 }
 
 // ── SITREP → AgenTRC discuss ────────────────────────────────────────────────
@@ -1405,6 +1567,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') runPipeline(); });
   });
+
+  // Country blur → fetch date range
+  const countryEl = document.getElementById('inp-country');
+  if (countryEl) {
+    countryEl.addEventListener('change', () => fetchCountryDateRange(countryEl.value.trim()));
+  }
 
   // SITREP citation modal close
   const sitrepModalClose = document.getElementById('sitrep-modal-close-btn');

@@ -698,6 +698,32 @@ def api_db_report_detail(report_id):
 # ROUTES — /api/sitrep/*    (SITREP pipeline runner)
 # =============================================================================
 
+@app.route("/api/sitrep/themes")
+@_require_api_key
+def api_sitrep_themes():
+    """Return unique theme values from the Chroma vector DB."""
+    try:
+        sys.path.insert(0, str(BASE_DIR / "sitrep"))
+        from chroma_adapter import ChromaAdapter
+        db = ChromaAdapter()
+        return jsonify(db.list_themes())
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/sitrep/date-range/<country>")
+@_require_api_key
+def api_sitrep_date_range(country):
+    """Return min/max date and chunk count for a country."""
+    try:
+        sys.path.insert(0, str(BASE_DIR / "sitrep"))
+        from chroma_adapter import ChromaAdapter
+        db = ChromaAdapter()
+        return jsonify(db.get_date_range(country))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/sitrep/run", methods=["POST"])
 @_require_api_key
 def api_sitrep_run():
@@ -711,11 +737,17 @@ def api_sitrep_run():
 
     themes     = [t.strip() for t in data.get("themes", []) if t.strip()]
     skip_cache = bool(data.get("skip_cache", False))
+    date_from  = (data.get("date_from") or "").strip()
+    date_to    = (data.get("date_to")   or "").strip()
 
     cmd = [sys.executable, str(BASE_DIR / "sitrep" / "pipeline.py"),
            "--country", country, "--event", event]
     if themes:
         cmd += ["--themes"] + themes
+    if date_from:
+        cmd += ["--date-from", date_from]
+    if date_to:
+        cmd += ["--date-to", date_to]
     if skip_cache:
         cmd.append("--skip-cache")
 

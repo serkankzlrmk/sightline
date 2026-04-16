@@ -144,6 +144,10 @@ def assemble_report(
     postprocessed_answers: List[Dict],
     cluster_summaries: Dict,
     exec_summary: Dict,
+    narrative: Optional[Dict] = None,
+    themes: Optional[List[str]] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
 ) -> Dict:
     """
     Tüm pipeline çıktılarından final rapor JSON'ını üretir.
@@ -280,6 +284,19 @@ def assemble_report(
         "summary_contexts": summary_contexts,
         "clusters": output_clusters,
     }
+
+    # Filtre bilgisi
+    if themes:
+        report["themes"] = themes
+    if date_from:
+        report["date_from"] = date_from
+    if date_to:
+        report["date_to"] = date_to
+
+    # Narrative report (opsiyonel — yeni stage)
+    if narrative:
+        report["narrative_html"] = narrative.get("narrative_html", "")
+        report["narrative_sources"] = narrative.get("narrative_sources", {})
 
     logger.info(
         "Rapor hazır: %d cluster, %d toplam QA",

@@ -149,7 +149,24 @@
           <div id="run-form" class="run-form hidden">
             <input id="inp-country" placeholder="Country  (e.g. Sudan)" autocomplete="off">
             <input id="inp-event"   placeholder="Event  (optional)" autocomplete="off">
-            <input id="inp-themes"  placeholder="Themes  (optional, comma-separated)" autocomplete="off">
+
+            <div class="form-group-label">Themes (optional)</div>
+            <div id="theme-pills" class="theme-pills">
+              <span class="theme-pills-loading">Loading themes...</span>
+            </div>
+
+            <div class="form-row-dates">
+              <div class="form-date-field">
+                <label for="inp-date-from">From</label>
+                <input type="date" id="inp-date-from">
+              </div>
+              <div class="form-date-field">
+                <label for="inp-date-to">To</label>
+                <input type="date" id="inp-date-to">
+              </div>
+            </div>
+            <div id="date-range-hint" class="date-range-hint"></div>
+
             <label>
               <input type="checkbox" id="chk-skip-cache">
               Skip cache (restart from scratch)

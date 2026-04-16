@@ -170,6 +170,19 @@ def _evaluate_all_clusters_llm(
 # Hyperparameter search
 # ---------------------------------------------------------------------------
 
+
+def _adaptive_ranges(n_chunks: int):
+    """Data boyutuna göre HDBSCAN hiperparametre aralıkları seç."""
+    if n_chunks < 50:
+        return (3, 15), (1, 5), (3, min(15, n_chunks - 1))
+    elif n_chunks < 200:
+        return (5, 30), (1, 8), (5, min(25, n_chunks - 1))
+    elif n_chunks < 500:
+        return (8, 50), (1, 10), (5, 30)
+    else:
+        return HP_MIN_CLUSTER_SIZE_RANGE, HP_MIN_SAMPLES_RANGE, HP_N_NEIGHBORS_RANGE
+
+
 def _random_search(
     chunks: List[Dict],
     embeddings: np.ndarray,
@@ -177,27 +190,30 @@ def _random_search(
     min_clusters: int = HP_MIN_CLUSTERS,
 ) -> Dict:
     """
-    Rastgele hyperparameter arama. En yüksek (DBCV + LLM) / 2 skoruna sahip
-    parametreleri döndür.
-
-    Args:
-        chunks     : [{text, ...}] listesi
-        embeddings : (N, D) float array
-        n_iterations: Deneme sayısı
-        min_clusters: Bu sayının altında cluster üretirse geçerli sayılmaz
-
-    Returns:
-        best_params dict: {n_neighbors, min_cluster_size, min_samples,
-                           epsilon, label_count, dbcv, llm_score, final_score}
+    Rastgele hyperparameter arama.
+    1) UMAP+HDBSCAN ile DBCV skoru toplayan adayları bul
+    2) En iyi 3 adayı LLM coherence ile değerlendir
+    3) En yüksek (DBCV + LLM) / 2 skorunu döndür
     """
-    best_result = None
-    best_score = -1.0
+    n_chunks = len(chunks)
+    mcs_range, ms_range, nn_range = _adaptive_ranges(n_chunks)
+
+    logger.info(
+        "Adaptive HP ranges for %d chunks: mcs=%s, ms=%s, nn=%s",
+        n_chunks, mcs_range, ms_range, nn_range,
+    )
+
+    # Phase 1: Collect DBCV-only candidates (fast, no LLM)
+    candidates = []
 
     for i in range(n_iterations):
-        n_neighbors = random.randint(*HP_N_NEIGHBORS_RANGE)
-        min_cluster_size = random.randint(*HP_MIN_CLUSTER_SIZE_RANGE)
-        min_samples = random.randint(*HP_MIN_SAMPLES_RANGE)
+        n_neighbors = random.randint(*nn_range)
+        min_cluster_size = random.randint(*mcs_range)
+        min_samples = random.randint(*ms_range)
         epsilon = random.choice(HP_EPSILON_OPTIONS)
+
+        # UMAP hard constraint
+        n_neighbors = min(n_neighbors, max(2, n_chunks - 1))
 
         try:
             umap_embs = _umap_reduce(embeddings, n_neighbors)
@@ -214,58 +230,78 @@ def _random_search(
             )
             continue
 
-        llm_score = _evaluate_all_clusters_llm(chunks, clusterer.labels_)
-        final_score = (dbcv + llm_score) / 2.0
-
         logger.info(
-            "Iter %d: clusters=%d  dbcv=%.3f  llm=%.3f  final=%.3f",
-            i, label_count, dbcv, llm_score, final_score,
+            "Iter %d: clusters=%d  dbcv=%.3f  params=(nn=%d, mcs=%d, ms=%d, eps=%.2f)",
+            i, label_count, dbcv, n_neighbors, min_cluster_size, min_samples, epsilon,
         )
 
-        if final_score > best_score:
-            best_score = final_score
-            best_result = {
-                "n_neighbors": n_neighbors,
-                "min_cluster_size": min_cluster_size,
-                "min_samples": min_samples,
-                "epsilon": epsilon,
-                "label_count": label_count,
-                "dbcv": dbcv,
-                "llm_score": llm_score,
-                "final_score": final_score,
-                "labels": clusterer.labels_.tolist(),
-            }
+        candidates.append({
+            "n_neighbors": n_neighbors,
+            "min_cluster_size": min_cluster_size,
+            "min_samples": min_samples,
+            "epsilon": epsilon,
+            "label_count": label_count,
+            "dbcv": dbcv,
+            "labels": clusterer.labels_.tolist(),
+        })
 
-    if best_result is None:
+    if not candidates:
         if min_clusters > 2:
-            # İlk tur başarısız — daha gevşek parametreyle bir kez daha dene
             logger.warning(
                 "Geçerli cluster bulunamadı (min=%d). min_clusters=2 ile tekrar deneniyor.",
                 min_clusters,
             )
             return _random_search(chunks, embeddings, n_iterations, min_clusters=2)
         else:
-            # HDBSCAN tamamen başarısız — KMeans fallback (k=5)
             logger.warning(
-                "HDBSCAN hiç cluster üretemedi. KMeans (k=5) fallback kullanılıyor."
+                "HDBSCAN hiç cluster üretemedi. KMeans fallback kullanılıyor."
             )
-            return _kmeans_fallback(chunks, embeddings, k=5)
+            return _kmeans_fallback(chunks, embeddings)
+
+    # Phase 2: Sort by DBCV, evaluate only top-3 with LLM (saves ~90% LLM calls)
+    candidates.sort(key=lambda c: c["dbcv"], reverse=True)
+    top_n = candidates[:3]
+
+    best_result = None
+    best_score = -1.0
+
+    for cand in top_n:
+        llm_score = _evaluate_all_clusters_llm(chunks, np.array(cand["labels"]))
+        cand["llm_score"] = llm_score
+        cand["final_score"] = (cand["dbcv"] + llm_score) / 2.0
+
+        logger.info(
+            "Top candidate: clusters=%d  dbcv=%.3f  llm=%.3f  final=%.3f",
+            cand["label_count"], cand["dbcv"], llm_score, cand["final_score"],
+        )
+
+        if cand["final_score"] > best_score:
+            best_score = cand["final_score"]
+            best_result = cand
 
     return best_result
 
 
-def _kmeans_fallback(chunks: List[Dict], embeddings: np.ndarray, k: int = 5) -> Dict:
+def _kmeans_fallback(chunks: List[Dict], embeddings: np.ndarray, k: Optional[int] = None) -> Dict:
     """
     HDBSCAN tamamen başarısız olduğunda sklearn KMeans ile basit kümeleme.
-    UMAP ile 10 boyuta indirgeriz, sonra KMeans uygularız.
+    k değeri verilmezse veri boyutuna göre otomatik seçilir: sqrt(n/10), min 2, max 12.
     """
     from sklearn.cluster import KMeans
+    n = len(chunks)
+
+    if k is None:
+        k = max(2, min(12, int(np.sqrt(n / 10))))
+
+    logger.info("KMeans fallback: %d chunks -> k=%d", n, k)
+
     try:
-        reduced = _umap_reduce(embeddings, n_neighbors=min(15, len(chunks) - 1))
+        nn = min(15, max(2, n - 1))
+        reduced = _umap_reduce(embeddings, n_neighbors=nn)
     except Exception:
         reduced = embeddings  # UMAP da başarısız olursa ham embedding kullan
 
-    k_actual = min(k, len(chunks))
+    k_actual = min(k, n)
     km = KMeans(n_clusters=k_actual, random_state=42, n_init=10)
     labels = km.fit_predict(reduced)
     return {
