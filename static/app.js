@@ -1244,6 +1244,19 @@ async function discussSitrepWithAgent() {
   let ctx = `**SITREP Report Context: ${country} — ${evt}**\n\n`;
   ctx += `I have analyzed a SITREP report for **${country}** regarding **${evt}**. Here is the full analysis:\n\n`;
 
+  // Narrative report (professional prose)
+  if (report.narrative_html) {
+    ctx += `## Narrative Report\n`;
+    // Strip HTML tags to get plain text for the agent
+    const tmp = document.createElement('div');
+    tmp.innerHTML = report.narrative_html;
+    ctx += tmp.textContent.trim() + '\n\n';
+    // Narrative sources
+    const ns = report.narrative_sources || {};
+    const nLinks = Object.values(ns).filter(s => s.url).map(s => `- [${s.title || 'Source'}](${s.url})`);
+    if (nLinks.length) ctx += `**Narrative Sources:**\n${nLinks.join('\n')}\n\n`;
+  }
+
   // Summary
   if (report.summary) {
     ctx += `## Executive Summary\n${report.summary}\n\n`;
