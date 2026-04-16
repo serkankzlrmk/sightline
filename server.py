@@ -724,6 +724,47 @@ def api_sitrep_date_range(country):
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/sitrep/chunk-preview", methods=["POST"])
+@_require_api_key
+def api_sitrep_chunk_preview():
+    """Return chunk count and theme breakdown matching the given filters."""
+    try:
+        sys.path.insert(0, str(BASE_DIR / "sitrep"))
+        from chroma_adapter import ChromaAdapter
+        db = ChromaAdapter()
+        data = request.get_json() or {}
+        country = data.get("country", "").strip()
+        if not country:
+            return jsonify({"error": "country is required"}), 400
+
+        themes = [t.strip() for t in data.get("themes", []) if t.strip()]
+        date_from = (data.get("date_from") or "").strip()
+        date_to = (data.get("date_to") or "").strip()
+
+        chunks = db.get_chunks_by_country_and_themes(
+            country, themes or None, date_from=date_from or None, date_to=date_to or None,
+        )
+        # Theme breakdown from matched chunks
+        from collections import Counter
+        theme_counts = Counter()
+        for c in chunks:
+            raw = c.get("themes", "")
+            if raw:
+                for t in raw.split(","):
+                    t = t.strip()
+                    if t:
+                        theme_counts[t] += 1
+        top_themes = [k for k, _ in theme_counts.most_common(5)]
+
+        return jsonify({
+            "count": len(chunks),
+            "themes_found": top_themes,
+            "filters": {"themes": themes, "date_from": date_from, "date_to": date_to},
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/sitrep/run", methods=["POST"])
 @_require_api_key
 def api_sitrep_run():

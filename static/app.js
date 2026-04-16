@@ -707,6 +707,12 @@ async function runPipeline() {
   const event   = document.getElementById('inp-event').value.trim();
   if (!country) { alert('Country name is required.'); return; }
 
+  // Check chunk preview warning
+  const cpEl = document.getElementById('chunk-preview');
+  if (cpEl && cpEl.classList.contains('err')) {
+    if (!confirm('No matching data found for the selected filters. Run anyway?')) return;
+  }
+
   // Collect selected theme pills
   const themes = [];
   document.querySelectorAll('#theme-pills .theme-pill.selected').forEach(el => {
@@ -1108,7 +1114,7 @@ async function loadThemePills() {
       pill.className = 'theme-pill';
       pill.dataset.theme = t;
       pill.textContent = t;
-      pill.addEventListener('click', () => pill.classList.toggle('selected'));
+      pill.addEventListener('click', () => { pill.classList.toggle('selected'); scheduleChunkPreview(); });
       container.appendChild(pill);
     });
   } catch {
@@ -1136,6 +1142,60 @@ async function fetchCountryDateRange(country) {
     if (dtEl && !dtEl.value) dtEl.value = data.max;
   } catch {
     hint.textContent = '';
+  }
+  // Also refresh chunk preview after date range loads
+  refreshChunkPreview();
+}
+
+// ── Chunk preview (pre-run filter check) ─────────────────────────────────────
+let _cpTimer = null;
+function scheduleChunkPreview() {
+  clearTimeout(_cpTimer);
+  _cpTimer = setTimeout(refreshChunkPreview, 400);
+}
+
+async function refreshChunkPreview() {
+  const el = document.getElementById('chunk-preview');
+  if (!el) return;
+  const country = (document.getElementById('inp-country')?.value || '').trim();
+  if (!country) { el.classList.add('hidden'); return; }
+
+  const themes = [];
+  document.querySelectorAll('#theme-pills .theme-pill.selected').forEach(p => {
+    themes.push(p.dataset.theme);
+  });
+  const dateFrom = document.getElementById('inp-date-from')?.value || '';
+  const dateTo   = document.getElementById('inp-date-to')?.value || '';
+
+  try {
+    const resp = await fetch('/api/sitrep/chunk-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ country, themes, date_from: dateFrom, date_to: dateTo }),
+    });
+    const data = await resp.json();
+    if (data.error) { el.classList.add('hidden'); return; }
+
+    el.classList.remove('hidden', 'ok', 'warn', 'err');
+    if (data.count === 0) {
+      el.classList.add('err');
+      const filterParts = [];
+      if (themes.length) filterParts.push(`themes: ${themes.join(', ')}`);
+      if (dateFrom) filterParts.push(`from: ${dateFrom}`);
+      if (dateTo)   filterParts.push(`to: ${dateTo}`);
+      el.innerHTML = `<div class="cp-count">⚠ No matching data found</div>` +
+        (filterParts.length ? `<div class="cp-themes">Filters: ${escHtml(filterParts.join(' · '))}. Try adjusting your selection.</div>` : '');
+    } else if (data.count < 20) {
+      el.classList.add('warn');
+      el.innerHTML = `<div class="cp-count">⚠ Only ${data.count} chunks match — results may be limited</div>` +
+        (data.themes_found.length ? `<div class="cp-themes">Topics: ${data.themes_found.map(escHtml).join(', ')}</div>` : '');
+    } else {
+      el.classList.add('ok');
+      el.innerHTML = `<div class="cp-count">✓ ${data.count} chunks available</div>` +
+        (data.themes_found.length ? `<div class="cp-themes">Top topics: ${data.themes_found.map(escHtml).join(', ')}</div>` : '');
+    }
+  } catch {
+    el.classList.add('hidden');
   }
 }
 
@@ -1573,6 +1633,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (countryEl) {
     countryEl.addEventListener('change', () => fetchCountryDateRange(countryEl.value.trim()));
   }
+
+  // Date inputs → refresh chunk preview
+  ['inp-date-from', 'inp-date-to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', scheduleChunkPreview);
+  });
 
   // SITREP citation modal close
   const sitrepModalClose = document.getElementById('sitrep-modal-close-btn');
