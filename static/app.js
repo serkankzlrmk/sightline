@@ -1135,11 +1135,11 @@ async function fetchCountryDateRange(country) {
       return;
     }
     hint.textContent = `${data.count} chunks · ${data.min} → ${data.max}`;
-    // Auto-fill date inputs with available range
+    // Set min/max constraints on date inputs so user can only pick within available range
     const dfEl = document.getElementById('inp-date-from');
     const dtEl = document.getElementById('inp-date-to');
-    if (dfEl && !dfEl.value) dfEl.value = data.min;
-    if (dtEl && !dtEl.value) dtEl.value = data.max;
+    if (dfEl) { dfEl.min = data.min; dfEl.max = data.max; }
+    if (dtEl) { dtEl.min = data.min; dtEl.max = data.max; }
   } catch {
     hint.textContent = '';
   }
