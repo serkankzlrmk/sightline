@@ -311,6 +311,7 @@ def save_report(
     country: str,
     event: str,
     output_dir: Optional[Path] = None,
+    suffix: str = "",
 ) -> Path:
     """
     Raporu JSON formatında diske kaydeder.
@@ -321,7 +322,7 @@ def save_report(
     out_dir = output_dir or OUTPUT_REPORTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    file_name = f"{country}_{event}"
+    file_name = f"{country}_{event}{suffix}"
     out_path = out_dir / f"{file_name}_report.json"
 
     with open(out_path, "w", encoding="utf-8") as f:

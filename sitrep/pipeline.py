@@ -305,10 +305,10 @@ def run_pipeline(
         date_to=date_to,
     )
 
-    report_path = save_report(report, country, event)
+    report_path = save_report(report, country, event, suffix=fh)
 
     # Markdown da kaydet
-    md_path = OUTPUT_REPORTS_DIR / f"{_safe_name(country, event)}_report.md"
+    md_path = OUTPUT_REPORTS_DIR / f"{_safe_name(country, event)}{fh}_report.md"
     md_path.write_text(generate_markdown(report), encoding="utf-8")
     logger.info("Markdown report saved: %s", md_path)
 
