@@ -45,6 +45,9 @@ from config import (
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
 )
 
+# Firebase Auth decorators
+from auth import require_auth, require_admin
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -66,21 +69,96 @@ app.secret_key = os.urandom(24)
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SHARED: API key auth decorator
-# ─────────────────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────────────
+# SHARED: Auth decorators
+# ────────────────────────────────────────────────────────────────────
+
+def _api_key_check():
+    """If SERVER_API_KEY is set, enforce X-API-Key header. Returns True if passed."""
+    if not SERVER_API_KEY:
+        return True
+    provided = request.headers.get("X-API-Key", "")
+    if not provided:
+        return False
+    if provided != SERVER_API_KEY:
+        return False
+    return True
 
 def _require_api_key(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if SERVER_API_KEY:
-            provided = request.headers.get("X-API-Key", "")
-            if not provided:
-                return jsonify({"error": "Missing X-API-Key header"}), 401
-            if provided != SERVER_API_KEY:
-                return jsonify({"error": "Invalid API key"}), 403
+        if not _api_key_check():
+            return jsonify({"error": "Invalid API key"}), 403
         return f(*args, **kwargs)
     return decorated
+
+
+def _auth_check() -> dict | None:
+    """
+    Unified authentication.
+    Returns decoded Firebase claims if JWT present + valid.
+    Returns None if no auth header (anonymous) and SERVER_API_KEY is empty (dev mode).
+    Raises ValueError if token is present but invalid.
+    """
+    if SERVER_API_KEY:
+        # Legacy API key mode — no Firebase
+        return None
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[len("Bearer "):].strip()
+    if not token:
+        return None
+    from auth import verify_firebase_token
+    decoded = verify_firebase_token(token)
+    return decoded
+
+
+def _require_auth(f):
+    """Any valid login (Firebase or legacy API key). Sets g.current_user if Firebase."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            decoded = _auth_check()
+            if decoded:
+                g.current_user = decoded
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _require_admin(f):
+    """Admin only: API key mode OR Firebase + ADMIN_UIDS list."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if SERVER_API_KEY:
+            if not _api_key_check():
+                return jsonify({"error": "Invalid API key"}), 403
+            return f(*args, **kwargs)
+        try:
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return jsonify({"error": "Missing Authorization: Bearer token"}), 401
+            from auth import verify_firebase_token
+            decoded = verify_firebase_token(auth_header[len("Bearer "):].strip())
+            user_uid = decoded.get("uid", "")
+            admins = {u.strip() for u in os.getenv("ADMIN_UIDS", "").split(",") if u.strip()}
+            if admins and user_uid not in admins:
+                return jsonify({"error": "Admin access required"}), 403
+            g.current_user = decoded
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _current_uid() -> str:
+    """Return current user UID from g.current_user or empty string."""
+    user = getattr(g, "current_user", None)
+    if user:
+        return str(user.get("uid", ""))
+    return ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -699,7 +777,7 @@ def api_db_report_detail(report_id):
 # =============================================================================
 
 @app.route("/api/sitrep/themes")
-@_require_api_key
+@_require_auth
 def api_sitrep_themes():
     """Return unique theme values from the Chroma vector DB."""
     try:
@@ -712,7 +790,7 @@ def api_sitrep_themes():
 
 
 @app.route("/api/sitrep/date-range/<country>")
-@_require_api_key
+@_require_auth
 def api_sitrep_date_range(country):
     """Return min/max date and chunk count for a country."""
     try:
@@ -725,7 +803,7 @@ def api_sitrep_date_range(country):
 
 
 @app.route("/api/sitrep/chunk-preview", methods=["POST"])
-@_require_api_key
+@_require_auth
 def api_sitrep_chunk_preview():
     """Return chunk count and theme breakdown matching the given filters."""
     try:
@@ -766,7 +844,7 @@ def api_sitrep_chunk_preview():
 
 
 @app.route("/api/sitrep/run", methods=["POST"])
-@_require_api_key
+@_require_admin
 def api_sitrep_run():
     data    = request.get_json() or {}
     country = data.get("country", "").strip()
@@ -808,7 +886,7 @@ def api_sitrep_run():
 
 
 @app.route("/api/sitrep/stream/<job_id>")
-@_require_api_key
+@_require_auth
 def api_sitrep_stream(job_id):
     if job_id not in _jobs:
         return jsonify({"error": "Unknown job id"}), 404
@@ -839,7 +917,7 @@ def api_sitrep_stream(job_id):
 
 
 @app.route("/api/sitrep/job/<job_id>")
-@_require_api_key
+@_require_auth
 def api_sitrep_job(job_id):
     if job_id not in _jobs:
         return jsonify({"error": "Unknown job id"}), 404
@@ -853,7 +931,7 @@ def api_sitrep_job(job_id):
 
 
 @app.route("/api/sitrep/reports")
-@_require_api_key
+@_require_auth
 def api_sitrep_reports():
     items = []
     if OUTPUT_REPORTS_DIR.exists():
@@ -871,7 +949,7 @@ def api_sitrep_reports():
 
 
 @app.route("/api/sitrep/report")
-@_require_api_key
+@_require_auth
 def api_sitrep_report():
     filename = request.args.get("file", "")
     # Prevent path traversal
@@ -986,7 +1064,8 @@ def api_ingest_search():
 
 
 @app.route("/api/ingest/download", methods=["POST"])
-def api_ingest_download():
+@_require_admin
+def api_ingest_upload():
     """Download + ingest selected reports into SQLite + ChromaDB."""
     from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
     from reliefweb_api.download_manager import get_download_manager
@@ -1040,6 +1119,7 @@ def api_ingest_download():
 MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this
 
 @app.route("/api/ingest/upload", methods=["POST"])
+@_require_admin
 def api_ingest_upload():
     """Upload a PDF with user-supplied metadata → SQLite + ChromaDB."""
     import tempfile, shutil

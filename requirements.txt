@@ -39,3 +39,8 @@ hdbscan>=0.8.38
 # Agent — web search tool (optional, for web_search toggle)
 duckduckgo-search>=6.0
 langchain-community>=0.0.38
+
+# Firebase authentication
+firebase-admin>=6.0
+
+# (service-account JSON is loaded from file, not pip)

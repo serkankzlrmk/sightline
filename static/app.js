@@ -36,6 +36,15 @@ let sitrepActiveFile   = null;
 // ── DOM references (populated on DOMContentLoaded) ─────────────────────────
 let chatInput, sendBtn, chatDiv, busyDot;
 
+// ── API wrapper with Bearer token ────────────────────────────────────────────
+function api(url, opts = {}) {
+  if (!opts.headers) opts.headers = {};
+  // Merge existing headers if provided (keep Content-Type etc)
+  const tok = typeof getIdToken === 'function' ? getIdToken() : '';
+  if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
+  return fetch(url, opts);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SHARED HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -202,7 +211,7 @@ async function sendMessage() {
   currentAiText = '';
 
   try {
-    const resp = await fetch('/api/agent/chat', {
+    const resp = await api('/api/agent/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ message: text }),
@@ -264,7 +273,7 @@ async function sendMessage() {
 
 async function resetChat() {
   if (!confirm('Clear chat history?')) return;
-  await fetch('/api/agent/chat/reset', { method: 'POST' });
+  await api('/api/agent/chat/reset', { method: 'POST' });
   chatDiv.innerHTML = WELCOME_HTML;
   currentAiText = '';
   loadChatList();
@@ -274,7 +283,7 @@ async function resetChat() {
 
 async function loadChatList() {
   try {
-    const r = await fetch('/api/agent/chats');
+    const r = await api('/api/agent/chats');
     const d = await r.json();
     const list = document.getElementById('chat-list');
     if (!list) return;
@@ -297,7 +306,7 @@ async function loadChatList() {
 async function newChat() {
   if (isStreaming) return;
   try {
-    await fetch('/api/agent/chats/new', { method: 'POST' });
+    await api('/api/agent/chats/new', { method: 'POST' });
     chatDiv.innerHTML = WELCOME_HTML;
     currentAiText = '';
     await loadChatList();
@@ -307,9 +316,9 @@ async function newChat() {
 async function selectChat(chatId) {
   if (isStreaming) return;
   try {
-    await fetch(`/api/agent/chats/${chatId}/select`, { method: 'POST' });
+    await api(`/api/agent/chats/${chatId}/select`, { method: 'POST' });
     // Load and render saved messages
-    const r = await fetch(`/api/agent/chats/${chatId}/messages`);
+    await api(`/api/agent/chats/${chatId}/messages`);
     const d = await r.json();
     chatDiv.innerHTML = '';
     if (d.messages && d.messages.length > 0) {
@@ -352,7 +361,7 @@ function renameChat(chatId, btn) {
     const title = inp.value.trim();
     if (!title || title === current) { overlay.remove(); return; }
     try {
-      await fetch(`/api/agent/chats/${chatId}/rename`, {
+      await api(`/api/agent/chats/${chatId}/rename`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title }),
@@ -389,10 +398,10 @@ async function executeDeleteChat(chatId, btn) {
     item.style.opacity = '0';
   }
   try {
-    const r = await fetch(`/api/agent/chats/${chatId}`, { method: 'DELETE' });
+    const r = await api(`/api/agent/chats/${chatId}`, { method: 'DELETE' });
     const d = await r.json();
     if (d.ok && d.active) {
-      const mr = await fetch(`/api/agent/chats/${d.active}/messages`);
+      const mr = await api(`/api/agent/chats/${d.active}/messages`);
       const msgs = await mr.json();
       chatDiv.innerHTML = '';
       if (msgs.messages && msgs.messages.length > 0) {
@@ -422,7 +431,7 @@ async function reloadReports() {
 
 async function loadStats() {
   try {
-    const r = await fetch('/api/db/stats');
+    const r = await api('/api/db/stats');
     const d = await r.json();
     document.getElementById('s-reports').textContent = (d.report_count || 0).toLocaleString();
     document.getElementById('s-chunks').textContent  = (d.chunk_count  || 0).toLocaleString();
@@ -431,7 +440,7 @@ async function loadStats() {
 
 async function loadFilterOptions() {
   try {
-    const [cRes, sRes] = await Promise.all([fetch('/api/db/countries'), fetch('/api/db/sources')]);
+    const [cRes, sRes] = await Promise.all([api('/api/db/countries'), api('/api/db/sources')]);
     const countries    = await cRes.json();
     const sources      = await sRes.json();
 
@@ -469,7 +478,7 @@ async function applyFilters() {
   if (to)     p.set('date_to',   to);
 
   try {
-    const res  = await fetch('/api/db/reports?' + p);
+    const res  = await api('/api/db/reports?' + p);
     let   data = await res.json();
     if (country) {
       data = data.filter(r => (r.all_countries || []).includes(country));
@@ -537,7 +546,7 @@ function renderTable() {
 async function openDbReport(id) {
   currentReportId = id;
   try {
-    const res = await fetch('/api/db/reports/' + id);
+    const res = await api('/api/db/reports/' + id);
     const r   = await res.json();
     currentReportTitle = r.title || '';
 
@@ -742,7 +751,7 @@ async function runPipeline() {
   deactivateSitrepItems();
 
   try {
-    const resp = await fetch('/api/sitrep/run', {
+    const resp = await api('/api/sitrep/run', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ country, event, themes, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
@@ -760,7 +769,7 @@ async function loadSitrepReportsList() {
   const list = document.getElementById('sitrep-reports-list');
   if (!list) return;
   try {
-    const resp  = await fetch('/api/sitrep/reports');
+    const resp  = await api('/api/sitrep/reports');
     const items = await resp.json();
     if (!items.length) {
       list.innerHTML = '<div class="sidebar-empty">No reports yet.</div>';
@@ -803,7 +812,7 @@ async function openSitrepReport(filename, itemEl) {
     '<div style="color:var(--text-muted);padding:20px">Loading…</div>';
 
   try {
-    const resp   = await fetch(`/api/sitrep/report?file=${encodeURIComponent(filename)}`);
+    const resp   = await api(`/api/sitrep/report?file=${encodeURIComponent(filename)}`);
     const report = await resp.json();
     if (report.error) throw new Error(report.error);
     renderSitrepReport(report, filename);
@@ -1102,7 +1111,7 @@ async function loadThemePills() {
   const container = document.getElementById('theme-pills');
   if (!container) return;
   try {
-    const resp = await fetch('/api/sitrep/themes');
+    const resp = await api('/api/sitrep/themes');
     const themes = await resp.json();
     if (!themes.length || themes.error) {
       container.innerHTML = '<span class="theme-pills-empty">No themes in DB</span>';
@@ -1128,7 +1137,7 @@ async function fetchCountryDateRange(country) {
   if (!hint) return;
   if (!country) { hint.textContent = ''; return; }
   try {
-    const resp = await fetch(`/api/sitrep/date-range/${encodeURIComponent(country)}`);
+    const resp = await api(`/api/sitrep/date-range/${encodeURIComponent(country)}`);
     const data = await resp.json();
     if (data.error || !data.count) {
       hint.textContent = `No data found for "${country}"`;
@@ -1168,7 +1177,7 @@ async function refreshChunkPreview() {
   const dateTo   = document.getElementById('inp-date-to')?.value || '';
 
   try {
-    const resp = await fetch('/api/sitrep/chunk-preview', {
+    const resp = await api('/api/sitrep/chunk-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ country, themes, date_from: dateFrom, date_to: dateTo }),
@@ -1227,7 +1236,7 @@ async function discussSitrepWithAgent() {
   // Fetch the full report JSON
   let report;
   try {
-    const resp = await fetch(`/api/sitrep/report?file=${encodeURIComponent(sitrepActiveFile)}`);
+    const resp = await api(`/api/sitrep/report?file=${encodeURIComponent(sitrepActiveFile)}`);
     report = await resp.json();
     if (report.error) throw new Error(report.error);
   } catch (err) {
@@ -1292,7 +1301,7 @@ async function discussSitrepWithAgent() {
 
   // Create a new chat with this context pre-loaded
   try {
-    const r = await fetch('/api/agent/chats/new-with-context', {
+    const r = await api('/api/agent/chats/new-with-context', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1307,7 +1316,7 @@ async function discussSitrepWithAgent() {
     switchTab('agent');
 
     // Load messages for this new chat (will show the context message)
-    const mr = await fetch(`/api/agent/chats/${d.id}/messages`);
+    const mr = await api(`/api/agent/chats/${d.id}/messages`);
     const msgs = await mr.json();
     chatDiv.innerHTML = '';
     if (msgs.messages && msgs.messages.length > 0) {
@@ -1397,7 +1406,7 @@ function mqSearch() {
   dlNewBtn.disabled = true;
   mqClearStatus();
 
-  fetch('/api/ingest/search', {
+  api('/api/ingest/search', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(payload)
@@ -1471,7 +1480,7 @@ function mqDoDownload(ids) {
   document.getElementById('mq-dl-new-btn').disabled = true;
   document.getElementById('mq-search-btn').disabled = true;
 
-  fetch('/api/ingest/download', {
+  api('/api/ingest/download', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ report_ids: ids })
@@ -1565,7 +1574,7 @@ function uploadReport(e) {
   btn.disabled = true;
   upStatus('Uploading and ingesting…', 'info');
 
-  fetch('/api/ingest/upload', { method: 'POST', body: fd })
+  api('/api/ingest/upload', { method: 'POST', body: fd })
   .then(r => r.json())
   .then(data => {
     btn.disabled = false;
