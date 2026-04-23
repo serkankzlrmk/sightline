@@ -179,12 +179,16 @@ function init() {
       showUserBar(user);
     } else {
       clearToken();
-      window.__isAdmin = false;
-      showOverlay();
-      showUserBar(null);
+          window.__isAdmin = false;
+          showOverlay();
+          showUserBar(null);
+        }
+      });
     }
-  });
-}
+    
+    // Expose for inline onclick fallback
+    window.doSignIn = doSignIn;
+    window.signOut  = signOut;
 
 // ═══════════════════════════════════════════════════════════
 // Login / Logout
