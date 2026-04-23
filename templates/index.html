@@ -44,15 +44,13 @@
     <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">SITREP</button>
     <button class="tab-btn" id="tab-ingest" onclick="switchTab('ingest')">Ingest</button>
   </div>
-  <div class="nav-right">
-    <div id="user-bar" class="user-bar hidden">
-      <img id="user-photo" src="" alt="">
-      <span id="user-name"></span>
-      <button id="user-logout" onclick="signOut()">Logout</button>
-    </div>
-    <div class="busy-dot" id="busy-dot" title="Agent is running..."></div>
-    <button class="nav-reset" id="agent-reset-btn" onclick="resetChat()">↺ Reset</button>
+  <div id="user-bar" class="user-bar hidden">
+    <img id="user-photo" src="" alt="">
+    <span id="user-name"></span>
+    <button id="user-logout" onclick="signOut()">Logout</button>
   </div>
+  <div class="busy-dot" id="busy-dot" title="Agent is running..."></div>
+  <button class="nav-reset" id="agent-reset-btn" onclick="resetChat()">↺ Reset</button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════

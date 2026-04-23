@@ -37,7 +37,7 @@ os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecuti
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from flask import Flask, Response, request, jsonify, render_template, send_from_directory, g
+from flask import Flask, Response, request, jsonify, render_template, send_from_directory, g, g
 from flask_cors import CORS
 
 from config import (

@@ -136,13 +136,17 @@ body {
   padding-left: 12px;
 }
 
-.tab-group {
+.nav-right {
   display: flex;
-  gap: 3px;
+  align-items: center;
+  gap: 14px;
   margin-left: auto;
+  flex-shrink: 0;
+}
   background: rgba(255,255,255,.06);
   padding: 3px;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 .tab-btn {
   background: transparent;
@@ -744,19 +748,22 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 
 /* user bar */
 .user-bar {
-  position: fixed; top: 8px; right: 18px; z-index: 999;
+  position: relative;
+  top: auto; right: auto;
+  z-index: 60;
   display: flex; align-items: center; gap: 8px;
-  height: 38px; padding: 0 12px; font-size: 13px; font-weight: 500;
-  color: var(--text-secondary); background: var(--surface); border-radius: var(--radius);
-  box-shadow: var(--shadow-sm); border: 1px solid var(--border-light);
+  height: 32px; padding: 0 10px; font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,.85); background: rgba(255,255,255,.08); border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.12);
 }
 .user-bar.hidden { display: none; }
 .user-bar img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+.user-bar #user-name { color: rgba(255,255,255,.9); white-space: nowrap; }
 .user-bar button {
-  margin-left: 6px; padding: 3px 8px; font-size: 11px; color: #64748b;
-  background: transparent; border: 1px solid var(--border-light); border-radius: 6px; cursor: pointer;
+  margin-left: 6px; padding: 3px 8px; font-size: 11px; color: rgba(255,255,255,.65);
+  background: transparent; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; cursor: pointer; transition: all .15s;
 }
-.user-bar button:hover { background: var(--red-light); color: var(--red); border-color: var(--red); }
+.user-bar button:hover { background: rgba(255,255,255,.1); color: white; border-color: rgba(255,255,255,.4); }
 
 .typing-dots { display: flex; align-items: center; gap: 4px; height: 20px; }
 .typing-dots span {
