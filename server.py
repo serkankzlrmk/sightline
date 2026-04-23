@@ -1065,7 +1065,7 @@ def api_ingest_search():
 
 @app.route("/api/ingest/download", methods=["POST"])
 @_require_admin
-def api_ingest_upload():
+def api_ingest_download():
     """Download + ingest selected reports into SQLite + ChromaDB."""
     from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
     from reliefweb_api.download_manager import get_download_manager
