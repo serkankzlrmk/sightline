@@ -102,7 +102,8 @@ async function doSignIn() {
       setAuthError("Sign-in popup was closed before completing.");
     } else if (err.code === "auth/configuration-not-found") {
       setAuthError("Google Sign-In is disabled in Firebase Console. Go to Firebase Console → Authentication → Sign-in method → Google → Enable.");
-    } else if (err.code === "auth/unauthorized-domain") {
+    } else if (err.code === "auth/auth-domain-config-required" || err.code === "auth/unauthorized-domain") {
+      setAuthError("This domain (e.g. localhost) is not authorized in Firebase Console. Add it in Firebase Console → Authentication → Settings → Authorized domains. For local testing add: localhost");
       setAuthError("This domain is not authorized in Firebase. Add it in Firebase Console → Authentication → Settings → Authorized domains.");
     } else {
       setAuthError("Sign-in failed: " + err.message);
