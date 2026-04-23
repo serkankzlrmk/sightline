@@ -38,7 +38,7 @@ DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
 # ============================================================================
 CHROMA_DIR: str = os.getenv(
     "CHROMA_DIR",
-    r"C:\Users\serkan.kizilirmak\Documents\GitHub\reliefweb_scraping_agent\reliefweb_chroma",
+    str(PROJECT_ROOT / "reliefweb_chroma"),
 )
 CHROMA_COLLECTION: str = os.getenv("CHROMA_COLLECTION", "reliefweb_chunks")
 
