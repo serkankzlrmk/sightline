@@ -188,68 +188,6 @@ function init() {
     
     // Expose for inline onclick fallback
     window.doSignIn = doSignIn;
-    window.signOut  = signOut;
-
-// ═══════════════════════════════════════════════════════════
-// Login / Logout
-// ═══════════════════════════════════════════════════════════
-
-async function doSignIn() {
-  setAuthError("");
-  try {
-    const result = await signInWithPopup(auth, google);
-    const token  = await result.user.getIdToken(true);
-    setToken(token);
-    hideOverlay();
-    showUserBar(result.user);
-  } catch (err) {
-    console.error("Login failed:", err);
-    if (err.code === "auth/popup-closed-by-user") {
-      setAuthError("Sign-in popup was closed before completing.");
-    } else if (err.code === "auth/configuration-not-found") {
-      setAuthError("Google Sign-In is disabled in Firebase Console. Go to Firebase Console → Authentication → Sign-in method → Google → Enable.");
-    } else if (err.code === "auth/auth-domain-config-required" || err.code === "auth/unauthorized-domain") {
-      setAuthError("This domain (e.g. localhost) is not authorized in Firebase Console. Add it in Firebase Console → Authentication → Settings → Authorized domains. For local testing add: localhost");
-      setAuthError("This domain is not authorized in Firebase. Add it in Firebase Console → Authentication → Settings → Authorized domains.");
-    } else {
-      setAuthError("Sign-in failed: " + err.message);
-    }
-  }
-}
-
-export async function signOut() {
-  try {
-    await firebaseSignOut(auth);
-  } catch (e) {
-    console.warn("Sign-out error:", e);
-  }
-  clearToken();
-  showOverlay();
-  showUserBar(null);
-}
-window.signOut = signOut;
-
-// ═══════════════════════════════════════════════════════════
-// Wire UI
-// ═══════════════════════════════════════════════════════════
-
-function init() {
-  const btn = document.getElementById("auth-google-btn");
-  if (btn) btn.addEventListener("click", doSignIn);
-
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      const token = await user.getIdToken(true);
-      setToken(token);
-      hideOverlay();
-      showUserBar(user);
-    } else {
-      clearToken();
-      showOverlay();
-      showUserBar(null);
-    }
-  });
-}
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
