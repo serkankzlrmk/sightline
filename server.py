@@ -417,6 +417,25 @@ def _run_job(job_id: str, cmd: list):
         q.put(None)  # sentinel
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# ROUTES — Auth / Me
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/auth/me")
+@_require_auth
+def api_auth_me():
+    user = getattr(g, "current_user", None) or {}
+    uid = user.get("uid", "")
+    admins = {u.strip() for u in os.getenv("ADMIN_UIDS", "").split(",") if u.strip()}
+    is_admin = uid in admins
+    return jsonify({
+        "uid": uid,
+        "email": user.get("email", ""),
+        "name": user.get("name", ""),
+        "is_admin": is_admin
+    })
+
+
 # =============================================================================
 # ROUTES — Frontend
 # =============================================================================

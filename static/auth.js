@@ -84,6 +84,108 @@ function setAuthError(msg) {
   if (el) el.textContent = msg;
 }
 
+// Admin check helper
+async function checkAdminStatus() {
+  try {
+    const tok = getIdToken();
+    if (!tok) { window.__isAdmin = false; return; }
+    const resp = await fetch("/api/auth/me", { headers: { "Authorization": "Bearer " + tok } });
+    const data = await resp.json();
+    window.__isAdmin = !!data.is_admin;
+  } catch (e) {
+    window.__isAdmin = false;
+  }
+}
+
+// ── UI toggles based on admin ──────────────────────────────────────────
+function updateVisibility() {
+  const isAdmin = !!window.__isAdmin;
+  // Hide Ingest tab for non-admins
+  const ingestTab = document.getElementById("tab-ingest");
+  if (ingestTab) {
+    ingestTab.style.display = isAdmin ? "" : "none";
+  }
+  // Hide SITREP "New Report" form for non-admins
+  const sitrepRunForm = document.getElementById("btn-toggle-form");
+  const runForm = document.getElementById("run-form");
+  if (sitrepRunForm) {
+    sitrepRunForm.style.display = isAdmin ? "" : "none";
+    if (runForm) runForm.classList.add("hidden");
+  }
+  if (!isAdmin) {
+    // Switch away from Ingest if a non-admin managed to land on it
+    if (document.getElementById("tab-ingest")?.classList.contains("active")) {
+      if (typeof switchTab === "function") switchTab("agent");
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Login / Logout
+// ═══════════════════════════════════════════════════════════
+
+async function doSignIn() {
+  setAuthError("");
+  try {
+    const result = await signInWithPopup(auth, google);
+    const token  = await result.user.getIdToken(true);
+    setToken(token);
+    await checkAdminStatus();
+    updateVisibility();
+    hideOverlay();
+    showUserBar(result.user);
+  } catch (err) {
+    console.error("Login failed:", err);
+    if (err.code === "auth/popup-closed-by-user") {
+      setAuthError("Sign-in popup was closed before completing.");
+    } else if (err.code === "auth/configuration-not-found") {
+      setAuthError("Google Sign-In is disabled in Firebase Console. Go to Firebase Console → Authentication → Sign-in method → Google → Enable.");
+    } else if (err.code === "auth/auth-domain-config-required" || err.code === "auth/unauthorized-domain") {
+      setAuthError("This domain (e.g. localhost) is not authorized in Firebase Console. Add it in Firebase Console → Authentication → Settings → Authorized domains. For local testing add: localhost");
+    } else {
+      setAuthError("Sign-in failed: " + err.message);
+    }
+  }
+}
+
+export async function signOut() {
+  try {
+    await firebaseSignOut(auth);
+  } catch (e) {
+    console.warn("Sign-out error:", e);
+  }
+  clearToken();
+  window.__isAdmin = false;
+  showOverlay();
+  showUserBar(null);
+}
+window.signOut = signOut;
+
+// ═══════════════════════════════════════════════════════════
+// Wire UI
+// ═══════════════════════════════════════════════════════════
+
+function init() {
+  const btn = document.getElementById("auth-google-btn");
+  if (btn) btn.addEventListener("click", doSignIn);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const token = await user.getIdToken(true);
+      setToken(token);
+      await checkAdminStatus();
+      updateVisibility();
+      hideOverlay();
+      showUserBar(user);
+    } else {
+      clearToken();
+      window.__isAdmin = false;
+      showOverlay();
+      showUserBar(null);
+    }
+  });
+}
+
 // ═══════════════════════════════════════════════════════════
 // Login / Logout
 // ═══════════════════════════════════════════════════════════
