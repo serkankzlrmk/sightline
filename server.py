@@ -26,7 +26,6 @@ import subprocess
 import logging
 from pathlib import Path
 from queue import Queue, Empty
-from functools import wraps
 
 # ── Suppress ONNX / TensorRT log noise before any onnxruntime import ─────────
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
@@ -37,16 +36,16 @@ os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecuti
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from flask import Flask, Response, request, jsonify, render_template, send_from_directory, g, g
+from flask import Flask, Response, request, jsonify, render_template, send_from_directory, g
 from flask_cors import CORS
 
 from config import (
     SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
+    DAILY_MESSAGE_LIMIT,
 )
 
-# Firebase Auth decorators
-from auth import require_auth, require_admin
+from auth import require_auth, require_admin, current_uid
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -69,97 +68,11 @@ app.secret_key = os.urandom(24)
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 
-# ────────────────────────────────────────────────────────────────────
-# SHARED: Auth decorators
-# ────────────────────────────────────────────────────────────────────
-
-def _api_key_check():
-    """If SERVER_API_KEY is set, enforce X-API-Key header. Returns True if passed."""
-    if not SERVER_API_KEY:
-        return True
-    provided = request.headers.get("X-API-Key", "")
-    if not provided:
-        return False
-    if provided != SERVER_API_KEY:
-        return False
-    return True
-
-def _require_api_key(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not _api_key_check():
-            return jsonify({"error": "Invalid API key"}), 403
-        return f(*args, **kwargs)
-    return decorated
-
-
-def _auth_check() -> dict | None:
-    """
-    Unified authentication.
-    Returns decoded Firebase claims if JWT present + valid.
-    Returns None if no auth header (anonymous) and SERVER_API_KEY is empty (dev mode).
-    Raises ValueError if token is present but invalid.
-    """
-    if SERVER_API_KEY:
-        # Legacy API key mode — no Firebase
-        return None
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return None
-    token = auth_header[len("Bearer "):].strip()
-    if not token:
-        return None
-    from auth import verify_firebase_token
-    decoded = verify_firebase_token(token)
-    return decoded
-
-
-def _require_auth(f):
-    """Any valid login (Firebase or legacy API key). Sets g.current_user if Firebase."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        try:
-            decoded = _auth_check()
-            if decoded:
-                g.current_user = decoded
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-
-def _require_admin(f):
-    """Admin only: API key mode OR Firebase + ADMIN_UIDS list."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if SERVER_API_KEY:
-            if not _api_key_check():
-                return jsonify({"error": "Invalid API key"}), 403
-            return f(*args, **kwargs)
-        try:
-            auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer "):
-                return jsonify({"error": "Missing Authorization: Bearer token"}), 401
-            from auth import verify_firebase_token
-            decoded = verify_firebase_token(auth_header[len("Bearer "):].strip())
-            user_uid = decoded.get("uid", "")
-            admins = {u.strip() for u in os.getenv("ADMIN_UIDS", "").split(",") if u.strip()}
-            if admins and user_uid not in admins:
-                return jsonify({"error": "Admin access required"}), 403
-            g.current_user = decoded
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-
-def _current_uid() -> str:
-    """Return current user UID from g.current_user or empty string."""
-    user = getattr(g, "current_user", None)
-    if user:
-        return str(user.get("uid", ""))
-    return ""
-
+# Relax COOP so Google Sign-In popup can communicate back
+@app.after_request
+def add_coop_header(response):
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AGENT: Lazy import + multi-chat conversation state
@@ -171,7 +84,7 @@ _agent_lock   = threading.Lock()
 # Multi-chat: SQLite-backed persistence (survives server restarts)
 import time as _time
 _chats_lock     = threading.Lock()
-_active_chat_id = None
+_user_active_chat = {}  # uid → chat_id
 _agent_busy     = False
 _agent_busy_since = 0.0   # timestamp when agent became busy
 _AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
@@ -182,6 +95,54 @@ def _chats_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+def _check_rate_limit(uid: str) -> dict:
+    """Check and increment daily message count for a user. Returns {remaining, limit, used}."""
+    from datetime import date
+    today = date.today().isoformat()
+    conn = _chats_db()
+    row = conn.execute(
+        "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
+    ).fetchone()
+
+    if row and row["date"] == today:
+        used = row["count"]
+    else:
+        used = 0
+        conn.execute(
+            "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 0)",
+            (uid, today),
+        )
+        conn.commit()
+    conn.close()
+
+    limit = DAILY_MESSAGE_LIMIT
+    remaining = max(0, limit - used)
+    return {"remaining": remaining, "limit": limit, "used": used}
+
+def _increment_rate_limit(uid: str) -> int:
+    """Increment daily message count for a user. Returns new count."""
+    from datetime import date
+    today = date.today().isoformat()
+    conn = _chats_db()
+    row = conn.execute(
+        "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
+    ).fetchone()
+
+    if row and row["date"] == today:
+        new_count = row["count"] + 1
+        conn.execute(
+            "UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid)
+        )
+    else:
+        new_count = 1
+        conn.execute(
+            "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 1)",
+            (uid, today),
+        )
+    conn.commit()
+    conn.close()
+    return new_count
 
 def _init_chats_db():
     """Create chats tables if they don't exist."""
@@ -200,7 +161,18 @@ def _init_chats_db():
             ts       REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_chatmsg_chat ON chat_messages(chat_id);
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            uid  TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            count INTEGER NOT NULL DEFAULT 0
+        );
     """)
+    # Migration: add uid column if missing
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(chats)").fetchall()]
+    if "uid" not in cols:
+        conn.execute("ALTER TABLE chats ADD COLUMN uid TEXT NOT NULL DEFAULT ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_chats_uid ON chats(uid)")
+        conn.commit()
     conn.close()
 
 _init_chats_db()
@@ -214,22 +186,30 @@ def _db_chat_exists(chat_id):
     conn.close()
     return row is not None
 
-def _db_create_chat(chat_id, title="New Chat"):
+def _db_create_chat(chat_id, uid="", title="New Chat"):
     conn = _chats_db()
-    conn.execute("INSERT INTO chats (id, title, created) VALUES (?, ?, ?)",
-                 (chat_id, title, _time.time()))
+    conn.execute("INSERT INTO chats (id, uid, title, created) VALUES (?, ?, ?, ?)",
+                 (chat_id, uid, title, _time.time()))
     conn.commit()
     conn.close()
 
-def _db_get_all_chats():
+def _db_get_chats_by_uid(uid):
     conn = _chats_db()
     rows = conn.execute(
         "SELECT c.id, c.title, c.created, COUNT(m.id) AS msg_count "
         "FROM chats c LEFT JOIN chat_messages m ON m.chat_id = c.id "
-        "GROUP BY c.id ORDER BY c.created DESC"
+        "WHERE c.uid = ? "
+        "GROUP BY c.id ORDER BY c.created DESC",
+        (uid,)
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def _db_chat_belongs_to(chat_id, uid):
+    conn = _chats_db()
+    row = conn.execute("SELECT uid FROM chats WHERE id = ?", (chat_id,)).fetchone()
+    conn.close()
+    return row is not None and row["uid"] == uid
 
 def _db_add_message(chat_id, role, content):
     conn = _chats_db()
@@ -267,15 +247,16 @@ def _db_clear_messages(chat_id):
     conn.commit()
     conn.close()
 
-def _ensure_active_chat():
-    """Return the active chat_id, creating one if needed."""
-    global _active_chat_id
+def _ensure_active_chat(uid=""):
+    """Return the active chat_id for the user, creating one if needed."""
     with _chats_lock:
-        if _active_chat_id is None or not _db_chat_exists(_active_chat_id):
-            cid = _new_chat_id()
-            _db_create_chat(cid)
-            _active_chat_id = cid
-        return _active_chat_id
+        cid = _user_active_chat.get(uid)
+        if cid and _db_chat_exists(cid) and (not uid or _db_chat_belongs_to(cid, uid)):
+            return cid
+        cid = _new_chat_id()
+        _db_create_chat(cid, uid=uid)
+        _user_active_chat[uid] = cid
+        return cid
 
 def _load_langchain_messages(chat_id):
     """Load messages from DB as LangChain message objects."""
@@ -422,17 +403,19 @@ def _run_job(job_id: str, cmd: list):
 # ═════════════════════════════════════════════════════════════════════════════
 
 @app.route("/api/auth/me")
-@_require_auth
+@require_auth
 def api_auth_me():
+    from auth import _admins
     user = getattr(g, "current_user", None) or {}
     uid = user.get("uid", "")
-    admins = {u.strip() for u in os.getenv("ADMIN_UIDS", "").split(",") if u.strip()}
-    is_admin = uid in admins
+    is_admin = uid in _admins()
+    rate = {"remaining": 999, "limit": 999, "used": 0} if is_admin else (_check_rate_limit(uid) if uid else {"remaining": DAILY_MESSAGE_LIMIT, "limit": DAILY_MESSAGE_LIMIT, "used": 0})
     return jsonify({
         "uid": uid,
         "email": user.get("email", ""),
         "name": user.get("name", ""),
-        "is_admin": is_admin
+        "is_admin": is_admin,
+        "rate_limit": rate,
     })
 
 
@@ -459,92 +442,117 @@ def health():
 # =============================================================================
 
 @app.route("/api/agent/chats")
+@require_auth
 def api_agent_chats():
-    """List all chats, newest first."""
-    items = _db_get_all_chats()
-    return jsonify({"chats": items, "active": _active_chat_id})
+    """List all chats for the current user, newest first."""
+    uid = current_uid()
+    items = _db_get_chats_by_uid(uid)
+    active = _user_active_chat.get(uid, None)
+    return jsonify({"chats": items, "active": active})
 
 
 @app.route("/api/agent/chats/new", methods=["POST"])
+@require_auth
 def api_agent_chats_new():
     """Create a new chat and make it active."""
-    global _active_chat_id
+    uid = current_uid()
     cid = _new_chat_id()
-    _db_create_chat(cid)
-    _active_chat_id = cid
+    _db_create_chat(cid, uid=uid)
+    _user_active_chat[uid] = cid
     return jsonify({"id": cid})
 
 
 @app.route("/api/agent/chats/new-with-context", methods=["POST"])
+@require_auth
 def api_agent_chats_new_with_context():
     """Create a new chat pre-loaded with a context message (e.g. SITREP)."""
-    global _active_chat_id
+    uid = current_uid()
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "New Chat")[:120]
     context_text = (data.get("context") or "").strip()
     if not context_text:
         return jsonify({"error": "context required"}), 400
     cid = _new_chat_id()
-    _db_create_chat(cid)
+    _db_create_chat(cid, uid=uid)
     _db_rename_chat(cid, title)
-    # Inject `system`-style context as an assistant message so the agent sees it
     _db_add_message(cid, "assistant", context_text)
-    _active_chat_id = cid
+    _user_active_chat[uid] = cid
     return jsonify({"id": cid, "active": cid})
 
 
 @app.route("/api/agent/chats/<chat_id>/select", methods=["POST"])
+@require_auth
 def api_agent_chats_select(chat_id):
     """Switch active chat."""
-    global _active_chat_id
-    if not _db_chat_exists(chat_id):
+    uid = current_uid()
+    if not _db_chat_belongs_to(chat_id, uid):
         return jsonify({"error": "Chat not found"}), 404
-    _active_chat_id = chat_id
+    _user_active_chat[uid] = chat_id
     return jsonify({"ok": True, "id": chat_id})
 
 
 @app.route("/api/agent/chats/<chat_id>/messages")
+@require_auth
 def api_agent_chats_messages(chat_id):
     """Return all messages for a chat (for rendering on switch)."""
-    if not _db_chat_exists(chat_id):
+    uid = current_uid()
+    if not _db_chat_belongs_to(chat_id, uid):
         return jsonify({"error": "Chat not found"}), 404
     msgs = _db_get_messages(chat_id)
     return jsonify({"messages": msgs})
 
 
 @app.route("/api/agent/chats/<chat_id>/rename", methods=["POST"])
+@require_auth
 def api_agent_chats_rename(chat_id):
+    uid = current_uid()
+    if not _db_chat_belongs_to(chat_id, uid):
+        return jsonify({"error": "Chat not found"}), 404
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()[:100]
     if not title:
         return jsonify({"error": "title required"}), 400
-    if not _db_chat_exists(chat_id):
-        return jsonify({"error": "Chat not found"}), 404
     _db_rename_chat(chat_id, title)
     return jsonify({"ok": True})
 
 
 @app.route("/api/agent/chats/<chat_id>", methods=["DELETE"])
+@require_auth
 def api_agent_chats_delete(chat_id):
     """Delete a chat."""
-    global _active_chat_id
-    if not _db_chat_exists(chat_id):
+    uid = current_uid()
+    if not _db_chat_belongs_to(chat_id, uid):
         return jsonify({"error": "Chat not found"}), 404
     _db_delete_chat(chat_id)
-    if _active_chat_id == chat_id:
-        _active_chat_id = None
-    _ensure_active_chat()
-    return jsonify({"ok": True, "active": _active_chat_id})
+    if _user_active_chat.get(uid) == chat_id:
+        _user_active_chat.pop(uid, None)
+    _ensure_active_chat(uid)
+    return jsonify({"ok": True, "active": _user_active_chat.get(uid)})
 
 
 @app.route("/api/agent/chat", methods=["POST"])
+@require_auth
 def api_agent_chat():
     global _agent_busy, _agent_busy_since
+
+    uid = current_uid()
+    is_admin = uid in {u.strip() for u in os.getenv("ADMIN_UIDS", "").split(",") if u.strip()}
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
     if not user_message:
         return jsonify({"error": "empty message"}), 400
+
+    # Rate limit check (admins bypass)
+    if not is_admin:
+        rate = _check_rate_limit(uid)
+        if rate["remaining"] <= 0:
+            return jsonify({
+                "error": "Daily message limit reached",
+                "limit": rate["limit"],
+                "used": rate["used"],
+                "remaining": 0,
+            }), 429
 
     # Auto-unlock if stuck (client disconnected, finally didn't run)
     if _agent_busy and (_time.time() - _agent_busy_since) > _AGENT_BUSY_TIMEOUT:
@@ -554,7 +562,9 @@ def api_agent_chat():
     if _agent_busy:
         return jsonify({"error": "Agent meşgul, lütfen bekleyin"}), 429
 
-    chat_id = _ensure_active_chat()
+    chat_id = _ensure_active_chat(uid)
+    if not is_admin:
+        _increment_rate_limit(uid)
 
     from langchain_core.messages import HumanMessage, AIMessage
 
@@ -626,9 +636,11 @@ def api_agent_chat():
 
 
 @app.route("/api/agent/chat/reset", methods=["POST"])
+@require_auth
 def api_agent_chat_reset():
     """Reset the active chat (clear messages)."""
-    chat_id = _ensure_active_chat()
+    uid = current_uid()
+    chat_id = _ensure_active_chat(uid)
     _db_clear_messages(chat_id)
     return jsonify({"ok": True})
 
@@ -642,8 +654,10 @@ def api_agent_chat_unlock():
 
 
 @app.route("/api/agent/chat/status")
+@require_auth
 def api_agent_chat_status():
-    chat_id = _ensure_active_chat()
+    uid = current_uid()
+    chat_id = _ensure_active_chat(uid)
     msg_count = len(_db_get_messages(chat_id))
     return jsonify({
         "busy": _agent_busy,
@@ -796,25 +810,41 @@ def api_db_report_detail(report_id):
 # =============================================================================
 
 @app.route("/api/sitrep/themes")
-@_require_auth
+@require_auth
 def api_sitrep_themes():
-    """Return unique theme values from the Chroma vector DB."""
+    """Return unique theme values — ChromaDB first, SQLite fallback."""
     try:
-        sys.path.insert(0, str(BASE_DIR / "sitrep"))
-        from chroma_adapter import ChromaAdapter
+        from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        return jsonify(db.list_themes())
+        if db.count() > 0:
+            return jsonify(db.list_themes())
+    except Exception:
+        pass
+    try:
+        import json as _json
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
+        conn.close()
+        themes_set = set()
+        for row in rows:
+            try:
+                for t in _json.loads(row["themes"]):
+                    if t and isinstance(t, str):
+                        themes_set.add(t.strip())
+            except (ValueError, TypeError):
+                pass
+        return jsonify(sorted(themes_set))
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/sitrep/date-range/<country>")
-@_require_auth
+@require_auth
 def api_sitrep_date_range(country):
     """Return min/max date and chunk count for a country."""
     try:
-        sys.path.insert(0, str(BASE_DIR / "sitrep"))
-        from chroma_adapter import ChromaAdapter
+        from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
         return jsonify(db.get_date_range(country))
     except Exception as exc:
@@ -822,12 +852,11 @@ def api_sitrep_date_range(country):
 
 
 @app.route("/api/sitrep/chunk-preview", methods=["POST"])
-@_require_auth
+@require_auth
 def api_sitrep_chunk_preview():
     """Return chunk count and theme breakdown matching the given filters."""
     try:
-        sys.path.insert(0, str(BASE_DIR / "sitrep"))
-        from chroma_adapter import ChromaAdapter
+        from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
         data = request.get_json() or {}
         country = data.get("country", "").strip()
@@ -841,7 +870,6 @@ def api_sitrep_chunk_preview():
         chunks = db.get_chunks_by_country_and_themes(
             country, themes or None, date_from=date_from or None, date_to=date_to or None,
         )
-        # Theme breakdown from matched chunks
         from collections import Counter
         theme_counts = Counter()
         for c in chunks:
@@ -863,7 +891,7 @@ def api_sitrep_chunk_preview():
 
 
 @app.route("/api/sitrep/run", methods=["POST"])
-@_require_admin
+@require_admin
 def api_sitrep_run():
     data    = request.get_json() or {}
     country = data.get("country", "").strip()
@@ -905,8 +933,21 @@ def api_sitrep_run():
 
 
 @app.route("/api/sitrep/stream/<job_id>")
-@_require_auth
 def api_sitrep_stream(job_id):
+    from auth import _api_key, verify_firebase_token
+    api_key = _api_key()
+    if api_key:
+        provided = request.args.get("api_key", "") or request.headers.get("X-API-Key", "")
+        if provided != api_key:
+            return jsonify({"error": "Invalid API key"}), 403
+    else:
+        token = request.args.get("token", "")
+        if not token:
+            return jsonify({"error": "Missing token"}), 401
+        try:
+            verify_firebase_token(token)
+        except Exception:
+            return jsonify({"error": "Invalid token"}), 401
     if job_id not in _jobs:
         return jsonify({"error": "Unknown job id"}), 404
 
@@ -936,7 +977,7 @@ def api_sitrep_stream(job_id):
 
 
 @app.route("/api/sitrep/job/<job_id>")
-@_require_auth
+@require_auth
 def api_sitrep_job(job_id):
     if job_id not in _jobs:
         return jsonify({"error": "Unknown job id"}), 404
@@ -950,7 +991,7 @@ def api_sitrep_job(job_id):
 
 
 @app.route("/api/sitrep/reports")
-@_require_auth
+@require_auth
 def api_sitrep_reports():
     items = []
     if OUTPUT_REPORTS_DIR.exists():
@@ -968,7 +1009,7 @@ def api_sitrep_reports():
 
 
 @app.route("/api/sitrep/report")
-@_require_auth
+@require_auth
 def api_sitrep_report():
     filename = request.args.get("file", "")
     # Prevent path traversal
@@ -1083,7 +1124,7 @@ def api_ingest_search():
 
 
 @app.route("/api/ingest/download", methods=["POST"])
-@_require_admin
+@require_admin
 def api_ingest_download():
     """Download + ingest selected reports into SQLite + ChromaDB."""
     from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
@@ -1138,7 +1179,7 @@ def api_ingest_download():
 MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this
 
 @app.route("/api/ingest/upload", methods=["POST"])
-@_require_admin
+@require_admin
 def api_ingest_upload():
     """Upload a PDF with user-supplied metadata → SQLite + ChromaDB."""
     import tempfile, shutil

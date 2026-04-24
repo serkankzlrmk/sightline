@@ -218,15 +218,14 @@ def generate_executive_summary(
                 summary = "The provided sources offer limited information for a comprehensive overview."
 
             cited_numbers = sorted({int(m) for m in re.findall(r"\[(\d+)\]", summary)})
-            cited_paragraphs: List[str] = []
-            cited_paragraphs_meta: List[Dict] = []
+            cited_paragraphs: Dict[str, str] = {}
+            cited_paragraphs_meta: Dict[str, Dict] = {}
             for num in cited_numbers:
                 idx = num - 1
                 if 0 <= idx < len(sources):
                     src = sources[idx]
-                    cited_paragraphs.append(src["text"])
+                    cited_paragraphs[str(num)] = src["text"]
 
-                    # Cluster'ın used_contexts_meta'sından en sık tekrar eden URL'yi seç
                     cid = src["cluster_id"]
                     meta_values = list(
                         cluster_summaries.get(cid, {}).get("used_contexts_meta", {}).values()
@@ -234,7 +233,7 @@ def generate_executive_summary(
                     urls = [m.get("url", "") for m in meta_values if m.get("url", "")]
                     rep_url = max(set(urls), key=urls.count) if urls else ""
 
-                    cited_paragraphs_meta.append({"title": src["title"], "url": rep_url})
+                    cited_paragraphs_meta[str(num)] = {"title": src["title"], "url": rep_url}
 
             logger.info(
                 "SITREP executive summary tamamlandı: %d kaynak, %d citation, %d kelime.",
@@ -249,8 +248,6 @@ def generate_executive_summary(
             }
 
         logger.warning("cluster_summaries provided but no cluster has a summary, falling back.")
-
-    # =========================================================================
     # YOL B: Ham chunk'lardan fallback
     # =========================================================================
 
@@ -277,8 +274,8 @@ def generate_executive_summary(
         logger.warning("No paragraphs found for executive summary.")
         return {
             "summary": "The provided sources do not contain information relevant to describing a situation.",
-            "cited_paragraphs": [],
-            "cited_paragraphs_meta": [],
+            "cited_paragraphs": {},
+            "cited_paragraphs_meta": {},
             "full_paragraphs": [],
         }
 
@@ -311,15 +308,15 @@ def generate_executive_summary(
 
     # 4. Kullanılan citation'ları çöz
     cited_numbers = sorted({int(m) for m in re.findall(r"\[(\d+)\]", summary)})
-    cited_paragraphs = []
-    cited_paragraphs_meta = []
+    cited_paragraphs: Dict[str, str] = {}
+    cited_paragraphs_meta: Dict[str, Dict] = {}
 
     for num in cited_numbers:
         idx = num - 1
         if 0 <= idx < len(context_texts):
             text = context_texts[idx]
-            cited_paragraphs.append(text)
-            cited_paragraphs_meta.append(all_contexts_meta.get(text, {"title": "", "url": ""}))
+            cited_paragraphs[str(num)] = text
+            cited_paragraphs_meta[str(num)] = all_contexts_meta.get(text, {"title": "", "url": ""})
 
     logger.info(
         "Executive summary tamamlandı: %d citation, %d kelime.",

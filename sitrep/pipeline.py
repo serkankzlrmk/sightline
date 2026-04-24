@@ -76,6 +76,7 @@ def _checkpoint_path(step_name: str, country: str, event: str, suffix: str = "")
         "answers_post" : OUTPUT_ANSWERS_DIR,
         "summaries"    : OUTPUT_SUMMARIES_DIR,
         "exec_summary" : OUTPUT_SUMMARIES_DIR,
+        "narrative"    : OUTPUT_SUMMARIES_DIR,
     }
     base = step_dirs.get(step_name, OUTPUT_REPORTS_DIR)
     return base / f"{_safe_name(country, event)}_{step_name}{suffix}.json"
@@ -275,7 +276,7 @@ def run_pipeline(
         _save_checkpoint(exec_summary, "exec_summary", country, event, suffix=fh)
 
     # ---- Adım 8.5: Narrative report ----
-    logger.info("[8] Generating narrative report...")
+    logger.info("[8.5] Generating narrative report...")
     narrative = _load_checkpoint("narrative", country, event, suffix=fh) if not skip_cache else None
     if narrative is None:
         from narrative_report import generate_narrative_report

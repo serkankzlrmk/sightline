@@ -181,29 +181,23 @@ def assemble_report(
 
     # ---- Executive summary ----
     summary_text = exec_summary.get("summary", "")
-    cited_paragraphs = exec_summary.get("cited_paragraphs", [])
-    cited_paragraphs_meta = exec_summary.get("cited_paragraphs_meta", [])
+    cited_paragraphs = exec_summary.get("cited_paragraphs", {})
+    cited_paragraphs_meta = exec_summary.get("cited_paragraphs_meta", {})
 
     # Summary contexts: citation num → {context, title, url}
     summary_citation_nums = [int(m) for m in re.findall(r"\[(\d+)\]", summary_text)]
     summary_contexts: Dict = {}
     for num in set(summary_citation_nums):
-        idx = num - 1
-        if 0 <= idx < len(cited_paragraphs):
-            text = cited_paragraphs[idx]
-            # Önce cited_paragraphs_meta'dan doğrudan metadata'yı kullan (daha güvenilir)
-            if idx < len(cited_paragraphs_meta):
-                meta = cited_paragraphs_meta[idx]
-                title = meta.get("title", "")
-                url = meta.get("url", "")
-                # URL yoksa fuzzy match ile doldur (ham chunk yolunda gerekebilir)
-                if not url:
-                    _, url_fb = _find_metadata_for_context(text, metadata_list)
-                    url = url_fb
-            else:
-                # Fallback: fuzzy match (geriye dönük uyum)
-                title, url = _find_metadata_for_context(text, metadata_list)
-            summary_contexts[str(num)] = {"context": text, "title": title, "url": url}
+        key = str(num)
+        text = cited_paragraphs.get(key, "")
+        if text:
+            meta = cited_paragraphs_meta.get(key, {})
+            title = meta.get("title", "")
+            url = meta.get("url", "")
+            if not url:
+                _, url_fb = _find_metadata_for_context(text, metadata_list)
+                url = url_fb
+            summary_contexts[key] = {"context": text, "title": title, "url": url}
 
     # ---- QA veriyi cluster'a göre grupla ----
     qa_by_cluster: Dict[str, List[Dict]] = {}

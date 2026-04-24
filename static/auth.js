@@ -88,12 +88,44 @@ function setAuthError(msg) {
 async function checkAdminStatus() {
   try {
     const tok = getIdToken();
-    if (!tok) { window.__isAdmin = false; return; }
+    if (!tok) { window.__isAdmin = false; window.__rateLimit = null; return; }
     const resp = await fetch("/api/auth/me", { headers: { "Authorization": "Bearer " + tok } });
     const data = await resp.json();
     window.__isAdmin = !!data.is_admin;
+    window.__rateLimit = data.rate_limit || null;
+    updateRateLimitUI();
   } catch (e) {
     window.__isAdmin = false;
+    window.__rateLimit = null;
+  }
+}
+
+function updateRateLimitUI() {
+  const bar = document.getElementById("user-bar");
+  if (!bar) return;
+  let badge = document.getElementById("rate-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.id = "rate-badge";
+    bar.insertBefore(badge, bar.querySelector("button"));
+  }
+  const rl = window.__rateLimit;
+  if (!rl || window.__isAdmin) {
+    badge.textContent = "";
+    badge.style.display = "none";
+    return;
+  }
+  badge.style.display = "";
+  const remaining = rl.remaining;
+  if (remaining <= 0) {
+    badge.textContent = "0/" + rl.limit;
+    badge.className = "rate-badge rate-limit-exhausted";
+  } else if (remaining <= 3) {
+    badge.textContent = remaining + "/" + rl.limit;
+    badge.className = "rate-badge rate-limit-low";
+  } else {
+    badge.textContent = remaining + "/" + rl.limit;
+    badge.className = "rate-badge";
   }
 }
 
@@ -160,34 +192,39 @@ export async function signOut() {
   showUserBar(null);
 }
 window.signOut = signOut;
+window.checkAdminStatus = checkAdminStatus;
 
 // ═══════════════════════════════════════════════════════════
 // Wire UI
 // ═══════════════════════════════════════════════════════════
 
+let _initialized = false;
+
 function init() {
+  if (_initialized) return;
+  _initialized = true;
+
   const btn = document.getElementById("auth-google-btn");
   if (btn) btn.addEventListener("click", doSignIn);
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      const token = await user.getIdToken(true);
-      setToken(token);
-      await checkAdminStatus();
-      updateVisibility();
-      hideOverlay();
-      showUserBar(user);
+      if (!localStorage.getItem("id_token")) {
+        const token = await user.getIdToken(true);
+        setToken(token);
+        await checkAdminStatus();
+        updateVisibility();
+        hideOverlay();
+        showUserBar(user);
+      }
     } else {
       clearToken();
-          window.__isAdmin = false;
-          showOverlay();
-          showUserBar(null);
-        }
-      });
+      window.__isAdmin = false;
+      showOverlay();
+      showUserBar(null);
     }
-    
-    // Expose for inline onclick fallback
-    window.doSignIn = doSignIn;
+  });
+}
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);

@@ -1,9 +1,6 @@
 """
 sitrep_pipeline/llm_client.py
-LLM wrapper — OpenRouter veya Ollama (OpenAI-uyumlu API).
-
-LLM_PROVIDER = "openrouter"  → https://openrouter.ai/api/v1
-LLM_PROVIDER = "ollama"      → http://localhost:11434/v1  (varsayılan)
+LLM wrapper — Ollama (OpenAI-uyumlu API).
 """
 
 import time
@@ -13,9 +10,6 @@ from typing import List, Dict, Optional
 import requests
 
 from config import (
-    LLM_PROVIDER,
-    OPENROUTER_API_KEY,
-    OPENROUTER_BASE_URL,
     OLLAMA_BASE_URL,
     OLLAMA_API_KEY,
     LLM_MODEL,
@@ -27,25 +21,15 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-# Rate limit bekleme süresi (saniye)
 _RATE_LIMIT_WAIT = 10
 
 
 def _get_base_url_and_headers() -> tuple[str, dict]:
-    """Provider'a göre base URL ve HTTP başlıklarını döndürür."""
-    if LLM_PROVIDER == "ollama":
-        headers = {"Content-Type": "application/json"}
-        # Ollama Cloud modelleri için API key ekle
-        if OLLAMA_API_KEY:
-            headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
-        return OLLAMA_BASE_URL, headers
-    else:  # openrouter
-        return OPENROUTER_BASE_URL, {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/sitrep_pipeline",
-            "X-Title": "SitrepPipeline",
-        }
+    """Ollama base URL ve HTTP basliklarini dondurur."""
+    headers = {"Content-Type": "application/json"}
+    if OLLAMA_API_KEY:
+        headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
+    return OLLAMA_BASE_URL, headers
 
 
 def chat(
@@ -55,26 +39,20 @@ def chat(
     max_tokens: int = LLM_MAX_TOKENS_DEFAULT,
 ) -> str:
     """
-    /chat/completions endpoint'ini çağırır (OpenRouter veya Ollama).
+    Ollama /chat/completions endpoint'ini cagirir.
 
     Args:
         messages : [{"role": "system"|"user"|"assistant", "content": str}, ...]
-        model    : Model ID (provider'a göre değişir)
+        model    : Model ID
         temperature: 0.0 = deterministik
-        max_tokens : Yanıt için max token
+        max_tokens : Yanit icin max token
 
     Returns:
-        Modelin yanıt metni (string).
+        Modelin yanit metni (string).
 
     Raises:
-        RuntimeError: Tüm retry'lar tükendikten sonra ulaşılamazsa.
+        RuntimeError: Tum retry'lar tukendikten sonra ulasilamazsa.
     """
-    if LLM_PROVIDER == "openrouter" and not OPENROUTER_API_KEY:
-        raise RuntimeError(
-            "OPENROUTER_API_KEY ayarlanmamış. "
-            ".env dosyasına OPENROUTER_API_KEY=sk-or-... ekleyin."
-        )
-
     base_url, headers = _get_base_url_and_headers()
 
     payload = {
@@ -82,10 +60,8 @@ def chat(
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
+        "think": False,
     }
-    # qwen3 ve reasoning modellerinde think modunu kapat (daha hızlı + temiz çıktı)
-    if LLM_PROVIDER == "ollama":
-        payload["think"] = False
 
     last_error: Optional[Exception] = None
 
@@ -106,12 +82,6 @@ def chat(
                 )
                 time.sleep(wait)
                 continue
-
-            if response.status_code == 402:
-                raise RuntimeError(
-                    "OpenRouter 402: Hesap kredisi yetersiz. "
-                    "https://openrouter.ai adresinden bakiye yükleyin."
-                )
 
             response.raise_for_status()
 
@@ -153,7 +123,7 @@ def chat(
             continue
 
     raise RuntimeError(
-        f"LLM'e ({LLM_PROVIDER}) {LLM_MAX_RETRIES} denemede ulaşılamadı. "
+        f"Ollama'e {LLM_MAX_RETRIES} denemede ulaşılamadı. "
         f"Son hata: {last_error}"
     )
 

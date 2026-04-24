@@ -39,7 +39,7 @@ class ChromaAdapter:
     def __init__(self) -> None:
         self.client = chromadb.PersistentClient(path=CHROMA_DIR)
         self.ef = DefaultEmbeddingFunction()
-        self.collection = self.client.get_collection(
+        self.collection = self.client.get_or_create_collection(
             name=CHROMA_COLLECTION,
             embedding_function=self.ef,
         )

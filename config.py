@@ -52,10 +52,6 @@ OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_API_KEY:  str = os.getenv("OLLAMA_API_KEY",  "ollama")
 OLLAMA_TIMEOUT:  int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
-# --- OpenRouter (alternative provider) ---
-OPENROUTER_API_KEY:  str = os.getenv("OPENROUTER_API_KEY",  "")
-OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-
 # ============================================================================
 # ACTIVE MODEL
 # ============================================================================
@@ -161,6 +157,11 @@ CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
 FLASK_PORT  = SERVER_PORT
 FLASK_DEBUG = SERVER_DEBUG
 LOG_LEVEL   = os.getenv("LOG_LEVEL", "INFO")
+
+# ============================================================================
+# RATE LIMITING — daily message limit per user
+# ============================================================================
+DAILY_MESSAGE_LIMIT: int = int(os.getenv("DAILY_MESSAGE_LIMIT", "10"))
 
 
 # ============================================================================

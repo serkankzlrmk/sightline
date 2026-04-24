@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   style.css — TRC Humanitarian Data Platform
+   style.css — ReliefAgent Data Platform
    Premium Design System
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -143,6 +143,7 @@ body {
   margin-left: auto;
   flex-shrink: 0;
 }
+.tab-group {
   background: rgba(255,255,255,.06);
   padding: 3px;
   border-radius: 8px;
@@ -764,6 +765,21 @@ body.auth-locked .auth-box   { pointer-events: auto; }
   background: transparent; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; cursor: pointer; transition: all .15s;
 }
 .user-bar button:hover { background: rgba(255,255,255,.1); color: white; border-color: rgba(255,255,255,.4); }
+
+.rate-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 7px;
+  border-radius: 10px; white-space: nowrap;
+  background: rgba(255,255,255,.1); color: rgba(255,255,255,.7);
+  border: 1px solid rgba(255,255,255,.15);
+}
+.rate-badge.rate-limit-low {
+  background: rgba(234,179,8,.15); color: #eab308;
+  border-color: rgba(234,179,8,.3);
+}
+.rate-badge.rate-limit-exhausted {
+  background: rgba(220,38,38,.15); color: #ef4444;
+  border-color: rgba(220,38,38,.3);
+}
 
 .typing-dots { display: flex; align-items: center; gap: 4px; height: 20px; }
 .typing-dots span {

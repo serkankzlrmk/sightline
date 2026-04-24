@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// app.js — Merged frontend for TRC Data Platform
+// app.js — Merged frontend for ReliefAgent Data Platform
 //
 // Tab 1: Database  → /api/db/*
 // Tab 2: Agent     → /api/agent/chat
@@ -130,7 +130,7 @@ const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
     <div class="msg-label">AgenTRC</div>
     <div class="msg-body">
-      Hello! I'm connected to the Turkish Red Crescent Data Platform.<br><br>
+      Hello! I'm connected to the ReliefAgent Data Platform.<br><br>
       What I can do:
       <ul>
         <li>Search reports by country, theme, or source</li>
@@ -218,7 +218,16 @@ async function sendMessage() {
     });
 
     if (resp.status === 429) {
-      currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
+      try {
+        const errData = await resp.json();
+        if (errData.remaining === 0) {
+          currentAiEl.innerHTML = `<span style="color:#ef4444">Daily message limit reached (${errData.used}/${errData.limit}). Come back tomorrow!</span>`;
+        } else {
+          currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
+        }
+      } catch {
+        currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
+      }
       return;
     }
 
@@ -252,6 +261,7 @@ async function sendMessage() {
         } else if (evt.type === 'done') {
           clearToolInds();
           if (!currentAiText) currentAiEl.innerHTML = '<span style="color:#94a3b8">—</span>';
+          if (typeof checkAdminStatus === 'function') checkAdminStatus();
         }
       }
     }
@@ -318,7 +328,7 @@ async function selectChat(chatId) {
   try {
     await api(`/api/agent/chats/${chatId}/select`, { method: 'POST' });
     // Load and render saved messages
-    await api(`/api/agent/chats/${chatId}/messages`);
+    const r = await api(`/api/agent/chats/${chatId}/messages`);
     const d = await r.json();
     chatDiv.innerHTML = '';
     if (d.messages && d.messages.length > 0) {
@@ -676,7 +686,8 @@ function appendLog(line) {
 
 function connectSSE(jobId) {
   sitrepActiveJobId = jobId;
-  const es  = new EventSource(`/api/sitrep/stream/${jobId}`);
+  const tok = typeof getIdToken === 'function' ? getIdToken() : '';
+  const es  = new EventSource(`/api/sitrep/stream/${jobId}${tok ? '?token=' + encodeURIComponent(tok) : ''}`);
   const dot = document.getElementById('log-dot');
 
   es.onmessage = (e) => {
@@ -841,8 +852,6 @@ function renderSitrepReport(report, filename) {
       </div>
       <div class="report-actions">
         <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">Discuss with AgenTRC</button>
-        <a class="btn-sm" href="/api/sitrep/report?file=${encodeURIComponent(filename)}"
-           download="${escHtml(filename)}">Download JSON</a>
       </div>
     </div>`;
 
