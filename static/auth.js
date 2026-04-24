@@ -240,6 +240,9 @@ function init() {
       updateVisibility();
       hideOverlay();
       showUserBar(user);
+      // Notify app that auth is ready
+      window.__authReady = true;
+      window.dispatchEvent(new Event('auth-ready'));
     } else {
       clearToken();
       window.__isAdmin = false;

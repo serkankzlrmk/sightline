@@ -358,6 +358,11 @@ async function resetChat() {
 // ── Multi-chat management ────────────────────────────────────────────────
 
 async function loadChatList() {
+  // Ensure admin status is checked before loading
+  if (typeof checkAdminStatus === 'function' && typeof getIdToken === 'function' && getIdToken()) {
+    await checkAdminStatus();
+  }
+  if (typeof updateVisibility === 'function') updateVisibility();
   try {
     const r = await api('/api/agent/chats');
     const d = await r.json();
@@ -1738,7 +1743,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   chatInput.focus();
 
-  // SITREP event listeners
+  // SITREP event listeners (non-auth, safe to init early)
   const btnToggle = document.getElementById('btn-toggle-form');
   if (btnToggle) btnToggle.addEventListener('click', () => {
     document.getElementById('run-form').classList.toggle('hidden');
@@ -1752,19 +1757,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') runPipeline(); });
   });
 
-  // Country blur → fetch date range
   const countryEl = document.getElementById('inp-country');
   if (countryEl) {
     countryEl.addEventListener('change', () => fetchCountryDateRange(countryEl.value.trim()));
   }
 
-  // Date inputs → refresh chunk preview
   ['inp-date-from', 'inp-date-to'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', scheduleChunkPreview);
   });
 
-  // SITREP citation modal close
   const sitrepModalClose = document.getElementById('sitrep-modal-close-btn');
   if (sitrepModalClose) sitrepModalClose.addEventListener('click', closeSitrepModal);
   const sitrepModalOverlay = document.getElementById('sitrep-modal-overlay');
@@ -1785,10 +1787,6 @@ document.addEventListener('DOMContentLoaded', () => {
   sitrepStepStates = new Array(STEPS.length).fill('waiting');
   showSitrepView('welcome');
 
-  // Init tab state — hide reset button on non-agent tabs
-  switchTab('agent');
-  loadChatList();
-
   // Ingest tag input: Enter key support
   ['country', 'theme'].forEach(field => {
     const inp = document.getElementById(`up-${field}-input`);
@@ -1798,9 +1796,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Ingest: keyboard shortcut on search filters
   ['mq-country','mq-query'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') mqSearch(); });
   });
+
+  // Wait for auth before making API calls
+  function initAppData() {
+    switchTab('agent');
+    loadChatList();
+  }
+
+  if (window.__authReady) {
+    // Auth already resolved (page reload with cached token)
+    initAppData();
+  } else {
+    // Wait for auth-ready event from auth.js
+    window.addEventListener('auth-ready', initAppData, { once: true });
+  }
 });
