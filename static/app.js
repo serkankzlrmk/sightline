@@ -49,6 +49,20 @@ function api(url, opts = {}) {
 // SHARED HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+function toast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  const icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
+  el.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${esc(message)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'toastOut .3s ease-in forwards';
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
 function esc(s) {
   return String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -126,6 +140,14 @@ function switchTab(name) {
 // TAB 2 — AGENT CHAT (multi-chat)
 // ═══════════════════════════════════════════════════════════════════════════
 
+const QUICK_PROMPTS = [
+  { label: "Sudan Situation", text: "What is the current humanitarian situation in Sudan?" },
+  { label: "Recent Reports", text: "Fetch and download the most recent health reports about Ukraine" },
+  { label: "Food Security", text: "Summarize the latest food security reports for East Africa" },
+  { label: "Displacement", text: "What are the main displacement trends in the Middle East region?" },
+  { label: "Earthquake Response", text: "Show me situation reports about earthquake response efforts" },
+];
+
 const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
     <div class="msg-label">AgenTRC</div>
@@ -136,10 +158,12 @@ const WELCOME_HTML = `<div class="chat-center">
         <li>Search reports by country, theme, or source</li>
         <li>Download reports and save them to the local database</li>
         <li>Run semantic queries and summaries over downloaded reports</li>
-      </ul><br>
-      Example: <em>"Fetch and download Sudan health reports"</em><br>
-      or: <em>"What's happening in Iran in the last month?"</em>
+      </ul>
     </div>
+  </div>
+  <div class="quick-prompts">
+    <div class="quick-prompts-title">Try asking:</div>
+    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn" onclick="sendQuickPrompt('${p.text.replace(/'/g, "\\'")}')">${p.label}</button>`).join('')}
   </div>
 </div>`;
 
@@ -192,6 +216,11 @@ function toggleChatSidebar() {
   ov.classList.toggle('open', open);
 }
 
+function sendQuickPrompt(text) {
+  chatInput.value = text;
+  sendMessage();
+}
+
 async function sendMessage() {
   if (isStreaming) return;
   const text = chatInput.value.trim();
@@ -222,8 +251,11 @@ async function sendMessage() {
         const errData = await resp.json();
         if (errData.remaining === 0) {
           currentAiEl.innerHTML = `<span style="color:#ef4444">Daily message limit reached (${errData.used}/${errData.limit}). Come back tomorrow!</span>`;
+          toast(`Daily limit reached: ${errData.used}/${errData.limit} messages used`, 'error');
+          updateChatRateUI(errData);
         } else {
           currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
+          toast('Agent is busy, please try again in a moment', 'warning');
         }
       } catch {
         currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
@@ -277,7 +309,41 @@ async function sendMessage() {
     busyDot.classList.remove('visible');
     currentAiEl          = null;
     chatDiv.scrollTop    = chatDiv.scrollHeight;
-    loadChatList();  // refresh sidebar (auto-title may have changed)
+    loadChatList();
+    refreshChatRateHint();
+  }
+}
+
+function updateChatRateUI(rateData) {
+  if (!rateData) return;
+  window.__rateLimit = rateData;
+  if (typeof updateRateLimitUI === 'function') updateRateLimitUI();
+  refreshChatRateHint();
+}
+
+function refreshChatRateHint() {
+  const rl = window.__rateLimit;
+  const hint = document.getElementById('chat-rate-hint');
+  const isAdmin = !!window.__isAdmin;
+  if (!hint) return;
+  if (isAdmin || !rl) { hint.textContent = ''; hint.style.display = 'none'; return; }
+  hint.style.display = '';
+  const { remaining, limit, used } = rl;
+  if (remaining <= 0) {
+    hint.textContent = `Daily limit reached (${used}/${limit})`;
+    hint.className = 'chat-rate-hint exhausted';
+    chatInput.disabled = true;
+    chatInput.placeholder = 'Daily limit reached — come back tomorrow';
+  } else if (remaining <= 3) {
+    hint.textContent = `${remaining}/${limit} messages remaining today`;
+    hint.className = 'chat-rate-hint low';
+    chatInput.disabled = false;
+    chatInput.placeholder = 'Message ReliefAgent...';
+  } else {
+    hint.textContent = `${remaining}/${limit} messages remaining today`;
+    hint.className = 'chat-rate-hint';
+    chatInput.disabled = false;
+    chatInput.placeholder = 'Message ReliefAgent...';
   }
 }
 
