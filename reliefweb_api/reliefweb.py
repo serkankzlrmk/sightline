@@ -42,6 +42,7 @@ from .reliefweb_config import (
     PDF_SIZE_LIMIT,
     PDF_SIZE_LIMIT_MB,
     LOCAL_DB_PATH,
+    _ssl_verify,
 )
 
 from .reliefweb_utils import (
@@ -220,7 +221,7 @@ def search_sitreps(
             body["query"] = {"value": str(query).strip()}
 
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT, verify=False)
+        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
 
@@ -318,7 +319,7 @@ def get_sitrep_summary(report_id: Optional[int] = None, ids: Optional[list] = No
 
         # ── Slow path: external ReliefWeb API ────────────────────────────
         url = f"{RELIEFWEB_REPORTS_API}/{actual_report_id}?appname={RELIEFWEB_APPNAME}"
-        response = requests.get(url, timeout=API_TIMEOUT_SHORT, verify=False)
+        response = requests.get(url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
 
@@ -835,7 +836,7 @@ def get_recent_updates_summary(days: int = 7) -> str:
         }
         
         disasters_url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
-        disasters_response = requests.post(disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=False)
+        disasters_response = requests.post(disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         disasters_response.raise_for_status()
         disasters_data = disasters_response.json().get("data", [])
         
@@ -850,7 +851,7 @@ def get_recent_updates_summary(days: int = 7) -> str:
         }
         
         headlines_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        headlines_response = requests.post(headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=False)
+        headlines_response = requests.post(headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         headlines_response.raise_for_status()
         headlines_data = headlines_response.json().get("data", [])
         
@@ -960,7 +961,7 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
             })
         
         # Download PDF
-        pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=False)
+        pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
         pdf_response.raise_for_status()
         
         # Write to temporary file
@@ -1394,7 +1395,7 @@ def parse_reliefweb_url(url: str) -> str:
                     "fields": {"include": ["id", "title", "date", "source", "url", "body-html", "country"]}
                 }
                 api_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-                resp = requests.post(api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=False)
+                resp = requests.post(api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
                 resp.raise_for_status()
                 data = resp.json().get("data", [])
                 if data:
@@ -1419,7 +1420,7 @@ def parse_reliefweb_url(url: str) -> str:
 
         # Fetch by ID
         api_url = f"{RELIEFWEB_REPORTS_API}/{report_id}?appname={RELIEFWEB_APPNAME}"
-        resp = requests.get(api_url, timeout=API_TIMEOUT_SHORT, verify=False)
+        resp = requests.get(api_url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         resp.raise_for_status()
         data = resp.json().get("data", [])
 
@@ -1504,7 +1505,7 @@ def search_sources(
             body["filter"] = {"operator": "AND", "conditions": filters}
 
         api_url = f"{RELIEFWEB_SOURCES_API}?appname={RELIEFWEB_APPNAME}"
-        resp = requests.post(api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=False)
+        resp = requests.post(api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         resp.raise_for_status()
         data = resp.json().get("data", [])
 

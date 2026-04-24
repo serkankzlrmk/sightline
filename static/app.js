@@ -68,6 +68,23 @@ function esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+function sanitizeHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const scripts = tmp.querySelectorAll('script, iframe, object, embed, form');
+  scripts.forEach(el => el.remove());
+  const all = tmp.querySelectorAll('*');
+  all.forEach(el => {
+    const attrs = Array.from(el.attributes);
+    attrs.forEach(attr => {
+      if (/^on/i.test(attr.name) || attr.value.trim().toLowerCase().startsWith('javascript:')) {
+        el.removeAttribute(attr.name);
+      }
+    });
+  });
+  return tmp.innerHTML;
+}
 // alias for SITREP code
 const escHtml = esc;
 
@@ -977,7 +994,7 @@ function renderSitrepReport(report, filename) {
   if (hasNarrative) {
     const narrSources = report.narrative_sources || {};
     html += `<div id="report-narrative-view" class="report-view-section">`;
-    html += `<div class="narrative-body">${renderNarrativeCitations(md(report.narrative_html), narrSources)}</div>`;
+    html += `<div class="narrative-body">${renderNarrativeCitations(md(sanitizeHtml(report.narrative_html)), narrSources)}</div>`;
     html += buildNarrativeSourcesList(narrSources);
     html += `</div>`;
   }
@@ -1363,9 +1380,8 @@ async function discussSitrepWithAgent() {
   // Narrative report (professional prose)
   if (report.narrative_html) {
     ctx += `## Narrative Report\n`;
-    // Strip HTML tags to get plain text for the agent
     const tmp = document.createElement('div');
-    tmp.innerHTML = report.narrative_html;
+    tmp.textContent = report.narrative_html;
     ctx += tmp.textContent.trim() + '\n\n';
     // Narrative sources
     const ns = report.narrative_sources || {};

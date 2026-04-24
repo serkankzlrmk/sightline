@@ -1,0 +1,31 @@
+[Unit]
+Description=ReliefAgent Data Platform
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/reliefagent
+Environment="PATH=/opt/reliefagent/venv/bin:/usr/local/bin:/usr/bin"
+ExecStart=/opt/reliefagent/venv/bin/gunicorn \
+    --workers 1 \
+    --threads 4 \
+    --timeout 120 \
+    --bind 127.0.0.1:5000 \
+    --access-logfile /var/log/reliefagent/access.log \
+    --error-logfile /var/log/reliefagent/error.log \
+    --capture-output \
+    server:app
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/reliefagent/reliefweb_downloads /opt/reliefagent/output /opt/reliefagent/reliefweb_chroma
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -5,12 +5,21 @@ ReliefWeb API Configuration and Constants
 import os
 from typing import Dict
 
+
+def _ssl_verify():
+    """Return verify kwarg for requests calls based on config."""
+    verify = os.getenv("SSL_VERIFY", "true").lower() == "true"
+    if not verify:
+        return False
+    ca_bundle = os.getenv("SSL_CA_BUNDLE", "")
+    return ca_bundle or True
+
 # ========================================================================
 # API CONFIGURATION
 # ========================================================================
 
 # ReliefWeb API Settings
-RELIEFWEB_APPNAME = os.getenv("RELIEFWEB_APPNAME", "RELIEFWEB_APPNAME_PLACEHOLDER")
+RELIEFWEB_APPNAME = os.getenv("RELIEFWEB_APPNAME", "redagent_platform")
 RELIEFWEB_API_BASE = "https://api.reliefweb.int/v2"
 RELIEFWEB_REPORTS_API = f"{RELIEFWEB_API_BASE}/reports"
 RELIEFWEB_DISASTERS_API = f"{RELIEFWEB_API_BASE}/disasters"

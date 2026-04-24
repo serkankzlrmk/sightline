@@ -18,6 +18,7 @@ from .reliefweb_config import (
     RELIEFWEB_APPNAME,
     PDF_SIZE_LIMIT,
     PDF_SIZE_LIMIT_MB,
+    _ssl_verify,
 )
 from .reliefweb_utils import clean_html_body, format_error, format_response
 
@@ -54,7 +55,7 @@ class DownloadManager:
         """Fetch report metadata from API"""
         try:
             url = f"{RELIEFWEB_REPORTS_API}/{report_id}?appname={RELIEFWEB_APPNAME}&fields[include][]=file&fields[include][]=body-html&fields[include][]=body&fields[include][]=title&fields[include][]=date&fields[include][]=source&fields[include][]=country&fields[include][]=disaster&fields[include][]=theme&fields[include][]=url&fields[include][]=format&fields[include][]=language"
-            response = requests.get(url, timeout=API_TIMEOUT_LONG, verify=False)
+            response = requests.get(url, timeout=API_TIMEOUT_LONG, verify=_ssl_verify())
             response.raise_for_status()
             data = response.json()
             
@@ -108,7 +109,7 @@ class DownloadManager:
                 return None
             
             # Download
-            pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=False)
+            pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
             pdf_response.raise_for_status()
             
             pdf_path = output_dir / pdf_filename

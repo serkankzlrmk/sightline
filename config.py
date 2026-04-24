@@ -142,7 +142,7 @@ for _d in [OUTPUT_DIR, OUTPUT_CLUSTERS_DIR, OUTPUT_QUESTIONS_DIR,
 # ============================================================================
 # RELIEFWEB API
 # ============================================================================
-RELIEFWEB_APPNAME: str = os.getenv("RELIEFWEB_APPNAME", "RELIEFWEB_APPNAME_PLACEHOLDER")
+RELIEFWEB_APPNAME: str = os.getenv("RELIEFWEB_APPNAME", "redagent_platform")
 
 # ============================================================================
 # FLASK / SERVER
@@ -152,6 +152,11 @@ SERVER_PORT:  int  = int(os.getenv("SERVER_PORT", "5000"))
 SERVER_DEBUG: bool = os.getenv("SERVER_DEBUG", "false").lower() == "true"
 SERVER_API_KEY: str = os.getenv("SERVER_API_KEY", "")
 CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
+
+# SSL verification for outbound HTTP requests (ReliefWeb API, PDF downloads)
+SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
+SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
+SECRET_KEY:  str = os.getenv("SECRET_KEY", "")
 
 # Aliases for reliefwebapi compatibility
 FLASK_PORT  = SERVER_PORT

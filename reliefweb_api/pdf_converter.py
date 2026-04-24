@@ -12,7 +12,7 @@ import requests
 import tempfile
 from PyPDF2 import PdfReader
 
-from .reliefweb_config import API_TIMEOUT_LONG, RELIEFWEB_APPNAME, RELIEFWEB_REPORTS_API
+from .reliefweb_config import API_TIMEOUT_LONG, RELIEFWEB_APPNAME, RELIEFWEB_REPORTS_API, _ssl_verify
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ class ReportFormatConverter:
         try:
             # Get report metadata
             url = f"{RELIEFWEB_REPORTS_API}/{report_id}?appname={RELIEFWEB_APPNAME}"
-            response = requests.get(url, timeout=30, verify=False)
+            response = requests.get(url, timeout=30, verify=_ssl_verify())
             response.raise_for_status()
             data = response.json()
             
@@ -241,7 +241,7 @@ class ReportFormatConverter:
             pdf_filename = pdf_file.get("filename", f"report_{report_id}.pdf")
             
             # Download PDF to temporary location
-            pdf_response = requests.get(pdf_url, timeout=API_TIMEOUT_LONG, verify=False)
+            pdf_response = requests.get(pdf_url, timeout=API_TIMEOUT_LONG, verify=_ssl_verify())
             pdf_response.raise_for_status()
             
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:

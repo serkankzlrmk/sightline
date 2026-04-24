@@ -42,7 +42,7 @@ from flask_cors import CORS
 from config import (
     SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
-    DAILY_MESSAGE_LIMIT,
+    DAILY_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE,
 )
 
 from auth import require_auth, require_admin, current_uid
@@ -63,10 +63,17 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
     static_url_path="/static",
 )
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
+
+def _ssl_verify():
+    """Return verify kwarg for requests calls based on config."""
+    if not SSL_VERIFY:
+        return False
+    return SSL_CA_BUNDLE or True
 
 @app.after_request
 def add_security_headers(response):
@@ -76,6 +83,16 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if not SERVER_DEBUG:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com; "
+            "style-src 'self' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self' https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; "
+            "frame-src https://YOUR_PROJECT.firebaseapp.com; "
+        )
     return response
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -92,6 +109,25 @@ _user_active_chat = {}  # uid → chat_id
 _agent_busy     = False
 _agent_busy_since = 0.0   # timestamp when agent became busy
 _AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
+
+# Simple per-IP rate limiter for unauthenticated endpoints
+_api_rate_lock = threading.Lock()
+_api_rate_counts = {}  # ip → {date: str, count: int}
+_API_DAILY_LIMIT = 100
+
+def _check_api_rate_limit():
+    """Per-IP rate limit for API endpoints. Returns (ok, remaining)."""
+    from datetime import date
+    today = date.today().isoformat()
+    ip = request.remote_addr or "0.0.0.0"
+    with _api_rate_lock:
+        entry = _api_rate_counts.get(ip)
+        if not entry or entry["date"] != today:
+            entry = {"date": today, "count": 0}
+            _api_rate_counts[ip] = entry
+        entry["count"] += 1
+        remaining = max(0, _API_DAILY_LIMIT - entry["count"])
+    return entry["count"] <= _API_DAILY_LIMIT, remaining
 
 def _chats_db():
     """Return a connection to the chats SQLite database."""
@@ -425,7 +461,7 @@ def api_auth_me():
     uid = user.get("uid", "")
     admins = _admins()
     is_admin = uid in admins
-    logger.info(f"auth/me: uid={uid!r}, admins={admins}, is_admin={is_admin}")
+    logger.info(f"auth/me: uid={uid!r}, is_admin={is_admin}")
     rate = {"remaining": 999, "limit": 999, "used": 0} if is_admin else (_check_rate_limit(uid) if uid else {"remaining": DAILY_MESSAGE_LIMIT, "limit": DAILY_MESSAGE_LIMIT, "used": 0})
     return jsonify({
         "uid": uid,
@@ -553,7 +589,8 @@ def api_agent_chat():
     global _agent_busy, _agent_busy_since
 
     uid = current_uid()
-    is_admin = uid in {u.strip() for u in os.getenv("ADMIN_UIDS", "").split(",") if u.strip()}
+    from auth import _admins as _get_admins
+    is_admin = uid in _get_admins()
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
@@ -637,7 +674,7 @@ def api_agent_chat():
 
         except Exception as e:
             logger.exception("Agent chat error")
-            yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'text': 'An error occurred during processing'})}\n\n"
         finally:
             _agent_busy = False
 
@@ -663,6 +700,7 @@ def api_agent_chat_reset():
 
 
 @app.route("/api/agent/chat/unlock", methods=["POST"])
+@require_admin
 def api_agent_chat_unlock():
     """Force-unlock the agent busy flag (emergency reset)."""
     global _agent_busy
@@ -688,6 +726,7 @@ def api_agent_chat_status():
 # =============================================================================
 
 @app.route("/api/db/stats")
+@require_auth
 def api_db_stats():
     try:
         conn = _db_conn()
@@ -718,6 +757,7 @@ def api_db_stats():
 
 
 @app.route("/api/db/countries")
+@require_auth
 def api_db_countries():
     try:
         conn = _db_conn()
@@ -733,6 +773,7 @@ def api_db_countries():
 
 
 @app.route("/api/db/sources")
+@require_auth
 def api_db_sources():
     try:
         conn = _db_conn()
@@ -744,6 +785,7 @@ def api_db_sources():
 
 
 @app.route("/api/db/reports")
+@require_auth
 def api_db_reports():
     search   = request.args.get("search",   "").strip()
     country  = request.args.get("country",  "").strip()
@@ -793,6 +835,7 @@ def api_db_reports():
 
 
 @app.route("/api/db/reports/<int:report_id>")
+@require_auth
 def api_db_report_detail(report_id):
     try:
         conn = _db_conn()
@@ -817,7 +860,8 @@ def api_db_report_detail(report_id):
         d["chunks_preview"] = [dict(c) for c in chunks]
         conn.close()
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error("api_db_report_detail error: %s", e, exc_info=True)
+        return jsonify({"error": "Failed to load report detail"}), 500
 
     return jsonify(d)
 
@@ -853,19 +897,20 @@ def api_sitrep_themes():
                 pass
         return jsonify(sorted(themes_set))
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        logger.error("api_sitrep_themes error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load themes"}), 500
 
 
 @app.route("/api/sitrep/date-range/<country>")
 @require_auth
 def api_sitrep_date_range(country):
-    """Return min/max date and chunk count for a country."""
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
         return jsonify(db.get_date_range(country))
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        logger.error("api_sitrep_date_range error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load date range"}), 500
 
 
 @app.route("/api/sitrep/chunk-preview", methods=["POST"])
@@ -904,24 +949,31 @@ def api_sitrep_chunk_preview():
             "filters": {"themes": themes, "date_from": date_from, "date_to": date_to},
         })
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        logger.error("api_sitrep_chunk_preview error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load chunk preview"}), 500
 
 
 @app.route("/api/sitrep/run", methods=["POST"])
 @require_admin
 def api_sitrep_run():
     data    = request.get_json() or {}
-    country = data.get("country", "").strip()
-    event   = data.get("event",   "").strip()
+    country = data.get("country", "").strip()[:100]
+    event   = data.get("event",   "").strip()[:200]
     if not country:
         return jsonify({"error": "country is required"}), 400
     if not event:
         event = country
 
-    themes     = [t.strip() for t in data.get("themes", []) if t.strip()]
+    themes     = [t.strip()[:80] for t in data.get("themes", []) if t.strip()][:10]
     skip_cache = bool(data.get("skip_cache", False))
-    date_from  = (data.get("date_from") or "").strip()
-    date_to    = (data.get("date_to")   or "").strip()
+    date_from  = (data.get("date_from") or "").strip()[:10]
+    date_to    = (data.get("date_to")   or "").strip()[:10]
+
+    _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    if date_from and not _DATE_RE.match(date_from):
+        return jsonify({"error": "Invalid date_from format (YYYY-MM-DD)"}), 400
+    if date_to and not _DATE_RE.match(date_to):
+        return jsonify({"error": "Invalid date_to format (YYYY-MM-DD)"}), 400
 
     cmd = [sys.executable, str(BASE_DIR / "sitrep" / "pipeline.py"),
            "--country", country, "--event", event]
@@ -1043,6 +1095,7 @@ def api_sitrep_report():
 # =============================================================================
 
 @app.route("/api/ingest/search", methods=["POST"])
+@require_auth
 def api_ingest_search():
     """Search ReliefWeb API directly and return results with local DB status."""
     import requests as req
@@ -1114,11 +1167,12 @@ def api_ingest_search():
 
     try:
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        resp = req.post(url, json=body, timeout=API_TIMEOUT_SHORT, verify=False)
+        resp = req.post(url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         resp.raise_for_status()
         raw = resp.json()
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        logger.error("api_ingest_search ReliefWeb request failed: %s", e, exc_info=True)
+        return jsonify({"error": "External API request failed"}), 502
 
     reports = []
     for item in raw.get("data", []):
@@ -1206,13 +1260,13 @@ def api_ingest_upload():
     )
     from reliefweb_api.vector_store import VectorStore
 
-    title       = (request.form.get("title")       or "").strip()
-    source      = (request.form.get("source")      or "").strip()
-    country     = (request.form.get("country")     or "").strip()
-    format_type = (request.form.get("format_type") or "").strip()
-    language    = (request.form.get("language")    or "").strip()
-    date_str    = (request.form.get("date")        or "").strip()
-    theme       = (request.form.get("theme")       or "").strip()
+    title       = (request.form.get("title")       or "").strip()[:500]
+    source      = (request.form.get("source")      or "").strip()[:200]
+    country     = (request.form.get("country")     or "").strip()[:500]
+    format_type = (request.form.get("format_type") or "").strip()[:100]
+    language    = (request.form.get("language")    or "").strip()[:10]
+    date_str    = (request.form.get("date")        or "").strip()[:10]
+    theme       = (request.form.get("theme")       or "").strip()[:1000]
     pdf_file    = request.files.get("pdf")
 
     missing = [f for f, v in [
@@ -1224,6 +1278,9 @@ def api_ingest_upload():
     if missing:
         return jsonify({"error": "Missing required fields", "fields": missing}), 400
 
+    if not pdf_file.mimetype or pdf_file.mimetype not in ("application/pdf",):
+        return jsonify({"error": "Only PDF files are accepted"}), 400
+
     conn = _db_conn()
     max_row = conn.execute(
         "SELECT MAX(report_id) FROM reports WHERE report_id > ?", (MANUAL_ID_BASE,)
@@ -1233,62 +1290,70 @@ def api_ingest_upload():
     tr_display = f"TR-{new_id - MANUAL_ID_BASE:05d}"
 
     tmp      = tempfile.mkdtemp()
-    safe_nm  = re.sub(r'[/\\]', '_', pdf_file.filename)
-    pdf_path = os.path.join(tmp, safe_nm)
-    pdf_file.save(pdf_path)
-
-    pdf_text, pdf_pages = extract_pdf_text(pdf_path)
-    if not pdf_text.strip():
-        return jsonify({"error": "Could not extract text from PDF"}), 422
-
-    countries_list = [c.strip() for c in country.split(",") if c.strip()]
-    themes_list    = [t.strip() for t in theme.split(",")   if t.strip()]
-    metadata = {
-        "id":        new_id,
-        "title":     title,
-        "date":      {"original": date_str},
-        "source":    [{"shortname": source}],
-        "countries": [{"name": c} for c in countries_list],
-        "themes":    [{"name": t} for t in themes_list],
-        "format":    [{"name": format_type}],
-        "language":  [{"code": language}],
-        "url":       f"manual://{tr_display}",
-    }
-
-    chunks = []
-    for raw in chunk_text(pdf_text, CHUNK_SIZE, CHUNK_OVERLAP):
-        enriched = build_chunk_with_header(raw, metadata, "pdf")
-        chunks.append({"source_type": "pdf", "content": enriched})
-
     try:
-        db = DatabaseManager(str(DB_PATH))
-        db.insert_report(metadata, chunks, has_pdf=True, has_content=False, pdf_pages=pdf_pages)
-        db.close()
-    except Exception as e:
-        return jsonify({"error": f"DB insert failed: {e}"}), 500
+        safe_nm  = re.sub(r'[/\\]', '_', pdf_file.filename)
+        pdf_path = os.path.join(tmp, safe_nm)
+        pdf_file.save(pdf_path)
 
-    try:
-        from config import CHROMA_DIR
-        vs = VectorStore(str(CHROMA_DIR))
-        vs.add_report(new_id, chunks, metadata)
-    except Exception as e:
-        return jsonify({"error": f"Vector store insert failed: {e}"}), 500
+        pdf_text, pdf_pages = extract_pdf_text(pdf_path)
+        if not pdf_text.strip():
+            return jsonify({"error": "Could not extract text from PDF"}), 422
 
-    slug     = re.sub(r'[^\w\s-]', '', title)[:50].strip()
-    save_dir = DOWNLOADS_DIR / f"{new_id}_{slug}"
-    save_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(pdf_path, save_dir / safe_nm)
-    with open(save_dir / f"{new_id}_metadata.json", "w", encoding="utf-8") as f:
-        json.dump(metadata, f, ensure_ascii=False, indent=2)
+        countries_list = [c.strip() for c in country.split(",") if c.strip()]
+        themes_list    = [t.strip() for t in theme.split(",")   if t.strip()]
+        metadata = {
+            "id":        new_id,
+            "title":     title,
+            "date":      {"original": date_str},
+            "source":    [{"shortname": source}],
+            "countries": [{"name": c} for c in countries_list],
+            "themes":    [{"name": t} for t in themes_list],
+            "format":    [{"name": format_type}],
+            "language":  [{"code": language}],
+            "url":       f"manual://{tr_display}",
+        }
 
-    return jsonify({
-        "success":      True,
-        "report_id":    new_id,
-        "tr_id":        tr_display,
-        "title":        title,
-        "chunks_added": len(chunks),
-        "pdf_pages":    pdf_pages,
-    })
+        chunks = []
+        for raw in chunk_text(pdf_text, CHUNK_SIZE, CHUNK_OVERLAP):
+            enriched = build_chunk_with_header(raw, metadata, "pdf")
+            chunks.append({"source_type": "pdf", "content": enriched})
+
+        try:
+            db = DatabaseManager(str(DB_PATH))
+            db.insert_report(metadata, chunks, has_pdf=True, has_content=False, pdf_pages=pdf_pages)
+            db.close()
+        except Exception as e:
+            logger.error("Upload DB insert failed: %s", e, exc_info=True)
+            return jsonify({"error": "Database insert failed"}), 500
+
+        try:
+            from config import CHROMA_DIR
+            vs = VectorStore(str(CHROMA_DIR))
+            vs.add_report(new_id, chunks, metadata)
+        except Exception as e:
+            logger.error("Upload vector store insert failed: %s", e, exc_info=True)
+            return jsonify({"error": "Vector store insert failed"}), 500
+
+        slug     = re.sub(r'[^\w\s-]', '', title)[:50].strip()
+        save_dir = DOWNLOADS_DIR / f"{new_id}_{slug}"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(pdf_path, save_dir / safe_nm)
+        with open(save_dir / f"{new_id}_metadata.json", "w", encoding="utf-8") as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+        return jsonify({
+            "success":      True,
+            "report_id":    new_id,
+            "tr_id":        tr_display,
+            "title":        title,
+            "chunks_added": len(chunks),
+            "pdf_pages":    pdf_pages,
+        })
+    finally:
+        try:
+            shutil.rmtree(tmp, ignore_errors=True)
+        except Exception:
+            pass
 
 
 # =============================================================================
