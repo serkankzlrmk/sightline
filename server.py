@@ -408,7 +408,9 @@ def api_auth_me():
     from auth import _admins
     user = getattr(g, "current_user", None) or {}
     uid = user.get("uid", "")
-    is_admin = uid in _admins()
+    admins = _admins()
+    is_admin = uid in admins
+    logger.info(f"auth/me: uid={uid!r}, admins={admins}, is_admin={is_admin}")
     rate = {"remaining": 999, "limit": 999, "used": 0} if is_admin else (_check_rate_limit(uid) if uid else {"remaining": DAILY_MESSAGE_LIMIT, "limit": DAILY_MESSAGE_LIMIT, "used": 0})
     return jsonify({
         "uid": uid,
