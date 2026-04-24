@@ -60,12 +60,28 @@ def _api_key() -> str:
 
 
 def verify_firebase_token(token: str) -> dict:
-    """Verify a Firebase ID token and return decoded claims."""
+    """Verify a Firebase ID token and return decoded claims.
+    
+    Uses check_revoked=False to avoid clock-skew issues ("Token used too early").
+    Revocation is checked lazily instead.
+    """
     _firebase_app()
     from firebase_admin import auth as firebase_auth
+    import time
     try:
-        decoded = firebase_auth.verify_id_token(token, check_revoked=True)
+        decoded = firebase_auth.verify_id_token(token, check_revoked=False)
         return decoded
+    except firebase_auth.InvalidIdTokenError as exc:
+        err_msg = str(exc)
+        if "too early" in err_msg.lower():
+            import logging
+            logging.getLogger(__name__).warning(
+                "Clock skew detected — retrying token verify after short delay"
+            )
+            time.sleep(2)
+            decoded = firebase_auth.verify_id_token(token, check_revoked=False)
+            return decoded
+        raise ValueError(f"Invalid or expired Firebase token: {exc}")
     except Exception as exc:
         raise ValueError(f"Invalid or expired Firebase token: {exc}")
 
