@@ -280,10 +280,35 @@ def llm_call(state: MessagesState):
 
 def tool_node(state: MessagesState):
     """Tool execution node: runs all requested tools and returns results."""
+    import re as _re
     results = []
     for tool_call in state["messages"][-1].tool_calls:
         tool_name = tool_call["name"]
         print(f"  [tool] {tool_name}({', '.join(f'{k}={v!r}' for k, v in tool_call['args'].items())})")
+        if tool_name not in tools_by_name:
+            # Try to fix duplicated/corrupted tool names from LLM streaming artifacts
+            # e.g. "get_report_full_contentget_report_full_contentget_report_full_content"
+            matched = None
+            for known in tools_by_name:
+                if tool_name.startswith(known) or tool_name.endswith(known):
+                    matched = known
+                    break
+            if not matched:
+                # Try stripping repeated suffix: find the longest known tool name inside
+                for known in sorted(tools_by_name, key=len, reverse=True):
+                    if known in tool_name:
+                        matched = known
+                        break
+            if matched:
+                logger.warning(f"Tool name corrected: {tool_name!r} → {matched!r}")
+                tool_name = matched
+            else:
+                logger.error(f"Unknown tool: {tool_name!r}, available: {list(tools_by_name.keys())}")
+                results.append(ToolMessage(
+                    content=f"Error: Unknown tool '{tool_name}'. Available tools: {', '.join(tools_by_name.keys())}",
+                    tool_call_id=tool_call["id"]
+                ))
+                continue
         tool_fn = tools_by_name[tool_name]
         try:
             observation = tool_fn.invoke(tool_call["args"])
