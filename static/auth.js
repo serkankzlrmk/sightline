@@ -44,10 +44,24 @@ function clearToken() {
   window.__idToken = "";
 }
 
+async function refreshIdToken() {
+  if (typeof auth !== 'undefined' && auth.currentUser) {
+    try {
+      const freshToken = await auth.currentUser.getIdToken(true);
+      setToken(freshToken);
+      return freshToken;
+    } catch (e) {
+      console.warn("Token refresh failed:", e);
+    }
+  }
+  return localStorage.getItem("id_token") || "";
+}
+
 export function getIdToken() {
   return localStorage.getItem("id_token") || "";
 }
-window.getIdToken = getIdToken; // legacy compat
+window.getIdToken = getIdToken;
+window.refreshIdToken = refreshIdToken; // legacy compat
 
 // ═══════════════════════════════════════════════════════════
 // UI helpers
@@ -192,6 +206,16 @@ export async function signOut() {
   showUserBar(null);
 }
 window.signOut = signOut;
+// Auto-refresh token every 50 minutes (Firebase tokens expire in 60 min)
+setInterval(async () => {
+  if (typeof auth !== 'undefined' && auth.currentUser) {
+    try {
+      const freshToken = await auth.currentUser.getIdToken(true);
+      setToken(freshToken);
+    } catch (e) { /* ignore */ }
+  }
+}, 50 * 60 * 1000);
+
 window.checkAdminStatus = checkAdminStatus;
 
 // ═══════════════════════════════════════════════════════════
@@ -209,14 +233,13 @@ function init() {
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      if (!localStorage.getItem("id_token")) {
-        const token = await user.getIdToken(true);
-        setToken(token);
-        await checkAdminStatus();
-        updateVisibility();
-        hideOverlay();
-        showUserBar(user);
-      }
+      // Always refresh token on state change (handles expired tokens)
+      const token = await user.getIdToken(true);
+      setToken(token);
+      await checkAdminStatus();
+      updateVisibility();
+      hideOverlay();
+      showUserBar(user);
     } else {
       clearToken();
       window.__isAdmin = false;

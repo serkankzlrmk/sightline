@@ -253,6 +253,17 @@ def _ensure_active_chat(uid=""):
         cid = _user_active_chat.get(uid)
         if cid and _db_chat_exists(cid) and (not uid or _db_chat_belongs_to(cid, uid)):
             return cid
+        # Try to recover most recent chat from DB instead of always creating new
+        if uid:
+            conn = _chats_db()
+            row = conn.execute(
+                "SELECT id FROM chats WHERE uid = ? ORDER BY created DESC LIMIT 1",
+                (uid,)
+            ).fetchone()
+            conn.close()
+            if row and _db_chat_belongs_to(row["id"], uid):
+                _user_active_chat[uid] = row["id"]
+                return row["id"]
         cid = _new_chat_id()
         _db_create_chat(cid, uid=uid)
         _user_active_chat[uid] = cid

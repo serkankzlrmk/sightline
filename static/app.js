@@ -376,6 +376,33 @@ async function loadChatList() {
       item.addEventListener('click', () => selectChat(c.id));
       list.appendChild(item);
     }
+    // If there's an active chat, load its messages
+    if (d.active) {
+      try {
+        const mr = await api(`/api/agent/chats/${d.active}/messages`);
+        const msgData = await mr.json();
+        if (msgData.messages && msgData.messages.length > 0) {
+          chatDiv.innerHTML = '';
+          const center = document.createElement('div');
+          center.className = 'chat-center';
+          chatDiv.appendChild(center);
+          for (const m of msgData.messages) {
+            if (m.role === 'user') {
+              addMsg('user', esc(m.content));
+            } else {
+              addMsg('assistant', md(m.content));
+            }
+          }
+          currentAiText = '';
+        } else {
+          chatDiv.innerHTML = WELCOME_HTML;
+          currentAiText = '';
+        }
+      } catch { chatDiv.innerHTML = WELCOME_HTML; currentAiText = ''; }
+    } else {
+      chatDiv.innerHTML = WELCOME_HTML;
+      currentAiText = '';
+    }
   } catch { /* ignore */ }
 }
 
