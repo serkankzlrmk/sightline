@@ -12,6 +12,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -61,7 +63,7 @@ export function getIdToken() {
   return localStorage.getItem("id_token") || "";
 }
 window.getIdToken = getIdToken;
-window.refreshIdToken = refreshIdToken; // legacy compat
+window.refreshIdToken = refreshIdToken;
 
 // ═══════════════════════════════════════════════════════════
 // UI helpers
@@ -98,20 +100,45 @@ function setAuthError(msg) {
   if (el) el.textContent = msg;
 }
 
-// Admin check helper
+// ═══════════════════════════════════════════════════════════
+// Admin check — only called when we have a real token
+// ═══════════════════════════════════════════════════════════
+
+let _adminCheckPromise = null;
+
 async function checkAdminStatus() {
-  try {
-    const tok = getIdToken();
-    if (!tok) { window.__isAdmin = false; window.__rateLimit = null; return; }
-    const resp = await fetch("/api/auth/me", { headers: { "Authorization": "Bearer " + tok } });
-    const data = await resp.json();
-    window.__isAdmin = !!data.is_admin;
-    window.__rateLimit = data.rate_limit || null;
-    updateRateLimitUI();
-  } catch (e) {
+  const tok = getIdToken();
+  if (!tok) {
     window.__isAdmin = false;
     window.__rateLimit = null;
+    return;
   }
+  if (_adminCheckPromise) return _adminCheckPromise;
+  _adminCheckPromise = (async () => {
+    try {
+      console.log("[auth] checkAdminStatus: calling /api/auth/me with token prefix", tok.substring(0, 12) + "...");
+      const resp = await fetch("/api/auth/me", { headers: { "Authorization": "Bearer " + tok } });
+      if (!resp.ok) {
+        const err = await resp.text();
+        console.error("[auth] /api/auth/me failed:", resp.status, err);
+        window.__isAdmin = false;
+        window.__rateLimit = null;
+        return;
+      }
+      const data = await resp.json();
+      console.log("[auth] /api/auth/me result:", data);
+      window.__isAdmin = !!data.is_admin;
+      window.__rateLimit = data.rate_limit || null;
+      updateRateLimitUI();
+    } catch (e) {
+      console.error("[auth] checkAdminStatus error:", e);
+      window.__isAdmin = false;
+      window.__rateLimit = null;
+    } finally {
+      _adminCheckPromise = null;
+    }
+  })();
+  return _adminCheckPromise;
 }
 
 function updateRateLimitUI() {
@@ -143,15 +170,12 @@ function updateRateLimitUI() {
   }
 }
 
-// ── UI toggles based on admin ──────────────────────────────────────────
 function updateVisibility() {
   const isAdmin = !!window.__isAdmin;
-  // Hide Ingest tab for non-admins
   const ingestTab = document.getElementById("tab-ingest");
   if (ingestTab) {
     ingestTab.style.display = isAdmin ? "" : "none";
   }
-  // Hide SITREP "New Report" form for non-admins
   const sitrepRunForm = document.getElementById("btn-toggle-form");
   const runForm = document.getElementById("run-form");
   if (sitrepRunForm) {
@@ -159,7 +183,6 @@ function updateVisibility() {
     if (runForm) runForm.classList.add("hidden");
   }
   if (!isAdmin) {
-    // Switch away from Ingest if a non-admin managed to land on it
     if (document.getElementById("tab-ingest")?.classList.contains("active")) {
       if (typeof switchTab === "function") switchTab("agent");
     }
@@ -180,14 +203,25 @@ async function doSignIn() {
     updateVisibility();
     hideOverlay();
     showUserBar(result.user);
+    window.__authReady = true;
+    window.dispatchEvent(new Event('auth-ready'));
   } catch (err) {
     console.error("Login failed:", err);
-    if (err.code === "auth/popup-closed-by-user") {
+    if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
+      console.log("[auth] Popup blocked, falling back to redirect...");
+      try {
+        await signInWithRedirect(auth, google);
+      } catch (redirectErr) {
+        setAuthError("Redirect sign-in failed: " + redirectErr.message);
+      }
+    } else if (err.code === "auth/popup-closed-by-user") {
       setAuthError("Sign-in popup was closed before completing.");
     } else if (err.code === "auth/configuration-not-found") {
       setAuthError("Google Sign-In is disabled in Firebase Console. Go to Firebase Console → Authentication → Sign-in method → Google → Enable.");
     } else if (err.code === "auth/auth-domain-config-required" || err.code === "auth/unauthorized-domain") {
-      setAuthError("This domain (e.g. localhost) is not authorized in Firebase Console. Add it in Firebase Console → Authentication → Settings → Authorized domains. For local testing add: localhost");
+      setAuthError("This domain is not authorized in Firebase Console. Add it in Firebase Console → Authentication → Settings → Authorized domains.");
+    } else if (err.code === "auth/cancelled-by-user") {
+      setAuthError("Sign-in was cancelled.");
     } else {
       setAuthError("Sign-in failed: " + err.message);
     }
@@ -206,7 +240,7 @@ export async function signOut() {
   showUserBar(null);
 }
 window.signOut = signOut;
-// Auto-refresh token every 50 minutes (Firebase tokens expire in 60 min)
+
 setInterval(async () => {
   if (typeof auth !== 'undefined' && auth.currentUser) {
     try {
@@ -217,9 +251,10 @@ setInterval(async () => {
 }, 50 * 60 * 1000);
 
 window.checkAdminStatus = checkAdminStatus;
+window.updateVisibility = updateVisibility;
 
 // ═══════════════════════════════════════════════════════════
-// Wire UI
+// Wire UI — onAuthStateChanged is the SINGLE source of truth
 // ═══════════════════════════════════════════════════════════
 
 let _initialized = false;
@@ -231,19 +266,37 @@ function init() {
   const btn = document.getElementById("auth-google-btn");
   if (btn) btn.addEventListener("click", doSignIn);
 
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      // Always refresh token on state change (handles expired tokens)
-      const token = await user.getIdToken(true);
+  // Check for redirect sign-in result (page reload after redirect)
+  getRedirectResult(auth).then(async (result) => {
+    if (result && result.user) {
+      console.log("[auth] Redirect sign-in successful, uid=", result.user.uid);
+      const token = await result.user.getIdToken(true);
       setToken(token);
       await checkAdminStatus();
       updateVisibility();
       hideOverlay();
+      showUserBar(result.user);
+      window.__authReady = true;
+      window.dispatchEvent(new Event('auth-ready'));
+    }
+  }).catch((err) => {
+    console.error("[auth] Redirect result error:", err);
+  });
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      console.log("[auth] onAuthStateChanged: user detected, uid=", user.uid);
+      const token = await user.getIdToken(true);
+      setToken(token);
+      console.log("[auth] token obtained, length=", token.length);
+      await checkAdminStatus();
+      updateVisibility();
+      hideOverlay();
       showUserBar(user);
-      // Notify app that auth is ready
       window.__authReady = true;
       window.dispatchEvent(new Event('auth-ready'));
     } else {
+      console.log("[auth] onAuthStateChanged: no user (signed out or first load)");
       clearToken();
       window.__isAdmin = false;
       showOverlay();

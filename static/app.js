@@ -1801,17 +1801,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') mqSearch(); });
   });
 
-  // Wait for auth before making API calls
+  // Wait for auth before making auth-required API calls
+  let _appInited = false;
   function initAppData() {
+    if (_appInited) return;
+    _appInited = true;
+    const tok = window.getIdToken ? window.getIdToken() : '';
+    if (!tok) return;
     switchTab('agent');
     loadChatList();
+    updateVisibilityFromAuth();
+  }
+
+  function updateVisibilityFromAuth() {
+    if (typeof window.updateVisibility === 'function') {
+      window.updateVisibility();
+    } else {
+      const isAdmin = !!window.__isAdmin;
+      const ingestTab = document.getElementById("tab-ingest");
+      if (ingestTab) ingestTab.style.display = isAdmin ? "" : "none";
+      const sitrepRunForm = document.getElementById("btn-toggle-form");
+      if (sitrepRunForm) sitrepRunForm.style.display = isAdmin ? "" : "none";
+    }
   }
 
   if (window.__authReady) {
-    // Auth already resolved (page reload with cached token)
     initAppData();
   } else {
-    // Wait for auth-ready event from auth.js
     window.addEventListener('auth-ready', initAppData, { once: true });
+    setTimeout(() => {
+      if (!_appInited && window.getIdToken && window.getIdToken()) {
+        console.log('[app] auth-ready event missed, initializing with cached token');
+        initAppData();
+      }
+    }, 3000);
   }
 });

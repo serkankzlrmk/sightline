@@ -68,10 +68,14 @@ app.secret_key = os.urandom(24)
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 
-# Relax COOP so Google Sign-In popup can communicate back
 @app.after_request
-def add_coop_header(response):
+def add_security_headers(response):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    response.headers["Cross-Origin-Embedder-Policy"] = "unsafe-none"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 # ─────────────────────────────────────────────────────────────────────────────

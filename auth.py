@@ -38,8 +38,14 @@ _fb_app = None
 
 
 def _admins() -> set:
-    """Return set of admin UIDs from env."""
+    """Return set of admin UIDs from env (loaded by config.py's dotenv)."""
     raw = os.getenv("ADMIN_UIDS", "").strip()
+    if not raw:
+        try:
+            from config import config
+            raw = getattr(config, 'ADMIN_UIDS', '').strip() if config else ''
+        except Exception:
+            pass
     if not raw:
         return set()
     return {u.strip() for u in raw.split(",") if u.strip()}
@@ -82,6 +88,9 @@ def require_auth(f):
     """
     @functools.wraps(f)
     def decorated(*args, **kwargs):
+        import logging
+        _log = logging.getLogger(__name__)
+
         api_key = _api_key()
 
         if api_key:
@@ -92,14 +101,17 @@ def require_auth(f):
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            _log.debug("require_auth: no Bearer header for %s", request.path)
             return jsonify({"error": "Missing Authorization: Bearer token"}), 401
         token = auth_header[len("Bearer "):].strip()
         if not token:
+            _log.debug("require_auth: empty token for %s", request.path)
             return jsonify({"error": "Empty token"}), 401
         try:
             decoded = verify_firebase_token(token)
             g.current_user = decoded
         except ValueError as exc:
+            _log.warning("require_auth: token verify failed for %s: %s", request.path, exc)
             return jsonify({"error": str(exc)}), 401
 
         return f(*args, **kwargs)
@@ -116,6 +128,9 @@ def require_admin(f):
     """
     @functools.wraps(f)
     def decorated(*args, **kwargs):
+        import logging
+        _log = logging.getLogger(__name__)
+
         api_key = _api_key()
 
         if api_key:
@@ -126,18 +141,23 @@ def require_admin(f):
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
+            _log.debug("require_admin: no Bearer header for %s", request.path)
             return jsonify({"error": "Missing Authorization: Bearer token"}), 401
         token = auth_header[len("Bearer "):].strip()
         if not token:
+            _log.debug("require_admin: empty token for %s", request.path)
             return jsonify({"error": "Empty token"}), 401
         try:
             decoded = verify_firebase_token(token)
             g.current_user = decoded
         except ValueError as exc:
+            _log.warning("require_admin: token verify failed for %s: %s", request.path, exc)
             return jsonify({"error": str(exc)}), 401
 
         user_uid = decoded.get("uid", "")
-        if user_uid not in _admins():
+        admins = _admins()
+        if user_uid not in admins:
+            _log.warning("require_admin: uid=%s not in admins=%s for %s", user_uid, admins, request.path)
             return jsonify({"error": "Admin access required"}), 403
 
         return f(*args, **kwargs)
