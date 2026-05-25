@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================
-# setup.sh — ReliefAgent Production Setup (Oracle Cloud ARM)
+# setup.sh — ReliefAgent Production Setup (Oracle Cloud)
 #
-# Run as root on a fresh Ubuntu 24.04 VM:
+# Run as root on a fresh Oracle Linux 9 VM:
 #   sudo bash deploy/setup.sh
 #   sudo bash deploy/setup.sh --non-interactive
 #   sudo bash deploy/setup.sh --env-file /path/to/.env
@@ -48,22 +48,49 @@ echo ""
 
 # ── 1. System packages ──────────────────────────────────────────
 echo "[1/10] Installing system packages..."
-apt-get update -qq
-apt-get install -y \
-    python3 python3-venv python3-pip \
-    nginx certbot python3-certbot-nginx \
-    git curl wget sqlite3 \
-    ufw
+
+# Detect package manager (Oracle Linux/RHEL uses dnf, Ubuntu uses apt)
+if command -v dnf &>/dev/null; then
+    PKG_MGR="dnf"
+    dnf update -y -q
+    dnf install -y \
+        python3 python3-pip \
+        nginx certbot python3-certbot-nginx \
+        git curl wget sqlite \
+        firewalld iptables-services
+elif command -v apt-get &>/dev/null; then
+    PKG_MGR="apt"
+    apt-get update -qq
+    apt-get install -y \
+        python3 python3-venv python3-pip \
+        nginx certbot python3-certbot-nginx \
+        git curl wget sqlite3 \
+        ufw iptables-persistent
+else
+    echo "ERROR: Unsupported package manager. Use Oracle Linux 9 or Ubuntu 24.04."
+    exit 1
+fi
 
 # ── 2. Firewall ─────────────────────────────────────────────────
 echo "[2/10] Configuring firewall..."
-ufw --force reset
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw --force enable
+
+if [ "$PKG_MGR" = "dnf" ]; then
+    # Oracle Linux / RHEL — use firewalld
+    systemctl enable --now firewalld
+    firewall-cmd --permanent --add-service=ssh
+    firewall-cmd --permanent --add-service=http
+    firewall-cmd --permanent --add-service=https
+    firewall-cmd --reload
+else
+    # Ubuntu — use ufw
+    ufw --force reset
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw --force enable
+fi
 
 if [ "$SKIP_IPTABLES" = false ]; then
     # Oracle Cloud has iptables blocking by default — flush them
@@ -79,10 +106,14 @@ if [ "$SKIP_IPTABLES" = false ]; then
     iptables -A INPUT -p tcp --dport 443 -j ACCEPT
     iptables -A INPUT -j DROP
     # Persist iptables rules
-    apt-get install -y iptables-persistent
-    echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
-    echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-    netfilter-persistent save
+    if [ "$PKG_MGR" = "dnf" ]; then
+        service iptables save
+    else
+        apt-get install -y iptables-persistent
+        echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+        echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+        netfilter-persistent save
+    fi
 else
     echo "  Skipping iptables flush (--skip-iptables-flush)"
 fi
@@ -132,6 +163,14 @@ EOF
 # ── 6. Python virtual environment ───────────────────────────────
 echo "[6/10] Installing Python dependencies..."
 cd "$FIRST_RELEASE"
+
+# Oracle Linux 9 may not have venv module — install if missing
+if ! python3 -c "import venv" &>/dev/null; then
+    if [ "$PKG_MGR" = "dnf" ]; then
+        dnf install -y python3-venv
+    fi
+fi
+
 python3 -m venv venv
 venv/bin/pip install --upgrade pip setuptools wheel
 venv/bin/pip install -r requirements.txt
@@ -210,9 +249,22 @@ systemctl enable reliefagent
 
 # ── 10. Nginx ───────────────────────────────────────────────────
 echo "[10/10] Configuring Nginx..."
-cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/sites-available/reliefagent
-rm -f /etc/nginx/sites-enabled/default
-ln -sf /etc/nginx/sites-available/reliefagent /etc/nginx/sites-enabled/
+
+if [ "$PKG_MGR" = "dnf" ]; then
+    # Oracle Linux / RHEL — nginx uses conf.d/ not sites-available/
+    cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/conf.d/reliefagent.conf
+    # Remove default server block if it conflicts
+    if [ -f /etc/nginx/nginx.conf ] && grep -q "server {" /etc/nginx/nginx.conf; then
+        # Comment out the default server block in nginx.conf to avoid conflict
+        sed -i '/^server {/,/^}/s/^/#/' /etc/nginx/nginx.conf 2>/dev/null || true
+    fi
+else
+    # Ubuntu — use sites-available/sites-enabled
+    cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/sites-available/reliefagent
+    rm -f /etc/nginx/sites-enabled/default
+    ln -sf /etc/nginx/sites-available/reliefagent /etc/nginx/sites-enabled/
+fi
+
 nginx -t
 systemctl enable nginx
 
@@ -275,7 +327,11 @@ echo "  Verify:"
 echo "    curl http://localhost/api/health"
 echo ""
 echo "  Update nginx server_name:"
-echo "    sudo nano /etc/nginx/sites-available/reliefagent"
+if [ "$PKG_MGR" = "dnf" ]; then
+    echo "    sudo nano /etc/nginx/conf.d/reliefagent.conf"
+else
+    echo "    sudo nano /etc/nginx/sites-available/reliefagent"
+fi
 echo "    Replace YOUR_SERVER_IP with your domain or IP"
 echo "    sudo nginx -t && sudo systemctl reload nginx"
 echo ""
