@@ -12,9 +12,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env from this directory
+# Load .env from this directory (override=True to ensure .env values take precedence)
 _ENV_PATH = Path(__file__).parent / ".env"
-load_dotenv(dotenv_path=_ENV_PATH)
+load_dotenv(dotenv_path=_ENV_PATH, override=True)
 
 # Suppress ONNX TensorRT noise early (missing nvinfer DLL on most machines)
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
@@ -45,17 +45,25 @@ CHROMA_COLLECTION: str = os.getenv("CHROMA_COLLECTION", "reliefweb_chunks")
 # ============================================================================
 # LLM PROVIDER
 # ============================================================================
-LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ollama")
+LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openrouter")
 
-# --- Ollama ---
+# --- OpenRouter (default for public deployment) ---
+OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+
+# --- Ollama (legacy, for local dev) ---
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_API_KEY:  str = os.getenv("OLLAMA_API_KEY",  "ollama")
 OLLAMA_TIMEOUT:  int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
+# --- Effective LLM settings (resolved based on LLM_PROVIDER) ---
+_LLM_BASE_URL: str = OPENROUTER_BASE_URL if LLM_PROVIDER == "openrouter" else OLLAMA_BASE_URL
+_LLM_API_KEY:  str  = OPENROUTER_API_KEY if LLM_PROVIDER == "openrouter" else OLLAMA_API_KEY
+
 # ============================================================================
 # ACTIVE MODEL
 # ============================================================================
-ACTIVE_MODEL: str = os.getenv("ACTIVE_MODEL", "gemma4:31b-cloud")
+ACTIVE_MODEL: str = os.getenv("ACTIVE_MODEL", "google/gemini-2.5-flash")
 
 # reliefwebapi agent uses OLLAMA_MODEL (also aliased to ACTIVE_MODEL)
 OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", ACTIVE_MODEL)

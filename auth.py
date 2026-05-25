@@ -28,9 +28,13 @@ def _firebase_app():
     if _fb_app is None:
         import firebase_admin
         from firebase_admin import credentials
-        sa_path = os.path.join(os.path.dirname(__file__), "firebase-service-account.json")
-        cred = credentials.Certificate(sa_path)
-        _fb_app = firebase_admin.initialize_app(cred)
+        # Check if default app already exists (e.g., initialized elsewhere)
+        try:
+            _fb_app = firebase_admin.get_app()
+        except ValueError:
+            sa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json")
+            cred = credentials.Certificate(sa_path)
+            _fb_app = firebase_admin.initialize_app(cred)
     return _fb_app
 
 

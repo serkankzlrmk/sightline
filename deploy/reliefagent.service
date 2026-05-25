@@ -6,9 +6,10 @@ After=network.target
 Type=simple
 User=reliefagent
 Group=reliefagent
-WorkingDirectory=/opt/reliefagent
-Environment="PATH=/opt/reliefagent/venv/bin:/usr/local/bin:/usr/bin"
-ExecStart=/opt/reliefagent/venv/bin/gunicorn -c deploy/gunicorn.conf.py server:app
+WorkingDirectory=/opt/reliefagent/current
+Environment="PATH=/opt/reliefagent/current/venv/bin:/usr/local/bin:/usr/bin"
+Environment="PYTHONPATH=/opt/reliefagent/current"
+ExecStart=/opt/reliefagent/current/venv/bin/gunicorn -c deploy/gunicorn.conf.py server:app
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -18,7 +19,7 @@ StandardError=journal
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/opt/reliefagent/reliefweb_downloads /opt/reliefagent/output /opt/reliefagent/reliefweb_chroma /var/log/reliefagent
+ReadWritePaths=/opt/reliefagent/current /opt/reliefagent/data /opt/reliefagent/releases /var/log/reliefagent
 ProtectHome=true
 
 [Install]

@@ -127,13 +127,10 @@ body {
   object-fit: contain;
   border-radius: 4px;
 }
-.nav-logo .sub {
-  font-weight: 400;
-  font-size: 11px;
-  opacity: .5;
-  letter-spacing: .3px;
-  border-left: 1px solid rgba(255,255,255,.15);
-  padding-left: 12px;
+.nav-brand {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: .5px;
 }
 
 .nav-right {
@@ -774,7 +771,7 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 @keyframes authFadeIn { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
 .auth-brand { margin-bottom: 28px; }
-.auth-logo { width: 72px; height: 72px; margin-bottom: 14px; border-radius: 16px; box-shadow: 0 4px 16px rgba(200,16,46,.2); }
+.auth-logo { width: 72px; height: 72px; margin-bottom: 14px; border-radius: 16px; box-shadow: 0 4px 16px rgba(59,130,246,.2); }
 .auth-brand h1 { font-size: 28px; font-weight: 800; color: var(--primary); margin: 0 0 4px; letter-spacing: -.5px; }
 .auth-brand p  { font-size: 14px; color: var(--text-muted); margin: 0; }
 .auth-subtitle { font-weight: 400 !important; letter-spacing: .3px; }
@@ -1561,6 +1558,7 @@ body.auth-locked .auth-box   { pointer-events: auto; }
     flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px;
   }
   .nav-logo .sub { display: none; }
+  .nav-brand { font-size: 12px; }
   .tab-group {
     order: 3; width: 100%; margin-top: 4px;
     overflow-x: auto; -webkit-overflow-scrolling: touch;
@@ -1604,6 +1602,7 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 
   .nav { padding: 6px 8px; gap: 6px; }
   .nav-logo-img { height: 24px; }
+  .nav-brand { font-size: 14px; }
   .tab-btn { padding: 5px 10px; font-size: 11px; }
   .user-bar #user-name { display: none; }
   .busy-dot { display: none !important; }

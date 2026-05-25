@@ -229,7 +229,7 @@ class ReportFormatConverter:
             files = fields.get("file", [])
             pdf_file = None
             for file_item in files:
-                if file_item.get("mime_type", "").lower() == "application/pdf":
+                if file_item.get("mimetype", "").lower() == "application/pdf":
                     pdf_file = file_item
                     break
             

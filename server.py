@@ -84,14 +84,26 @@ def add_security_headers(response):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if not SERVER_DEBUG:
+        # Production CSP — no localhost, includes OpenRouter for LLM calls
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https: http:; "
-            "connect-src 'self' http://localhost:5000 http://127.0.0.1:5000 https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com; "
-            "frame-src https://YOUR_PROJECT.firebaseapp.com; "
+            "connect-src 'self' https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com; "
+            "frame-src https://YOUR_PROJECT.firebaseapp.com https://accounts.google.com; "
+        )
+    else:
+        # Dev CSP — includes localhost for local development
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https: http:; "
+            "connect-src 'self' http://localhost:5000 http://localhost:5001 http://127.0.0.1:5000 http://127.0.0.1:5001 https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com; "
+            "frame-src https://YOUR_PROJECT.firebaseapp.com https://accounts.google.com; "
         )
     return response
 
@@ -106,8 +118,8 @@ _agent_lock   = threading.Lock()
 import time as _time
 _chats_lock     = threading.Lock()
 _user_active_chat = {}  # uid → chat_id
-_agent_busy     = False
-_agent_busy_since = 0.0   # timestamp when agent became busy
+_user_agent_busy = {}  # uid → bool  (per-user agent busy flag)
+_user_agent_busy_since = {}  # uid → timestamp
 _AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
 
 # Simple per-IP rate limiter for unauthenticated endpoints
@@ -487,7 +499,49 @@ def index():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "version": "1.0"})
+    """Enhanced health check — verifies DB, ChromaDB, and LLM config."""
+    from config import CHROMA_DIR, _LLM_API_KEY, ACTIVE_MODEL, LLM_PROVIDER
+
+    checks = {"status": "ok", "version": "1.0"}
+
+    # SQLite DB check
+    db_ok = False
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.execute("SELECT 1")
+        conn.close()
+        db_ok = True
+    except Exception:
+        pass
+    checks["db"] = db_ok
+
+    # ChromaDB directory check
+    chroma_ok = Path(str(CHROMA_DIR)).exists()
+    checks["chroma"] = chroma_ok
+
+    # LLM config check
+    llm_ok = bool(_LLM_API_KEY)
+    checks["llm"] = llm_ok
+    checks["llm_provider"] = LLM_PROVIDER
+    checks["model"] = ACTIVE_MODEL
+
+    # Release info (if available — written by deploy.sh)
+    release_info_path = Path(__file__).parent / "RELEASE_INFO"
+    if release_info_path.exists():
+        try:
+            for line in release_info_path.read_text().strip().splitlines():
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    checks[f"release_{k.lower()}"] = v
+        except Exception:
+            pass
+
+    # Overall status: ok only if all critical checks pass
+    all_ok = db_ok and chroma_ok and llm_ok
+    checks["status"] = "ok" if all_ok else "degraded"
+
+    code = 200 if all_ok else 503
+    return jsonify(checks), code
 
 
 # =============================================================================
@@ -586,7 +640,6 @@ def api_agent_chats_delete(chat_id):
 @app.route("/api/agent/chat", methods=["POST"])
 @require_auth
 def api_agent_chat():
-    global _agent_busy, _agent_busy_since
 
     uid = current_uid()
     from auth import _admins as _get_admins
@@ -609,12 +662,13 @@ def api_agent_chat():
             }), 429
 
     # Auto-unlock if stuck (client disconnected, finally didn't run)
-    if _agent_busy and (_time.time() - _agent_busy_since) > _AGENT_BUSY_TIMEOUT:
-        logger.warning("Agent busy flag stuck for >%ds, auto-resetting", _AGENT_BUSY_TIMEOUT)
-        _agent_busy = False
+    if uid in _user_agent_busy and _user_agent_busy.get(uid, False):
+        if (_time.time() - _user_agent_busy_since.get(uid, 0)) > _AGENT_BUSY_TIMEOUT:
+            logger.warning("Agent busy flag stuck for uid=%s >%ds, auto-resetting", uid, _AGENT_BUSY_TIMEOUT)
+            _user_agent_busy[uid] = False
 
-    if _agent_busy:
-        return jsonify({"error": "Agent meşgul, lütfen bekleyin"}), 429
+    if _user_agent_busy.get(uid, False):
+        return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
 
     chat_id = _ensure_active_chat(uid)
     if not is_admin:
@@ -623,9 +677,8 @@ def api_agent_chat():
     from langchain_core.messages import HumanMessage, AIMessage
 
     def generate():
-        global _agent_busy, _agent_busy_since
-        _agent_busy = True
-        _agent_busy_since = _time.time()
+        _user_agent_busy[uid] = True
+        _user_agent_busy_since[uid] = _time.time()
 
         try:
             # Save user message to DB and load full history
@@ -676,7 +729,7 @@ def api_agent_chat():
             logger.exception("Agent chat error")
             yield f"data: {json.dumps({'type': 'error', 'text': 'An error occurred during processing'})}\n\n"
         finally:
-            _agent_busy = False
+            _user_agent_busy[uid] = False
 
     return Response(
         generate(),
@@ -702,10 +755,17 @@ def api_agent_chat_reset():
 @app.route("/api/agent/chat/unlock", methods=["POST"])
 @require_admin
 def api_agent_chat_unlock():
-    """Force-unlock the agent busy flag (emergency reset)."""
-    global _agent_busy
-    _agent_busy = False
-    return jsonify({"ok": True, "was_busy": True})
+    """Force-unlock the agent busy flag for a specific user (emergency reset)."""
+    target_uid = request.json.get("uid") if request.is_json else None
+    if target_uid:
+        was_busy = _user_agent_busy.get(target_uid, False)
+        _user_agent_busy[target_uid] = False
+        return jsonify({"ok": True, "was_busy": was_busy, "uid": target_uid})
+    else:
+        # Unlock all users
+        busy_count = sum(1 for v in _user_agent_busy.values() if v)
+        _user_agent_busy.clear()
+        return jsonify({"ok": True, "unlocked_count": busy_count})
 
 
 @app.route("/api/agent/chat/status")
@@ -715,7 +775,7 @@ def api_agent_chat_status():
     chat_id = _ensure_active_chat(uid)
     msg_count = len(_db_get_messages(chat_id))
     return jsonify({
-        "busy": _agent_busy,
+        "busy": _user_agent_busy.get(uid, False),
         "history_len": msg_count,
         "active_chat": chat_id,
     })

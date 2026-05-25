@@ -1,6 +1,6 @@
 """
 Model initialization and management.
-Handles Ollama model setup with proper error handling.
+Handles LLM provider setup (OpenRouter or Ollama) with proper error handling.
 """
 
 import logging
@@ -19,41 +19,74 @@ class ModelInitializationError(Exception):
     pass
 
 
-def check_ollama_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
+def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
     """
-    Check if Ollama is accessible before initializing the model.
+    Check if the LLM provider is accessible before initializing the model.
+    Supports both OpenRouter and Ollama.
     
     Args:
         max_retries: Number of retry attempts
         retry_delay: Delay between retries in seconds
         
     Returns:
-        True if Ollama is accessible, False otherwise
+        True if the provider is accessible, False otherwise
     """
-    base_url = config.OLLAMA_BASE_URL.rstrip('/v1')  # Get base URL without /v1
-    health_url = f"{base_url}/api/tags"
+    provider = config.LLM_PROVIDER
     
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"Checking Ollama connectivity (attempt {attempt + 1}/{max_retries})...")
-            response = requests.get(health_url, timeout=5)
-            if response.status_code == 200:
-                logger.info("✓ Ollama is accessible")
-                return True
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"Ollama connection failed (attempt {attempt + 1}/{max_retries})")
-            if attempt < max_retries - 1:
-                logger.info(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
-        except Exception as e:
-            logger.warning(f"Error checking Ollama: {e}")
-    
-    return False
+    if provider == "openrouter":
+        # OpenRouter: check /models endpoint with auth
+        url = f"{config._LLM_BASE_URL.rstrip('/')}/models"
+        headers = {"Authorization": f"Bearer {config._LLM_API_KEY}"}
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Checking OpenRouter connectivity (attempt {attempt + 1}/{max_retries})...")
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    logger.info("✓ OpenRouter is accessible")
+                    return True
+                elif response.status_code == 401:
+                    logger.error("✗ OpenRouter API key is invalid (401 Unauthorized)")
+                    return False
+                elif response.status_code == 429:
+                    logger.warning(f"OpenRouter rate limited (429), retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.warning(f"OpenRouter returned status {response.status_code}")
+            except requests.exceptions.ConnectionError:
+                logger.warning(f"OpenRouter connection failed (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            except Exception as e:
+                logger.warning(f"Error checking OpenRouter: {e}")
+        return False
+    else:
+        # Ollama: check /api/tags endpoint
+        base_url = config.OLLAMA_BASE_URL.rstrip('/v1')
+        health_url = f"{base_url}/api/tags"
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Checking Ollama connectivity (attempt {attempt + 1}/{max_retries})...")
+                response = requests.get(health_url, timeout=5)
+                if response.status_code == 200:
+                    logger.info("✓ Ollama is accessible")
+                    return True
+            except requests.exceptions.ConnectionError:
+                logger.warning(f"Ollama connection failed (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+            except Exception as e:
+                logger.warning(f"Error checking Ollama: {e}")
+        return False
 
 
 def check_model_available(model_name: str) -> bool:
     """
-    Check if a specific model is available in Ollama.
+    Check if a specific model is available.
+    For OpenRouter, always returns True (models are available on-demand).
+    For Ollama, checks the local model list.
     
     Args:
         model_name: Name of the model to check
@@ -61,6 +94,12 @@ def check_model_available(model_name: str) -> bool:
     Returns:
         True if model is available, False otherwise
     """
+    if config.LLM_PROVIDER == "openrouter":
+        # OpenRouter serves models on-demand, no need to check availability
+        logger.info(f"✓ OpenRouter model '{model_name}' will be served on-demand")
+        return True
+    
+    # Ollama: check local model list
     base_url = config.OLLAMA_BASE_URL.rstrip('/v1')
     tags_url = f"{base_url}/api/tags"
     
@@ -70,7 +109,6 @@ def check_model_available(model_name: str) -> bool:
             data = response.json()
             models = [m.get('name', '') for m in data.get('models', [])]
             
-            # Check if model exists (exact match or partial match)
             for available_model in models:
                 if model_name in available_model or available_model in model_name:
                     logger.info(f"✓ Model '{model_name}' found")
@@ -85,7 +123,8 @@ def check_model_available(model_name: str) -> bool:
 
 def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
     """
-    Initialize the Ollama model with error handling.
+    Initialize the LLM model with error handling.
+    Supports OpenRouter and Ollama providers.
     
     Args:
         skip_checks: Skip connectivity/model availability checks
@@ -96,37 +135,38 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
     Raises:
         ModelInitializationError: If model initialization fails
     """
-    logger.info(f"Initializing model: {config.OLLAMA_MODEL}")
+    provider = config.LLM_PROVIDER
+    model_name = config.OLLAMA_MODEL
+    logger.info(f"Initializing model: {model_name} (provider: {provider})")
     
     if not skip_checks:
-        # Check Ollama connectivity
-        if not check_ollama_connectivity():
-            error_msg = (
-                f"Cannot connect to Ollama at {config.OLLAMA_BASE_URL}. "
-                "Make sure Ollama is running: `ollama serve`"
-            )
-            logger.error(error_msg)
-            raise ModelInitializationError(error_msg)
+        if not check_llm_connectivity():
+            if provider == "openrouter":
+                raise ModelInitializationError(
+                    f"Cannot connect to OpenRouter at {config._LLM_BASE_URL}. "
+                    "Check your OPENROUTER_API_KEY."
+                )
+            else:
+                raise ModelInitializationError(
+                    f"Cannot connect to Ollama at {config.OLLAMA_BASE_URL}. "
+                    "Make sure Ollama is running: `ollama serve`"
+                )
         
-        # Check if model is available
-        if not check_model_available(config.OLLAMA_MODEL):
-            pull_cmd = f"ollama pull {config.OLLAMA_MODEL}"
-            error_msg = (
-                f"Model '{config.OLLAMA_MODEL}' not found. "
-                f"Pull it with: `{pull_cmd}`"
-            )
-            logger.warning(error_msg)
+        if not check_model_available(model_name):
+            if provider == "ollama":
+                pull_cmd = f"ollama pull {model_name}"
+                logger.warning(f"Model '{model_name}' not found locally. Pull it with: `{pull_cmd}`")
     
     try:
         model = ChatOpenAI(
-            model=config.OLLAMA_MODEL,
-            base_url=config.OLLAMA_BASE_URL,
-            api_key=config.OLLAMA_API_KEY,
+            model=model_name,
+            base_url=config._LLM_BASE_URL,
+            api_key=config._LLM_API_KEY,
             temperature=config.MODEL_TEMPERATURE,
             max_tokens=config.MODEL_MAX_TOKENS,
             timeout=config.OLLAMA_TIMEOUT,
         )
-        logger.info("✓ Model initialized successfully")
+        logger.info(f"✓ Model initialized successfully (provider: {provider})")
         return model
     except Exception as e:
         error_msg = f"Failed to initialize model: {e}"

@@ -3,7 +3,13 @@ ReliefWeb API Configuration and Constants
 """
 
 import os
+from pathlib import Path
 from typing import Dict
+from dotenv import load_dotenv
+
+# Load .env from project root (ensures env vars are available at module level)
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_env_path, override=True)
 
 
 def _ssl_verify():

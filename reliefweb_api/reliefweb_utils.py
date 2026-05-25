@@ -5,15 +5,21 @@ Shared utilities for API operations
 
 import re
 import json
+import time
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
+
+import requests
 
 from .reliefweb_config import (
     COUNTRY_NAME_MAP,
     MIN_COUNTRY_LENGTH,
     MAX_COUNTRY_LENGTH,
-    DATE_FORMAT
+    DATE_FORMAT,
+    ENABLE_RETRY,
+    MAX_RETRIES,
+    RETRY_DELAY,
 )
 
 # Setup logging
@@ -174,6 +180,91 @@ def validate_date(date_str: str) -> tuple[bool, Optional[str]]:
         return True, None
     except (ValueError, TypeError):
         return False, f"Invalid date format. Use {DATE_FORMAT}"
+
+
+# ========================================================================
+# RETRY UTILITY
+# ========================================================================
+
+def retry_request(method: str, url: str, max_retries: int = None,
+                  retry_delay: float = None, **kwargs) -> requests.Response:
+    """
+    Execute an HTTP request with automatic retry on transient failures.
+    
+    Retries on:
+    - Network errors (ConnectionError, Timeout)
+    - HTTP 429 (rate limit) — exponential backoff
+    - HTTP 5xx (server errors)
+    
+    Does NOT retry on:
+    - HTTP 4xx client errors (except 429)
+    
+    Args:
+        method: HTTP method ('get' or 'post')
+        url: Request URL
+        max_retries: Max retry attempts (default: from config MAX_RETRIES)
+        retry_delay: Base delay between retries in seconds (default: from config RETRY_DELAY)
+        **kwargs: Additional arguments passed to requests (timeout, verify, json, etc.)
+        
+    Returns:
+        requests.Response object
+        
+    Raises:
+        requests.exceptions.RequestException: After all retries exhausted
+    """
+    if not ENABLE_RETRY:
+        # Retry disabled — single shot
+        fn = getattr(requests, method.lower())
+        return fn(url, **kwargs)
+    
+    _max_retries = max_retries if max_retries is not None else MAX_RETRIES
+    _retry_delay = retry_delay if retry_delay is not None else RETRY_DELAY
+    
+    fn = getattr(requests, method.lower())
+    last_error: Optional[Exception] = None
+    
+    for attempt in range(1, _max_retries + 1):
+        try:
+            response = fn(url, **kwargs)
+            
+            # Rate limit — exponential backoff
+            if response.status_code == 429:
+                wait = _retry_delay * (2 ** (attempt - 1))
+                logger.warning(
+                    "Rate limit (429) on %s %s. Attempt %d/%d. Waiting %.1fs.",
+                    method.upper(), url, attempt, _max_retries, wait,
+                )
+                time.sleep(wait)
+                continue
+            
+            # Server error — retry
+            if response.status_code >= 500:
+                wait = _retry_delay * attempt
+                logger.warning(
+                    "Server error (%d) on %s %s. Attempt %d/%d. Waiting %.1fs.",
+                    response.status_code, method.upper(), url, attempt, _max_retries, wait,
+                )
+                time.sleep(wait)
+                continue
+            
+            # Success or client error (4xx except 429) — return immediately
+            return response
+            
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            last_error = exc
+            wait = _retry_delay * attempt
+            logger.warning(
+                "Request failed on %s %s. Attempt %d/%d. Waiting %.1fs. Error: %s",
+                method.upper(), url, attempt, _max_retries, wait, exc,
+            )
+            time.sleep(wait)
+    
+    # All retries exhausted
+    if last_error:
+        raise last_error
+    raise requests.exceptions.RequestException(
+        f"All {_max_retries} retries exhausted for {method.upper()} {url}"
+    )
 
 
 # ========================================================================

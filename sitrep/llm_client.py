@@ -1,6 +1,6 @@
 """
 sitrep_pipeline/llm_client.py
-LLM wrapper — Ollama (OpenAI-uyumlu API).
+LLM wrapper — OpenRouter / Ollama (OpenAI-compatible API).
 """
 
 import time
@@ -10,6 +10,9 @@ from typing import List, Dict, Optional
 import requests
 
 from config import (
+    LLM_PROVIDER,
+    _LLM_BASE_URL,
+    _LLM_API_KEY,
     OLLAMA_BASE_URL,
     OLLAMA_API_KEY,
     LLM_MODEL,
@@ -25,11 +28,18 @@ _RATE_LIMIT_WAIT = 10
 
 
 def _get_base_url_and_headers() -> tuple[str, dict]:
-    """Ollama base URL ve HTTP basliklarini dondurur."""
+    """LLM provider base URL and HTTP headers."""
     headers = {"Content-Type": "application/json"}
-    if OLLAMA_API_KEY:
-        headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
-    return OLLAMA_BASE_URL, headers
+    
+    if LLM_PROVIDER == "openrouter":
+        headers["Authorization"] = f"Bearer {_LLM_API_KEY}"
+        headers["HTTP-Referer"] = "https://reliefagent.org"
+        headers["X-Title"] = "ReliefAgent"
+        return _LLM_BASE_URL, headers
+    else:
+        if OLLAMA_API_KEY:
+            headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
+        return OLLAMA_BASE_URL, headers
 
 
 def chat(

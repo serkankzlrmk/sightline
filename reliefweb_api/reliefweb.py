@@ -53,6 +53,8 @@ from .reliefweb_utils import (
     format_error,
     validate_country,
     validate_limit,
+    validate_date,
+    retry_request,
 )
 
 from .download_manager import get_download_manager
@@ -131,7 +133,7 @@ def search_sitreps(
         primary_country: Filter by primary country (same as country but uses primary_country field)
         disaster: Filter by disaster name (e.g., 'Turkey-Syria Earthquake')
         disaster_type: Filter by disaster type (e.g., 'Earthquake', 'Flood', 'Epidemic', 'Drought', 'Cyclone', 'Complex Emergency')
-        source_fullname: Filter by full organization name (e.g., 'Turkish Red Crescent Society'). Use when shortname is unknown.
+        source_fullname: Filter by full organization name (e.g., 'World Health Organization'). Use when shortname is unknown.
         organization_type: Filter by organization type (e.g., 'International NGO', 'United Nations', 'Government', 'Red Cross / Red Crescent')
 
     Returns:
@@ -143,7 +145,7 @@ def search_sitreps(
         search_sitreps(country="Sudan", query="health", limit=5)
         search_sitreps(country="Yemen", theme="Food and Nutrition", source_org="WFP")
         search_sitreps(disaster_type="Earthquake", date_from="2023-02-01")
-        search_sitreps(source_fullname="Turkish Red Crescent Society", country="Syria")
+        search_sitreps(source_fullname="World Health Organization", country="Syria")
         search_sitreps(organization_type="Red Cross / Red Crescent")
     """
     try:
@@ -221,7 +223,7 @@ def search_sitreps(
             body["query"] = {"value": str(query).strip()}
 
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
 
@@ -319,7 +321,7 @@ def get_sitrep_summary(report_id: Optional[int] = None, ids: Optional[list] = No
 
         # ── Slow path: external ReliefWeb API ────────────────────────────
         url = f"{RELIEFWEB_REPORTS_API}/{actual_report_id}?appname={RELIEFWEB_APPNAME}"
-        response = requests.get(url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        response = retry_request("get", url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
 
@@ -422,7 +424,7 @@ def get_report_full_content(report_id: Optional[int] = None, ids: Optional[list]
 
         # ── Slow path: external ReliefWeb API ────────────────────────────
         url = f"{RELIEFWEB_REPORTS_API}/{actual_report_id}?appname={RELIEFWEB_APPNAME}"
-        response = requests.get(url, timeout=API_TIMEOUT_SHORT)
+        response = retry_request("get", url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
 
@@ -539,7 +541,7 @@ def search_disasters(country: Optional[str] = None, status: str = "current", lim
         
         # Make API request
         url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
-        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT)
+        response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
         
@@ -607,7 +609,16 @@ def search_disasters_by_date(
         if not is_valid:
             return format_error("InvalidInput", error_msg)
         
-        # Build API request (simplified for date range)
+        is_valid, error_msg = validate_date(start_date)
+        if not is_valid:
+            return format_error("InvalidInput", f"start_date: {error_msg}")
+        
+        if end_date:
+            is_valid, error_msg = validate_date(end_date)
+            if not is_valid:
+                return format_error("InvalidInput", f"end_date: {error_msg}")
+        
+        # Build API request
         body = {
             "limit": min(limit, DISASTER_LIMIT_MAX),
             "sort": ["date:desc"],
@@ -616,13 +627,41 @@ def search_disasters_by_date(
             }
         }
         
+        # Build filters
+        conditions = []
+        
+        # Date range filter
+        date_filter = {"field": "date"}
+        if end_date:
+            date_filter["value"] = {
+                "from": f"{start_date}T00:00:00+00:00",
+                "to": f"{end_date}T23:59:59+00:00"
+            }
+        else:
+            date_filter["value"] = {"from": f"{start_date}T00:00:00+00:00"}
+        conditions.append(date_filter)
+        
+        # Country filter
+        if country:
+            normalized_country = normalize_country_name(country)
+            conditions.append({
+                "field": "country.name",
+                "value": normalized_country
+            })
+        
+        # Apply filters
+        if len(conditions) == 1:
+            body["filter"] = conditions[0]
+        else:
+            body["filter"] = {"conditions": conditions, "operator": "AND"}
+        
         # Make API request
         url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
-        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT)
+        response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
         
-        # Extract and filter by date
+        # Extract disasters
         disasters_data = data.get("data", [])
         if not disasters_data:
             return format_response([])
@@ -689,7 +728,7 @@ def get_latest_headlines(limit: int = 15) -> str:
         
         # Make API request
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT)
+        response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
         
@@ -764,7 +803,7 @@ def get_latest_blog_posts(limit: int = 10) -> str:
         
         # Make API request
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        response = requests.post(url, json=body, timeout=API_TIMEOUT_SHORT)
+        response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
         
@@ -836,7 +875,7 @@ def get_recent_updates_summary(days: int = 7) -> str:
         }
         
         disasters_url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
-        disasters_response = requests.post(disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        disasters_response = retry_request("post", disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         disasters_response.raise_for_status()
         disasters_data = disasters_response.json().get("data", [])
         
@@ -851,7 +890,7 @@ def get_recent_updates_summary(days: int = 7) -> str:
         }
         
         headlines_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        headlines_response = requests.post(headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        headlines_response = retry_request("post", headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         headlines_response.raise_for_status()
         headlines_data = headlines_response.json().get("data", [])
         
@@ -926,7 +965,7 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
         
         # Get report to find PDF attachment
         url = f"{RELIEFWEB_REPORTS_API}/{actual_report_id}?appname={RELIEFWEB_APPNAME}"
-        response = requests.get(url, timeout=API_TIMEOUT_SHORT)
+        response = retry_request("get", url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
         
@@ -936,7 +975,7 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
         files = fields.get("file", [])
         pdf_file = None
         for file_item in files:
-            if file_item.get("mime_type", "").lower() == "application/pdf":
+            if file_item.get("mimetype", "").lower() == "application/pdf":
                 pdf_file = file_item
                 break
         
@@ -961,7 +1000,7 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
             })
         
         # Download PDF
-        pdf_response = requests.get(pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
+        pdf_response = retry_request("get", pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
         pdf_response.raise_for_status()
         
         # Write to temporary file
@@ -1395,7 +1434,7 @@ def parse_reliefweb_url(url: str) -> str:
                     "fields": {"include": ["id", "title", "date", "source", "url", "body-html", "country"]}
                 }
                 api_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-                resp = requests.post(api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+                resp = retry_request("post", api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
                 resp.raise_for_status()
                 data = resp.json().get("data", [])
                 if data:
@@ -1420,7 +1459,7 @@ def parse_reliefweb_url(url: str) -> str:
 
         # Fetch by ID
         api_url = f"{RELIEFWEB_REPORTS_API}/{report_id}?appname={RELIEFWEB_APPNAME}"
-        resp = requests.get(api_url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        resp = retry_request("get", api_url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         resp.raise_for_status()
         data = resp.json().get("data", [])
 
@@ -1465,7 +1504,7 @@ def search_sources(
     Use this to discover the correct shortname for an organization.
 
     Args:
-        query: Organization name or keyword (e.g., 'Kızılay', 'Red Crescent', 'Doctors Without Borders')
+        query: Organization name or keyword (e.g., 'MSF', 'Red Crescent', 'Doctors Without Borders')
         country: Filter sources by country of operation (e.g., 'Turkey', 'Syria')
         org_type: Organization type filter. Values: 'International NGO', 'National NGO',
                   'Government', 'International Organization', 'United Nations',
@@ -1478,7 +1517,7 @@ def search_sources(
 
     Examples:
         search_sources(query="Red Crescent")
-        search_sources(query="Kızılay", org_type="Red Cross / Red Crescent")
+        search_sources(query="MSF", org_type="International NGO")
         search_sources(query="health", country="Turkey", org_type="Government")
     """
     try:
@@ -1505,7 +1544,7 @@ def search_sources(
             body["filter"] = {"operator": "AND", "conditions": filters}
 
         api_url = f"{RELIEFWEB_SOURCES_API}?appname={RELIEFWEB_APPNAME}"
-        resp = requests.post(api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        resp = retry_request("post", api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         resp.raise_for_status()
         data = resp.json().get("data", [])
 
