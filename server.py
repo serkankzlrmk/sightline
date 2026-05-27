@@ -502,7 +502,7 @@ def health():
     """Enhanced health check — verifies DB, ChromaDB, and LLM config."""
     from config import CHROMA_DIR, _LLM_API_KEY, ACTIVE_MODEL, LLM_PROVIDER
 
-    checks = {"status": "ok", "version": "1.0"}
+    checks = {"status": "ok", "version": "1.1"}
 
     # SQLite DB check
     db_ok = False
