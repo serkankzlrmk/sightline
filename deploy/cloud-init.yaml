@@ -1,0 +1,260 @@
+#cloud-config
+# ============================================================
+# cloud-init.yaml — ReliefAgent Auto-Setup for Oracle Cloud Ampere A1
+#
+# This script runs automatically when the VM boots for the first time.
+# It installs all dependencies, clones the repo, and sets up the app.
+#
+# After VM creation, you only need to:
+#   1. Edit /opt/reliefagent/data/.env (API keys)
+#   2. Copy firebase-service-account.json to /opt/reliefagent/data/
+#   3. sudo systemctl restart reliefagent
+# ============================================================
+
+package_update: true
+
+packages:
+  - python3
+  - python3-pip
+  - python3-venv
+  - nginx
+  - git
+  - curl
+  - wget
+  - sqlite
+  - firewalld
+  - iptables-services
+  - certbot
+  - python3-certbot-nginx
+
+write_files:
+  # ── Swap file (2GB) ──────────────────────────────────────────
+  - path: /etc/systemd/system/swap.service
+    content: |
+      [Unit]
+      Description=Swap File
+      After=local-fs.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/bash -c 'fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile'
+      ExecStop=/usr/bin/swapoff /swapfile
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # ── Oracle Cloud iptables flush service ───────────────────────
+  - path: /etc/systemd/system/oci-iptables-flush.service
+    content: |
+      [Unit]
+      Description=Flush Oracle Cloud default iptables rules
+      After=network.target iptables.service
+      Before=firewalld.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/bash -c '\
+        iptables -P INPUT ACCEPT && \
+        iptables -P FORWARD ACCEPT && \
+        iptables -P OUTPUT ACCEPT && \
+        iptables -F && \
+        iptables -A INPUT -i lo -j ACCEPT && \
+        iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 22 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 80 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 443 -j ACCEPT && \
+        iptables -A INPUT -j DROP && \
+        iptables-save > /etc/sysconfig/iptables'
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # ── Nginx config ─────────────────────────────────────────────
+  - path: /etc/nginx/conf.d/reliefagent.conf
+    content: |
+      server {
+          listen 80;
+          server_name _;
+
+          client_max_body_size 50M;
+
+          add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+          location / {
+              proxy_pass http://127.0.0.1:5001;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_buffering off;
+              proxy_cache off;
+              proxy_read_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "upgrade";
+          }
+
+          location /static/ {
+              proxy_pass http://127.0.0.1:5001/static/;
+              expires 7d;
+              add_header Cache-Control "public, immutable";
+              proxy_buffering on;
+              proxy_read_timeout 30s;
+          }
+
+          location /api/health {
+              proxy_pass http://127.0.0.1:5001/api/health;
+              proxy_set_header Host $host;
+              access_log off;
+          }
+      }
+
+  # ── Systemd service ──────────────────────────────────────────
+  - path: /etc/systemd/system/reliefagent.service
+    content: |
+      [Unit]
+      Description=ReliefAgent Data Platform
+      After=network.target
+
+      [Service]
+      Type=simple
+      User=reliefagent
+      Group=reliefagent
+      WorkingDirectory=/opt/reliefagent/current
+      Environment="PATH=/opt/reliefagent/current/venv/bin:/usr/local/bin:/usr/bin"
+      Environment="PYTHONPATH=/opt/reliefagent/current"
+      ExecStart=/opt/reliefagent/current/venv/bin/gunicorn -c deploy/gunicorn.conf.py server:app
+      Restart=always
+      RestartSec=5
+      StandardOutput=journal
+      StandardError=journal
+      NoNewPrivileges=true
+      PrivateTmp=true
+      ProtectSystem=strict
+      ReadWritePaths=/opt/reliefagent/current /opt/reliefagent/data /opt/reliefagent/releases /var/log/reliefagent
+      ProtectHome=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # ── .env template ─────────────────────────────────────────────
+  - path: /opt/reliefagent/data/.env
+    content: |
+      # ReliefAgent Configuration — EDIT THIS FILE
+      # Run: sudo nano /opt/reliefagent/data/.env
+      SERVER_PORT=5001
+      LLM_PROVIDER=openrouter
+      OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+      OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY_HERE
+      ACTIVE_MODEL=google/gemini-2.5-flash
+      RELIEFWEB_APPNAME=RELIEFWEB_APPNAME_PLACEHOLDER
+      DAILY_MESSAGE_LIMIT=3
+      ADMIN_UIDS=YOUR_FIREBASE_UID_HERE
+      SECRET_KEY=CHANGE_ME_TO_RANDOM_STRING
+      CORS_ORIGINS=*
+      SERVER_DEBUG=false
+      SSL_VERIFY=true
+    permissions: '0600'
+
+runcmd:
+  # ── 1. Enable swap ────────────────────────────────────────────
+  - systemctl daemon-reload
+  - systemctl enable swap.service
+  - systemctl start swap.service
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+  # ── 2. Flush Oracle Cloud iptables ───────────────────────────
+  - systemctl enable oci-iptables-flush.service
+  - systemctl start oci-iptables-flush.service
+
+  # ── 3. Configure firewalld ───────────────────────────────────
+  - systemctl enable firewalld
+  - systemctl start firewalld
+  - firewall-cmd --permanent --add-service=ssh
+  - firewall-cmd --permanent --add-service=http
+  - firewall-cmd --permanent --add-service=https
+  - firewall-cmd --reload
+
+  # ── 4. Create app user ───────────────────────────────────────
+  - useradd -r -s /bin/false -d /opt/reliefagent reliefagent || true
+
+  # ── 5. Create directory structure ────────────────────────────
+  - mkdir -p /opt/reliefagent/releases
+  - mkdir -p /opt/reliefagent/backups
+  - mkdir -p /opt/reliefagent/data/reliefweb_downloads
+  - mkdir -p /opt/reliefagent/data/reliefweb_chroma
+  - mkdir -p /opt/reliefagent/data/output
+  - mkdir -p /var/log/reliefagent
+
+  # ── 6. Clone repository ─────────────────────────────────────
+  - TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  - git clone -b main https://github.com/serkankzlrmk/RedAgent.git /opt/reliefagent/releases/$TIMESTAMP
+  - cd /opt/reliefagent/releases/$TIMESTAMP
+  - GIT_SHA=$(git rev-parse HEAD)
+  - |
+    cat > /opt/reliefagent/releases/$TIMESTAMP/RELEASE_INFO <<EOF
+    TIMESTAMP=$TIMESTAMP
+    GIT_SHA=$GIT_SHA
+    BRANCH=main
+    DEPLOYER=cloud-init
+    DEPLOY_DATE=$(date -Iseconds)
+    EOF
+
+  # ── 7. Python virtual environment ────────────────────────────
+  - cd /opt/reliefagent/releases/$TIMESTAMP
+  - python3 -m venv venv
+  - venv/bin/pip install --upgrade pip setuptools wheel
+  - venv/bin/pip install -r requirements.txt
+  - venv/bin/pip install gunicorn
+
+  # ── 8. Link shared data ─────────────────────────────────────
+  - ln -sf /opt/reliefagent/data/.env /opt/reliefagent/releases/$TIMESTAMP/.env
+  - ln -sfn /opt/reliefagent/data/reliefweb_chroma /opt/reliefagent/releases/$TIMESTAMP/reliefweb_chroma
+  - ln -sfn /opt/reliefagent/data/reliefweb_downloads /opt/reliefagent/releases/$TIMESTAMP/reliefweb_downloads
+  - ln -sfn /opt/reliefagent/data/output /opt/reliefagent/releases/$TIMESTAMP/output
+  - ln -sf /opt/reliefagent/data/reliefweb.db /opt/reliefagent/releases/$TIMESTAMP/reliefweb.db || true
+  - ln -sf /opt/reliefagent/data/chats.db /opt/reliefagent/releases/$TIMESTAMP/chats.db || true
+
+  # ── 9. Set current symlink ──────────────────────────────────
+  - ln -sfn /opt/reliefagent/releases/$TIMESTAMP /opt/reliefagent/current
+
+  # ── 10. Set permissions ─────────────────────────────────────
+  - chown -R reliefagent:reliefagent /opt/reliefagent
+  - chown -R reliefagent:reliefagent /var/log/reliefagent
+  - chmod 600 /opt/reliefagent/data/.env
+
+  # ── 11. Configure nginx ─────────────────────────────────────
+  # Comment out default server block in nginx.conf to avoid conflict
+  - sed -i '/^server {/,/^}/s/^/#/' /etc/nginx/nginx.conf 2>/dev/null || true
+  - systemctl enable nginx
+  - systemctl start nginx
+
+  # ── 12. Enable reliefagent service (but don't start — .env needs config) ──
+  - systemctl daemon-reload
+  - systemctl enable reliefagent
+
+  # ── 13. Generate random SECRET_KEY ──────────────────────────
+  - SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
+  - sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" /opt/reliefagent/data/.env
+
+  # ── 14. Print setup summary ─────────────────────────────────
+  - |
+    echo ""
+    echo "============================================================"
+    echo "  ReliefAgent Setup Complete!"
+    echo "============================================================"
+    echo ""
+    echo "  NEXT STEPS:"
+    echo "  1. SSH into this VM:  ssh opc@<PUBLIC_IP>"
+    echo "  2. Edit .env:         sudo nano /opt/reliefagent/data/.env"
+    echo "     - Set OPENROUTER_API_KEY"
+    echo "     - Set ADMIN_UIDS (your Firebase UID)"
+    echo "     - Set CORS_ORIGINS (your domain or *)"
+    echo "  3. Copy Firebase key: scp firebase-service-account.json opc@<IP>:/tmp/"
+    echo "     Then: sudo cp /tmp/firebase-service-account.json /opt/reliefagent/data/"
+    echo "  4. Start service:     sudo systemctl start reliefagent"
+    echo "  5. Verify:           curl http://localhost/api/health"
+    echo "============================================================"

@@ -1,9 +1,9 @@
 """
 sitrep_pipeline/question_filtering.py
-4-kriter değerlendirme ile soru filtreleme.
+Question filtering via 4-criteria evaluation.
 
-Orijinal Stage 2.1 (2.1-Questions_filtering_SDGs.ipynb) mantığı.
-SDG sınıflandırması kapsam dışı.
+Original Stage 2.1 (2.1-Questions_filtering_SDGs.ipynb) logic.
+SDG classification is out of scope.
 """
 
 import re
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Filtreleme prompt'u (orijinalden alındı)
+# Filtering prompt (taken from original)
 # ---------------------------------------------------------------------------
 
 _FILTER_PROMPT_TEMPLATE = """\
@@ -64,16 +64,16 @@ Question to evaluate:
 
 
 # ---------------------------------------------------------------------------
-# Tek soru değerlendirmesi
+# Single question evaluation
 # ---------------------------------------------------------------------------
 
 def _evaluate_question(question: str) -> Optional[Dict]:
     """
-    Tek bir soruyu 4 kriter üzerinden değerlendirir.
+    Evaluates a single question against 4 criteria.
 
     Returns:
         {"score": [1,1,1,1], "reason": ["","","",""]}
-        veya hata durumunda None
+        or None on error
     """
     prompt = _FILTER_PROMPT_TEMPLATE.format(question=question)
 
@@ -84,10 +84,10 @@ def _evaluate_question(question: str) -> Optional[Dict]:
             model=LLM_MODEL_FILTER,
             temperature=LLM_TEMPERATURE_FILTER,
         )
-        # Markdown kod bloğunu temizle
+        # Clean markdown code block
         raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
 
-        # Model JSON'dan sonra açıklama eklemiş olabilir — sadece ilk { } bloğunu al
+        # Model may have added explanation after JSON — take only the first { } block
         match = re.search(r'\{.*?\}', raw, re.DOTALL)
         if not match:
             logger.warning("JSON not found | Response: %s", raw[:200])
@@ -99,7 +99,7 @@ def _evaluate_question(question: str) -> Optional[Dict]:
         score = result.get("score")
         if not isinstance(score, list) or len(score) != 4:
             logger.warning(
-                "Soru değerlendirmesi geçersiz format: %s → %s", question[:60], score
+                "Invalid question evaluation format: %s → %s", question[:60], score
             )
             return None
 
@@ -114,9 +114,9 @@ def _evaluate_question(question: str) -> Optional[Dict]:
 
 
 def _passes_all_criteria(eval_result: Dict) -> bool:
-    """En fazla 1 kriter fail edebilir (kriter 1 = başka ülke kriteri hariç)."""
+    """At most 1 criterion can fail (criterion 1 = other-country criterion excluded)."""
     score = eval_result.get("score", [0, 0, 0, 0])
-    # Kriter 0 (başka ülke) kesin eleme — diğerlerinde en fazla 1 fail tolerans
+    # Criterion 0 (other country) is a hard reject — others allow at most 1 fail tolerance
     if score[0] == 0:
         return False
     fails = sum(1 for s in score[1:] if s == 0)
@@ -124,22 +124,22 @@ def _passes_all_criteria(eval_result: Dict) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Ana fonksiyon
+# Main function
 # ---------------------------------------------------------------------------
 
 def filter_questions(questions_data: Dict) -> Dict:
     """
-    Soru üretim çıktısını filtreler.
+    Filters question generation output.
 
     Args:
-        questions_data: question_generation.generate_questions() çıktısı
+        questions_data: Output of question_generation.generate_questions()
                         {cluster_id: {cluster_headline, unique_questions, ...}}
 
     Returns:
         {
           cluster_id: {
             "cluster_headline": str,
-            "filtered_questions": [str, ...],   # 4 kriterin tümünü geçen sorular
+            "filtered_questions": [str, ...],   # questions passing all 4 criteria
             "total_evaluated"  : int,
             "total_passed"     : int,
           }
@@ -152,7 +152,7 @@ def filter_questions(questions_data: Dict) -> Dict:
         questions = cluster_data.get("unique_questions", [])
 
         logger.info(
-            "Cluster %s filtreleniyor: '%s' (%d soru)",
+            "Filtering cluster %s: '%s' (%d questions)",
             cluster_id, headline, len(questions),
         )
 
@@ -164,7 +164,7 @@ def filter_questions(questions_data: Dict) -> Dict:
             eval_result = _evaluate_question(question)
 
             if eval_result is None:
-                # Değerlendirme başarısız → güvenli tarafta kal, soruyu koru
+                # Evaluation failed → stay safe, keep the question
                 logger.debug("  Could not evaluate, keeping question: %s", question[:60])
                 filtered.append(question)
                 continue
@@ -179,12 +179,12 @@ def filter_questions(questions_data: Dict) -> Dict:
                     if s == 0
                 ]
                 logger.info(
-                    "  ELENDI (kriter %s | skor=%s): %s",
+                    "  REJECTED (criterion %s | score=%s): %s",
                     failed, eval_result["score"], question[:80],
                 )
 
         logger.info(
-            "  Cluster %s: %d değerlendirilen → %d geçti",
+            "  Cluster %s: %d evaluated → %d passed",
             cluster_id, evaluated, len(filtered),
         )
 

@@ -546,7 +546,7 @@ async function executeDeleteChat(chatId, btn) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAB 1 — VERİTABANI (DB Reports Browser)
+// TAB 1 — DATABASE (DB Reports Browser)
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function reloadReports() {

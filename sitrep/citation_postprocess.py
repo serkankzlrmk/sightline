@@ -1,14 +1,14 @@
 """
 sitrep_pipeline/citation_postprocess.py
-Citation doğrulama ve yeniden sıralama.
+Citation validation and re-ranking.
 
-Orijinal Stage 3.1 (3.1-RAG_PostProcessingCitations.ipynb) mantığı:
-- Her citation için kaynak metin ile Jaccard + Cosine (query-doc) combined skoru hesapla
-- Eşik altında kalan citation'ları en iyi eşleşmeyle değiştir
-- mu=0.8 (Jaccard ağırlığı), threshold=0.3
+Original Stage 3.1 (3.1-RAG_PostProcessingCitations.ipynb) logic:
+- For each citation, compute Jaccard + Cosine (query-doc) combined score against source text
+- Replace citations below threshold with the best match
+- mu=0.8 (Jaccard weight), threshold=0.3
 
-Not: Cosine hesaplaması için DefaultEmbeddingFunction kullanılır
-     (modernbert yerine — Chroma ile uyumlu)
+Note: DefaultEmbeddingFunction is used for cosine computation
+     (instead of modernbert — compatible with Chroma)
 """
 
 import re
@@ -19,22 +19,22 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Orijinaldeki sabitler
-MU: float = 0.8          # Jaccard ağırlığı
-THRESHOLD: float = 0.3   # Minimum combined skor
+# Constants from original
+MU: float = 0.8          # Jaccard weight
+THRESHOLD: float = 0.3   # Minimum combined score
 
-# Eşleşme anlamsız olduğunda force atamaı önleyen eşik
-# Bir doküman bile FORCE_THRESHOLD'u geçemezse orijinal citation korunur.
-# (Akronim listesi, indeks dokümanı gibi alakasız belgeler için koruma)
+# Threshold to prevent forced assignment when match is meaningless
+# If no document even exceeds FORCE_THRESHOLD, original citations are preserved.
+# (Protection for acronym lists, index documents, and other irrelevant docs)
 FORCE_THRESHOLD: float = 0.10
 
 
 # ---------------------------------------------------------------------------
-# Yardımcı
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _jaccard_similarity(text1: str, text2: str) -> float:
-    """Kelime seviyesinde Jaccard benzerliği."""
+    """Word-level Jaccard similarity."""
     if not text1 or not text2:
         return 0.0
     set1 = set(text1.lower().split())
@@ -45,7 +45,7 @@ def _jaccard_similarity(text1: str, text2: str) -> float:
 
 
 def _get_embeddings(texts: List[str]) -> np.ndarray:
-    """DefaultEmbeddingFunction ile embedding hesapla."""
+    """Compute embeddings using DefaultEmbeddingFunction."""
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
     ef = DefaultEmbeddingFunction()
     embs = ef(texts)
@@ -58,14 +58,14 @@ def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Ana işlem
+# Main processing
 # ---------------------------------------------------------------------------
 
 def _update_single_answer(answer: Dict) -> Dict:
     """
-    Tek bir soru-cevap çiftinin citation'larını günceller.
+    Updates citations for a single question-answer pair.
 
-    Giriş:
+    Input:
         {
           "retrieved_answer": "text [1][3] more text [2]",
           "retrieved_contexts": ["doc1", "doc2", "doc3", ...],
@@ -73,9 +73,9 @@ def _update_single_answer(answer: Dict) -> Dict:
           ...
         }
 
-    Çıkış (orijinal anahtarlar + yeni anahtarlar birlikte):
+    Output (original keys + new keys together):
         {
-          ...,  # orijinal alanlar
+          ...,  # original fields
           "updated_retrieved_answer": "text [2][3] more text [1]",
           "new_citations": [1, 2, 3],
           "new_used_contexts": ["doc...", ...],
@@ -83,13 +83,13 @@ def _update_single_answer(answer: Dict) -> Dict:
           "old_used_contexts": ["doc...", ...],
         }
     """
-    answer = dict(answer)  # kopyala
+    answer = dict(answer)  # copy
     question = answer.get("question", "")
     response = answer.get("retrieved_answer", "")
     retrieved_docs: List[str] = answer.get("retrieved_contexts", [])
     retrieved_metas: List[Dict] = answer.get("retrieved_contexts_meta", [])
 
-    # Citation içermiyorsa dokunma
+    # If no citations, skip
     if "[" not in response or not retrieved_docs:
         answer["updated_retrieved_answer"] = response
         answer["new_citations"] = []
@@ -99,7 +99,7 @@ def _update_single_answer(answer: Dict) -> Dict:
         answer["old_used_contexts"] = []
         return answer
 
-    # Orijinal citation'ları çıkar
+    # Extract original citations
     old_citation_numbers = sorted({
         int(m) for m in re.findall(r"\[(\d+)\]", response)
         if 0 < int(m) <= len(retrieved_docs)
@@ -110,7 +110,7 @@ def _update_single_answer(answer: Dict) -> Dict:
         if 0 < i <= len(retrieved_docs)
     ]
 
-    # Embedding hesaplama: soru + tüm dokümanlar
+    # Compute embeddings: question + all documents
     try:
         all_texts = [question] + retrieved_docs
         all_embs = _get_embeddings(all_texts)
@@ -131,7 +131,7 @@ def _update_single_answer(answer: Dict) -> Dict:
         answer["old_used_contexts"] = old_used_contexts
         return answer
 
-    # Her "text_piece [n][m]..." örüntüsünü bul ve yeniden değerlendir
+    # Find each "text_piece [n][m]..." pattern and re-evaluate
     pattern = re.compile(r"(.*?)((?:\[\d+\])+)", re.DOTALL)
     updated_response = response
     all_new_citation_indices: Set[int] = set()
@@ -162,9 +162,9 @@ def _update_single_answer(answer: Dict) -> Dict:
                 idx for score, idx in top_k if score >= THRESHOLD
             ]
             if not new_valid_indices and top_k:
-                # Hiçbir doküman THRESHOLD'u geçemedi.
-                # FORCE_THRESHOLD'u geçebilen en iyi doküman varsa onu kullan;
-                # yoksa orijinal citation'ları koru (akronim listesi / alakasız doc koruması)
+                # No document exceeded THRESHOLD.
+                # If the best document exceeds FORCE_THRESHOLD, use it;
+                # otherwise preserve original citations (acronym list / irrelevant doc protection)
                 best_score, best_idx = top_k[0]
                 if best_score >= FORCE_THRESHOLD:
                     new_valid_indices = [best_idx]
@@ -208,14 +208,14 @@ def _update_single_answer(answer: Dict) -> Dict:
 
 def postprocess_citations(answers: List[Dict]) -> List[Dict]:
     """
-    Tüm cevaplar için citation post-processing uygular.
+    Applies citation post-processing to all answers.
 
     Args:
-        answers: rag_answers.answer_questions() çıktısı
+        answers: Output of rag_answers.answer_questions()
 
     Returns:
-        Her öğeye updated_retrieved_answer, new_citations,
-        new_used_contexts, old_citations, old_used_contexts eklendi.
+        Each item has updated_retrieved_answer, new_citations,
+        new_used_contexts, old_citations, old_used_contexts added.
     """
     updated: List[Dict] = []
     changed = 0

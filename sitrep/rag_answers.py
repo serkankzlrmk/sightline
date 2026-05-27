@@ -1,11 +1,11 @@
 """
 sitrep_pipeline/rag_answers.py
-RAG Fusion ile cevap üretimi.
+Answer generation with RAG Fusion.
 
-Orijinal Stage 3 (3-RAG-GeneratedQuestions.ipynb) mantığı:
-- ColBERT → Chroma .query() ile değiştirildi
-- Sub-query üretimi + Reciprocal Rank Fusion (RRF k=60) korundu
-- Cevap synthesis prompt'u birebir korundu (inline [n] citation)
+Original Stage 3 (3-RAG-GeneratedQuestions.ipynb) logic:
+- ColBERT → replaced with Chroma .query()
+- Sub-query generation + Reciprocal Rank Fusion (RRF k=60) preserved
+- Answer synthesis prompt preserved verbatim (inline [n] citation)
 """
 
 import re
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Sub-query üretimi
+# Sub-query generation
 # ---------------------------------------------------------------------------
 
 _SUBQUERY_SYSTEM = (
@@ -43,7 +43,7 @@ _SUBQUERY_USER_TEMPLATE = (
 
 def _generate_subqueries(question: str, n: int = RRF_NUM_SUBQUERIES) -> List[str]:
     """
-    Ana sorudan n adet farklı açıdan sub-query üretir (RAG Fusion için).
+    Generates n sub-queries from different angles based on the main question (for RAG Fusion).
     """
     prompt = _SUBQUERY_USER_TEMPLATE.format(n=n, question=question)
     try:
@@ -53,7 +53,7 @@ def _generate_subqueries(question: str, n: int = RRF_NUM_SUBQUERIES) -> List[str
             max_tokens=256,
         )
         queries = [q.strip() for q in raw.strip().splitlines() if q.strip()]
-        # Orijinal soruyu da ekle
+        # Also include the original question
         queries = [question] + queries[:n]
         return queries
     except Exception as exc:
@@ -70,14 +70,14 @@ def _reciprocal_rank_fusion(
     k: int = RRF_K,
 ) -> List[Dict]:
     """
-    Birden fazla sıralı sonuç listesini RRF ile birleştirir.
+    Merges multiple ranked result lists using RRF.
 
     Args:
-        ranked_lists: Her eleman bir sonuç listesi; her sonuç {"id": str, "text": str, ...}
-        k: RRF sabiti (varsayılan 60)
+        ranked_lists: Each element is a result list; each result {"id": str, "text": str, ...}
+        k: RRF constant (default 60)
 
     Returns:
-        RRF skoruna göre sıralanmış chunk listesi.
+        Chunk list sorted by RRF score.
     """
     scores: Dict[str, float] = {}
     chunk_map: Dict[str, Dict] = {}
@@ -94,7 +94,7 @@ def _reciprocal_rank_fusion(
 
 
 # ---------------------------------------------------------------------------
-# Cevap üretimi prompt'u (orijinalden birebir)
+# Answer generation prompt (verbatim from original)
 # ---------------------------------------------------------------------------
 
 _ANSWER_TEMPLATE = """\
@@ -131,7 +131,7 @@ _ANSWER_TEMPLATE = """\
 
 
 def _format_context(chunks: List[Dict]) -> str:
-    """Chunk listesini numaralı kaynak formatına çevirir."""
+    """Converts a chunk list to numbered source format."""
     lines = []
     for i, chunk in enumerate(chunks, start=1):
         text = chunk.get("text", "").strip()
@@ -140,7 +140,7 @@ def _format_context(chunks: List[Dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Ana RAG fonksiyonu
+# Main RAG function
 # ---------------------------------------------------------------------------
 
 def answer_questions(
@@ -150,23 +150,23 @@ def answer_questions(
     country: str,
 ) -> List[Dict]:
     """
-    Filtrelenmiş soruları Chroma RAG Fusion ile cevaplar.
+    Answers filtered questions using Chroma RAG Fusion.
 
     Args:
-        filtered_questions: question_filtering.filter_questions() çıktısı
+        filtered_questions: Output of question_filtering.filter_questions()
                             {cluster_id: {cluster_headline, filtered_questions}}
-        clusters          : clustering.run_clustering() çıktısı
+        clusters          : Output of clustering.run_clustering()
                             {cluster_id: {cluster_articles, cluster_headline, metadata}}
-        chroma_adapter    : ChromaAdapter örneği
-        country           : Retrieval filtresi için ülke adı
+        chroma_adapter    : ChromaAdapter instance
+        country           : Country name for retrieval filter
 
     Returns:
         [
           {
             "cluster_id"      : str,
             "question"        : str,
-            "retrieved_answer": str,   # "[n]" inline citation'lar içerir
-            "retrieved_contexts": [str, ...],  # sıralı kaynak metinleri
+            "retrieved_answer": str,   # contains "[n]" inline citations
+            "retrieved_contexts": [str, ...],  # ordered source texts
           },
           ...
         ]
@@ -178,19 +178,19 @@ def answer_questions(
         cluster_chunks = clusters.get(cluster_id, {}).get("cluster_articles", [])
 
         logger.info(
-            "Cluster %s: %d soru cevaplanıyor (%d chunk havuzunda)",
+            "Cluster %s: Answering %d questions (%d chunks in pool)",
             cluster_id, len(questions), len(cluster_chunks),
         )
 
         for question in questions:
-            logger.debug("  Soru: %s", question[:80])
+            logger.debug("  Question: %s", question[:80])
 
-            # 1. Sub-query'leri üret
+            # 1. Generate sub-queries
             subqueries = _generate_subqueries(question)
             logger.debug("  %d sub-queries generated", len(subqueries))
 
-            # 2. Her sub-query için retrieval (cluster_chunks pool'unda)
-            # Pool chunk'larında embedding varsa pool-based retrieval, yoksa global Chroma sorgusu
+            # 2. Retrieval for each sub-query (within cluster_chunks pool)
+            # If pool chunks have embeddings, use pool-based retrieval; otherwise use global Chroma query
             pool_has_embeddings = bool(
                 cluster_chunks and cluster_chunks[0].get("embedding") is not None
             )
@@ -204,7 +204,7 @@ def answer_questions(
                         candidate_pool=cluster_chunks,
                     )
                 else:
-                    # Embedding yoksa global ülke filtreli Chroma sorgusu
+                    # If no embedding, use global country-filtered Chroma query
                     results = chroma_adapter.retrieve(
                         query=sq,
                         country=country,
@@ -212,7 +212,7 @@ def answer_questions(
                     )
                 ranked_lists.append(results)
 
-            # 3. RRF ile birleştir
+            # 3. Merge with RRF
             fused = _reciprocal_rank_fusion(ranked_lists, k=RRF_K)
             top_chunks = fused[:RETRIEVAL_TOP_K]
 
@@ -226,7 +226,7 @@ def answer_questions(
                 })
                 continue
 
-            # 4. Cevap sentezi
+            # 4. Answer synthesis
             context_str = _format_context(top_chunks)
             answer_prompt = _ANSWER_TEMPLATE.format(
                 n_sources=len(top_chunks),
@@ -261,7 +261,7 @@ def answer_questions(
                 ],
             })
 
-            logger.debug("  Cevap: %s", answer[:120])
+            logger.debug("  Answer: %s", answer[:120])
 
     logger.info("%d questions answered in total.", len(all_answers))
     return all_answers

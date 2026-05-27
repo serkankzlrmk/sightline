@@ -1,12 +1,12 @@
 """
 sitrep_pipeline/pipeline.py
-Ana orkestrasyon. Her adımın çıktısını ara JSON olarak kaydeder.
-Kırık noktadan devam desteği: mevcut ara çıktı varsa o adım atlanır.
+Main orchestration. Saves each step's output as intermediate JSON.
+Resume-from-breakpoint support: if intermediate output exists, that step is skipped.
 
-Kullanım:
+Usage:
     python pipeline.py --country Sudan --event "Sudan conflict"
 
-    veya Python'dan:
+    or from Python:
         from pipeline import run_pipeline
         report_path = run_pipeline("Sudan", "Sudan conflict")
 """
@@ -43,16 +43,16 @@ logger = logging.getLogger("pipeline")
 
 
 # ---------------------------------------------------------------------------
-# Ara dosya yönetimi
+# Intermediate file management
 # ---------------------------------------------------------------------------
 
 def _safe_name(country: str, event: str) -> str:
-    """Dosya adı için güvenli string üretir."""
+    """Generates a safe string for file names."""
     return f"{country}_{event}".replace(" ", "_").replace("/", "-")
 
 
 def _filter_hash(themes: Optional[list], date_from: Optional[str], date_to: Optional[str]) -> str:
-    """Tema/tarih filtrelerine göre kısa bir hash üretir (checkpoint ayrımı için)."""
+    """Generates a short hash based on theme/date filters (for checkpoint differentiation)."""
     import hashlib
     parts = []
     if themes:
@@ -100,7 +100,7 @@ def _save_checkpoint(data, step_name: str, country: str, event: str, suffix: str
 
 
 # ---------------------------------------------------------------------------
-# Ana pipeline
+# Main pipeline
 # ---------------------------------------------------------------------------
 
 def run_pipeline(
@@ -112,18 +112,18 @@ def run_pipeline(
     skip_cache: bool = False,
 ) -> Path:
     """
-    Verilen ülke ve olay için tam SITREP pipeline'ını çalıştırır.
+    Runs the full SITREP pipeline for the given country and event.
 
     Args:
-        country    : primary_country değeri (Chroma metadata filtresi)
-        event      : Olay adı (prompt'larda kullanılır)
-        themes     : Opsiyonel tema filtresi (["Health", "Protection"] vb.)
-        date_from  : Opsiyonel başlangıç tarihi (YYYY-MM-DD)
-        date_to    : Opsiyonel bitiş tarihi (YYYY-MM-DD)
-        skip_cache : True ise ara checkpoint'leri yoksay, tüm adımları tekrar çalıştır
+        country    : primary_country value (Chroma metadata filter)
+        event      : Event name (used in prompts)
+        themes     : Optional theme filter (e.g. ["Health", "Protection"])
+        date_from  : Optional start date (YYYY-MM-DD)
+        date_to    : Optional end date (YYYY-MM-DD)
+        skip_cache : If True, ignore intermediate checkpoints and rerun all steps
 
     Returns:
-        Kayıt edilen rapor JSON'ının yolu.
+        Path to the saved report JSON.
     """
     logger.info("=" * 60)
     logger.info("SITREP Pipeline starting: %s / %s", country, event)
@@ -132,14 +132,14 @@ def run_pipeline(
     # Filter hash for checkpoint differentiation
     fh = _filter_hash(themes, date_from, date_to)
 
-    # ---- Adım 0: ChromaDB bağlantısı ----
+    # ---- Step 0: ChromaDB connection ----
     logger.info("[0] Connecting to Chroma DB...")
     from chroma_adapter import ChromaAdapter
     db = ChromaAdapter()
     total = db.count()
-    logger.info("    Koleksiyon: %d chunk", total)
+    logger.info("    Collection: %d chunks", total)
 
-    # ---- Adım 1: Chunk'ları çek ----
+    # ---- Step 1: Load chunks ----
     logger.info("[1] Loading chunks: country='%s'", country)
     chunks = _load_checkpoint("chunks_raw", country, event, suffix=fh) if not skip_cache else None
     if chunks is None:
@@ -175,7 +175,7 @@ def run_pipeline(
         _save_checkpoint(chunks, "chunks_raw", country, event, suffix=fh)
     logger.info("    %d chunks loaded.", len(chunks))
 
-    # ---- Adım 2: Clustering ----
+    # ---- Step 2: Clustering ----
     logger.info("[2] Running clustering...")
     clusters = _load_checkpoint("clusters", country, event, suffix=fh) if not skip_cache else None
     if clusters is None:
@@ -183,7 +183,7 @@ def run_pipeline(
         MIN_CHUNKS_FOR_CLUSTERING = 20
         if len(chunks) < MIN_CHUNKS_FOR_CLUSTERING:
             logger.info(
-                "    %d chunks < %d → clustering atlandı, tek cluster oluşturuluyor.",
+                "    %d chunks < %d → clustering skipped, creating single cluster.",
                 len(chunks), MIN_CHUNKS_FOR_CLUSTERING,
             )
             # Deduplication on title
@@ -218,7 +218,7 @@ def run_pipeline(
         _save_checkpoint(clusters, "clusters", country, event, suffix=fh)
     logger.info("    %d clusters generated.", len(clusters))
 
-    # ---- Adım 3: Soru üretimi ----
+    # ---- Step 3: Question generation ----
     logger.info("[3] Generating questions...")
     questions_raw = _load_checkpoint("questions", country, event, suffix=fh) if not skip_cache else None
     if questions_raw is None:
@@ -226,7 +226,7 @@ def run_pipeline(
         questions_raw = generate_questions(clusters, event=event, country=country)
         _save_checkpoint(questions_raw, "questions", country, event, suffix=fh)
 
-    # ---- Adım 4: Soru filtreleme ----
+    # ---- Step 4: Question filtering ----
     logger.info("[4] Filtering questions...")
     filtered_questions = _load_checkpoint("filtered", country, event, suffix=fh) if not skip_cache else None
     if filtered_questions is None:
@@ -237,7 +237,7 @@ def run_pipeline(
     total_q = sum(len(v["filtered_questions"]) for v in filtered_questions.values())
     logger.info("    %d questions remaining after filtering.", total_q)
 
-    # ---- Adım 5: RAG Cevap üretimi ----
+    # ---- Step 5: RAG answer generation ----
     logger.info("[5] Generating RAG answers...")
     raw_answers = _load_checkpoint("answers", country, event, suffix=fh) if not skip_cache else None
     if raw_answers is None:
@@ -251,7 +251,7 @@ def run_pipeline(
         _save_checkpoint(raw_answers, "answers", country, event, suffix=fh)
     logger.info("    %d answers generated.", len(raw_answers))
 
-    # ---- Adım 6: Citation post-processing ----
+    # ---- Step 6: Citation post-processing ----
     logger.info("[6] Citation post-processing...")
     postprocessed = _load_checkpoint("answers_post", country, event, suffix=fh) if not skip_cache else None
     if postprocessed is None:
@@ -259,7 +259,7 @@ def run_pipeline(
         postprocessed = postprocess_citations(raw_answers)
         _save_checkpoint(postprocessed, "answers_post", country, event, suffix=fh)
 
-    # ---- Adım 7: Cluster özetleri ----
+    # ---- Step 7: Cluster summaries ----
     logger.info("[7] Generating cluster summaries...")
     cluster_summaries = _load_checkpoint("summaries", country, event, suffix=fh) if not skip_cache else None
     if cluster_summaries is None:
@@ -267,7 +267,7 @@ def run_pipeline(
         cluster_summaries = generate_cluster_summaries(postprocessed, clusters)
         _save_checkpoint(cluster_summaries, "summaries", country, event, suffix=fh)
 
-    # ---- Adım 8: Executive summary ----
+    # ---- Step 8: Executive summary ----
     logger.info("[8] Generating executive summary...")
     exec_summary = _load_checkpoint("exec_summary", country, event, suffix=fh) if not skip_cache else None
     if exec_summary is None:
@@ -275,7 +275,7 @@ def run_pipeline(
         exec_summary = generate_executive_summary(postprocessed, cluster_summaries=cluster_summaries)
         _save_checkpoint(exec_summary, "exec_summary", country, event, suffix=fh)
 
-    # ---- Adım 8.5: Narrative report ----
+    # ---- Step 8.5: Narrative report ----
     logger.info("[8.5] Generating narrative report...")
     narrative = _load_checkpoint("narrative", country, event, suffix=fh) if not skip_cache else None
     if narrative is None:
@@ -288,7 +288,7 @@ def run_pipeline(
         )
         _save_checkpoint(narrative, "narrative", country, event, suffix=fh)
 
-    # ---- Adım 9: Rapor birleştirme ----
+    # ---- Step 9: Report assembly ----
     logger.info("[9] Assembling final report...")
     from report_assembly import assemble_report, save_report, generate_markdown
 
@@ -332,27 +332,27 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--country", required=True,
-        help="Ülke adı (Chroma'daki primary_country değeri ile eşleşmeli)",
+        help="Country name (must match primary_country value in Chroma)",
     )
     parser.add_argument(
         "--event", required=False, default="",
-        help="Olay/kriz adı (prompt'larda kullanılır). Boş bırakılırsa ülke adı kullanılır.",
+        help="Event/crisis name (used in prompts). If omitted, country name is used.",
     )
     parser.add_argument(
         "--themes", nargs="*", default=None,
-        help="Opsiyonel tema filtresi (örn: --themes Health Protection)",
+        help="Optional theme filter (e.g.: --themes Health Protection)",
     )
     parser.add_argument(
         "--date-from", default=None,
-        help="Opsiyonel başlangıç tarihi (YYYY-MM-DD)",
+        help="Optional start date (YYYY-MM-DD)",
     )
     parser.add_argument(
         "--date-to", default=None,
-        help="Opsiyonel bitiş tarihi (YYYY-MM-DD)",
+        help="Optional end date (YYYY-MM-DD)",
     )
     parser.add_argument(
         "--skip-cache", action="store_true",
-        help="Checkpoint'leri yoksay, tüm adımları yeniden çalıştır",
+        help="Ignore checkpoints, rerun all steps",
     )
 
     args = parser.parse_args()

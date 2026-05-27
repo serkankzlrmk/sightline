@@ -1,11 +1,11 @@
 """
 sitrep_pipeline/clustering.py
-Chunk'ları topic cluster'larına ayırır ve her cluster için bir başlık üretir.
+Separates chunks into topic clusters and generates a headline for each cluster.
 
-Orijinal Stage 1 (1-clean-clustering.ipynb) mantığını alır ancak:
-- Paragraph oluşturma adımı atlanır (Chroma chunk'ları zaten hazır)
-- Embedding'ler Chroma'dan çekilir (yerel model gereksiz)
-- LLM çağrıları OpenRouter üzerinden yapılır
+Based on original Stage 1 (1-clean-clustering.ipynb) logic but:
+- Paragraph creation step skipped (Chroma chunks are already ready)
+- Embeddings are pulled from Chroma (no local model needed)
+- LLM calls are made via OpenRouter
 """
 
 import json
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _umap_reduce(embeddings: np.ndarray, n_neighbors: int) -> np.ndarray:
-    """UMAP boyut indirgeme."""
+    """UMAP dimensionality reduction."""
     import umap as umap_lib
 
     reducer = umap_lib.UMAP(
@@ -59,7 +59,7 @@ def _hdbscan_fit(
     min_samples: int,
     epsilon: float,
 ) -> "hdbscan.HDBSCAN":
-    """HDBSCAN cluster nesnesi oluştur ve fit et."""
+    """Create and fit HDBSCAN cluster object."""
     import hdbscan as hdbscan_lib
 
     clusterer = hdbscan_lib.HDBSCAN(
@@ -75,11 +75,11 @@ def _hdbscan_fit(
 
 def _dbcv_score(clusterer, prob_threshold: float = 0.05) -> Tuple[int, float]:
     """
-    (label_count, dbcv_score) döndür.
-    Noise (-1) olan etiketler sayılmaz.
+    Returns (label_count, dbcv_score).
+    Noise (-1) labels are not counted.
     """
     labels = clusterer.labels_
-    # Belirli bir güven eşiğinin altındaki noktaları gürültü olarak say
+    # Count points below a confidence threshold as noise
     labels = np.where(clusterer.probabilities_ >= prob_threshold, labels, -1)
     label_count = len(set(labels)) - (1 if -1 in labels else 0)
     dbcv = float(clusterer.relative_validity_)
@@ -87,7 +87,7 @@ def _dbcv_score(clusterer, prob_threshold: float = 0.05) -> Tuple[int, float]:
 
 
 # ---------------------------------------------------------------------------
-# LLM: Cluster kalite değerlendirmesi
+# LLM: Cluster quality evaluation
 # ---------------------------------------------------------------------------
 
 _COHERENCE_SYSTEM = (
@@ -116,10 +116,10 @@ Example response:
 
 def _llm_coherence_score(paragraphs: List[str]) -> float:
     """
-    Verilen paragraflar için LLM coherence + homogeneity ortalama skoru döndür.
-    Ayrıştırma başarısız olursa 0.5 döndür.
+    Returns average LLM coherence + homogeneity score for given paragraphs.
+    Returns 0.5 if parsing fails.
     """
-    sample = paragraphs[:8]  # LLM'ye max 8 paragraf gönder (token tasarrufu)
+    sample = paragraphs[:8]  # Send max 8 paragraphs to LLM (token savings)
     docs_str = "\n---\n".join(
         f"[{i+1}] {p[:300]}" for i, p in enumerate(sample)
     )
@@ -145,8 +145,8 @@ def _evaluate_all_clusters_llm(
     chunks: List[Dict], labels: np.ndarray
 ) -> float:
     """
-    Tüm cluster'lar için ortalama LLM coherence skoru.
-    Her cluster'dan en fazla 6 chunk örneklenerek değerlendirilir.
+    Average LLM coherence score for all clusters.
+    Each cluster is evaluated by sampling up to 6 chunks.
     """
     unique_labels = [l for l in set(labels) if l != -1]
     if not unique_labels:
@@ -172,7 +172,7 @@ def _evaluate_all_clusters_llm(
 
 
 def _adaptive_ranges(n_chunks: int):
-    """Data boyutuna göre HDBSCAN hiperparametre aralıkları seç."""
+    """Select HDBSCAN hyperparameter ranges based on data size."""
     if n_chunks < 50:
         return (3, 15), (1, 5), (3, min(15, n_chunks - 1))
     elif n_chunks < 200:
@@ -190,10 +190,10 @@ def _random_search(
     min_clusters: int = HP_MIN_CLUSTERS,
 ) -> Dict:
     """
-    Rastgele hyperparameter arama.
-    1) UMAP+HDBSCAN ile DBCV skoru toplayan adayları bul
-    2) En iyi 3 adayı LLM coherence ile değerlendir
-    3) En yüksek (DBCV + LLM) / 2 skorunu döndür
+    Random hyperparameter search.
+    1) Find candidates by collecting DBCV scores via UMAP+HDBSCAN
+    2) Evaluate top 3 candidates with LLM coherence
+    3) Return the highest (DBCV + LLM) / 2 score
     """
     n_chunks = len(chunks)
     mcs_range, ms_range, nn_range = _adaptive_ranges(n_chunks)
@@ -225,7 +225,7 @@ def _random_search(
 
         if label_count < min_clusters:
             logger.debug(
-                "Iter %d: %d cluster (< %d min) — atlandı",
+                "Iter %d: %d clusters (< %d min) — skipped",
                 i, label_count, min_clusters,
             )
             continue
@@ -248,13 +248,13 @@ def _random_search(
     if not candidates:
         if min_clusters > 2:
             logger.warning(
-                "Geçerli cluster bulunamadı (min=%d). min_clusters=2 ile tekrar deneniyor.",
+                "No valid clusters found (min=%d). Retrying with min_clusters=2.",
                 min_clusters,
             )
             return _random_search(chunks, embeddings, n_iterations, min_clusters=2)
         else:
             logger.warning(
-                "HDBSCAN hiç cluster üretemedi. KMeans fallback kullanılıyor."
+                "HDBSCAN failed to produce any clusters. Using KMeans fallback."
             )
             return _kmeans_fallback(chunks, embeddings)
 
@@ -284,8 +284,8 @@ def _random_search(
 
 def _kmeans_fallback(chunks: List[Dict], embeddings: np.ndarray, k: Optional[int] = None) -> Dict:
     """
-    HDBSCAN tamamen başarısız olduğunda sklearn KMeans ile basit kümeleme.
-    k değeri verilmezse veri boyutuna göre otomatik seçilir: sqrt(n/10), min 2, max 12.
+    Simple clustering with sklearn KMeans when HDBSCAN fails completely.
+    If k is not provided, it is auto-selected based on data size: sqrt(n/10), min 2, max 12.
     """
     from sklearn.cluster import KMeans
     n = len(chunks)
@@ -299,7 +299,7 @@ def _kmeans_fallback(chunks: List[Dict], embeddings: np.ndarray, k: Optional[int
         nn = min(15, max(2, n - 1))
         reduced = _umap_reduce(embeddings, n_neighbors=nn)
     except Exception:
-        reduced = embeddings  # UMAP da başarısız olursa ham embedding kullan
+        reduced = embeddings  # If UMAP also fails, use raw embeddings
 
     k_actual = min(k, n)
     km = KMeans(n_clusters=k_actual, random_state=42, n_init=10)
@@ -318,7 +318,7 @@ def _kmeans_fallback(chunks: List[Dict], embeddings: np.ndarray, k: Optional[int
 
 
 # ---------------------------------------------------------------------------
-# LLM: Cluster başlığı üretimi
+# LLM: Cluster headline generation
 # ---------------------------------------------------------------------------
 
 _HEADLINE_SYSTEM = (
@@ -337,7 +337,7 @@ Passages:
 
 
 def _generate_cluster_headline(paragraphs: List[str]) -> str:
-    """Cluster başlığı üret."""
+    """Generate cluster headline."""
     sample = paragraphs[:5]
     passages_str = "\n---\n".join(f"[{i+1}] {p[:250]}" for i, p in enumerate(sample))
     prompt = _HEADLINE_USER_TEMPLATE.format(passages=passages_str)
@@ -348,7 +348,7 @@ def _generate_cluster_headline(paragraphs: List[str]) -> str:
             system_prompt=_HEADLINE_SYSTEM,
             max_tokens=LLM_MAX_TOKENS_HEADLINE,
         )
-        # Tırnak işaretlerini temizle
+        # Clean up quotation marks
         return headline.strip().strip('"').strip("'")
     except Exception as exc:
         logger.warning("Title generation failed: %s", exc)
@@ -356,7 +356,7 @@ def _generate_cluster_headline(paragraphs: List[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Ana fonksiyon
+# Main function
 # ---------------------------------------------------------------------------
 
 def run_clustering(
@@ -365,12 +365,12 @@ def run_clustering(
     min_clusters: int = HP_MIN_CLUSTERS,
 ) -> Dict:
     """
-    Chunk listesinden cluster'lar üretir.
+    Generates clusters from a chunk list.
 
     Args:
-        chunks      : chroma_adapter'dan gelen [{id, text, embedding?, ...}]
-        n_iterations: Hyperparameter arama iterasyon sayısı (None → config değeri)
-        min_clusters: Minimum cluster sayısı
+        chunks      : [{id, text, embedding?, ...}] from chroma_adapter
+        n_iterations: Number of hyperparameter search iterations (None → config value)
+        min_clusters: Minimum number of clusters
 
     Returns:
         {
@@ -383,20 +383,20 @@ def run_clustering(
         }
     """
     if not chunks:
-        raise ValueError("Chunk listesi boş — clustering yapılamaz.")
+        raise ValueError("Chunk list is empty — cannot perform clustering.")
 
     n_iter = n_iterations or HP_SEARCH_ITERATIONS
 
-    # 1. Embedding'leri al (Chroma'dan geliyorsa "embedding" anahtarında)
+    # 1. Get embeddings (from Chroma via "embedding" key)
     embeddings_list = [c.get("embedding") for c in chunks]
     embeddings_list = [e for e in embeddings_list if e is not None]
 
     if len(embeddings_list) != len(chunks):
         raise ValueError(
-            f"Bazı chunk'larda embedding yok. "
-            f"({len(embeddings_list)}/{len(chunks)} embedding mevcut.) "
-            "chroma_adapter.get_chunks_by_country() çağrısında "
-            "include=['embeddings'] olduğundan emin olun."
+            f"Some chunks are missing embeddings. "
+            f"({len(embeddings_list)}/{len(chunks)} embeddings available.) "
+            "Ensure include=['embeddings'] is set in "
+            "chroma_adapter.get_chunks_by_country() call."
         )
 
     embeddings = np.array(embeddings_list, dtype=float)
@@ -407,14 +407,14 @@ def run_clustering(
     labels = np.array(best["labels"])
 
     logger.info(
-        "En iyi parametreler: n_neighbors=%d, min_cluster_size=%d, "
-        "min_samples=%d, epsilon=%.2f → %d cluster, skor=%.3f",
+        "Best parameters: n_neighbors=%d, min_cluster_size=%d, "
+        "min_samples=%d, epsilon=%.2f → %d clusters, score=%.3f",
         best["n_neighbors"], best["min_cluster_size"],
         best["min_samples"], best["epsilon"],
         best["label_count"], best["final_score"],
     )
 
-    # 3. Cluster sözlüğünü oluştur
+    # 3. Build cluster dictionary
     unique_labels = sorted([l for l in set(labels) if l != -1])
     result: Dict = {}
 
@@ -423,10 +423,10 @@ def run_clustering(
         cluster_chunks = [chunks[i] for i in indices]
         texts = [c["text"] for c in cluster_chunks]
 
-        # Başlık üret
+        # Generate headline
         headline = _generate_cluster_headline(texts)
 
-        # Metadata deduplication (aynı rapor birden fazla chunk içeriyor olabilir)
+        # Metadata deduplication (same report may have multiple chunks)
         seen_titles: set = set()
         metadata = []
         for c in cluster_chunks:

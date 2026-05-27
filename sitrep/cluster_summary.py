@@ -1,11 +1,11 @@
 """
 sitrep_pipeline/cluster_summary.py
-Her cluster için cevapları tek bir narrative özetle birleştirir.
+Combines answers for each cluster into a single narrative summary.
 
-Orijinal Stage 4 (4-Summary for each cluster.ipynb) mantığı:
-1. Her cevap için citation numaralarına offset ekle (çakışma önleme)
-2. Tüm cevapları birleştir → LLM ile narrative entegrasyon
-3. Her cluster için SITREP başlığı üret
+Original Stage 4 (4-Summary for each cluster.ipynb) logic:
+1. Add citation number offset for each answer (prevent overlap)
+2. Combine all answers → narrative integration via LLM
+3. Generate SITREP headline for each cluster
 """
 
 import re
@@ -17,18 +17,18 @@ import llm_client
 
 logger = logging.getLogger(__name__)
 
-# Orijinaldeki offset: her cevap için +i*10
+# Original offset: +i*10 for each answer
 CITATION_OFFSET_STEP: int = 10
 
 
 # ---------------------------------------------------------------------------
-# Citation offset uygulama
+# Apply citation offset
 # ---------------------------------------------------------------------------
 
 def _apply_citation_offset(answer_text: str, offset: int) -> str:
     """
-    Cevap metnindeki tüm [n] citation'larını [n + offset] ile değiştirir.
-    Büyük numaradan küçüğe doğru replaces (çakışma önleme).
+    Replaces all [n] citations in the answer text with [n + offset].
+    Replaces from largest to smallest number (prevent overlap).
     """
     citations_found = set(re.findall(r"\[(\d+)\]", answer_text))
     sorted_citations = sorted([int(c) for c in citations_found], reverse=True)
@@ -115,7 +115,7 @@ Return only the title, nothing else.
 
 
 # ---------------------------------------------------------------------------
-# Ana fonksiyon
+# Main function
 # ---------------------------------------------------------------------------
 
 def generate_cluster_summaries(
@@ -123,22 +123,22 @@ def generate_cluster_summaries(
     clusters: Dict,
 ) -> Dict:
     """
-    Her cluster için cevapları birleştirip narrative özet ve başlık üretir.
+    Combines answers for each cluster and generates a narrative summary and headline.
 
     Args:
-        postprocessed_answers: citation_postprocess.postprocess_citations() çıktısı
-        clusters              : clustering.run_clustering() çıktısı
+        postprocessed_answers: Output of citation_postprocess.postprocess_citations()
+        clusters              : Output of clustering.run_clustering()
 
     Returns:
         {
           cluster_id: {
-            "summary"      : str,   # citation'lı narrative metin
+            "summary"      : str,   # narrative text with citations
             "used_contexts": {citation_num: text, ...},
-            "title"        : str,   # SITREP başlığı
+            "title"        : str,   # SITREP headline
           }
         }
     """
-    # Cevapları cluster_id'ye göre grupla
+    # Group answers by cluster_id
     cluster_groups: Dict[str, List[Dict]] = {}
     for answer in postprocessed_answers:
         cid = str(answer["cluster_id"])
@@ -148,10 +148,10 @@ def generate_cluster_summaries(
 
     for cluster_id, answers in cluster_groups.items():
         logger.info(
-            "Cluster %s özeti üretiliyor (%d cevap)", cluster_id, len(answers)
+            "Generating summary for cluster %s (%d answers)", cluster_id, len(answers)
         )
 
-        # 1. Citation offset uygula
+        # 1. Apply citation offset
         modified_texts: List[str] = []
         merged_contexts: Dict[int, str] = {}
         merged_meta: Dict[int, Dict] = {}  # citation_num → {title, url}
@@ -160,14 +160,14 @@ def generate_cluster_summaries(
             offset = i * CITATION_OFFSET_STEP
             original_answer = answer.get("updated_retrieved_answer", answer.get("retrieved_answer", ""))
 
-            # Sadece citation içeren cevapları dahil et
+            # Include only answers with citations
             if "[" not in original_answer:
                 continue
 
             modified_text = _apply_citation_offset(original_answer, offset)
             modified_texts.append(modified_text)
 
-            # Context ve metadata mapping'ini güncelle
+            # Update context and metadata mapping
             ctx_map = _offset_contexts(
                 answer.get("new_citations", []),
                 answer.get("new_used_contexts", []),
@@ -193,11 +193,11 @@ def generate_cluster_summaries(
             }
             continue
 
-        # 2. Tüm metinleri birleştir
+        # 2. Combine all texts
         combined_text = "\n\n".join(modified_texts)
         integrate_prompt = _INTEGRATE_USER_TEMPLATE.format(text_to_integrate=combined_text)
 
-        # 3. Narrative entegrasyon
+        # 3. Narrative integration
         try:
             summary = llm_client.chat_simple(
                 user_prompt=integrate_prompt,
@@ -208,9 +208,9 @@ def generate_cluster_summaries(
             )
         except Exception as exc:
             logger.error("Cluster %s narrative integration failed: %s", cluster_id, exc)
-            summary = combined_text  # Ham metni kullan
+            summary = combined_text  # Use raw text
 
-        # 4. Başlık üret
+        # 4. Generate headline
         title_prompt = _TITLE_USER_TEMPLATE.format(summary_text=summary[:1500])
         try:
             title = llm_client.chat_simple(
@@ -232,7 +232,7 @@ def generate_cluster_summaries(
         }
 
         logger.info(
-            "  Cluster %s tamamlandı: başlık='%s'", cluster_id, title
+            "  Cluster %s completed: title='%s'", cluster_id, title
         )
 
     return final_output

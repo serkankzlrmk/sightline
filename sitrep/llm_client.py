@@ -49,19 +49,19 @@ def chat(
     max_tokens: int = LLM_MAX_TOKENS_DEFAULT,
 ) -> str:
     """
-    Ollama /chat/completions endpoint'ini cagirir.
+    Calls the Ollama /chat/completions endpoint.
 
     Args:
         messages : [{"role": "system"|"user"|"assistant", "content": str}, ...]
         model    : Model ID
-        temperature: 0.0 = deterministik
-        max_tokens : Yanit icin max token
+        temperature: 0.0 = deterministic
+        max_tokens : Max tokens for the response
 
     Returns:
-        Modelin yanit metni (string).
+        The model's response text (string).
 
     Raises:
-        RuntimeError: Tum retry'lar tukendikten sonra ulasilamazsa.
+        RuntimeError: If unreachable after all retries are exhausted.
     """
     base_url, headers = _get_base_url_and_headers()
 
@@ -87,7 +87,7 @@ def chat(
             if response.status_code == 429:
                 wait = _RATE_LIMIT_WAIT * attempt
                 logger.warning(
-                    "Rate limit (429). Deneme %d/%d. %ds bekleniyor.",
+                    "Rate limit (429). Attempt %d/%d. Waiting %ds.",
                     attempt, LLM_MAX_RETRIES, wait,
                 )
                 time.sleep(wait)
@@ -100,18 +100,18 @@ def chat(
             if content is None:
                 finish_reason = data["choices"][0].get("finish_reason", "unknown")
                 raise RuntimeError(
-                    f"LLM null content döndürdü (finish_reason={finish_reason}). "
-                    "Prompt çok uzun olabilir veya model bunu desteklemiyor olabilir."
+                    f"LLM returned null content (finish_reason={finish_reason}). "
+                    "Prompt may be too long or the model may not support this."
                 )
-            # qwen3 ve benzeri reasoning modelleri <think>...</think> bloğu ekler — temizle
+            # qwen3 and similar reasoning models add a think block — clean it up
             import re as _re
             content = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
             return content.strip()
 
         except requests.exceptions.Timeout:
             last_error = TimeoutError(
-                f"LLM isteği zaman aşımına uğradı ({LLM_TIMEOUT}s). "
-                f"Deneme {attempt}/{LLM_MAX_RETRIES}."
+                f"LLM request timed out ({LLM_TIMEOUT}s). "
+                f"Attempt {attempt}/{LLM_MAX_RETRIES}."
             )
             logger.warning(str(last_error))
             time.sleep(2 * attempt)
@@ -119,33 +119,33 @@ def chat(
         except requests.exceptions.RequestException as exc:
             last_error = exc
             logger.warning(
-                "İstek hatası (deneme %d/%d): %s", attempt, LLM_MAX_RETRIES, exc
+                "Request error (attempt %d/%d): %s", attempt, LLM_MAX_RETRIES, exc
             )
             time.sleep(2 * attempt)
 
         except (KeyError, IndexError, RuntimeError) as exc:
             raw = response.text[:300] if "response" in dir() else "—"
             last_error = RuntimeError(
-                f"LLM yanıtı ayrıştırılamadı: {exc}. Ham yanıt: {raw}"
+                f"Failed to parse LLM response: {exc}. Raw response: {raw}"
             )
             logger.warning("Response error (attempt %d/%d): %s", attempt, LLM_MAX_RETRIES, exc)
             time.sleep(2 * attempt)
             continue
 
     raise RuntimeError(
-        f"Ollama'e {LLM_MAX_RETRIES} denemede ulaşılamadı. "
-        f"Son hata: {last_error}"
+        f"Could not reach Ollama after {LLM_MAX_RETRIES} attempts. "
+        f"Last error: {last_error}"
     )
 
 
 def chat_simple(user_prompt: str, system_prompt: Optional[str] = None, **kwargs) -> str:
     """
-    Tek kullanıcı mesajı için kısayol.
+    Shortcut for a single user message.
 
     Args:
-        user_prompt  : Kullanıcı mesajı
-        system_prompt: Sistem talimatı (opsiyonel)
-        **kwargs     : chat() fonksiyonuna iletilen ek parametreler (temperature, max_tokens vb.)
+        user_prompt  : User message
+        system_prompt: System instruction (optional)
+        **kwargs     : Additional parameters passed to chat() (temperature, max_tokens, etc.)
     """
     messages: List[Dict[str, str]] = []
     if system_prompt:

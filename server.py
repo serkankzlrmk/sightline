@@ -10,7 +10,7 @@ Run:
     → http://localhost:5000
 
 Tabs:
-    /  →  Tab 1: Veritabanı (SQLite reports browser)
+    /  →  Tab 1: Database (SQLite reports browser)
           Tab 2: Agent     (LangGraph chat)
           Tab 3: SITREP    (9-stage pipeline runner)
 """

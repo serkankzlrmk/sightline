@@ -1,8 +1,8 @@
 """
 sitrep_pipeline/chroma_adapter.py
-Chroma DB üzerinde veri çekme ve semantic retrieval işlemleri.
+Data retrieval and semantic retrieval operations on Chroma DB.
 
-Orijinal pipeline'daki Stage 0 (dosya okuma) ve ColBERT retrieval'ın yerini alır.
+Replaces Stage 0 (file reading) and ColBERT retrieval from the original pipeline.
 """
 
 import os
@@ -24,11 +24,11 @@ from config import (
 
 class ChromaAdapter:
     """
-    reliefweb_chunks koleksiyonuna erişim sağlar.
+    Provides access to the reliefweb_chunks collection.
 
-    Chunk şeması:
+    Chunk schema:
         id         : "{report_id}_{chunk_index}"
-        document   : ham metin
+        document   : raw text
         metadata   : {
             report_id, chunk_index, source_type,
             title, date, source,
@@ -45,22 +45,22 @@ class ChromaAdapter:
         )
 
     # ------------------------------------------------------------------
-    # Bilgi / istatistik
+    # Info / statistics
     # ------------------------------------------------------------------
 
     def count(self) -> int:
-        """Koleksiyondaki toplam chunk sayısı."""
+        """Total chunk count in the collection."""
         return self.collection.count()
 
     def list_countries(self) -> List[str]:
-        """DB'deki benzersiz primary_country değerlerini döndür."""
+        """Returns unique primary_country values in the DB."""
         results = self.collection.get(include=["metadatas"])
         countries = {m.get("primary_country", "") for m in results["metadatas"]}
         countries.discard("")
         return sorted(countries)
 
     def list_themes(self) -> List[str]:
-        """DB'deki benzersiz tema değerlerini döndür."""
+        """Returns unique theme values in the DB."""
         results = self.collection.get(include=["metadatas"])
         themes: set = set()
         for m in results["metadatas"]:
@@ -73,7 +73,7 @@ class ChromaAdapter:
         return sorted(themes)
 
     def get_date_range(self, country: str) -> Dict:
-        """Belirli bir ülke için mevcut tarih aralığını döndür."""
+        """Returns the available date range for a given country."""
         chunks = self.get_chunks_by_country(country, limit=5000)
         if not chunks:
             return {"min": None, "max": None, "count": 0}
@@ -85,7 +85,7 @@ class ChromaAdapter:
         }
 
     # ------------------------------------------------------------------
-    # Veri çekme
+    # Data retrieval
     # ------------------------------------------------------------------
 
     def get_chunks_by_country(
@@ -94,7 +94,7 @@ class ChromaAdapter:
         limit: int = 2000,
     ) -> List[Dict]:
         """
-        Belirli bir ülkeye ait tüm chunk'ları döndür.
+        Returns all chunks belonging to a given country.
 
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
@@ -115,9 +115,9 @@ class ChromaAdapter:
         limit: int = 2000,
     ) -> List[Dict]:
         """
-        Ülke filtresi zorunlu; temalar ve tarih aralığı opsiyonel.
-        themes: OR mantığı ile filtreler. Boşsa sadece ülke filtresine göre çeker.
-        date_from / date_to: ISO format (YYYY-MM-DD). Chunk metadata 'date' alanına göre filtreler.
+        Country filter is required; themes and date range are optional.
+        themes: Filters with OR logic. If empty, fetches by country filter only.
+        date_from / date_to: ISO format (YYYY-MM-DD). Filters by chunk metadata 'date' field.
 
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
@@ -125,23 +125,23 @@ class ChromaAdapter:
         if not themes and not date_from and not date_to:
             return self.get_chunks_by_country(country, limit)
 
-        # Chroma'nın $contains operatörü olmadığı için ülkeden çekip Python'da filtrele
+        # Chroma lacks $contains operator, so fetch by country and filter in Python
         raw = self.get_chunks_by_country(country, limit=limit * 2)
         filtered = raw
 
-        # Tema filtresi (OR mantığı)
+        # Theme filter (OR logic)
         if themes:
             filtered = [
                 c for c in filtered
                 if any(t.lower() in c["themes"].lower() for t in themes)
             ]
 
-        # Tarih filtresi
+        # Date filter
         if date_from or date_to:
             def _date_in_range(chunk_date: str) -> bool:
                 if not chunk_date:
                     return False
-                d = chunk_date[:10]  # "YYYY-MM-DD" kısmını al
+                d = chunk_date[:10]  # Take the "YYYY-MM-DD" part
                 if date_from and d < date_from:
                     return False
                 if date_to and d > date_to:
@@ -163,10 +163,10 @@ class ChromaAdapter:
         candidate_pool: Optional[List[Dict]] = None,
     ) -> List[Dict]:
         """
-        Sorguya en yakın k chunk'ı döndür.
+        Returns the k closest chunks to the query.
 
-        candidate_pool verilirse (küme filtreleme için) önce pool'u filtreler;
-        verilmezse tüm koleksiyonda arama yapar.
+        If candidate_pool is provided (for cluster filtering), filters the pool first;
+        if not provided, searches the entire collection.
 
         Returns:
             [{rank, similarity, id, text, title, url, source, date, themes, primary_country}]
@@ -199,8 +199,8 @@ class ChromaAdapter:
         candidate_pool: Optional[List[Dict]] = None,
     ) -> List[List[Dict]]:
         """
-        Birden fazla sorgu için toplu retrieval (RRF öncesi kullanılır).
-        Her sorgu için ayrı bir sonuç listesi döndür.
+        Bulk retrieval for multiple queries (used before RRF).
+        Returns a separate result list for each query.
         """
         return [
             self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool)
@@ -208,15 +208,15 @@ class ChromaAdapter:
         ]
 
     # ------------------------------------------------------------------
-    # Yardımcı
+    # Helpers
     # ------------------------------------------------------------------
 
     def _retrieve_from_pool(
         self, query: str, pool: List[Dict], k: int
     ) -> List[Dict]:
         """
-        Pool içindeki chunk'ları sorguyla karşılaştırarak top-k döndür.
-        Embedding hesaplaması için DefaultEmbeddingFunction kullanır.
+        Compares chunks in the pool against the query and returns top-k.
+        Uses DefaultEmbeddingFunction for embedding computation.
         """
         import numpy as np
 
@@ -252,7 +252,7 @@ class ChromaAdapter:
         return results
 
     def _format_results(self, results: Dict) -> List[Dict]:
-        """get() sonuçlarını standart dict listesine çevirir."""
+        """Converts get() results to a standard dict list."""
         ids = results.get("ids", [])
         docs = results.get("documents")
         if docs is None:
@@ -284,7 +284,7 @@ class ChromaAdapter:
         return output
 
     def _format_query_results(self, results: Dict) -> List[Dict]:
-        """query() sonuçlarını standart dict listesine çevirir."""
+        """Converts query() results to a standard dict list."""
         docs = results["documents"][0]
         metas = results["metadatas"][0]
         dists = results["distances"][0]

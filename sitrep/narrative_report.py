@@ -1,13 +1,13 @@
 """
 sitrep_pipeline/narrative_report.py
-Executive summary ve cluster summaries'den tam bir narratif rapor üretir.
+Generates a full narrative report from executive summary and cluster summaries.
 
-Stage 8.5: Pipeline'in son aşamalarından biri — rapor assembly'den önce çağrılır.
+Stage 8.5: One of the final stages of the pipeline — called before report assembly.
 
-Ürettiği çıktı:
+Output:
 {
-    "narrative_html": str,        # HTML formatında tam narratif rapor
-    "narrative_sources": {        # Kullanılan kaynak referansları
+    "narrative_html": str,        # Full narrative report in HTML format
+    "narrative_sources": {        # Used source references
         "cluster_titles": [str],
         "exec_summary_used": bool
     }
@@ -78,7 +78,7 @@ Your task is to produce a **coherent, flowing narrative report** in HTML format.
 
 def _format_cluster_sources(cluster_summaries: Dict) -> tuple:
     """
-    Cluster summaries'yi numarali kaynak formatına çevirir.
+    Converts cluster summaries to numbered source format.
     Returns: (source_text: str, num_start: int)
     """
     parts = []
@@ -99,13 +99,13 @@ def generate_narrative_report(
     exec_summary: Dict,
 ) -> Dict:
     """
-    Executive summary ve cluster summaries'den tam bir narratif rapor üretir.
+    Generates a full narrative report from executive summary and cluster summaries.
 
     Args:
-        country          : Ülke adı (prompt'ta kullanılır)
-        event            : Olay/kriz adı
-        cluster_summaries: cluster_summary.generate_cluster_summaries() çıktısı
-        exec_summary     : executive_summary.generate_executive_summary() çıktısı
+        country          : Country name (used in prompt)
+        event            : Event/crisis name
+        cluster_summaries: Output of cluster_summary.generate_cluster_summaries()
+        exec_summary     : Output of executive_summary.generate_executive_summary()
 
     Returns:
         {
@@ -164,7 +164,7 @@ def generate_narrative_report(
             seen.add(title)
 
     logger.info(
-        "Narrative report tamamlandı: %d cluster, %d kelime.",
+        "Narrative report completed: %d clusters, %d words.",
         len(cluster_summaries),
         len(narrative_html.split()),
     )
@@ -185,7 +185,7 @@ def _build_fallback_html(
     cluster_summaries: Dict,
 ) -> str:
     """
-    LLM çağrısı başarısız olursa düz HTML fallback üretir.
+    Generates plain HTML fallback if LLM call fails.
     """
     html = f"<h2>1. Executive Overview</h2>\n"
     if exec_summary_text:

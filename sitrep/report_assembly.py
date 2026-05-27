@@ -1,12 +1,12 @@
 """
 sitrep_pipeline/report_assembly.py
-Tüm pipeline çıktılarını final JSON ve Markdown raporuna dönüştürür.
+Converts all pipeline outputs into a final JSON and Markdown report.
 
-Orijinal Stage 6 (6-Report Generation.ipynb) mantığı:
-- LLM çağrısı yok — saf veri birleştirme
-- Citation enrichment: her [n] citation'ı için {context, title, url} ekler
-- QA filtresi: citation içermeyen veya "no clear answer" içerenleri çıkar
-- viewer_v2.html ile uyumlu JSON şeması üretir
+Original Stage 6 (6-Report Generation.ipynb) logic:
+- No LLM calls — pure data assembly
+- Citation enrichment: adds {context, title, url} for each [n] citation
+- QA filter: removes entries without citations or containing "no clear answer"
+- Produces a JSON schema compatible with viewer_v2.html
 """
 
 import re
@@ -32,17 +32,17 @@ def _build_metadata_lookup(
     postprocessed_answers: List[Dict],
 ) -> List[Dict]:
     """
-    retrieved_contexts_meta verilerinden metadata arama tablosu oluşturur.
-    Her girdi: {text: str, title: str, url: str}
+    Builds a metadata lookup table from retrieved_contexts_meta data.
+    Each entry: {text: str, title: str, url: str}
     """
     seen: set = set()
     metadata: List[Dict] = []
     for answer in postprocessed_answers:
         for meta in answer.get("retrieved_contexts_meta", []):
             text = answer.get("retrieved_contexts", [])
-            # meta ve text eşleşmesini retrieved_contexts sırasına göre yap
+            # Match meta and text by retrieved_contexts order
             pass
-        # Daha temiz yaklaşım: tüm meta'ları contexts ile birlikte sakla
+        # Cleaner approach: store all metas together with contexts
         contexts = answer.get("retrieved_contexts", [])
         metas = answer.get("retrieved_contexts_meta", [])
         for ctx, meta in zip(contexts, metas):
@@ -62,8 +62,8 @@ def _find_metadata_for_context(
     metadata_list: List[Dict],
 ) -> Tuple[str, str]:
     """
-    Bir context metni için en iyi eşleşen title ve url'yi döndür.
-    Önce tam eşleşme, sonra substring, sonra fuzzy SequenceMatcher.
+    Returns the best matching title and URL for a context text.
+    First exact match, then substring, then fuzzy SequenceMatcher.
 
     Returns:
         (title, url)
@@ -71,19 +71,19 @@ def _find_metadata_for_context(
     if not context_text or not metadata_list:
         return ("", "")
 
-    # 1. Tam eşleşme
+    # 1. Exact match
     for item in metadata_list:
         if item.get("paragraph", "") == context_text:
             return (item.get("title", ""), item.get("url", ""))
 
-    # 2. Substring eşleşme (yeterince uzunsa)
+    # 2. Substring match (if long enough)
     if len(context_text) >= MIN_SUBSTRING_LENGTH:
         for item in metadata_list:
             para = item.get("paragraph", "")
             if context_text in para or para in context_text:
                 return (item.get("title", ""), item.get("url", ""))
 
-    # 3. Fuzzy eşleşme
+    # 3. Fuzzy match
     best_ratio = 0.0
     best_item = None
     for item in metadata_list:
@@ -118,12 +118,12 @@ def _enrich_contexts(
 
 
 # ---------------------------------------------------------------------------
-# QA filtresi
+# QA filter
 # ---------------------------------------------------------------------------
 
 def _is_valid_answer(answer_text: str) -> bool:
     """
-    Citation içermeyen veya 'no clear answer' içeren cevapları eleme.
+    Filters out answers without citations or containing 'no clear answer'.
     """
     if not answer_text:
         return False
@@ -133,7 +133,7 @@ def _is_valid_answer(answer_text: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Ana fonksiyon
+# Main function
 # ---------------------------------------------------------------------------
 
 def assemble_report(
@@ -150,10 +150,10 @@ def assemble_report(
     date_to: Optional[str] = None,
 ) -> Dict:
     """
-    Tüm pipeline çıktılarından final rapor JSON'ını üretir.
+    Produces the final report JSON from all pipeline outputs.
 
     Returns:
-        Viewer ile uyumlu JSON yapısı:
+        Viewer-compatible JSON structure:
         {
           file_name: str,
           summary: str,
@@ -176,7 +176,7 @@ def assemble_report(
     file_name = f"{country}_{event}"
     logger.info("Assembling report: %s", file_name)
 
-    # Metadata lookup tablosu oluştur
+    # Build metadata lookup table
     metadata_list = _build_metadata_lookup(postprocessed_answers)
 
     # ---- Executive summary ----
@@ -199,7 +199,7 @@ def assemble_report(
                 url = url_fb
             summary_contexts[key] = {"context": text, "title": title, "url": url}
 
-    # ---- QA veriyi cluster'a göre grupla ----
+    # ---- Group QA data by cluster ----
     qa_by_cluster: Dict[str, List[Dict]] = {}
     for answer in postprocessed_answers:
         cid = str(answer["cluster_id"])
@@ -220,13 +220,13 @@ def assemble_report(
             for num, text in zip(new_citations, new_contexts)
             if text
         }
-        # Metadata map doğrudan post-process'ten al (fuzzy match gereksiz)
+        # Metadata map directly from post-process (fuzzy match not needed)
         meta_map: Dict[int, Dict] = {
             num: m
             for num, m in zip(new_citations, new_metas)
         }
 
-        # Cevap içindeki tüm [n] referanslarını da ekle (context_map'te yoksa)
+        # Also add all [n] references in the answer text (if not in context_map)
         for m in re.findall(r"\[(\d+)\]", answer_text):
             num = int(m)
             if num not in context_map and 0 < num <= len(retrieved_contexts):
@@ -240,7 +240,7 @@ def assemble_report(
             m = meta_map.get(num, {})
             title = m.get("title", "")
             url = m.get("url", "")
-            # Fallback: fuzzy match (meta yoksa)
+            # Fallback: fuzzy match (if no meta)
             if not url:
                 title_fb, url_fb = _find_metadata_for_context(text, metadata_list)
                 title = title or title_fb
@@ -258,9 +258,9 @@ def assemble_report(
     for cluster_id, cluster_data in clusters.items():
         qa_items = qa_by_cluster.get(cluster_id, [])
         if not qa_items:
-            continue  # QA'sız cluster'ları dahil etme
+            continue  # Skip clusters without QA
 
-        # Başlık: cluster_summaries'den geliyorsa onu kullan
+        # Title: use from cluster_summaries if available
         cluster_title = (
             cluster_summaries.get(cluster_id, {}).get("title")
             or cluster_data.get("cluster_headline", f"Cluster {cluster_id}")
@@ -287,13 +287,13 @@ def assemble_report(
     if date_to:
         report["date_to"] = date_to
 
-    # Narrative report (opsiyonel — yeni stage)
+    # Narrative report (optional — new stage)
     if narrative:
         report["narrative_html"] = narrative.get("narrative_html", "")
         report["narrative_sources"] = narrative.get("narrative_sources", {})
 
     logger.info(
-        "Rapor hazır: %d cluster, %d toplam QA",
+        "Report ready: %d clusters, %d total QA",
         len(output_clusters),
         sum(len(c["questions_and_answers"]) for c in output_clusters),
     )
@@ -308,10 +308,10 @@ def save_report(
     suffix: str = "",
 ) -> Path:
     """
-    Raporu JSON formatında diske kaydeder.
+    Saves the report to disk in JSON format.
 
     Returns:
-        Kaydedilen dosyanın yolu.
+        Path to the saved file.
     """
     out_dir = output_dir or OUTPUT_REPORTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -322,13 +322,13 @@ def save_report(
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
 
-    logger.info("Rapor kaydedildi: %s", out_path)
+    logger.info("Report saved: %s", out_path)
     return out_path
 
 
 def generate_markdown(report: Dict) -> str:
     """
-    Rapor dict'inden Markdown metin üretir.
+    Generates Markdown text from a report dict.
     """
     file_name = report.get("file_name", "Report")
     md = f"# {file_name}\n\n"

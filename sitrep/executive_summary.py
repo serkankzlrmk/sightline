@@ -1,11 +1,11 @@
 """
 sitrep_pipeline/executive_summary.py
-Tüm cevaplardan kullanılan context'leri toplayarak executive summary üretir.
+Generates an executive summary by collecting used contexts from all answers.
 
-Sürüm 2 değişiklikleri:
-- cluster_summaries parametresi eklendi → SITREP formatı için cluster özetlerinden üretim
-- Citation metadata (title/url) artık cited_paragraphs_meta ile taşınıyor
-- report_assembly.py fuzzy match fallback'e gerek kalmadı
+Version 2 changes:
+- Added cluster_summaries parameter → generates from cluster summaries for SITREP format
+- Citation metadata (title/url) now carried via cited_paragraphs_meta
+- report_assembly.py fuzzy match fallback no longer needed
 """
 
 import re
@@ -28,7 +28,7 @@ _EXEC_SUMMARY_QUERY = "Generate a summary of the current situation."
 
 
 # ---------------------------------------------------------------------------
-# Prompt: Cluster özetlerinden SITREP executive summary (tercih edilen yol)
+# Prompt: SITREP executive summary from cluster summaries (preferred path)
 # ---------------------------------------------------------------------------
 
 _SITREP_SUMMARY_TEMPLATE = """\
@@ -62,7 +62,7 @@ Your task is to produce a structured executive summary based **exclusively** on 
 
 
 # ---------------------------------------------------------------------------
-# Prompt: Ham chunk'lardan executive summary (fallback yolu)
+# Prompt: Executive summary from raw chunks (fallback path)
 # ---------------------------------------------------------------------------
 
 _EXEC_SUMMARY_TEMPLATE = """\
@@ -96,8 +96,8 @@ Carefully analyze the source documents provided in the context below. Then, gene
 
 def _format_numbered_context(items: List[Dict]) -> str:
     """
-    [{"title": str, "text": str}, ...] listesini numaralı kaynak formatına çevirir.
-    title varsa başlık satırı eklenir.
+    Converts a [{"title": str, "text": str}, ...] list to numbered source format.
+    If title is present, a title line is added.
     """
     parts = []
     for i, item in enumerate(items):
@@ -116,8 +116,8 @@ def _simple_retrieve(
     k: int,
 ) -> List[Dict]:
     """
-    Corpus (string listesi) üzerinde embedding tabanlı retrieval yapar.
-    Küçük pool'lar için ColBERT yerine basit cosine similarity kullanır.
+    Performs embedding-based retrieval over a corpus (string list).
+    Uses simple cosine similarity instead of ColBERT for small pools.
 
     Returns:
         [{"id": str, "text": str, "rank": int, "similarity": float}]
@@ -166,31 +166,31 @@ def generate_executive_summary(
     cluster_summaries: Optional[Dict] = None,
 ) -> Dict:
     """
-    Executive summary üretir.
+    Generates an executive summary.
 
-    Tercih edilen yol (cluster_summaries verildiğinde):
-        Her cluster başlığı + narrative özeti kaynak olarak kullanılır.
-        SITREP formatında 2-4 paragraf üretir.
+    Preferred path (when cluster_summaries is provided):
+        Each cluster headline + narrative summary is used as a source.
+        Produces 2-4 paragraphs in SITREP format.
 
-    Fallback yol (cluster_summaries None ise):
-        Tüm cevapların kullanılan context'lerini RRF ile retrieval yapar.
-        Ham chunk'lardan özet üretir.
+    Fallback path (when cluster_summaries is None):
+        Performs RRF retrieval on all used contexts from answers.
+        Generates summary from raw chunks.
 
     Args:
-        postprocessed_answers: citation_postprocess.postprocess_citations() çıktısı
-        cluster_summaries    : cluster_summary.generate_cluster_summaries() çıktısı (opsiyonel)
+        postprocessed_answers: Output of citation_postprocess.postprocess_citations()
+        cluster_summaries    : Output of cluster_summary.generate_cluster_summaries() (optional)
 
     Returns:
         {
           "summary"              : str,
           "cited_paragraphs"     : [str],
-          "cited_paragraphs_meta": [{"title": str, "url": str}],  # cited_paragraphs ile paralel
+          "cited_paragraphs_meta": [{"title": str, "url": str}],  # parallel to cited_paragraphs
           "full_paragraphs"      : [str],
         }
     """
 
     # =========================================================================
-    # YOL A: Cluster özetlerinden SITREP formatında üretim
+    # PATH A: Generate in SITREP format from cluster summaries
     # =========================================================================
     if cluster_summaries:
         sources = []  # [{"cluster_id": str, "title": str, "text": str}]
@@ -236,7 +236,7 @@ def generate_executive_summary(
                     cited_paragraphs_meta[str(num)] = {"title": src["title"], "url": rep_url}
 
             logger.info(
-                "SITREP executive summary tamamlandı: %d kaynak, %d citation, %d kelime.",
+                "SITREP executive summary completed: %d sources, %d citations, %d words.",
                 len(sources), len(cited_numbers), len(summary.split()),
             )
 
@@ -248,10 +248,11 @@ def generate_executive_summary(
             }
 
         logger.warning("cluster_summaries provided but no cluster has a summary, falling back.")
-    # YOL B: Ham chunk'lardan fallback
+    # =========================================================================
+    # PATH B: Fallback from raw chunks
     # =========================================================================
 
-    # 1. Tüm new_used_contexts'i metadata ile birlikte topla (dedup, text → meta)
+    # 1. Collect all new_used_contexts with metadata (dedup, text → meta)
     all_contexts_meta: Dict[str, Dict] = {}  # text → {title, url}
     for answer in postprocessed_answers:
         contexts = answer.get("new_used_contexts", [])
@@ -279,7 +280,7 @@ def generate_executive_summary(
             "full_paragraphs": [],
         }
 
-    # 2. Sub-query üret + RRF
+    # 2. Generate sub-queries + RRF
     subqueries = _generate_subqueries(_EXEC_SUMMARY_QUERY)
 
     ranked_lists = []
@@ -290,7 +291,7 @@ def generate_executive_summary(
     fused = _reciprocal_rank_fusion(ranked_lists, k=RRF_K)
     top_chunks = fused[:RETRIEVAL_TOP_K_SUMMARY]
 
-    # 3. Context formatla ve LLM'e gönder
+    # 3. Format context and send to LLM
     context_items = [{"title": "", "text": c["text"]} for c in top_chunks]
     context_str = _format_numbered_context(context_items)
     context_texts = [c["text"] for c in top_chunks]
@@ -306,7 +307,7 @@ def generate_executive_summary(
         logger.error("Executive summary generation failed: %s", exc)
         summary = "The provided sources offer limited information for a comprehensive overview."
 
-    # 4. Kullanılan citation'ları çöz
+    # 4. Resolve used citations
     cited_numbers = sorted({int(m) for m in re.findall(r"\[(\d+)\]", summary)})
     cited_paragraphs: Dict[str, str] = {}
     cited_paragraphs_meta: Dict[str, Dict] = {}
@@ -319,7 +320,7 @@ def generate_executive_summary(
             cited_paragraphs_meta[str(num)] = all_contexts_meta.get(text, {"title": "", "url": ""})
 
     logger.info(
-        "Executive summary tamamlandı: %d citation, %d kelime.",
+        "Executive summary completed: %d citations, %d words.",
         len(cited_numbers), len(summary.split()),
     )
 

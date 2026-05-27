@@ -1,11 +1,11 @@
 """
 sitrep_pipeline/question_generation.py
-Cluster başına soru üretimi ve deduplication.
+Question generation per cluster and deduplication.
 
-Orijinal Stage 2.0 (2.0-Questions-generation.ipynb) mantığı:
-- Her cluster için 3 kez LLM çağrısı (Prompt 1 şablonu)
-- T5-canard KALDIRILDI (soru genişletme)
-- Dedup: cosine similarity (DefaultEmbeddingFunction) — CrossEncoder yerine
+Original Stage 2.0 (2.0-Questions-generation.ipynb) logic:
+- 3 LLM calls per cluster (Prompt 1 template)
+- T5-canard REMOVED (question expansion)
+- Dedup: cosine similarity (DefaultEmbeddingFunction) — instead of CrossEncoder
 """
 
 import re
@@ -29,20 +29,20 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Prompt 1 şablonu (orijinalden birebir alındı)
+# Prompt 1 template (taken verbatim from original)
 # ---------------------------------------------------------------------------
 
-# Prompt'a dahil edilecek max makale sayısı ve karakter limiti
+# Max articles and character limit to include in prompt
 _MAX_ARTICLES_IN_PROMPT: int = 20
 _MAX_ARTICLE_CHARS: int = 500
 
 
 def _build_prompt(headline: str, articles: List[str], event: str, country: str) -> str:
-    """Orijinal Prompt 1 şablonunu oluşturur.
+    """Builds the original Prompt 1 template.
     
-    Token limitini aşmamak için rastgele örnekleme ve kırpma uygulanır.
+    Random sampling and truncation applied to stay within token limits.
     """
-    # Token limitini aşmamak için rastgele örnekle ve kırp
+    # Randomly sample and truncate to stay within token limits
     sampled = random.sample(articles, min(_MAX_ARTICLES_IN_PROMPT, len(articles)))
 
     prompt = f"""You are an expert in developing strategic and tactical questions to analyze and address humanitarian situations, based exclusively on the provided data.
@@ -77,7 +77,7 @@ Content:
 """
     for idx, article in enumerate(sampled):
         text = " ".join(article.split("\n")).strip()
-        # Çok uzun metinleri kırp
+        # Truncate overly long texts
         if len(text) > _MAX_ARTICLE_CHARS:
             text = text[:_MAX_ARTICLE_CHARS] + "…"
         prompt += f"{idx + 1}) {text}\n"
@@ -86,15 +86,15 @@ Content:
 
 
 # ---------------------------------------------------------------------------
-# Soru çıkarma
+# Question extraction
 # ---------------------------------------------------------------------------
 
 def _extract_questions(raw_text: str) -> List[str]:
     """
-    LLM çıktısından soru cümlelerini çıkarır.
-    - Numaralı liste satırlarını temizler (1. / 1) vb.)
-    - Sadece '?' ile biten cümleleri tutar
-    - Başı/sonu boşluk temizlenir
+    Extracts question sentences from LLM output.
+    - Cleans numbered list lines (1. / 1) etc.)
+    - Keeps only sentences ending with '?'
+    - Leading/trailing whitespace stripped
     """
     lines = raw_text.strip().splitlines()
     questions = []
@@ -102,7 +102,7 @@ def _extract_questions(raw_text: str) -> List[str]:
         line = line.strip()
         if not line:
             continue
-        # Numaralı liste ön ekini kaldır: "1. ", "1) ", "- " vb.
+        # Remove numbered list prefix: "1. ", "1) ", "- " etc.
         line = re.sub(r"^[\d]+[.)]\s*", "", line)
         line = re.sub(r"^[-*•]\s*", "", line)
         line = line.strip()
@@ -112,7 +112,7 @@ def _extract_questions(raw_text: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# Cosine similarity ile dedup
+# Dedup via cosine similarity
 # ---------------------------------------------------------------------------
 
 def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
@@ -126,16 +126,16 @@ def _deduplicate_questions(
     max_keep: int = MAX_QUESTIONS_PER_CLUSTER,
 ) -> List[str]:
     """
-    Cosine similarity ile benzer soruları kaldırır.
-    ChromaDB'nin DefaultEmbeddingFunction kullanılır (all-MiniLM-L6-v2).
+    Removes similar questions using cosine similarity.
+    Uses ChromaDB's DefaultEmbeddingFunction (all-MiniLM-L6-v2).
 
     Args:
-        questions : Soru listesi
-        threshold : Bu değerin üzerinde benzerlik varsa duplicate sayılır
-        max_keep  : Saklanacak max soru sayısı
+        questions : List of questions
+        threshold : Similarity above this value is considered a duplicate
+        max_keep  : Maximum number of questions to keep
 
     Returns:
-        Benzersiz sorular listesi
+        List of unique questions
     """
     if not questions:
         return []
@@ -167,7 +167,7 @@ def _deduplicate_questions(
 
 
 # ---------------------------------------------------------------------------
-# Ana fonksiyon
+# Main function
 # ---------------------------------------------------------------------------
 
 def generate_questions(
@@ -176,21 +176,21 @@ def generate_questions(
     country: str,
 ) -> Dict:
     """
-    Her cluster için soru üretir.
+    Generates questions for each cluster.
 
     Args:
-        clusters: clustering.run_clustering() çıktısı
+        clusters: Output of clustering.run_clustering()
                   {cluster_id: {cluster_articles, cluster_headline, metadata}}
-        event   : Olay adı (RAG filtresi + prompt için)
-        country : Ülke adı
+        event   : Event name (for RAG filter + prompt)
+        country : Country name
 
     Returns:
         {
           cluster_id: {
             "cluster_headline": str,
-            "question_sets"   : [[q1, q2, ...], [q1, q2, ...], [q1, q2, ...]],  # 3 run
-            "all_questions"   : [q1, q2, ...],   # birleştirilmiş, ham
-            "unique_questions": [q1, q2, ...],   # dedup sonrası
+            "question_sets"   : [[q1, q2, ...], [q1, q2, ...], [q1, q2, ...]],  # 3 runs
+            "all_questions"   : [q1, q2, ...],   # merged, raw
+            "unique_questions": [q1, q2, ...],   # after dedup
           }
         }
     """
@@ -201,13 +201,13 @@ def generate_questions(
         articles_texts = [a["text"] for a in cluster_data["cluster_articles"]]
 
         logger.info(
-            "Cluster %s için soru üretiliyor: '%s' (%d makale)",
+            "Generating questions for cluster %s: '%s' (%d articles)",
             cluster_id, headline, len(articles_texts),
         )
 
         prompt = _build_prompt(headline, articles_texts, event, country)
 
-        # 3 bağımsız çalıştırma
+        # 3 independent runs
         question_sets: List[List[str]] = []
         all_raw: List[str] = []
 
@@ -223,7 +223,7 @@ def generate_questions(
                 question_sets.append(questions)
                 all_raw.extend(questions)
                 logger.debug(
-                    "  Run %d/%d: %d soru üretildi",
+                    "  Run %d/%d: %d questions generated",
                     run_idx + 1, QUESTION_RUNS_PER_CLUSTER, len(questions),
                 )
             except Exception as exc:
@@ -233,7 +233,7 @@ def generate_questions(
         # Dedup
         unique = _deduplicate_questions(all_raw)
         logger.info(
-            "  Cluster %s: %d ham → %d benzersiz soru",
+            "  Cluster %s: %d raw → %d unique questions",
             cluster_id, len(all_raw), len(unique),
         )
 
