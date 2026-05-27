@@ -13,7 +13,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to production
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Rsync code to server
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='.env' \
+            --exclude='firebase-service-account.json' \
+            --exclude='*.db' \
+            --exclude='*.sqlite*' \
+            --exclude='reliefweb_chroma/' \
+            --exclude='reliefweb_downloads/' \
+            --exclude='output/' \
+            --exclude='venv/' \
+            --exclude='.venv/' \
+            --exclude='.DS_Store' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ root@${{ secrets.SERVER_HOST }}:/tmp/redagent-deploy/
+
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -21,14 +46,78 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script_timeout: 300s
           script: |
-            echo "=== Deploy triggered by GitHub Actions ==="
-            echo "  Commit: ${{ github.sha }}"
-            echo "  Branch: ${{ github.ref }}"
-            echo "  Actor:  ${{ github.actor }}"
-            echo ""
+            set -e
+            APP_DIR="/opt/reliefagent"
+            DATA_DIR="$APP_DIR/data"
+            RELEASES_DIR="$APP_DIR/releases"
+            CURRENT_LINK="$APP_DIR/current"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
 
-            # Run the safe deploy script (atomic symlink + auto-rollback)
-            sudo bash /opt/reliefagent/current/deploy/deploy.sh main
+            echo "=== Creating release: $TIMESTAMP ==="
+            cp -a /tmp/redagent-deploy "$NEW_RELEASE"
+            rm -rf /tmp/redagent-deploy
+
+            echo "=== Reusing venv from previous release ==="
+            OLD_RELEASE=$(readlink -f "$CURRENT_LINK")
+            if [ -d "$OLD_RELEASE/venv" ]; then
+              cp -a "$OLD_RELEASE/venv" "$NEW_RELEASE/venv"
+              echo "  ✓ Copied venv"
+            else
+              echo "  Creating new venv..."
+              cd "$NEW_RELEASE"
+              python3 -m venv venv
+              venv/bin/pip install --upgrade pip setuptools wheel -q
+              venv/bin/pip install -r requirements.txt -q
+              venv/bin/pip install gunicorn -q
+            fi
+
+            echo "=== Linking shared data ==="
+            ln -sf "$DATA_DIR/.env" "$NEW_RELEASE/.env"
+            [ -f "$DATA_DIR/firebase-service-account.json" ] && ln -sf "$DATA_DIR/firebase-service-account.json" "$NEW_RELEASE/firebase-service-account.json"
+            ln -sf "$DATA_DIR/reliefweb.db" "$NEW_RELEASE/reliefweb.db"
+            ln -sf "$DATA_DIR/chats.db" "$NEW_RELEASE/chats.db"
+            ln -sfn "$DATA_DIR/reliefweb_chroma" "$NEW_RELEASE/reliefweb_chroma"
+            ln -sfn "$DATA_DIR/output" "$NEW_RELEASE/output"
+
+            echo "=== Recording release info ==="
+            cat > "$NEW_RELEASE/RELEASE_INFO" <<EOF
+            TIMESTAMP=$TIMESTAMP
+            GIT_SHA=${{ github.sha }}
+            BRANCH=${{ github.ref_name }}
+            DEPLOYER=github-actions
+            DEPLOY_DATE=$(date -Iseconds)
+            EOF
+
+            chown -R reliefagent:reliefagent "$NEW_RELEASE"
+
+            echo "=== Atomic symlink switch ==="
+            PREV_RELEASE=$(readlink -f "$CURRENT_LINK")
+            ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
+            systemctl restart reliefagent
+
+            echo "=== Health check ==="
+            for i in $(seq 1 10); do
+              if curl -sf http://127.0.0.1:5001/api/health 2>/dev/null | grep -q '"ok"'; then
+                echo "  ✓ Health check passed (attempt $i)"
+                break
+              fi
+              if [ "$i" = "10" ]; then
+                echo "✗ Health check FAILED — rolling back"
+                ln -sfn "$PREV_RELEASE" "$CURRENT_LINK"
+                systemctl restart reliefagent
+                exit 1
+              fi
+              sleep 3
+            done
+
+            echo "=== Cleanup old releases ==="
+            RELEASE_COUNT=$(ls -1d "$RELEASES_DIR"/*/ 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$RELEASE_COUNT" -gt 3 ]; then
+              ls -1d "$RELEASES_DIR"/*/ | sort | head -n -3 | xargs rm -rf
+            fi
+
+            echo "✓ Deploy successful! Release: $TIMESTAMP"
 
       - name: Verify health
         uses: appleboy/ssh-action@v1
@@ -39,5 +128,5 @@ jobs:
           script_timeout: 30s
           script: |
             HEALTH=$(curl -sf http://127.0.0.1:5001/api/health 2>/dev/null || echo '{"status":"failed"}')
-            echo "Health check: $HEALTH"
-            echo "$HEALTH" | grep -q '"ok"' && echo "✓ Deploy successful!" || echo "✗ Health check failed!"
+            echo "Health: $HEALTH"
+            echo "$HEALTH" | grep -q '"ok"' && echo "✓ Deploy verified!" || echo "✗ Health check failed!"
