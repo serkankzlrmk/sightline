@@ -9,24 +9,19 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt
+      - run: pip install --upgrade pip setuptools wheel
 
-      - name: Create test .env
-        run: |
+      - run: pip install -r requirements.txt
+
+      - run: |
           cat > .env << 'ENVEOF'
           LLM_PROVIDER=openrouter
           OPENROUTER_API_KEY=sk-or-v1-test-key-for-ci
@@ -42,10 +37,6 @@ jobs:
           DAILY_MESSAGE_LIMIT=10
           ENVEOF
 
-      - name: Lint with ruff (syntax errors only)
-        run: |
-          ruff check --select E9,F63 . || true
-          ruff check --select E,F --ignore E501 . || true
+      - run: ruff check --select E9,F63 . || true
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short 2>&1 || true
+      - run: pytest tests/ -v --tb=short || true
