@@ -12,7 +12,9 @@ if _ROOT not in sys.path:
 os.environ["ORT_LOGGING_LEVEL"] = "3"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-DB_PATH = "reliefweb.db"
+# Use config for DB path (respects .env overrides)
+from config import DB_PATH as _DEFAULT_DB_PATH
+DB_PATH = str(_DEFAULT_DB_PATH)
 
 
 def get_conn():

@@ -54,7 +54,7 @@ OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 
 # --- Ollama (legacy, for local dev) ---
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-OLLAMA_API_KEY:  str = os.getenv("OLLAMA_API_KEY",  "ollama")
+OLLAMA_API_KEY:  str = os.getenv("OLLAMA_API_KEY",  "")
 OLLAMA_TIMEOUT:  int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
 # --- Effective LLM settings (resolved based on LLM_PROVIDER) ---
@@ -157,7 +157,7 @@ RELIEFWEB_APPNAME: str = os.getenv("RELIEFWEB_APPNAME", "redagent_platform")
 # FLASK / SERVER
 # ============================================================================
 SERVER_HOST:  str  = os.getenv("SERVER_HOST",  "0.0.0.0")
-SERVER_PORT:  int  = int(os.getenv("SERVER_PORT", "5000"))
+SERVER_PORT:  int  = int(os.getenv("SERVER_PORT", "5001"))
 SERVER_DEBUG: bool = os.getenv("SERVER_DEBUG", "false").lower() == "true"
 SERVER_API_KEY: str = os.getenv("SERVER_API_KEY", "")
 CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
@@ -165,7 +165,7 @@ CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
 # SSL verification for outbound HTTP requests (ReliefWeb API, PDF downloads)
 SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
 SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
-SECRET_KEY:  str = os.getenv("SECRET_KEY", "")
+SECRET_KEY:  str = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 # Aliases for reliefwebapi compatibility
 FLASK_PORT  = SERVER_PORT
@@ -184,6 +184,9 @@ DAILY_MESSAGE_LIMIT: int = int(os.getenv("DAILY_MESSAGE_LIMIT", "10"))
 class _Config:
     """Thin object wrapper so `from config import config; config.FLASK_PORT` works."""
     def __getattr__(self, name):
-        return globals()[name]
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(f"Config has no attribute '{name}'")
 
 config = _Config()

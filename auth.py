@@ -19,22 +19,27 @@ def _get_app_config():
 
 def _firebase_app():
     """Lazy-init Firebase Admin SDK (only when needed)."""
-    if not os.path.exists(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json")
-    ):
+    global _fb_app
+    if _fb_app is not None:
+        return _fb_app
+
+    # Search for SA file in multiple locations
+    _sa_paths = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "firebase-service-account.json"),
+        "/opt/reliefagent/data/firebase-service-account.json",
+    ]
+    sa_path = next((p for p in _sa_paths if os.path.exists(p)), None)
+    if not sa_path:
         return None
 
-    global _fb_app
-    if _fb_app is None:
-        import firebase_admin
-        from firebase_admin import credentials
-        # Check if default app already exists (e.g., initialized elsewhere)
-        try:
-            _fb_app = firebase_admin.get_app()
-        except ValueError:
-            sa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json")
-            cred = credentials.Certificate(sa_path)
-            _fb_app = firebase_admin.initialize_app(cred)
+    import firebase_admin
+    from firebase_admin import credentials
+    try:
+        _fb_app = firebase_admin.get_app()
+    except ValueError:
+        cred = credentials.Certificate(sa_path)
+        _fb_app = firebase_admin.initialize_app(cred)
     return _fb_app
 
 
@@ -177,7 +182,7 @@ def require_admin(f):
         user_uid = decoded.get("uid", "")
         admins = _admins()
         if user_uid not in admins:
-            _log.warning("require_admin: uid=%s not in admins=%s for %s", user_uid, admins, request.path)
+            _log.warning("require_admin: uid=%s not admin for %s (is_admin=false)", user_uid, request.path)
             return jsonify({"error": "Admin access required"}), 403
 
         return f(*args, **kwargs)

@@ -63,7 +63,7 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
     static_url_path="/static",
 )
-app.secret_key = os.getenv("SECRET_KEY") or os.urandom(24)
+app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
@@ -133,6 +133,11 @@ def _check_api_rate_limit():
     today = date.today().isoformat()
     ip = request.remote_addr or "0.0.0.0"
     with _api_rate_lock:
+        # Clean up old entries (keep only today's)
+        if len(_api_rate_counts) > 1000:
+            stale = [k for k, v in _api_rate_counts.items() if v["date"] != today]
+            for k in stale:
+                del _api_rate_counts[k]
         entry = _api_rate_counts.get(ip)
         if not entry or entry["date"] != today:
             entry = {"date": today, "count": 0}
@@ -146,54 +151,52 @@ def _chats_db():
     conn = sqlite3.connect(str(CHATS_DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 def _check_rate_limit(uid: str) -> dict:
-    """Check and increment daily message count for a user. Returns {remaining, limit, used}."""
+    """Check daily message count for a user. Returns {remaining, limit, used}."""
     from datetime import date
     today = date.today().isoformat()
     conn = _chats_db()
-    row = conn.execute(
-        "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
-    ).fetchone()
-
-    if row and row["date"] == today:
-        used = row["count"]
-    else:
-        used = 0
-        conn.execute(
-            "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 0)",
-            (uid, today),
-        )
-        conn.commit()
-    conn.close()
-
+    try:
+        row = conn.execute(
+            "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
+        ).fetchone()
+        if row and row["date"] == today:
+            used = row["count"]
+        else:
+            used = 0
+    finally:
+        conn.close()
     limit = DAILY_MESSAGE_LIMIT
     remaining = max(0, limit - used)
     return {"remaining": remaining, "limit": limit, "used": used}
 
 def _increment_rate_limit(uid: str) -> int:
-    """Increment daily message count for a user. Returns new count."""
+    """Atomically increment daily message count for a user. Returns new count."""
     from datetime import date
     today = date.today().isoformat()
     conn = _chats_db()
-    row = conn.execute(
-        "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
-    ).fetchone()
-
-    if row and row["date"] == today:
-        new_count = row["count"] + 1
-        conn.execute(
-            "UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid)
-        )
-    else:
-        new_count = 1
-        conn.execute(
-            "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 1)",
-            (uid, today),
-        )
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("PRAGMA busy_timeout=5000")
+        with conn:
+            row = conn.execute(
+                "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
+            ).fetchone()
+            if row and row["date"] == today:
+                new_count = row["count"] + 1
+                conn.execute(
+                    "UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid)
+                )
+            else:
+                new_count = 1
+                conn.execute(
+                    "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 1)",
+                    (uid, today),
+                )
+    finally:
+        conn.close()
     return new_count
 
 def _init_chats_db():
@@ -351,9 +354,9 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
             from langchain_openai import ChatOpenAI
             from config import config as _cfg
             mini = ChatOpenAI(
-                model=_cfg.OLLAMA_MODEL,
-                base_url=_cfg.OLLAMA_BASE_URL,
-                api_key=_cfg.OLLAMA_API_KEY,
+                model=_cfg.LLM_MODEL,
+                base_url=_cfg._LLM_BASE_URL,
+                api_key=_cfg._LLM_API_KEY,
                 temperature=0.3,
                 max_tokens=30,
                 timeout=30,
@@ -378,8 +381,11 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _db_conn():
+    """Return a connection to the reliefweb SQLite database with WAL mode."""
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -400,6 +406,7 @@ def _parse_countries(json_str):
 
 _jobs: dict = {}
 _jobs_lock  = threading.Lock()
+_JOBS_MAX_AGE = 3600  # Clean up completed jobs older than 1 hour
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHF]')
 _NOISE   = [
@@ -453,10 +460,12 @@ def _run_job(job_id: str, cmd: list):
         proc.wait()
         with _jobs_lock:
             _jobs[job_id]["status"] = "done" if proc.returncode == 0 else "error"
+            _jobs[job_id]["finished_at"] = _time.time()
     except Exception as exc:
         q.put(f"[SERVER ERROR] {exc}")
         with _jobs_lock:
             _jobs[job_id]["status"] = "error"
+            _jobs[job_id]["finished_at"] = _time.time()
     finally:
         q.put(None)  # sentinel
 
@@ -788,15 +797,20 @@ def api_agent_chat_status():
 @app.route("/api/db/stats")
 @require_auth
 def api_db_stats():
+    conn = _db_conn()
     try:
-        conn = _db_conn()
         report_count = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
         chunk_count  = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         country_rows = conn.execute("SELECT countries FROM reports").fetchall()
         source_rows  = conn.execute("SELECT source FROM reports").fetchall()
-        conn.close()
     except Exception:
+        conn.close()
         return jsonify({"report_count": 0, "chunk_count": 0, "top_countries": [], "top_sources": []})
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     country_counts: dict = {}
     for r in country_rows:
@@ -819,12 +833,13 @@ def api_db_stats():
 @app.route("/api/db/countries")
 @require_auth
 def api_db_countries():
+    conn = _db_conn()
     try:
-        conn = _db_conn()
         rows = conn.execute("SELECT countries FROM reports").fetchall()
-        conn.close()
     except Exception:
         return jsonify([])
+    finally:
+        conn.close()
     all_countries = set()
     for r in rows:
         for c in _parse_countries(r[0]):
@@ -835,12 +850,13 @@ def api_db_countries():
 @app.route("/api/db/sources")
 @require_auth
 def api_db_sources():
+    conn = _db_conn()
     try:
-        conn = _db_conn()
         rows = conn.execute("SELECT DISTINCT source FROM reports ORDER BY source").fetchall()
-        conn.close()
     except Exception:
         return jsonify([])
+    finally:
+        conn.close()
     return jsonify([r[0] for r in rows if r[0]])
 
 
@@ -853,8 +869,8 @@ def api_db_reports():
     date_from = request.args.get("date_from", "").strip()
     date_to   = request.args.get("date_to",   "").strip()
 
+    conn = _db_conn()
     try:
-        conn = _db_conn()
         query = (
             "SELECT report_id, title, date, countries, source, themes, "
             "format_type, has_pdf, has_content, total_chunks, url "
@@ -877,9 +893,10 @@ def api_db_reports():
 
         query += " ORDER BY date DESC"
         rows = conn.execute(query, params).fetchall()
-        conn.close()
     except Exception:
         return jsonify([])
+    finally:
+        conn.close()
 
     results = []
     for r in rows:
@@ -897,8 +914,8 @@ def api_db_reports():
 @app.route("/api/db/reports/<int:report_id>")
 @require_auth
 def api_db_report_detail(report_id):
+    conn = _db_conn()
     try:
-        conn = _db_conn()
         row = conn.execute(
             "SELECT * FROM reports WHERE report_id=?", (report_id,)
         ).fetchone()
@@ -918,10 +935,11 @@ def api_db_report_detail(report_id):
             (report_id,),
         ).fetchall()
         d["chunks_preview"] = [dict(c) for c in chunks]
-        conn.close()
     except Exception as e:
         logger.error("api_db_report_detail error: %s", e, exc_info=True)
         return jsonify({"error": "Failed to load report detail"}), 500
+    finally:
+        conn.close()
 
     return jsonify(d)
 
@@ -1048,6 +1066,14 @@ def api_sitrep_run():
 
     job_id = uuid.uuid4().hex[:8]
     with _jobs_lock:
+        # Clean up old completed jobs to prevent memory leak
+        now = _time.time()
+        stale = [jid for jid, j in _jobs.items()
+                 if j.get("status") in ("done", "error") and
+                 now - j.get("finished_at", now) > _JOBS_MAX_AGE]
+        for jid in stale:
+            del _jobs[jid]
+
         _jobs[job_id] = {
             "queue":   Queue(),
             "status":  "running",
@@ -1342,10 +1368,12 @@ def api_ingest_upload():
         return jsonify({"error": "Only PDF files are accepted"}), 400
 
     conn = _db_conn()
-    max_row = conn.execute(
-        "SELECT MAX(report_id) FROM reports WHERE report_id > ?", (MANUAL_ID_BASE,)
-    ).fetchone()
-    conn.close()
+    try:
+        max_row = conn.execute(
+            "SELECT MAX(report_id) FROM reports WHERE report_id > ?", (MANUAL_ID_BASE,)
+        ).fetchone()
+    finally:
+        conn.close()
     new_id     = (max_row[0] or MANUAL_ID_BASE) + 1
     tr_display = f"TR-{new_id - MANUAL_ID_BASE:05d}"
 

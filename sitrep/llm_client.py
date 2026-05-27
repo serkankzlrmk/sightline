@@ -124,7 +124,7 @@ def chat(
             time.sleep(2 * attempt)
 
         except (KeyError, IndexError, RuntimeError) as exc:
-            raw = response.text[:300] if "response" in dir() else "—"
+            raw = getattr(response, "text", "")[:300] if response is not None else "—"
             last_error = RuntimeError(
                 f"Failed to parse LLM response: {exc}. Raw response: {raw}"
             )
@@ -133,7 +133,7 @@ def chat(
             continue
 
     raise RuntimeError(
-        f"Could not reach Ollama after {LLM_MAX_RETRIES} attempts. "
+        f"Could not reach LLM provider after {LLM_MAX_RETRIES} attempts. "
         f"Last error: {last_error}"
     )
 

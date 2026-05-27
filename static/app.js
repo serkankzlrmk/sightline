@@ -72,8 +72,10 @@ function esc(s) {
 function sanitizeHtml(html) {
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
-  const scripts = tmp.querySelectorAll('script, iframe, object, embed, form');
-  scripts.forEach(el => el.remove());
+  // Remove dangerous elements
+  const dangerous = tmp.querySelectorAll('script, iframe, object, embed, form, svg, math, style, link, meta, base');
+  dangerous.forEach(el => el.remove());
+  // Remove dangerous attributes (on* event handlers, javascript: URLs)
   const all = tmp.querySelectorAll('*');
   all.forEach(el => {
     const attrs = Array.from(el.attributes);

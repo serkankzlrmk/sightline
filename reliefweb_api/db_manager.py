@@ -11,7 +11,7 @@ import sqlite3
 import json
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Tuple
 
 # ============================================================================
@@ -34,17 +34,30 @@ class DatabaseManager:
     Two tables:
       reports - full metadata, one row per report (unique on report_id)
       chunks  - text fragments with metadata header, ready for embedding
+
+    Thread safety: Each operation opens its own connection with WAL mode.
+    This avoids "database is locked" errors under concurrent access.
     """
 
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")  # faster concurrent reads
-        self._create_tables()
+        # Ensure DB and tables exist on init
+        conn = self._connect()
+        try:
+            self._create_tables(conn)
+        finally:
+            conn.close()
 
-    def _create_tables(self):
-        self.conn.executescript("""
+    def _connect(self) -> sqlite3.Connection:
+        """Open a new connection with WAL mode and Row factory."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
+    def _create_tables(self, conn: sqlite3.Connection):
+        conn.executescript("""
             CREATE TABLE IF NOT EXISTS reports (
                 report_id     INTEGER PRIMARY KEY,
                 title         TEXT    NOT NULL,
@@ -77,7 +90,7 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(date);
             CREATE INDEX IF NOT EXISTS idx_reports_source ON reports(source);
         """)
-        self.conn.commit()
+        conn.commit()
 
     # -------------------------------------------------------------------------
     # DEDUPLICATION
@@ -85,19 +98,27 @@ class DatabaseManager:
 
     def report_exists(self, report_id: int) -> bool:
         """Return True if this report_id is already in the database."""
-        row = self.conn.execute(
-            "SELECT 1 FROM reports WHERE report_id = ?", (report_id,)
-        ).fetchone()
-        return row is not None
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM reports WHERE report_id = ?", (report_id,)
+            ).fetchone()
+            return row is not None
+        finally:
+            conn.close()
 
     def report_has_pdf(self, report_id: int) -> bool:
         """Return True if report exists AND has_pdf=1."""
-        row = self.conn.execute(
-            "SELECT has_pdf FROM reports WHERE report_id = ?", (report_id,)
-        ).fetchone()
-        if row is None:
-            return False
-        return bool(row[0])
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT has_pdf FROM reports WHERE report_id = ?", (report_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            return bool(row[0])
+        finally:
+            conn.close()
 
     # -------------------------------------------------------------------------
     # INSERT
@@ -148,50 +169,55 @@ class DatabaseManager:
         languages = metadata.get("language", [])
         language = languages[0].get("code", "") if languages else ""
 
-        now = datetime.utcnow().isoformat()
+        from datetime import datetime as _dt
+        now = _dt.now(timezone.utc).isoformat()
 
-        with self.conn:
-            self.conn.execute(
-                """
-                INSERT INTO reports
-                    (report_id, title, date, source, url, countries, themes,
-                     format_type, language, has_pdf, has_content, pdf_pages,
-                     total_chunks, ingested_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    report_id,
-                    metadata.get("title", ""),
-                    date_str,
-                    source_name,
-                    metadata.get("url", ""),
-                    json.dumps(countries, ensure_ascii=False),
-                    json.dumps(themes, ensure_ascii=False),
-                    format_type,
-                    language,
-                    int(has_pdf),
-                    int(has_content),
-                    pdf_pages,
-                    len(chunks),
-                    now,
-                ),
-            )
-
-            for idx, chunk in enumerate(chunks):
-                self.conn.execute(
+        conn = self._connect()
+        try:
+            with conn:
+                conn.execute(
                     """
-                    INSERT OR IGNORE INTO chunks
-                        (report_id, chunk_index, source_type, content, char_count)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO reports
+                        (report_id, title, date, source, url, countries, themes,
+                         format_type, language, has_pdf, has_content, pdf_pages,
+                         total_chunks, ingested_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         report_id,
-                        idx,
-                        chunk["source_type"],
-                        chunk["content"],
-                        len(chunk["content"]),
+                        metadata.get("title", ""),
+                        date_str,
+                        source_name,
+                        metadata.get("url", ""),
+                        json.dumps(countries, ensure_ascii=False),
+                        json.dumps(themes, ensure_ascii=False),
+                        format_type,
+                        language,
+                        int(has_pdf),
+                        int(has_content),
+                        pdf_pages,
+                        len(chunks),
+                        now,
                     ),
                 )
+
+                for idx, chunk in enumerate(chunks):
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO chunks
+                            (report_id, chunk_index, source_type, content, char_count)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            report_id,
+                            idx,
+                            chunk["source_type"],
+                            chunk["content"],
+                            len(chunk["content"]),
+                        ),
+                    )
+        finally:
+            conn.close()
 
         return True
 
@@ -200,29 +226,34 @@ class DatabaseManager:
     # -------------------------------------------------------------------------
 
     def get_stats(self) -> Dict:
-        row = self.conn.execute(
-            "SELECT COUNT(*) as reports FROM reports"
-        ).fetchone()
-        row2 = self.conn.execute(
-            "SELECT COUNT(*) as chunks FROM chunks"
-        ).fetchone()
-        row3 = self.conn.execute(
-            "SELECT COUNT(*) as with_pdf FROM reports WHERE has_pdf = 1"
-        ).fetchone()
-        row4 = self.conn.execute(
-            "SELECT COUNT(*) as with_content FROM reports WHERE has_content = 1"
-        ).fetchone()
-        size_bytes = Path(self.db_path).stat().st_size if Path(self.db_path).exists() else 0
-        return {
-            "reports": row["reports"],
-            "chunks": row2["chunks"],
-            "with_pdf": row3["with_pdf"],
-            "with_content": row4["with_content"],
-            "db_size_kb": round(size_bytes / 1024, 1),
-        }
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) as reports FROM reports"
+            ).fetchone()
+            row2 = conn.execute(
+                "SELECT COUNT(*) as chunks FROM chunks"
+            ).fetchone()
+            row3 = conn.execute(
+                "SELECT COUNT(*) as with_pdf FROM reports WHERE has_pdf = 1"
+            ).fetchone()
+            row4 = conn.execute(
+                "SELECT COUNT(*) as with_content FROM reports WHERE has_content = 1"
+            ).fetchone()
+            size_bytes = Path(self.db_path).stat().st_size if Path(self.db_path).exists() else 0
+            return {
+                "reports": row["reports"],
+                "chunks": row2["chunks"],
+                "with_pdf": row3["with_pdf"],
+                "with_content": row4["with_content"],
+                "db_size_kb": round(size_bytes / 1024, 1),
+            }
+        finally:
+            conn.close()
 
     def close(self):
-        self.conn.close()
+        """No-op — kept for backward compatibility. Connections are per-operation."""
+        pass
 
 
 # ============================================================================
