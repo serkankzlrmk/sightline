@@ -334,8 +334,9 @@ async function sendMessage() {
     busyDot.classList.remove('visible');
     currentAiEl          = null;
     chatDiv.scrollTop    = chatDiv.scrollHeight;
-    loadChatList();
-    // Refresh chat list again after a delay to pick up auto-generated title
+    // Only update sidebar — do NOT re-render messages (causes layout shift)
+    loadChatSidebar();
+    // Refresh chat list after delay to pick up auto-generated title (full reload)
     setTimeout(() => loadChatList(), 3000);
     refreshChatRateHint();
   }
@@ -382,6 +383,29 @@ async function resetChat() {
 }
 
 // ── Multi-chat management ────────────────────────────────────────────────
+
+async function loadChatSidebar() {
+  // Only update the sidebar chat list — do NOT re-render messages
+  try {
+    const r = await api('/api/agent/chats');
+    const d = await r.json();
+    const list = document.getElementById('chat-list');
+    if (!list) return;
+    list.innerHTML = '';
+    for (const c of d.chats) {
+      const item = document.createElement('div');
+      item.className = 'chat-item' + (c.id === d.active ? ' active' : '');
+      item.innerHTML = `
+        <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
+        <span class="chat-item-actions">
+          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}', this)" title="Rename">R</button>
+          <button class="chat-item-btn delete" onclick="event.stopPropagation(); confirmDeleteChat('${c.id}', this)" title="Delete">X</button>
+        </span>`;
+      item.addEventListener('click', () => selectChat(c.id));
+      list.appendChild(item);
+    }
+  } catch { /* ignore */ }
+}
 
 async function loadChatList() {
   // Ensure admin status is checked before loading
