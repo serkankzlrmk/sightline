@@ -60,3 +60,9 @@ env/
 dist/
 build/
 *.egg-info/
+
+# ========================================
+# Lint / Test Cache
+# ========================================
+ruff_cache/
+.pytest_cache/

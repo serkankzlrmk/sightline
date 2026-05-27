@@ -1,0 +1,43 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Release timestamp to roll back to (leave empty for previous release)'
+        required: false
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Roll back to previous release
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_timeout: 60s
+          script: |
+            RELEASE="${{ inputs.release }}"
+            if [ -n "$RELEASE" ]; then
+              echo "=== Rolling back to release: $RELEASE ==="
+              sudo bash /opt/reliefagent/current/deploy/rollback.sh "$RELEASE"
+            else
+              echo "=== Rolling back to previous release ==="
+              sudo bash /opt/reliefagent/current/deploy/rollback.sh
+            fi
+
+      - name: Verify health after rollback
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_timeout: 30s
+          script: |
+            HEALTH=$(curl -sf http://127.0.0.1:5001/api/health 2>/dev/null || echo '{"status":"failed"}')
+            echo "Health check: $HEALTH"
+            echo "$HEALTH" | grep -q '"ok"' && echo "✓ Rollback successful!" || echo "✗ Health check failed after rollback!"
