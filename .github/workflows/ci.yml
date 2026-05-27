@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,28 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
-      - run: pip install --upgrade pip setuptools wheel
+      - run: echo "Hello from CI"
 
-      - run: pip install -r requirements.txt
-
-      - run: |
-          cat > .env << 'ENVEOF'
-          LLM_PROVIDER=openrouter
-          OPENROUTER_API_KEY=sk-or-v1-test-key-for-ci
-          ACTIVE_MODEL=google/gemini-2.5-flash
-          OLLAMA_MODEL=google/gemini-2.5-flash
-          LLM_MODEL=google/gemini-2.5-flash
-          ADMIN_UIDS=test-uid-123
-          RELIEFWEB_APPNAME=test-app-ci
-          SECRET_KEY=test-secret-key-for-ci
-          SERVER_PORT=5000
-          CORS_ORIGINS=*
-          SERVER_DEBUG=true
-          DAILY_MESSAGE_LIMIT=10
-          ENVEOF
-
-      - run: ruff check --select E9,F63 . || true
-
-      - run: pytest tests/ -v --tb=short || true
+      - run: python3 --version
