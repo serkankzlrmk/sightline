@@ -42,7 +42,7 @@ from flask_cors import CORS
 from config import (
     SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
-    DAILY_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE,
+    DAILY_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
 )
 
 from auth import require_auth, require_admin, current_uid
@@ -63,7 +63,7 @@ app = Flask(
     static_folder=str(BASE_DIR / "static"),
     static_url_path="/static",
 )
-app.secret_key = config.SECRET_KEY
+app.secret_key = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
