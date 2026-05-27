@@ -54,16 +54,11 @@ jobs:
             NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
             cp -a /tmp/redagent-deploy "$NEW_RELEASE"
             rm -rf /tmp/redagent-deploy
-            OLD_RELEASE=$(readlink -f "$CURRENT_LINK")
-            if [ -d "$OLD_RELEASE/venv" ]; then
-              cp -a "$OLD_RELEASE/venv" "$NEW_RELEASE/venv"
-            else
-              cd "$NEW_RELEASE"
-              python3 -m venv venv
-              venv/bin/pip install --upgrade pip setuptools wheel -q
-              venv/bin/pip install -r requirements.txt -q
-              venv/bin/pip install gunicorn -q
-            fi
+            cd "$NEW_RELEASE"
+            python3 -m venv venv
+            venv/bin/pip install --upgrade pip setuptools wheel -q
+            venv/bin/pip install -r requirements.txt -q
+            venv/bin/pip install gunicorn -q
             ln -sf "$DATA_DIR/.env" "$NEW_RELEASE/.env"
             [ -f "$DATA_DIR/firebase-service-account.json" ] && ln -sf "$DATA_DIR/firebase-service-account.json" "$NEW_RELEASE/firebase-service-account.json"
             ln -sf "$DATA_DIR/reliefweb.db" "$NEW_RELEASE/reliefweb.db"

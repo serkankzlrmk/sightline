@@ -15,14 +15,14 @@ mkdir -p "$BACKUP_DIR"
 
 # SQLite backup (safe — uses .backup command)
 echo "[$DATE] Backing up SQLite databases..."
-sqlite3 "$APP_DIR/reliefweb.db" ".backup $BACKUP_DIR/reliefweb_$DATE.db" 2>/dev/null || \
-    cp "$APP_DIR/reliefweb.db" "$BACKUP_DIR/reliefweb_$DATE.db"
-sqlite3 "$APP_DIR/chats.db" ".backup $BACKUP_DIR/chats_$DATE.db" 2>/dev/null || \
-    cp "$APP_DIR/chats.db" "$BACKUP_DIR/chats_$DATE.db"
+sqlite3 "$APP_DIR/data/reliefweb.db" ".backup $BACKUP_DIR/reliefweb_$DATE.db" 2>/dev/null || \
+    cp "$APP_DIR/data/reliefweb.db" "$BACKUP_DIR/reliefweb_$DATE.db"
+sqlite3 "$APP_DIR/data/chats.db" ".backup $BACKUP_DIR/chats_$DATE.db" 2>/dev/null || \
+    cp "$APP_DIR/data/chats.db" "$BACKUP_DIR/chats_$DATE.db"
 
 # ChromaDB backup (directory copy)
 echo "[$DATE] Backing up ChromaDB..."
-cp -r "$APP_DIR/reliefweb_chroma" "$BACKUP_DIR/reliefweb_chroma_$DATE"
+cp -r "$APP_DIR/data/reliefweb_chroma" "$BACKUP_DIR/reliefweb_chroma_$DATE"
 
 # Compress old backups
 echo "[$DATE] Compressing backups..."
