@@ -371,8 +371,11 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
             title = resp.content.strip().strip('"\'').strip()[:60]
             if title:
                 _db_rename_chat(chat_id, title)
-        except Exception:
-            logger.debug("Chat title generation failed, keeping default")
+                logger.info("Chat title generated: chat_id=%s title=%s", chat_id, title)
+            else:
+                logger.warning("Chat title generation returned empty for chat_id=%s", chat_id)
+        except Exception as exc:
+            logger.warning("Chat title generation failed for chat_id=%s: %s", chat_id, exc)
     threading.Thread(target=_do, daemon=True).start()
 
 

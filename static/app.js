@@ -329,6 +329,8 @@ async function sendMessage() {
     currentAiEl          = null;
     chatDiv.scrollTop    = chatDiv.scrollHeight;
     loadChatList();
+    // Refresh chat list again after a delay to pick up auto-generated title
+    setTimeout(() => loadChatList(), 3000);
     refreshChatRateHint();
   }
 }
