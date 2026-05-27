@@ -130,7 +130,6 @@ mkdir -p "$APP_DIR"
 mkdir -p "$DATA_DIR"
 mkdir -p "$RELEASES_DIR"
 mkdir -p "$APP_DIR/backups"
-mkdir -p "$DATA_DIR/reliefweb_downloads"
 mkdir -p "$DATA_DIR/reliefweb_chroma"
 mkdir -p "$DATA_DIR/output"
 mkdir -p "$LOG_DIR"
@@ -233,7 +232,6 @@ ln -sf "$DATA_DIR/chats.db" "$FIRST_RELEASE/chats.db" 2>/dev/null || true
 
 # Symlink data directories
 ln -sfn "$DATA_DIR/reliefweb_chroma" "$FIRST_RELEASE/reliefweb_chroma"
-ln -sfn "$DATA_DIR/reliefweb_downloads" "$FIRST_RELEASE/reliefweb_downloads"
 ln -sfn "$DATA_DIR/output" "$FIRST_RELEASE/output"
 
 # ── 9. Set current symlink + systemd service ────────────────────

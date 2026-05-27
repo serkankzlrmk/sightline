@@ -1257,9 +1257,12 @@ def api_ingest_search():
 @app.route("/api/ingest/download", methods=["POST"])
 @require_admin
 def api_ingest_download():
-    """Download + ingest selected reports into SQLite + ChromaDB."""
-    from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
-    from reliefweb_api.download_manager import get_download_manager
+    """Ingest selected reports directly from ReliefWeb API into SQLite + ChromaDB.
+
+    No files are written to disk — PDFs and HTML are processed entirely in memory.
+    The reliefweb_downloads/ directory is no longer used.
+    """
+    from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
 
     data       = request.get_json(silent=True) or {}
     report_ids = data.get("report_ids", [])
@@ -1270,7 +1273,6 @@ def api_ingest_download():
     except (ValueError, TypeError):
         return jsonify({"error": "report_ids must be integers"}), 400
 
-    manager = get_download_manager(str(DOWNLOADS_DIR))
     results = {"downloaded": [], "skipped": [], "errors": []}
 
     for rid in report_ids:
@@ -1280,21 +1282,19 @@ def api_ingest_download():
 
         re_download = is_ingested(rid, str(DB_PATH)) and not is_ingested_with_pdf(rid, str(DB_PATH))
         try:
-            dl = manager.download_report(
-                rid,
-                include_pdf=True,
-                include_content=True,
-                include_metadata=True,
-            )
-            ingest = auto_ingest(rid, str(DOWNLOADS_DIR), str(DB_PATH))
-            entry = {
-                "report_id":    rid,
-                "title":        dl.get("title", ""),
-                "chunks_added": ingest.get("chunks_added", 0),
-            }
-            if re_download:
-                entry["note"] = "Re-downloaded to fetch missing PDF content"
-            results["downloaded"].append(entry)
+            ingest = ingest_from_api(rid, str(DB_PATH), str(CHROMA_DIR))
+            if ingest.get("success"):
+                entry = {
+                    "report_id":    rid,
+                    "chunks_added": ingest.get("chunks_added", 0),
+                    "has_pdf":      ingest.get("has_pdf", False),
+                    "has_content":  ingest.get("has_content", False),
+                }
+                if re_download:
+                    entry["note"] = "Re-ingested to fetch missing PDF content"
+                results["downloaded"].append(entry)
+            else:
+                results["errors"].append({"report_id": rid, "error": ingest.get("error", "unknown")})
         except Exception as e:
             results["errors"].append({"report_id": rid, "error": str(e)})
 
@@ -1393,13 +1393,6 @@ def api_ingest_upload():
         except Exception as e:
             logger.error("Upload vector store insert failed: %s", e, exc_info=True)
             return jsonify({"error": "Vector store insert failed"}), 500
-
-        slug     = re.sub(r'[^\w\s-]', '', title)[:50].strip()
-        save_dir = DOWNLOADS_DIR / f"{new_id}_{slug}"
-        save_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(pdf_path, save_dir / safe_nm)
-        with open(save_dir / f"{new_id}_metadata.json", "w", encoding="utf-8") as f:
-            json.dump(metadata, f, ensure_ascii=False, indent=2)
 
         return jsonify({
             "success":      True,

@@ -57,7 +57,6 @@ from .reliefweb_utils import (
     retry_request,
 )
 
-from .download_manager import get_download_manager
 from .pdf_converter import ReportFormatConverter
 
 # ========================================================================
@@ -1048,88 +1047,76 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
 
 
 # ========================================================================
-# TOOL 10: Download Report to Folder
+# TOOL 10: Ingest Report from API (in-memory, no disk writes)
 # ========================================================================
 
 @tool
-def download_report_to_folder(report_id: int, output_dir: str = "reliefweb_downloads") -> str:
+def ingest_report_from_api(report_id: int) -> str:
     """
-    Download a report (PDF, content, metadata) to a local folder and ingest into the
-    knowledge base (SQLite + ChromaDB vector store).
+    Fetch a report from the ReliefWeb API and ingest it directly into the
+    knowledge base (SQLite + ChromaDB vector store) — **no files written to disk**.
 
-    If the report is already in the knowledge base, skips the download entirely
-    and returns a status message — no duplicate downloads.
+    PDFs and HTML content are processed entirely in memory, so this does not
+    consume local storage. If the report is already in the knowledge base
+    (with PDF), it is skipped automatically.
 
     Args:
-        report_id: Report ID to download
-        output_dir: Base directory for downloads (default: reliefweb_downloads)
+        report_id: Report ID to ingest
 
     Returns:
-        JSON with download + ingestion results, or "already_ingested" status
+        JSON with ingestion results, or "already_ingested" status
 
     Examples:
-        download_report_to_folder.invoke({"report_id": 4205377})
-        download_report_to_folder.invoke({"report_id": 4192591, "output_dir": "my_reports"})
+        ingest_report_from_api.invoke({"report_id": 4205377})
     """
     try:
         if not isinstance(report_id, int) or report_id < 1:
             return format_error("InvalidInput", "Report ID must be a positive integer")
 
-        # --- dedup check (allow re-download if PDF missing) ---
-        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
+        # --- dedup check (allow re-ingest if PDF missing) ---
+        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
         if is_ingested(report_id) and is_ingested_with_pdf(report_id):
             return format_response({
                 "status": "already_ingested",
                 "report_id": report_id,
-                "message": "Report already in knowledge base (with PDF). Skipping download.",
+                "message": "Report already in knowledge base (with PDF). Skipping.",
             })
 
-        re_download = is_ingested(report_id) and not is_ingested_with_pdf(report_id)
+        re_ingest = is_ingested(report_id) and not is_ingested_with_pdf(report_id)
 
-        # --- download ---
-        manager = get_download_manager(output_dir)
-        result = manager.download_report(
-            report_id,
-            include_pdf=True,
-            include_content=True,
-            include_metadata=True,
-        )
-
-        # --- auto-ingest into SQLite + ChromaDB ---
-        ingest_result = auto_ingest(report_id, output_dir)
-        result["ingested"] = ingest_result
-        if re_download:
-            result["note"] = "Re-downloaded to fetch missing PDF content"
+        # --- in-memory ingest (no disk writes) ---
+        result = ingest_from_api(report_id)
+        if re_ingest:
+            result["note"] = "Re-ingested to fetch missing PDF content"
 
         return format_response(result)
 
     except Exception as e:
-        return format_error("DownloadError", str(e))
+        return format_error("IngestError", str(e))
 
 
 # ========================================================================
-# TOOL 11: Download Multiple Reports Batch
+# TOOL 11: Ingest Multiple Reports Batch (in-memory, no disk writes)
 # ========================================================================
 
 @tool
-def download_reports_batch(report_ids: list, output_dir: str = "reliefweb_downloads") -> str:
+def ingest_reports_batch(report_ids: list) -> str:
     """
-    Download multiple reports to local folders in batch and ingest each one into
-    the knowledge base (SQLite + ChromaDB vector store).
+    Fetch and ingest multiple reports from the ReliefWeb API in batch —
+    **no files written to disk**. Each report is processed entirely in memory
+    and inserted into the knowledge base (SQLite + ChromaDB vector store).
 
-    Reports already in the knowledge base are SKIPPED — no duplicate downloads.
-    Only new (unseen) reports are downloaded and ingested.
+    Reports already in the knowledge base are SKIPPED — no duplicate ingests.
+    Only new (unseen) reports are fetched and ingested.
 
     Args:
-        report_ids: List of report IDs to download
-        output_dir: Base directory for downloads (default: reliefweb_downloads)
+        report_ids: List of report IDs to ingest
 
     Returns:
-        JSON summary: downloaded (new), skipped (already in DB), errors
+        JSON summary: ingested (new), skipped (already in DB), errors
 
     Examples:
-        download_reports_batch.invoke({"report_ids": [4205377, 4192591, 4100000]})
-        download_reports_batch.invoke({"report_ids": [4205377, 4192591], "output_dir": "emergency_reports"})
+        ingest_reports_batch.invoke({"report_ids": [4205377, 4192591, 4100000]})
     """
     try:
         if not isinstance(report_ids, list) or len(report_ids) == 0:
@@ -1145,47 +1132,44 @@ def download_reports_batch(report_ids: list, output_dir: str = "reliefweb_downlo
             if rid < 1:
                 return format_error("InvalidInput", f"Invalid report ID: {rid}")
 
-        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, auto_ingest
+        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
 
-        manager = get_download_manager(output_dir)
-        results = {"downloaded": [], "skipped": [], "errors": []}
+        results = {"ingested": [], "skipped": [], "errors": []}
 
         for rid in report_ids:
-            # --- dedup check (allow re-download if PDF missing) ---
+            # --- dedup check (allow re-ingest if PDF missing) ---
             if is_ingested(rid) and is_ingested_with_pdf(rid):
                 results["skipped"].append({"report_id": rid, "reason": "already_in_db"})
                 continue
 
-            re_download = is_ingested(rid) and not is_ingested_with_pdf(rid)
+            re_ingest = is_ingested(rid) and not is_ingested_with_pdf(rid)
 
-            # --- download ---
+            # --- in-memory ingest (no disk writes) ---
             try:
-                dl = manager.download_report(
-                    rid,
-                    include_pdf=True,
-                    include_content=True,
-                    include_metadata=True,
-                )
+                ingest_result = ingest_from_api(rid)
             except Exception as e:
                 results["errors"].append({"report_id": rid, "error": str(e)})
                 continue
 
-            # --- auto-ingest ---
-            ingest_result = auto_ingest(rid, output_dir)
-            entry = {
-                "report_id": rid,
-                "title": dl.get("title", ""),
-                "files": dl.get("files", {}),
-                "chunks_added": ingest_result.get("chunks_added", 0),
-                "ingested": ingest_result.get("success", False),
-            }
-            if re_download:
-                entry["note"] = "Re-downloaded to fetch missing PDF content"
-            results["downloaded"].append(entry)
+            if ingest_result.get("success"):
+                entry = {
+                    "report_id":    rid,
+                    "chunks_added": ingest_result.get("chunks_added", 0),
+                    "has_pdf":      ingest_result.get("has_pdf", False),
+                    "has_content":  ingest_result.get("has_content", False),
+                }
+                if re_ingest:
+                    entry["note"] = "Re-ingested to fetch missing PDF content"
+                results["ingested"].append(entry)
+            else:
+                results["errors"].append({
+                    "report_id": rid,
+                    "error": ingest_result.get("error", "unknown"),
+                })
 
         results["summary"] = {
             "total": len(report_ids),
-            "downloaded": len(results["downloaded"]),
+            "ingested": len(results["ingested"]),
             "skipped_already_in_db": len(results["skipped"]),
             "errors": len(results["errors"]),
         }
@@ -1193,7 +1177,7 @@ def download_reports_batch(report_ids: list, output_dir: str = "reliefweb_downlo
         return format_response(results)
 
     except Exception as e:
-        return format_error("DownloadError", str(e))
+        return format_error("IngestError", str(e))
 
 
 # ========================================================================
@@ -1201,7 +1185,7 @@ def download_reports_batch(report_ids: list, output_dir: str = "reliefweb_downlo
 # ========================================================================
 
 @tool
-def convert_report_to_markdown(report_id: int, output_dir: str = "reliefweb_downloads") -> str:
+def convert_report_to_markdown(report_id: int, output_dir: str = "output") -> str:
     """
     Download and convert a report PDF to Markdown format.
     
@@ -1210,7 +1194,7 @@ def convert_report_to_markdown(report_id: int, output_dir: str = "reliefweb_down
     
     Args:
         report_id: Report ID to convert
-        output_dir: Directory to save Markdown file
+        output_dir: Directory to save Markdown file (default: output/)
         
     Returns:
         JSON with Markdown file path and conversion status
@@ -1240,7 +1224,7 @@ def convert_report_to_markdown(report_id: int, output_dir: str = "reliefweb_down
 # ========================================================================
 
 @tool
-def convert_report_to_json(report_id: int, output_dir: str = "reliefweb_downloads") -> str:
+def convert_report_to_json(report_id: int, output_dir: str = "output") -> str:
     """
     Download and convert a report PDF to JSON structured format.
     
@@ -1249,7 +1233,7 @@ def convert_report_to_json(report_id: int, output_dir: str = "reliefweb_download
     
     Args:
         report_id: Report ID to convert
-        output_dir: Directory to save JSON file
+        output_dir: Directory to save JSON file (default: output/)
         
     Returns:
         JSON with structured file path and conversion status
@@ -1279,7 +1263,7 @@ def convert_report_to_json(report_id: int, output_dir: str = "reliefweb_download
 # ========================================================================
 
 @tool
-def convert_reports_batch(report_ids: list, output_dir: str = "reliefweb_downloads", format_type: str = "both") -> str:
+def convert_reports_batch(report_ids: list, output_dir: str = "output", format_type: str = "both") -> str:
     """
     Batch download and convert multiple reports to Markdown and/or JSON.
     
@@ -1288,7 +1272,7 @@ def convert_reports_batch(report_ids: list, output_dir: str = "reliefweb_downloa
     
     Args:
         report_ids: List of report IDs to convert
-        output_dir: Base directory for outputs
+        output_dir: Base directory for outputs (default: output/)
         format_type: 'markdown', 'json', or 'both'
         
     Returns:
@@ -1586,8 +1570,8 @@ mcp_langchain_tools = [
     get_latest_blog_posts,
     get_recent_updates_summary,
     download_and_read_full_pdf,
-    download_report_to_folder,
-    download_reports_batch,
+    ingest_report_from_api,
+    ingest_reports_batch,
     convert_report_to_markdown,
     convert_report_to_json,
     convert_reports_batch,
@@ -1609,8 +1593,8 @@ __all__ = [
     "get_latest_blog_posts",
     "get_recent_updates_summary",
     "download_and_read_full_pdf",
-    "download_report_to_folder",
-    "download_reports_batch",
+    "ingest_report_from_api",
+    "ingest_reports_batch",
     "convert_report_to_markdown",
     "convert_report_to_json",
     "convert_reports_batch",

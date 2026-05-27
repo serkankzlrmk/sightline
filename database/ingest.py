@@ -1,12 +1,18 @@
 """
 ReliefWeb Database Ingestion Script
-Scans reliefweb_downloads/ and inserts all reports into SQLite + ChromaDB.
 
-Usage:
-    python ingest.py                          # ingest from default folder
-    python ingest.py --dir my_downloads       # custom folder
+Two modes:
+  1. In-memory ingest from API (recommended — no disk writes):
+     python ingest.py --from-api 4205377 4192591 ...
+
+  2. Legacy folder scan (for pre-downloaded reports):
+     python ingest.py                          # scan reliefweb_downloads/
+     python ingest.py --dir my_downloads       # custom folder
+
+Other options:
     python ingest.py --db custom.db           # custom database path
     python ingest.py --stats                  # show current DB + vector stats only
+    python ingest.py --sync-chroma            # push SQLite chunks → ChromaDB
 
 Deduplication: reports already in the DB are skipped automatically.
 Running this multiple times is safe.
@@ -143,15 +149,50 @@ def find_report_folders(downloads_dir: str):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Ingest ReliefWeb downloads into SQLite + ChromaDB"
+        description="Ingest ReliefWeb reports into SQLite + ChromaDB"
     )
-    parser.add_argument("--dir", default="reliefweb_downloads", help="Downloads folder")
+    parser.add_argument("--dir", default="reliefweb_downloads", help="Downloads folder (legacy mode)")
     parser.add_argument("--db", default=DEFAULT_DB_PATH, help="SQLite database path")
     parser.add_argument("--chroma", default=CHROMA_DIR, help="ChromaDB persist directory")
     parser.add_argument("--stats", action="store_true", help="Show DB + vector stats and exit")
     parser.add_argument("--sync-chroma", action="store_true",
                         help="Push all SQLite chunks to ChromaDB (migration / re-index)")
+    parser.add_argument("--from-api", nargs="+", type=int,
+                        help="Ingest report IDs directly from ReliefWeb API (in-memory, no disk writes)")
     args = parser.parse_args()
+
+    # ── In-memory API ingest mode ────────────────────────────────
+    if args.from_api:
+        from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
+        print("=" * 60)
+        print("IN-MEMORY INGEST FROM RELIEFWEB API")
+        print("=" * 60)
+        print(f"  Reports:  {len(args.from_api)}")
+        print(f"  SQLite:   {Path(args.db).resolve()}")
+        print(f"  ChromaDB: {Path(args.chroma).resolve()}")
+        print()
+
+        ingested = skipped = errors = 0
+        for rid in args.from_api:
+            if is_ingested(rid, args.db) and is_ingested_with_pdf(rid, args.db):
+                skipped += 1
+                print(f"  ~ {rid}  (already in DB with PDF)")
+                continue
+
+            result = ingest_from_api(rid, db_path=args.db, chroma_dir=args.chroma)
+            if result.get("success"):
+                ingested += 1
+                pdf_tag = "[PDF]" if result.get("has_pdf") else "     "
+                txt_tag = "[TXT]" if result.get("has_content") else "     "
+                n = result.get("chunks_added", 0)
+                print(f"  + {rid}  {pdf_tag}{txt_tag}  ({n} chunks)")
+            else:
+                errors += 1
+                print(f"  ! {rid}  ERROR: {result.get('error', 'unknown')}")
+
+        print()
+        print(f"  Ingested: {ingested}  |  Skipped: {skipped}  |  Errors: {errors}")
+        return
 
     if args.sync_chroma:
         print("=" * 60)

@@ -30,8 +30,9 @@ DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", str(PROJECT_ROOT / "reliefweb_do
 DB_PATH       = Path(os.getenv("DB_PATH",       str(PROJECT_ROOT / "reliefweb.db")))
 CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))
 
-# Create local dirs if they don't exist
-DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+# NOTE: DOWNLOADS_DIR is kept for backward compatibility but is no longer used
+# by the ingest pipeline. Reports are now processed in-memory (ingest_from_api)
+# and no files are written to disk. The directory is NOT auto-created anymore.
 
 # ============================================================================
 # CHROMA DB — shared by both the agent and the SITREP pipeline

@@ -156,7 +156,6 @@ ln -sf "$DATA_DIR/chats.db" "$RELEASE_DIR/chats.db"
 
 # Symlink data directories
 ln -sfn "$DATA_DIR/reliefweb_chroma" "$RELEASE_DIR/reliefweb_chroma"
-ln -sfn "$DATA_DIR/reliefweb_downloads" "$RELEASE_DIR/reliefweb_downloads"
 ln -sfn "$DATA_DIR/output" "$RELEASE_DIR/output"
 
 echo "  ✓ Shared data linked"
