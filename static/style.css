@@ -733,10 +733,41 @@ body {
 .chat-rate-hint {
   text-align: center; font-size: 11px; color: var(--text-muted);
   padding: 4px 0 0; letter-spacing: .1px; max-width: 780px; width: 100%;
-  margin: 0 auto;
+  margin: 0 auto; min-height: 18px;
 }
 .chat-rate-hint.low { color: var(--amber); font-weight: 600; }
 .chat-rate-hint.exhausted { color: var(--red); font-weight: 600; }
+.rate-upgrade { color: var(--primary); font-weight: 500; }
+.rate-upgrade a { color: var(--primary); text-decoration: underline; }
+.rate-upgrade a:hover { color: var(--primary-dark, #2563eb); }
+
+/* Rate limit message in chat (shown when limit reached) */
+.rate-limit-msg {
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  text-align: center;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.rate-limit-msg-title {
+  font-size: 15px; font-weight: 600; color: var(--red);
+  margin-bottom: 8px;
+}
+.rate-limit-msg-body {
+  font-size: 13px; color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.rate-limit-msg-contact {
+  font-size: 13px; color: var(--text-muted);
+}
+.rate-limit-msg-contact a {
+  color: var(--primary); text-decoration: underline;
+}
+.rate-limit-msg-contact a:hover {
+  color: var(--primary-dark, #2563eb);
+}
 
 /* ═════════════════════════════════════════════════════════════════════
    AUTH / LOGIN STYLES

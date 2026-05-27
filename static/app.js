@@ -242,6 +242,12 @@ function sendQuickPrompt(text) {
 
 async function sendMessage() {
   if (isStreaming) return;
+  // Block sending when rate limit is exhausted
+  const rl = window.__rateLimit;
+  if (rl && rl.remaining <= 0 && !window.__isAdmin) {
+    toast('Daily message limit reached. Upgrade to Premium for unlimited access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
+    return;
+  }
   const text = chatInput.value.trim();
   if (!text) return;
 
@@ -269,7 +275,7 @@ async function sendMessage() {
       try {
         const errData = await resp.json();
         if (errData.remaining === 0) {
-          currentAiEl.innerHTML = `<span style="color:#ef4444">Daily message limit reached (${errData.used}/${errData.limit}). Come back tomorrow!</span>`;
+          currentAiEl.innerHTML = `<div class="rate-limit-msg"><div class="rate-limit-msg-title">Daily message limit reached (${errData.used}/${errData.limit})</div><div class="rate-limit-msg-body">Upgrade to Premium for unlimited access.</div><div class="rate-limit-msg-contact">Contact: <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></div></div>`;
           toast(`Daily limit reached: ${errData.used}/${errData.limit} messages used`, 'error');
           updateChatRateUI(errData);
         } else {
@@ -347,21 +353,20 @@ function refreshChatRateHint() {
   const hint = document.getElementById('chat-rate-hint');
   const isAdmin = !!window.__isAdmin;
   if (!hint) return;
-  if (isAdmin || !rl) { hint.textContent = ''; hint.style.display = 'none'; return; }
-  hint.style.display = '';
+  if (isAdmin || !rl) { hint.innerHTML = ''; chatInput.disabled = false; chatInput.placeholder = 'Message ReliefAgent...'; return; }
   const { remaining, limit, used } = rl;
   if (remaining <= 0) {
-    hint.textContent = `Daily limit reached (${used}/${limit})`;
+    hint.innerHTML = `Daily limit reached (${used}/${limit}) — <span class="rate-upgrade">Upgrade to Premium for unlimited access. Contact <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></span>`;
     hint.className = 'chat-rate-hint exhausted';
     chatInput.disabled = true;
-    chatInput.placeholder = 'Daily limit reached — come back tomorrow';
+    chatInput.placeholder = 'Daily limit reached';
   } else if (remaining <= 3) {
-    hint.textContent = `${remaining}/${limit} messages remaining today`;
+    hint.innerHTML = `${remaining}/${limit} messages remaining today`;
     hint.className = 'chat-rate-hint low';
     chatInput.disabled = false;
     chatInput.placeholder = 'Message ReliefAgent...';
   } else {
-    hint.textContent = `${remaining}/${limit} messages remaining today`;
+    hint.innerHTML = `${remaining}/${limit} messages remaining today`;
     hint.className = 'chat-rate-hint';
     chatInput.disabled = false;
     chatInput.placeholder = 'Message ReliefAgent...';
@@ -1755,9 +1760,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Agent keyboard
   chatInput.addEventListener('keydown', e => {
+    // Block input when rate limit is exhausted
+    const rl = window.__rateLimit;
+    if (rl && rl.remaining <= 0 && !window.__isAdmin) {
+      e.preventDefault();
+      toast('Daily message limit reached. Upgrade to Premium for unlimited access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
   chatInput.addEventListener('input', () => {
+    // Block input when rate limit is exhausted
+    const rl = window.__rateLimit;
+    if (rl && rl.remaining <= 0 && !window.__isAdmin) {
+      chatInput.value = '';
+      return;
+    }
     chatInput.style.height = 'auto';
     chatInput.style.height = Math.min(chatInput.scrollHeight, 130) + 'px';
   });
