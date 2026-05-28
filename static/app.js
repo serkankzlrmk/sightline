@@ -1644,10 +1644,13 @@ function mqDoDownload(ids) {
   .then(r => r.json())
   .then(data => {
     if (data.error) { mqStatus(data.error, 'error'); return; }
-    const { ingested, failed, skipped } = data;
+    const s = data.summary || {};
+    const downloaded = s.downloaded ?? (Array.isArray(data.downloaded) ? data.downloaded.length : 0);
+    const errors     = s.errors     ?? (Array.isArray(data.errors)     ? data.errors.length     : 0);
+    const skipped    = s.skipped    ?? (Array.isArray(data.skipped)    ? data.skipped.length    : 0);
     mqStatus(
-      `✓ Done: ${ingested} ingested, ${skipped} skipped (already existed), ${failed} failed.`,
-      failed > 0 ? 'warning' : 'success'
+      `✓ Done: ${downloaded} ingested, ${skipped} skipped (already existed), ${errors} failed.`,
+      errors > 0 ? 'warning' : 'success'
     );
     document.getElementById('mq-search-btn').disabled = false;
     document.getElementById('mq-dl-sel-btn').disabled = false;

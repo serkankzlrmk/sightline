@@ -255,6 +255,54 @@ class DatabaseManager:
         """No-op — kept for backward compatibility. Connections are per-operation."""
         pass
 
+    # -------------------------------------------------------------------------
+    # PURGE OLD DATA
+    # -------------------------------------------------------------------------
+
+    def purge_old_reports(self, days: int = 90) -> int:
+        """Delete reports (and their chunks) older than `days` days.
+        
+        Returns the number of reports purged.
+        """
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        conn = self._connect()
+        try:
+            # Get report_ids to purge (needed for ChromaDB cleanup)
+            old_ids = [row[0] for row in conn.execute(
+                "SELECT report_id FROM reports WHERE date < ?", (cutoff,)
+            ).fetchall()]
+            if not old_ids:
+                return 0
+            # Delete chunks first (FK constraint)
+            conn.execute(
+                "DELETE FROM chunks WHERE report_id IN ({})".format(
+                    ",".join("?" * len(old_ids))
+                ), old_ids
+            )
+            # Delete reports
+            conn.execute(
+                "DELETE FROM reports WHERE report_id IN ({})".format(
+                    ",".join("?" * len(old_ids))
+                ), old_ids
+            )
+            conn.commit()
+            return len(old_ids)
+        finally:
+            conn.close()
+
+    def get_old_report_ids(self, days: int = 90) -> List[int]:
+        """Return list of report_ids older than `days` days (for ChromaDB purge)."""
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        conn = self._connect()
+        try:
+            return [row[0] for row in conn.execute(
+                "SELECT report_id FROM reports WHERE date < ?", (cutoff,)
+            ).fetchall()]
+        finally:
+            conn.close()
+
 
 # ============================================================================
 # TEXT CHUNKING

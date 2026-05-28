@@ -627,6 +627,7 @@ body {
 .chat-scroll {
   flex: 1; overflow-y: auto;
   display: flex; flex-direction: column;
+  align-items: center;
 }
 
 /* Centered column for messages */
@@ -636,6 +637,7 @@ body {
   margin: 0 auto;
   padding: 28px 24px 16px;
   display: flex; flex-direction: column; gap: 4px;
+  flex-shrink: 0;
 }
 
 /* ── Messages (Gemini-style) ── */

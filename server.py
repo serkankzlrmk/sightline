@@ -1336,6 +1336,71 @@ def api_ingest_download():
     return jsonify(results)
 
 
+@app.route("/api/ingest/daily", methods=["POST"])
+@require_admin
+def api_ingest_daily():
+    """Run daily ingestion: fetch yesterday's reports + purge old data.
+    
+    Accepts optional JSON body: {"date": "YYYY-MM-DD", "purge_days": 90, "no_purge": false}
+    Returns: {fetched, ingested, skipped, errors, purged_sql, purged_chroma}
+    """
+    import subprocess
+    
+    data = request.get_json(silent=True) or {}
+    target_date = data.get("date", "")  # empty = yesterday
+    purge_days = data.get("purge_days", 90)
+    no_purge = data.get("no_purge", False)
+    
+    # Build command
+    cmd = [sys.executable, str(Path(__file__).parent / "scripts" / "daily_ingest.py")]
+    if target_date:
+        cmd += ["--date", target_date]
+    if no_purge:
+        cmd.append("--no-purge")
+    cmd += ["--purge-days", str(purge_days)]
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600,  # 10 min max
+            cwd=str(Path(__file__).parent),
+        )
+        output = result.stdout + result.stderr
+        
+        # Parse the summary from output
+        summary = {
+            "fetched": 0, "ingested": 0, "skipped": 0, "errors": 0,
+            "purged_sql": 0, "purged_chroma": 0,
+            "log": output[-2000:] if len(output) > 2000 else output,
+        }
+        import re
+        for line in output.splitlines():
+            m = re.search(r"Fetched:\s+(\d+)", line)
+            if m: summary["fetched"] = int(m.group(1))
+            m = re.search(r"Ingested:\s+(\d+)", line)
+            if m: summary["ingested"] = int(m.group(1))
+            m = re.search(r"Skipped:\s+(\d+)", line)
+            if m: summary["skipped"] = int(m.group(1))
+            m = re.search(r"Errors:\s+(\d+)", line)
+            if m: summary["errors"] = int(m.group(1))
+            m = re.search(r"Purged \(SQL\):\s+(\d+)", line)
+            if m: summary["purged_sql"] = int(m.group(1))
+            m = re.search(r"Purged \(Vec\):\s+(\d+)", line)
+            if m: summary["purged_chroma"] = int(m.group(1))
+        
+        if result.returncode != 0:
+            summary["warning"] = "Script exited with non-zero code (some errors occurred)"
+        
+        return jsonify(summary)
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Daily ingest timed out (10 min limit)"}), 504
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this
 
 @app.route("/api/ingest/upload", methods=["POST"])

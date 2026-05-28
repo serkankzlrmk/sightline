@@ -1,0 +1,11 @@
+# ReliefAgent — Daily Ingest Cron
+# Fetches yesterday's ReliefWeb reports + purges data older than 90 days
+# Runs at 06:00 UTC every day
+#
+# Install: sudo cp /opt/reliefagent/current/deploy/daily-ingest.cron /etc/cron.d/reliefagent-daily-ingest
+#          sudo chmod 644 /etc/cron.d/reliefagent-daily-ingest
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+0 6 * * * reliefagent /opt/reliefagent/current/venv/bin/python3 /opt/reliefagent/current/scripts/daily_ingest.py >> /var/log/reliefagent/daily-ingest.log 2>&1

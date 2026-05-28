@@ -217,6 +217,49 @@ class VectorStore:
             "persist_dir": str(Path(self.persist_dir).resolve()),
         }
 
+    def purge_by_report_ids(self, report_ids: List[int]) -> int:
+        """Remove all chunks belonging to the given report_ids.
+        
+        Returns the number of chunk IDs removed.
+        """
+        if not report_ids:
+            return 0
+        # Build chunk IDs: "{report_id}_0", "{report_id}_1", ...
+        # ChromaDB doesn't support prefix delete, so we query first
+        chunk_ids_to_remove = []
+        for rid in report_ids:
+            # Find all chunks for this report_id
+            try:
+                results = self.collection.get(
+                    where={"report_id": str(rid)},
+                    include=[]
+                )
+                if results and results.get("ids"):
+                    chunk_ids_to_remove.extend(results["ids"])
+            except Exception:
+                # Fallback: try common chunk indices
+                for i in range(200):  # reasonable upper bound
+                    chunk_ids_to_remove.append(f"{rid}_{i}")
+        
+        if not chunk_ids_to_remove:
+            return 0
+        
+        # Deduplicate
+        chunk_ids_to_remove = list(set(chunk_ids_to_remove))
+        
+        # Delete in batches (ChromaDB has limits)
+        batch_size = 500
+        total_removed = 0
+        for i in range(0, len(chunk_ids_to_remove), batch_size):
+            batch = chunk_ids_to_remove[i:i + batch_size]
+            try:
+                self.collection.delete(ids=batch)
+                total_removed += len(batch)
+            except Exception:
+                pass
+        
+        return total_removed
+
 
 # ============================================================================
 # FACTORY
