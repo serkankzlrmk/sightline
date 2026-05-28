@@ -137,7 +137,19 @@ python3 -m venv venv
 venv/bin/pip install --upgrade pip setuptools wheel -q
 venv/bin/pip install -r requirements.txt -q
 venv/bin/pip install gunicorn -q
-echo "  ✓ Dependencies installed"
+
+# Remove GPU packages (not needed on ARM64, saves ~4.5GB)
+echo "  Removing GPU packages..."
+venv/bin/pip uninstall -y torch nvidia-cublas-cu12 nvidia-cuda-cupti-cu12 nvidia-cuda-nvrtc-cu12 \
+  nvidia-cuda-runtime-cu12 nvidia-cudnn-cu12 nvidia-cufft-cu12 nvidia-cufile-cu12 \
+  nvidia-curand-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 nvidia-nccl-cu12 \
+  nvidia-nvjitlink-cu12 nvidia-nvtx-cu12 nvidia-cusparselt-cu12 nvidia-nvshmem-cu12 \
+  triton kubernetes 2>/dev/null | tail -1 || true
+rm -rf venv/lib/python3.*/site-packages/nvidia/ venv/lib/python3.*/site-packages/torch/ venv/lib/python3.*/site-packages/triton/
+
+# Clean pip cache
+pip cache purge 2>/dev/null || true
+echo "  ✓ Dependencies installed (GPU packages removed)"
 
 # ── Link shared data ────────────────────────────────────────────
 echo "[5/8] Linking shared data..."

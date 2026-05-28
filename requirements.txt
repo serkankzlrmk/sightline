@@ -45,9 +45,3 @@ langchain-community>=0.0.38
 
 # Firebase authentication
 firebase-admin>=6.0
-
-# (service-account JSON is loaded from file, not pip)
-
-# ── Dev / CI dependencies ────────────────────────────────────────
-ruff>=0.4.0
-pytest>=8.0.0

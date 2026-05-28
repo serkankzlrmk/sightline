@@ -66,6 +66,18 @@ venv/bin/pip install --upgrade pip setuptools wheel -q 2>&1 | tail -1
 venv/bin/pip install -r requirements.txt -q 2>&1 | tail -3
 venv/bin/pip install gunicorn -q 2>&1 | tail -1
 
+# -- Remove GPU packages (not needed on ARM64, saves ~4.5GB) --
+log "Removing GPU packages..."
+venv/bin/pip uninstall -y torch nvidia-cublas-cu12 nvidia-cuda-cupti-cu12 nvidia-cuda-nvrtc-cu12 \
+  nvidia-cuda-runtime-cu12 nvidia-cudnn-cu12 nvidia-cufft-cu12 nvidia-cufile-cu12 \
+  nvidia-curand-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 nvidia-nccl-cu12 \
+  nvidia-nvjitlink-cu12 nvidia-nvtx-cu12 nvidia-cusparselt-cu12 nvidia-nvshmem-cu12 \
+  triton kubernetes 2>/dev/null | tail -1 || true
+rm -rf venv/lib/python3.*/site-packages/nvidia/ venv/lib/python3.*/site-packages/torch/ venv/lib/python3.*/site-packages/triton/
+
+# -- Clean pip cache to save disk --
+pip cache purge 2>/dev/null || true
+
 # -- Link shared data --
 ln -sf "$DATA_DIR/.env" "$NEW_RELEASE/.env"
 [ -f "$DATA_DIR/firebase-service-account.json" ] && ln -sf "$DATA_DIR/firebase-service-account.json" "$NEW_RELEASE/firebase-service-account.json"
