@@ -73,6 +73,7 @@
     <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">Database</button>
     <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">AgenTRC</button>
     <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">SITREP</button>
+    <button class="tab-btn" id="tab-admin" onclick="switchTab('admin')" style="display:none">Admin</button>
   </div>
   <div id="user-bar" class="user-bar hidden">
     <img id="user-photo" src="" alt="">
@@ -272,6 +273,27 @@
 
     </div><!-- /.sitrep-layout -->
   </div><!-- /#panel-sitrep -->
+
+  <!-- ─── ADMIN PANEL ─────────────────────────── -->
+  <div class="panel" id="panel-admin" style="display:none">
+    <div class="admin-panel-content">
+      <h2>User Management</h2>
+      <p class="admin-hint">Assign roles to users. Changes take effect on next sign-in.</p>
+      <table class="admin-user-table" id="admin-user-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="admin-user-tbody">
+          <tr><td colspan="4" class="admin-loading">Loading users...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
 </div><!-- /.main -->
 

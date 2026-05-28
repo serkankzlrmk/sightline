@@ -110,6 +110,7 @@ async function checkAdminStatus() {
   const tok = getIdToken();
   if (!tok) {
     window.__isAdmin = false;
+    window.__userRole = "free";
     window.__rateLimit = null;
     return;
   }
@@ -122,17 +123,21 @@ async function checkAdminStatus() {
         const err = await resp.text();
         console.error("[auth] /api/auth/me failed:", resp.status, err);
         window.__isAdmin = false;
+        window.__userRole = "free";
         window.__rateLimit = null;
         return;
       }
       const data = await resp.json();
       console.log("[auth] /api/auth/me result:", data);
       window.__isAdmin = !!data.is_admin;
+      window.__userRole = data.role || "free";
       window.__rateLimit = data.rate_limit || null;
       updateRateLimitUI();
+      updateVisibility();
     } catch (e) {
       console.error("[auth] checkAdminStatus error:", e);
       window.__isAdmin = false;
+      window.__userRole = "free";
       window.__rateLimit = null;
     } finally {
       _adminCheckPromise = null;
@@ -144,6 +149,28 @@ async function checkAdminStatus() {
 function updateRateLimitUI() {
   const bar = document.getElementById("user-bar");
   if (!bar) return;
+
+  // Role badge
+  let roleBadge = document.getElementById("role-badge");
+  if (!roleBadge) {
+    roleBadge = document.createElement("span");
+    roleBadge.id = "role-badge";
+    bar.insertBefore(roleBadge, bar.querySelector("button"));
+  }
+  const role = window.__userRole || "free";
+  if (role === "admin") {
+    roleBadge.textContent = "ADMIN";
+    roleBadge.className = "role-badge role-admin";
+    roleBadge.style.display = "";
+  } else if (role === "premium") {
+    roleBadge.textContent = "PRO";
+    roleBadge.className = "role-badge role-premium";
+    roleBadge.style.display = "";
+  } else {
+    roleBadge.style.display = "none";
+  }
+
+  // Rate limit badge
   let badge = document.getElementById("rate-badge");
   if (!badge) {
     badge = document.createElement("span");
@@ -171,13 +198,25 @@ function updateRateLimitUI() {
 }
 
 function updateVisibility() {
-  const isAdmin = !!window.__isAdmin;
+  const role = window.__userRole || "free";
+  const isAdmin = role === "admin";
+  const isPremium = role === "premium" || isAdmin;
+
+  // SITREP run form: visible for premium + admin
   const sitrepRunForm = document.getElementById("btn-toggle-form");
   const runForm = document.getElementById("run-form");
   if (sitrepRunForm) {
-    sitrepRunForm.style.display = isAdmin ? "" : "none";
-    if (runForm) runForm.classList.add("hidden");
+    sitrepRunForm.style.display = isPremium ? "" : "none";
+    if (runForm && !isPremium) runForm.classList.add("hidden");
   }
+
+  // PDF upload button: admin only
+  const uploadBtn = document.getElementById("btn-upload-pdf");
+  if (uploadBtn) uploadBtn.style.display = isAdmin ? "" : "none";
+
+  // Admin tab: admin only
+  const adminTab = document.getElementById("tab-admin");
+  if (adminTab) adminTab.style.display = isAdmin ? "" : "none";
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -227,6 +266,7 @@ export async function signOut() {
   }
   clearToken();
   window.__isAdmin = false;
+  window.__userRole = "free";
   showOverlay();
   showUserBar(null);
 }
@@ -268,6 +308,7 @@ function _enableDevMode() {
   console.log("[auth] Dev mode detected — bypassing Firebase Sign-In");
   setToken("dev-mode-bypass");
   window.__isAdmin = true;
+  window.__userRole = "admin";
   window.__rateLimit = { remaining: 999, limit: 999, used: 0 };
   window.__authReady = true;
   hideOverlay();
@@ -328,6 +369,7 @@ function _initFirebase() {
       console.log("[auth] onAuthStateChanged: no user (signed out or first load)");
       clearToken();
       window.__isAdmin = false;
+      window.__userRole = "free";
       showOverlay();
       showUserBar(null);
     }

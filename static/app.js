@@ -141,9 +141,12 @@ function md(text) {
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(name) {
   currentTab = name;
-  ['db', 'agent', 'sitrep'].forEach(t => {
-    document.getElementById('panel-' + t).classList.toggle('active', t === name);
-    document.getElementById('tab-'   + t).classList.toggle('active', t === name);
+  const allTabs = ['db', 'agent', 'sitrep', 'admin'];
+  allTabs.forEach(t => {
+    const panel = document.getElementById('panel-' + t);
+    const tab = document.getElementById('tab-' + t);
+    if (panel) panel.classList.toggle('active', t === name);
+    if (tab) tab.classList.toggle('active', t === name);
   });
   // Show/hide agent reset button
   const resetBtn = document.getElementById('agent-reset-btn');
@@ -151,6 +154,7 @@ function switchTab(name) {
 
   if (name === 'db') reloadReports();
   if (name === 'sitrep') { loadSitrepReportsList(); loadThemePills(); }
+  if (name === 'admin') loadAdminUsers();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -242,8 +246,9 @@ async function sendMessage() {
   if (isStreaming) return;
   // Block sending when rate limit is exhausted
   const rl = window.__rateLimit;
-  if (rl && rl.remaining <= 0 && !window.__isAdmin) {
-    toast('Daily message limit reached. Upgrade to Premium for unlimited access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
+  const role = window.__userRole || "free";
+  if (rl && rl.remaining <= 0 && role !== "admin") {
+    toast('Daily message limit reached. Upgrade to Premium for more access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
     return;
   }
   const text = chatInput.value.trim();
@@ -350,12 +355,12 @@ function updateChatRateUI(rateData) {
 function refreshChatRateHint() {
   const rl = window.__rateLimit;
   const hint = document.getElementById('chat-rate-hint');
-  const isAdmin = !!window.__isAdmin;
+  const role = window.__userRole || "free";
   if (!hint) return;
-  if (isAdmin || !rl) { hint.innerHTML = ''; chatInput.disabled = false; chatInput.placeholder = 'Message ReliefAgent...'; return; }
+  if (role === "admin" || !rl) { hint.innerHTML = ''; chatInput.disabled = false; chatInput.placeholder = 'Message ReliefAgent...'; return; }
   const { remaining, limit, used } = rl;
   if (remaining <= 0) {
-    hint.innerHTML = `Daily limit reached (${used}/${limit}) — <span class="rate-upgrade">Upgrade to Premium for unlimited access. Contact <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></span>`;
+    hint.innerHTML = `Daily limit reached (${used}/${limit}) — <span class="rate-upgrade">Upgrade to Premium for more access. Contact <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></span>`;
     hint.className = 'chat-rate-hint exhausted';
     chatInput.disabled = true;
     chatInput.placeholder = 'Daily limit reached';
@@ -1583,8 +1588,61 @@ function submitUpload(e) {
 // Show/hide upload button based on admin status
 function updateUploadBtnVisibility() {
   const btn = document.getElementById('btn-upload-pdf');
-  if (btn) btn.style.display = window.__isAdmin ? '' : 'none';
+  if (btn) btn.style.display = (window.__userRole === 'admin') ? '' : 'none';
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// ADMIN PANEL — User role management
+// ═════════════════════════════════════════════════════════════════════════
+
+async function loadAdminUsers() {
+  const tbody = document.getElementById('admin-user-tbody');
+  if (!tbody) return;
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!tok) { tbody.innerHTML = '<tr><td colspan="4">Not authenticated</td></tr>'; return; }
+  try {
+    const resp = await fetch('/api/admin/users', { headers: { 'Authorization': 'Bearer ' + tok } });
+    if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="4">Failed to load users</td></tr>'; return; }
+    const data = await resp.json();
+    const users = data.users || [];
+    if (!users.length) { tbody.innerHTML = '<tr><td colspan="4">No users found</td></tr>'; return; }
+    tbody.innerHTML = users.map(u => {
+      const roleClass = u.role === 'admin' ? 'role-admin' : u.role === 'premium' ? 'role-premium' : 'role-free';
+      return `<tr>
+        <td>${esc(u.email || u.uid)}</td>
+        <td>${esc(u.displayName || '—')}</td>
+        <td><span class="admin-role-badge ${roleClass}">${u.role}</span></td>
+        <td class="admin-actions">
+          ${u.role !== 'free' ? `<button class="btn btn-xs" onclick="setUserRole('${u.uid}','free')">Free</button>` : ''}
+          ${u.role !== 'premium' ? `<button class="btn btn-xs btn-premium" onclick="setUserRole('${u.uid}','premium')">Premium</button>` : ''}
+          ${u.role !== 'admin' ? `<button class="btn btn-xs btn-admin" onclick="setUserRole('${u.uid}','admin')">Admin</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4">Error loading users</td></tr>';
+  }
+}
+
+async function setUserRole(uid, role) {
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!tok) return;
+  if (!confirm(`Set role to "${role}" for user ${uid.substring(0, 8)}...?`)) return;
+  try {
+    const resp = await fetch(`/api/admin/users/${uid}/role`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    if (!resp.ok) { const err = await resp.json(); toast(err.error || 'Failed', 'error'); return; }
+    toast(`Role set to ${role}`, 'success');
+    loadAdminUsers();
+  } catch (e) {
+    toast('Failed to set role', 'error');
+  }
+}
+window.loadAdminUsers = loadAdminUsers;
+window.setUserRole = setUserRole;
 
 // ═════════════════════════════════════════════════════════════════════════
 // DOM INIT
@@ -1601,9 +1659,10 @@ document.addEventListener('DOMContentLoaded', () => {
   chatInput.addEventListener('keydown', e => {
     // Block input when rate limit is exhausted
     const rl = window.__rateLimit;
-    if (rl && rl.remaining <= 0 && !window.__isAdmin) {
+    const role = window.__userRole || 'free';
+    if (rl && rl.remaining <= 0 && role !== 'admin') {
       e.preventDefault();
-      toast('Daily message limit reached. Upgrade to Premium for unlimited access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
+      toast('Daily message limit reached. Upgrade to Premium for more access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
       return;
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -1611,7 +1670,8 @@ document.addEventListener('DOMContentLoaded', () => {
   chatInput.addEventListener('input', () => {
     // Block input when rate limit is exhausted
     const rl = window.__rateLimit;
-    if (rl && rl.remaining <= 0 && !window.__isAdmin) {
+    const role = window.__userRole || 'free';
+    if (rl && rl.remaining <= 0 && role !== 'admin') {
       chatInput.value = '';
       return;
     }
@@ -1694,9 +1754,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof window.updateVisibility === 'function') {
       window.updateVisibility();
     } else {
-      const isAdmin = !!window.__isAdmin;
+      const role = window.__userRole || 'free';
+      const isPremium = role === 'premium' || role === 'admin';
       const sitrepRunForm = document.getElementById("btn-toggle-form");
-      if (sitrepRunForm) sitrepRunForm.style.display = isAdmin ? "" : "none";
+      if (sitrepRunForm) sitrepRunForm.style.display = isPremium ? "" : "none";
     }
     updateUploadBtnVisibility();
   }

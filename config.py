@@ -173,9 +173,11 @@ FLASK_DEBUG = SERVER_DEBUG
 LOG_LEVEL   = os.getenv("LOG_LEVEL", "INFO")
 
 # ============================================================================
-# RATE LIMITING — daily message limit per user
+# RATE LIMITING — daily message limit per user (role-aware)
 # ============================================================================
 DAILY_MESSAGE_LIMIT: int = int(os.getenv("DAILY_MESSAGE_LIMIT", "10"))
+PREMIUM_MESSAGE_LIMIT: int = int(os.getenv("PREMIUM_MESSAGE_LIMIT", "100"))
+ADMIN_MESSAGE_LIMIT: int = 999  # effectively unlimited
 
 
 # ============================================================================

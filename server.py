@@ -42,10 +42,10 @@ from flask_cors import CORS
 from config import (
     SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
-    DAILY_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
+    DAILY_MESSAGE_LIMIT, PREMIUM_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
 )
 
-from auth import require_auth, require_admin, current_uid
+from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -154,8 +154,12 @@ def _chats_db():
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
-def _check_rate_limit(uid: str) -> dict:
-    """Check daily message count for a user. Returns {remaining, limit, used}."""
+def _check_rate_limit(uid: str, role: str = "free") -> dict:
+    """Check daily message count for a user. Returns {remaining, limit, used}.
+
+    Role-aware: free users get DAILY_MESSAGE_LIMIT, premium get PREMIUM_MESSAGE_LIMIT,
+    admin gets 999 (unlimited).
+    """
     from datetime import date
     today = date.today().isoformat()
     conn = _chats_db()
@@ -169,7 +173,13 @@ def _check_rate_limit(uid: str) -> dict:
             used = 0
     finally:
         conn.close()
-    limit = DAILY_MESSAGE_LIMIT
+    # Role-based limits
+    if role == "admin":
+        limit = 999
+    elif role == "premium":
+        limit = PREMIUM_MESSAGE_LIMIT
+    else:
+        limit = DAILY_MESSAGE_LIMIT
     remaining = max(0, limit - used)
     return {"remaining": remaining, "limit": limit, "used": used}
 
@@ -483,22 +493,97 @@ def api_auth_me():
     from auth import _admins, _dev_mode
     user = getattr(g, "current_user", None) or {}
     uid = user.get("uid", "")
+    role = user.get("role", "free")
     admins = _admins()
-    is_admin = uid in admins or _dev_mode()  # dev mode = always admin
-    logger.info(f"auth/me: uid={uid!r}, is_admin={is_admin}")
-    rate = {"remaining": 999, "limit": 999, "used": 0} if is_admin else (_check_rate_limit(uid) if uid else {"remaining": DAILY_MESSAGE_LIMIT, "limit": DAILY_MESSAGE_LIMIT, "used": 0})
+    is_admin = role == "admin" or uid in admins or _dev_mode()
+    if is_admin and role != "admin":
+        role = "admin"
+    logger.info(f"auth/me: uid={uid!r}, role={role}, is_admin={is_admin}")
+    rate = _check_rate_limit(uid, role)
     return jsonify({
         "uid": uid,
         "email": user.get("email", ""),
         "name": user.get("name", ""),
         "is_admin": is_admin,
+        "role": role,
         "rate_limit": rate,
     })
 
 
-# =============================================================================
-# ROUTES — Frontend
-# =============================================================================
+# ═════════════════════════════════════════════════════════════════════════════
+# ROUTES — Admin Role Management
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/admin/users", methods=["GET"])
+@require_admin
+def api_admin_users():
+    """List all Firebase Auth users with their roles.  Admin only."""
+    from auth import get_user_role, _firebase_app
+    fb = _firebase_app()
+    if not fb:
+        return jsonify({"error": "Firebase not configured"}), 503
+    try:
+        from firebase_admin import auth as firebase_auth
+        users = []
+        page = firebase_auth.list_users()
+        for user_record in page.users:
+            role = (user_record.custom_claims or {}).get("role", "free")
+            # Fallback: check ADMIN_UIDS
+            if role == "free" and user_record.uid in _admins():
+                role = "admin"
+            users.append({
+                "uid": user_record.uid,
+                "email": user_record.email or "",
+                "displayName": user_record.display_name or "",
+                "role": role,
+                "disabled": user_record.disabled,
+            })
+        return jsonify({"users": users})
+    except Exception as exc:
+        logger.error("api_admin_users error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to list users"}), 500
+
+
+@app.route("/api/admin/users/<uid>/role", methods=["PUT"])
+@require_admin
+def api_admin_set_role(uid):
+    """Set a user's role via Firebase Custom Claims.  Admin only."""
+    from auth import set_user_role, ROLE_HIERARCHY
+    data = request.get_json(silent=True) or {}
+    new_role = (data.get("role") or "").strip().lower()
+    if new_role not in ROLE_HIERARCHY:
+        return jsonify({"error": f"Invalid role. Must be one of: {', '.join(ROLE_HIERARCHY)}"}), 400
+    success = set_user_role(uid, new_role)
+    if not success:
+        return jsonify({"error": "Failed to set role — Firebase Admin SDK not available or user not found"}), 500
+    logger.info("api_admin_set_role: uid=%s → role=%s (by admin=%s)", uid, new_role, current_uid())
+    return jsonify({"ok": True, "uid": uid, "role": new_role})
+
+
+@app.route("/api/admin/users/<uid>", methods=["GET"])
+@require_admin
+def api_admin_get_user(uid):
+    """Get a single user's details including role.  Admin only."""
+    from auth import get_user_role, _firebase_app
+    fb = _firebase_app()
+    if not fb:
+        return jsonify({"error": "Firebase not configured"}), 503
+    try:
+        from firebase_admin import auth as firebase_auth
+        user_record = firebase_auth.get_user(uid)
+        role = (user_record.custom_claims or {}).get("role", "free")
+        if role == "free" and user_record.uid in _admins():
+            role = "admin"
+        return jsonify({
+            "uid": user_record.uid,
+            "email": user_record.email or "",
+            "displayName": user_record.display_name or "",
+            "role": role,
+            "disabled": user_record.disabled,
+        })
+    except Exception as exc:
+        logger.error("api_admin_get_user error: %s", exc, exc_info=True)
+        return jsonify({"error": "User not found"}), 404
 
 @app.route("/")
 def index():
@@ -658,17 +743,16 @@ def api_agent_chats_delete(chat_id):
 def api_agent_chat():
 
     uid = current_uid()
-    from auth import _admins as _get_admins
-    is_admin = uid in _get_admins()
+    role = current_role()
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
     if not user_message:
         return jsonify({"error": "empty message"}), 400
 
-    # Rate limit check (admins bypass)
-    if not is_admin:
-        rate = _check_rate_limit(uid)
+    # Rate limit check (role-aware: admin=unlimited, premium=100, free=10)
+    if role != "admin":
+        rate = _check_rate_limit(uid, role)
         if rate["remaining"] <= 0:
             return jsonify({
                 "error": "Daily message limit reached",
@@ -687,7 +771,7 @@ def api_agent_chat():
         return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
 
     chat_id = _ensure_active_chat(uid)
-    if not is_admin:
+    if role != "admin":
         _increment_rate_limit(uid)
 
     from langchain_core.messages import HumanMessage, AIMessage
@@ -1039,7 +1123,7 @@ def api_sitrep_chunk_preview():
 
 
 @app.route("/api/sitrep/run", methods=["POST"])
-@require_admin
+@require_role("premium")
 def api_sitrep_run():
     data    = request.get_json() or {}
     country = data.get("country", "").strip()[:100]
