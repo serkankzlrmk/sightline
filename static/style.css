@@ -633,9 +633,9 @@ body {
 /* Centered column for messages */
 .chat-center {
   max-width: 780px;
-  width: 100%;
+  width: calc(100% - 48px);
   margin: 0 auto;
-  padding: 28px 24px 16px;
+  padding: 28px 0 16px;
   display: flex; flex-direction: column; gap: 4px;
   flex-shrink: 0;
 }
@@ -734,7 +734,7 @@ body {
 /* ── Chat rate hint ── */
 .chat-rate-hint {
   text-align: center; font-size: 11px; color: var(--text-muted);
-  padding: 4px 0 0; letter-spacing: .1px; max-width: 780px; width: 100%;
+  padding: 4px 0 0; letter-spacing: .1px; max-width: 780px; width: calc(100% - 48px);
   margin: 0 auto; min-height: 18px;
 }
 .chat-rate-hint.low { color: var(--amber); font-weight: 600; }
@@ -900,11 +900,11 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 .chat-footer {
   padding: 12px 20px 20px;
   background: var(--bg);
-  display: flex; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
   flex-shrink: 0;
 }
 .chat-input-wrap {
-  max-width: 780px; width: 100%;
+  max-width: 780px; width: calc(100% - 48px);
   display: flex; align-items: flex-end; gap: 0;
   background: var(--surface);
   border: 1.5px solid var(--border);
@@ -1465,76 +1465,10 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 .tag { background: var(--blue-light); color: #1e40af; font-size: 10px; padding: 3px 10px; border-radius: var(--radius-xl); font-weight: 600; letter-spacing: .2px; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TAB 4 — INGEST
+   PDF UPLOAD MODAL (admin-only)
    ═══════════════════════════════════════════════════════════════════════════ */
-.ingest-wrap {
-  flex: 1; overflow-y: auto; padding: 28px 32px;
-  display: flex; flex-direction: column; gap: 24px;
-}
-.ingest-section {
-  background: var(--surface);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 24px 26px;
-  box-shadow: var(--shadow-sm);
-}
-.ingest-section-hdr {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
-  padding-bottom: 14px; border-bottom: 1px solid var(--border-light);
-}
-.ingest-section-hdr span { font-size: 22px; }
-.ingest-section-hdr h3 {
-  font-size: 14px; font-weight: 700; color: var(--text);
-  margin: 0; letter-spacing: -.2px;
-}
-.ingest-hint { font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6; }
 
-/* Query form grid */
-.mq-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.mq-actions {
-  display: flex; align-items: center; gap: 8px;
-  flex-wrap: wrap; margin-bottom: 14px;
-}
-.mq-sel-all-label {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 12px; color: var(--text-muted); cursor: pointer; user-select: none;
-}
-
-/* Ingest status bar */
-.ingest-status {
-  padding: 10px 16px;
-  border-radius: var(--radius);
-  font-size: 12.5px; font-weight: 500;
-  margin-bottom: 12px;
-  border: 1px solid transparent;
-}
-.ingest-status.info    { background: var(--blue-light); color: #1e40af; border-color: #93c5fd; }
-.ingest-status.success { background: var(--green-light); color: #065f46; border-color: #86efac; }
-.ingest-status.warning { background: var(--amber-light); color: #92400e; border-color: #fcd34d; }
-.ingest-status.error   { background: var(--red-light);   color: #991b1b; border-color: #fca5a5; }
-
-/* Ingested badge */
-.badge-ingested {
-  display: inline-block;
-  background: var(--green-light); color: #065f46;
-  padding: 2px 8px; border-radius: 4px;
-  font-size: 10px; font-weight: 600; white-space: nowrap;
-  letter-spacing: .2px;
-}
-.badge-new {
-  display: inline-block;
-  background: var(--blue-light); color: #1e40af;
-  padding: 2px 8px; border-radius: 4px;
-  font-size: 10px; font-weight: 600; white-space: nowrap;
-  letter-spacing: .2px;
-}
-
-/* Upload form */
+/* Upload form grid */
 .up-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1568,9 +1502,6 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 .tag-chip button:hover { color: var(--red); }
 .tag-input-row { display: flex; gap: 6px; align-items: center; }
 .tag-input-row .fi { flex: 1; }
-
-/* td-title max width in ingest table */
-#panel-ingest .td-title { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Spinner (reuse) */
 .spinner {
@@ -1607,7 +1538,9 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 
   /* Chat responsive */
   .chat-sidebar { width: 85vw; }
-  .chat-center { padding: 16px 12px; }
+  .chat-center { width: calc(100% - 24px); padding: 16px 0; }
+  .chat-input-wrap { width: calc(100% - 24px); }
+  .chat-rate-hint { width: calc(100% - 24px); }
   .msg.user .msg-body { max-width: 90%; }
   .chat-footer { padding: 8px 12px 14px; }
 

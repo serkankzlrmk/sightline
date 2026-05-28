@@ -68,6 +68,27 @@ def _api_key() -> str:
         return os.getenv("SERVER_API_KEY", "")
 
 
+def _dev_mode() -> bool:
+    """Return True if running in dev mode with auth bypass enabled.
+
+    Auth is bypassed when DEV_AUTH_BYPASS=true is set in .env.
+    This allows local testing without needing Google Sign-In (useful in
+    VS Code integrated browser where popups don't work).
+
+    When bypassed, all requests get a mock dev user with admin access.
+    """
+    if os.getenv("DEV_AUTH_BYPASS", "").lower() == "true":
+        return True
+    # Legacy check: SERVER_DEBUG=true AND no Firebase SA file AND no API key
+    if os.getenv("SERVER_DEBUG", "").lower() != "true":
+        return False
+    if _api_key():
+        return False
+    if _firebase_app() is not None:
+        return False
+    return True
+
+
 def verify_firebase_token(token: str) -> dict:
     """Verify a Firebase ID token and return decoded claims.
     
@@ -109,12 +130,23 @@ def require_auth(f):
 
     - If SERVER_API_KEY is set:  require X-API-Key header matching it.
     - Otherwise:                  require Authorization: Bearer <Firebase ID token>.
+    - Dev mode:                   if SERVER_DEBUG=true and no Firebase/API key, bypass auth.
     Sets g.current_user = decoded Firebase claims (if Firebase mode).
     """
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         import logging
         _log = logging.getLogger(__name__)
+
+        # Dev mode bypass — no Firebase SA file, no API key, SERVER_DEBUG=true
+        if _dev_mode():
+            g.current_user = {
+                "uid": "dev-local",
+                "email": "dev@localhost",
+                "name": "Dev User",
+                "admin": True,
+            }
+            return f(*args, **kwargs)
 
         api_key = _api_key()
 
@@ -149,12 +181,23 @@ def require_admin(f):
 
     - If SERVER_API_KEY is set:  X-API-Key must match (any valid key = admin).
     - Otherwise:                  Firebase Bearer token required, UID must be in ADMIN_UIDS.
+    - Dev mode:                   if SERVER_DEBUG=true and no Firebase/API key, bypass as admin.
     Sets g.current_user = decoded Firebase claims (if Firebase mode).
     """
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         import logging
         _log = logging.getLogger(__name__)
+
+        # Dev mode bypass — no Firebase SA file, no API key, SERVER_DEBUG=true
+        if _dev_mode():
+            g.current_user = {
+                "uid": "dev-local",
+                "email": "dev@localhost",
+                "name": "Dev User",
+                "admin": True,
+            }
+            return f(*args, **kwargs)
 
         api_key = _api_key()
 

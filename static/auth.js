@@ -172,20 +172,11 @@ function updateRateLimitUI() {
 
 function updateVisibility() {
   const isAdmin = !!window.__isAdmin;
-  const ingestTab = document.getElementById("tab-ingest");
-  if (ingestTab) {
-    ingestTab.style.display = isAdmin ? "" : "none";
-  }
   const sitrepRunForm = document.getElementById("btn-toggle-form");
   const runForm = document.getElementById("run-form");
   if (sitrepRunForm) {
     sitrepRunForm.style.display = isAdmin ? "" : "none";
     if (runForm) runForm.classList.add("hidden");
-  }
-  if (!isAdmin) {
-    if (document.getElementById("tab-ingest")?.classList.contains("active")) {
-      if (typeof switchTab === "function") switchTab("agent");
-    }
   }
 }
 
@@ -259,10 +250,48 @@ window.updateVisibility = updateVisibility;
 
 let _initialized = false;
 
+async function _checkDevMode() {
+  /* When server runs in dev mode (SERVER_DEBUG=true, no Firebase SA, no API key),
+     auto-bypass the auth overlay so we can test locally without Google Sign-In. */
+  try {
+    const resp = await fetch("/api/health");
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    return !!data.dev_mode;
+  } catch (e) {
+    return false;
+  }
+}
+
+function _enableDevMode() {
+  /* Set mock auth state for dev mode — all features unlocked, admin access. */
+  console.log("[auth] Dev mode detected — bypassing Firebase Sign-In");
+  setToken("dev-mode-bypass");
+  window.__isAdmin = true;
+  window.__rateLimit = { remaining: 999, limit: 999, used: 0 };
+  window.__authReady = true;
+  hideOverlay();
+  showUserBar({ photoURL: "", displayName: "Dev User", email: "dev@localhost" });
+  updateVisibility();
+  updateRateLimitUI();
+  window.dispatchEvent(new Event('auth-ready'));
+}
+
 function init() {
   if (_initialized) return;
   _initialized = true;
 
+  // Dev mode check — if server has no Firebase, skip sign-in entirely
+  _checkDevMode().then((isDev) => {
+    if (isDev) {
+      _enableDevMode();
+      return; // skip Firebase listeners entirely
+    }
+    _initFirebase();
+  });
+}
+
+function _initFirebase() {
   const btn = document.getElementById("auth-google-btn");
   if (btn) btn.addEventListener("click", doSignIn);
 

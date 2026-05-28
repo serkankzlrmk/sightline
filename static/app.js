@@ -25,9 +25,7 @@ let currentAiText = '';
 // SITREP tab state
 let sitrepCurrentStep  = -1;
 
-// Ingest tab state
-let mqResults     = [];
-let uploadHistory = [];
+// Upload modal state
 const _tags = { country: [], theme: [] };
 let sitrepStepStates   = [];
 let sitrepActiveJobId  = null;
@@ -143,7 +141,7 @@ function md(text) {
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(name) {
   currentTab = name;
-  ['db', 'agent', 'sitrep', 'ingest'].forEach(t => {
+  ['db', 'agent', 'sitrep'].forEach(t => {
     document.getElementById('panel-' + t).classList.toggle('active', t === name);
     document.getElementById('tab-'   + t).classList.toggle('active', t === name);
   });
@@ -1497,180 +1495,15 @@ async function discussSitrepWithAgent() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═════════════════════════════════════════════════════════════════════════
-// TAB 4 — INGEST
+// PDF UPLOAD MODAL (admin-only, on Database tab)
 // ═════════════════════════════════════════════════════════════════════════
 
-// —— helpers ——————————————————————————————————
-
-function mqStatus(msg, type = 'info') {
-  const el = document.getElementById('mq-status');
-  el.style.display = 'block';
-  el.className = `ingest-status ${type}`;
-  el.textContent = msg;
+function showUploadModal() {
+  document.getElementById('upload-modal').classList.add('open');
 }
-function mqClearStatus() {
-  const el = document.getElementById('mq-status');
-  el.style.display = 'none';
-  el.textContent = '';
+function hideUploadModal() {
+  document.getElementById('upload-modal').classList.remove('open');
 }
-
-function upStatus(msg, type = 'info') {
-  const el = document.getElementById('up-status');
-  el.style.display = 'block';
-  el.className = `ingest-status ${type}`;
-  el.textContent = msg;
-}
-function upClearStatus() {
-  const el = document.getElementById('up-status');
-  el.style.display = 'none';
-  el.textContent = '';
-}
-
-// —— Manual Query ————————————————————————————————
-
-function mqSearch() {
-  const payload = {
-    country:     document.getElementById('mq-country').value.trim(),
-    query:       document.getElementById('mq-query').value.trim(),
-    source_org:  document.getElementById('mq-source').value,
-    source_fullname: document.getElementById('mq-source-full').value.trim(),
-    organization_type: document.getElementById('mq-org-type').value,
-    theme:       document.getElementById('mq-theme').value,
-    disaster_type: document.getElementById('mq-disaster-type').value,
-    disaster:    document.getElementById('mq-disaster').value.trim(),
-    format_type: document.getElementById('mq-format').value,
-    language:    document.getElementById('mq-language').value,
-    date_from:   document.getElementById('mq-from').value,
-    date_to:     document.getElementById('mq-to').value,
-    limit:       parseInt(document.getElementById('mq-limit').value) || 50
-  };
-  // At least one filter must be set
-  const hasFilter = payload.country || payload.query || payload.source_org || payload.theme
-    || payload.source_fullname || payload.organization_type || payload.disaster_type
-    || payload.disaster || payload.format_type || payload.language
-    || payload.date_from || payload.date_to;
-  if (!hasFilter) {
-    mqStatus('Please enter at least one filter.', 'warning');
-    return;
-  }
-  const tbody = document.getElementById('mq-tbody');
-  tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="spinner"></div>Searching…</td></tr>';
-  document.getElementById('mq-count').textContent = '';
-  const dlSelBtn = document.getElementById('mq-dl-sel-btn');
-  const dlNewBtn = document.getElementById('mq-dl-new-btn');
-  dlSelBtn.disabled = true;
-  dlNewBtn.disabled = true;
-  mqClearStatus();
-
-  api('/api/ingest/search', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(payload)
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.error) { mqStatus(data.error, 'error'); return; }
-    mqResults = data.reports || [];
-    mqRenderTable();
-    document.getElementById('mq-count').textContent = `${mqResults.length} result(s)`;
-    const newCount = mqResults.filter(r => !r.already_ingested).length;
-    dlSelBtn.disabled = false;
-    dlNewBtn.disabled = newCount === 0;
-    if (mqResults.length === 0) {
-      mqStatus('No reports found with the given filters.', 'warning');
-    }
-  })
-  .catch(err => mqStatus('Error: ' + err.message, 'error'));
-}
-
-function mqRenderTable() {
-  const tbody = document.getElementById('mq-tbody');
-  if (!mqResults.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon"></div>No results found.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = mqResults.map((r, i) => {
-    const badge = r.already_ingested
-      ? '<span class="badge-ingested">✓ Ingested</span>'
-      : '<span class="badge-new">New</span>';
-    return `<tr>
-      <td><input type="checkbox" class="mq-chk" data-idx="${i}" ${r.already_ingested ? '' : 'checked'} onchange="mqCheckChange()"></td>
-      <td>${r.id}</td>
-      <td>${(r.date || '').slice(0, 10)}</td>
-      <td>${Array.isArray(r.countries) ? r.countries.join(', ') : (r.countries || '')}</td>
-      <td>${Array.isArray(r.source) ? r.source.join(', ') : (r.source || '')}</td>
-      <td class="td-title">${escHtml(r.title || '')}</td>
-      <td>${Array.isArray(r.format) ? r.format.join(', ') : (r.format || '')}</td>
-      <td>${badge}</td>
-    </tr>`;
-  }).join('');
-}
-
-function mqCheckChange() {
-  const anyChecked = [...document.querySelectorAll('.mq-chk')].some(c => c.checked);
-  document.getElementById('mq-dl-sel-btn').disabled = !anyChecked;
-}
-
-function mqToggleAll(checked) {
-  document.querySelectorAll('.mq-chk').forEach(c => c.checked = checked);
-  mqCheckChange();
-}
-
-function mqDownloadSelected() {
-  const ids = [...document.querySelectorAll('.mq-chk')]
-    .filter(c => c.checked)
-    .map(c => mqResults[parseInt(c.dataset.idx)].id);
-  if (!ids.length) { mqStatus('No reports checked.', 'warning'); return; }
-  mqDoDownload(ids);
-}
-
-function mqDownloadNew() {
-  const ids = mqResults.filter(r => !r.already_ingested).map(r => r.id);
-  if (!ids.length) { mqStatus('All results already ingested.', 'warning'); return; }
-  mqDoDownload(ids);
-}
-
-function mqDoDownload(ids) {
-  mqStatus(`Downloading and ingesting ${ids.length} report(s)…`, 'info');
-  document.getElementById('mq-dl-sel-btn').disabled = true;
-  document.getElementById('mq-dl-new-btn').disabled = true;
-  document.getElementById('mq-search-btn').disabled = true;
-
-  api('/api/ingest/download', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ report_ids: ids })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.error) { mqStatus(data.error, 'error'); return; }
-    const s = data.summary || {};
-    const downloaded = s.downloaded ?? (Array.isArray(data.downloaded) ? data.downloaded.length : 0);
-    const errors     = s.errors     ?? (Array.isArray(data.errors)     ? data.errors.length     : 0);
-    const skipped    = s.skipped    ?? (Array.isArray(data.skipped)    ? data.skipped.length    : 0);
-    mqStatus(
-      `✓ Done: ${downloaded} ingested, ${skipped} skipped (already existed), ${errors} failed.`,
-      errors > 0 ? 'warning' : 'success'
-    );
-    document.getElementById('mq-search-btn').disabled = false;
-    document.getElementById('mq-dl-sel-btn').disabled = false;
-    document.getElementById('mq-dl-new-btn').disabled = false;
-    // Refresh table to mark newly ingested rows
-    ids.forEach(id => {
-      const r = mqResults.find(x => x.id === id);
-      if (r) r.already_ingested = true;
-    });
-    mqRenderTable();
-  })
-  .catch(err => {
-    mqStatus('Error: ' + err.message, 'error');
-    document.getElementById('mq-search-btn').disabled = false;
-    document.getElementById('mq-dl-sel-btn').disabled = false;
-    document.getElementById('mq-dl-new-btn').disabled = false;
-  });
-}
-
-// —— Tags ———————————————————————————————————————
 
 function tagAdd(field) {
   const inp = document.getElementById(`up-${field}-input`);
@@ -1703,18 +1536,15 @@ function tagReset() {
   tagRender('theme');
 }
 
-// —— Upload PDF ————————————————————————————————
-
 function clearUploadForm() {
   document.getElementById('upload-form').reset();
   tagReset();
-  upClearStatus();
 }
 
-function uploadReport(e) {
+function submitUpload(e) {
   e.preventDefault();
   if (!_tags.country.length) {
-    upStatus('Please add at least one country tag.', 'warning');
+    toast('Please add at least one country tag.', 'warning');
     return false;
   }
   const fd = new FormData();
@@ -1726,52 +1556,34 @@ function uploadReport(e) {
   fd.append('country',  JSON.stringify(_tags.country));
   fd.append('theme',    JSON.stringify(_tags.theme));
   const pdfFile = document.getElementById('up-pdf').files[0];
-  if (!pdfFile) { upStatus('Please select a PDF file.', 'warning'); return false; }
+  if (!pdfFile) { toast('Please select a PDF file.', 'warning'); return false; }
   fd.append('pdf', pdfFile);
 
   const btn = document.getElementById('up-submit-btn');
   btn.disabled = true;
-  upStatus('Uploading and ingesting…', 'info');
+  toast('Uploading and ingesting…', 'info');
 
   api('/api/ingest/upload', { method: 'POST', body: fd })
   .then(r => r.json())
   .then(data => {
     btn.disabled = false;
-    if (data.error) { upStatus(data.error, 'error'); return; }
-    upStatus(
-      `✓ Ingested as ${data.tr_id} — ${data.pdf_pages} page(s), ${data.chunks_added} chunks added.`,
-      'success'
-    );
-    upAddHistory({
-      tr_id:   data.tr_id,
-      title:   document.getElementById('up-title').value.trim(),
-      source:  document.getElementById('up-source').value.trim(),
-      country: _tags.country.join(', '),
-      date:    document.getElementById('up-date').value,
-      chunks:  data.chunks_added
-    });
+    if (data.error) { toast(data.error, 'error'); return; }
+    toast(`✓ Ingested as ${data.tr_id} — ${data.pdf_pages} page(s), ${data.chunks_added} chunks added.`, 'success', 5000);
     clearUploadForm();
+    hideUploadModal();
+    if (currentTab === 'db') reloadReports();
   })
   .catch(err => {
     btn.disabled = false;
-    upStatus('Error: ' + err.message, 'error');
+    toast('Error: ' + err.message, 'error');
   });
   return false;
 }
 
-function upAddHistory(item) {
-  uploadHistory.unshift(item);
-  const container = document.getElementById('up-history');
-  container.style.display = 'block';
-  const tbody = document.getElementById('up-history-tbody');
-  tbody.innerHTML = uploadHistory.map(h => `<tr>
-    <td><strong>${escHtml(h.tr_id)}</strong></td>
-    <td>${escHtml(h.title)}</td>
-    <td>${escHtml(h.source)}</td>
-    <td>${escHtml(h.country)}</td>
-    <td>${h.date}</td>
-    <td>${h.chunks}</td>
-  </tr>`).join('');
+// Show/hide upload button based on admin status
+function updateUploadBtnVisibility() {
+  const btn = document.getElementById('btn-upload-pdf');
+  if (btn) btn.style.display = window.__isAdmin ? '' : 'none';
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1883,11 +1695,10 @@ document.addEventListener('DOMContentLoaded', () => {
       window.updateVisibility();
     } else {
       const isAdmin = !!window.__isAdmin;
-      const ingestTab = document.getElementById("tab-ingest");
-      if (ingestTab) ingestTab.style.display = isAdmin ? "" : "none";
       const sitrepRunForm = document.getElementById("btn-toggle-form");
       if (sitrepRunForm) sitrepRunForm.style.display = isAdmin ? "" : "none";
     }
+    updateUploadBtnVisibility();
   }
 
   if (window.__authReady) {

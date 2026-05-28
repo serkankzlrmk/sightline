@@ -480,11 +480,11 @@ def _run_job(job_id: str, cmd: list):
 @app.route("/api/auth/me")
 @require_auth
 def api_auth_me():
-    from auth import _admins
+    from auth import _admins, _dev_mode
     user = getattr(g, "current_user", None) or {}
     uid = user.get("uid", "")
     admins = _admins()
-    is_admin = uid in admins
+    is_admin = uid in admins or _dev_mode()  # dev mode = always admin
     logger.info(f"auth/me: uid={uid!r}, is_admin={is_admin}")
     rate = {"remaining": 999, "limit": 999, "used": 0} if is_admin else (_check_rate_limit(uid) if uid else {"remaining": DAILY_MESSAGE_LIMIT, "limit": DAILY_MESSAGE_LIMIT, "used": 0})
     return jsonify({
@@ -551,6 +551,10 @@ def health():
     # Overall status: ok only if all critical checks pass
     all_ok = db_ok and chroma_ok and llm_ok
     checks["status"] = "ok" if all_ok else "degraded"
+
+    # Dev mode flag — frontend uses this to auto-bypass auth overlay
+    from auth import _dev_mode
+    checks["dev_mode"] = _dev_mode()
 
     code = 200 if all_ok else 503
     return jsonify(checks), code
@@ -1092,20 +1096,22 @@ def api_sitrep_run():
 
 @app.route("/api/sitrep/stream/<job_id>")
 def api_sitrep_stream(job_id):
-    from auth import _api_key, verify_firebase_token
-    api_key = _api_key()
-    if api_key:
-        provided = request.args.get("api_key", "") or request.headers.get("X-API-Key", "")
-        if provided != api_key:
-            return jsonify({"error": "Invalid API key"}), 403
-    else:
-        token = request.args.get("token", "")
-        if not token:
-            return jsonify({"error": "Missing token"}), 401
-        try:
-            verify_firebase_token(token)
-        except Exception:
-            return jsonify({"error": "Invalid token"}), 401
+    from auth import _api_key, verify_firebase_token, _dev_mode
+    # Dev mode bypass
+    if not _dev_mode():
+        api_key = _api_key()
+        if api_key:
+            provided = request.args.get("api_key", "") or request.headers.get("X-API-Key", "")
+            if provided != api_key:
+                return jsonify({"error": "Invalid API key"}), 403
+        else:
+            token = request.args.get("token", "")
+            if not token:
+                return jsonify({"error": "Missing token"}), 401
+            try:
+                verify_firebase_token(token)
+            except Exception:
+                return jsonify({"error": "Invalid token"}), 401
     if job_id not in _jobs:
         return jsonify({"error": "Unknown job id"}), 404
 
@@ -1180,161 +1186,8 @@ def api_sitrep_report():
 
 
 # =============================================================================
-# ROUTES — Ingest (direct API, no LLM tokens)
+# ROUTES — Ingest (daily auto-ingest + manual PDF upload)
 # =============================================================================
-
-@app.route("/api/ingest/search", methods=["POST"])
-@require_auth
-def api_ingest_search():
-    """Search ReliefWeb API directly and return results with local DB status."""
-    import requests as req
-    from reliefweb_api.reliefweb_config import (
-        RELIEFWEB_REPORTS_API, RELIEFWEB_APPNAME, API_TIMEOUT_SHORT,
-    )
-    from reliefweb_api.reliefweb_utils import normalize_country_name
-    from reliefweb_api.ingest_pipeline import is_ingested
-
-    data       = request.get_json(silent=True) or {}
-    country    = (data.get("country")     or "").strip()
-    query_text = (data.get("query")       or "").strip()
-    source_org = (data.get("source_org")  or "").strip()
-    theme      = (data.get("theme")       or "").strip()
-    date_from  = (data.get("date_from")   or "").strip()
-    date_to    = (data.get("date_to")     or "").strip()
-    fmt_type   = (data.get("format_type") or "").strip()
-    language   = (data.get("language")    or "").strip()
-    limit      = min(int(data.get("limit") or 50), 1000)
-
-    # New advanced filters (matching agent capabilities)
-    disaster       = (data.get("disaster")       or "").strip()
-    disaster_type  = (data.get("disaster_type")  or "").strip()
-    source_full    = (data.get("source_fullname") or "").strip()
-    org_type       = (data.get("organization_type") or "").strip()
-    primary_country = (data.get("primary_country") or "").strip()
-
-    filters = []
-    if country:
-        filters.append({"field": "country.name", "value": normalize_country_name(country)})
-    if primary_country:
-        filters.append({"field": "primary_country.name", "value": normalize_country_name(primary_country)})
-    if theme:
-        filters.append({"field": "theme.name", "value": theme})
-    if source_org:
-        filters.append({"field": "source.shortname", "value": source_org})
-    if source_full:
-        filters.append({"field": "source.name", "value": source_full})
-    if org_type:
-        filters.append({"field": "source.type.name", "value": org_type})
-    if fmt_type:
-        filters.append({"field": "format.name", "value": fmt_type})
-    if language:
-        filters.append({"field": "language.code", "value": language})
-    if disaster:
-        filters.append({"field": "disaster.name", "value": disaster})
-    if disaster_type:
-        filters.append({"field": "disaster_type.name", "value": disaster_type})
-    if date_from or date_to:
-        df = {"field": "date.original", "value": {}}
-        if date_from:
-            df["value"]["from"] = f"{date_from}T00:00:00+00:00"
-        if date_to:
-            df["value"]["to"] = f"{date_to}T23:59:59+00:00"
-        filters.append(df)
-
-    body = {
-        "preset": "latest",
-        "limit": limit,
-        "fields": {"include": ["id", "title", "date", "source", "url",
-                                "theme", "format", "language", "country"]},
-    }
-    if filters:
-        body["filter"] = filters[0] if len(filters) == 1 else {
-            "operator": "AND", "conditions": filters
-        }
-    if query_text:
-        body["query"] = {"value": query_text}
-
-    try:
-        url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        resp = req.post(url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
-        resp.raise_for_status()
-        raw = resp.json()
-    except Exception as e:
-        logger.error("api_ingest_search ReliefWeb request failed: %s", e, exc_info=True)
-        return jsonify({"error": "External API request failed"}), 502
-
-    reports = []
-    for item in raw.get("data", []):
-        f   = item.get("fields", {})
-        src = f.get("source", [])
-        rid = item.get("id")
-        reports.append({
-            "id":               rid,
-            "title":            f.get("title", ""),
-            "date":             (f.get("date") or {}).get("original", ""),
-            "source":           src[0].get("shortname", "?") if src else "?",
-            "url":              f.get("url", ""),
-            "themes":           [t.get("name", "") for t in f.get("theme", [])],
-            "format":           [x.get("name", "") for x in f.get("format", [])],
-            "countries":        [c.get("name", "") for c in f.get("country", [])],
-            "already_ingested": is_ingested(rid, str(DB_PATH)),
-        })
-
-    return jsonify({"count": len(reports), "reports": reports})
-
-
-@app.route("/api/ingest/download", methods=["POST"])
-@require_admin
-def api_ingest_download():
-    """Ingest selected reports directly from ReliefWeb API into SQLite + ChromaDB.
-
-    No files are written to disk — PDFs and HTML are processed entirely in memory.
-    The reliefweb_downloads/ directory is no longer used.
-    """
-    from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
-
-    data       = request.get_json(silent=True) or {}
-    report_ids = data.get("report_ids", [])
-    if not report_ids:
-        return jsonify({"error": "No report_ids provided"}), 400
-    try:
-        report_ids = [int(r) for r in report_ids]
-    except (ValueError, TypeError):
-        return jsonify({"error": "report_ids must be integers"}), 400
-
-    results = {"downloaded": [], "skipped": [], "errors": []}
-
-    for rid in report_ids:
-        if is_ingested(rid, str(DB_PATH)) and is_ingested_with_pdf(rid, str(DB_PATH)):
-            results["skipped"].append({"report_id": rid, "reason": "already_in_db"})
-            continue
-
-        re_download = is_ingested(rid, str(DB_PATH)) and not is_ingested_with_pdf(rid, str(DB_PATH))
-        try:
-            ingest = ingest_from_api(rid, str(DB_PATH), str(CHROMA_DIR))
-            if ingest.get("success"):
-                entry = {
-                    "report_id":    rid,
-                    "chunks_added": ingest.get("chunks_added", 0),
-                    "has_pdf":      ingest.get("has_pdf", False),
-                    "has_content":  ingest.get("has_content", False),
-                }
-                if re_download:
-                    entry["note"] = "Re-ingested to fetch missing PDF content"
-                results["downloaded"].append(entry)
-            else:
-                results["errors"].append({"report_id": rid, "error": ingest.get("error", "unknown")})
-        except Exception as e:
-            results["errors"].append({"report_id": rid, "error": str(e)})
-
-    results["summary"] = {
-        "total":      len(report_ids),
-        "downloaded": len(results["downloaded"]),
-        "skipped":    len(results["skipped"]),
-        "errors":     len(results["errors"]),
-    }
-    return jsonify(results)
-
 
 @app.route("/api/ingest/daily", methods=["POST"])
 @require_admin
@@ -1517,7 +1370,7 @@ if __name__ == "__main__":
     print(f"  http://{SERVER_HOST}:{SERVER_PORT}")
     print(f"  Auth : {auth_status}")
     print(f"  CORS : {cors_display}")
-    print("  Tabs : Database | Agent | SITREP | Ingest")
+    print("  Tabs : Database | AgenTRC | SITREP")
     print("=" * 58)
     app.run(
         host=SERVER_HOST,

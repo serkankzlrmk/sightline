@@ -73,7 +73,6 @@
     <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">Database</button>
     <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">AgenTRC</button>
     <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">SITREP</button>
-    <button class="tab-btn" id="tab-ingest" onclick="switchTab('ingest')">Ingest</button>
   </div>
   <div id="user-bar" class="user-bar hidden">
     <img id="user-photo" src="" alt="">
@@ -96,6 +95,7 @@
       <div class="stats-row" id="stats-row">
         <div class="stat-pill"><strong id="s-reports">—</strong> Reports</div>
         <div class="stat-pill"><strong id="s-chunks">—</strong> Chunks</div>
+        <button class="btn btn-secondary" id="btn-upload-pdf" onclick="showUploadModal()" style="display:none">⬆ Upload PDF</button>
         <button class="refresh-btn" onclick="reloadReports()">↻ Refresh</button>
       </div>
       <!-- Filters -->
@@ -273,251 +273,6 @@
     </div><!-- /.sitrep-layout -->
   </div><!-- /#panel-sitrep -->
 
-  <!-- ─── TAB 4: INGEST ─────────────────────────── -->
-  <div class="panel" id="panel-ingest">
-    <div class="ingest-wrap">
-
-      <!-- ── Manual Query ───────────────────────── -->
-      <div class="ingest-section">
-        <div class="ingest-section-hdr">
-          <h3>Manual Query — Direct API (No Tokens)</h3>
-        </div>
-
-        <div class="mq-form">
-          <input  class="fi" id="mq-country"   placeholder="Country (e.g. Sudan)">
-          <input  class="fi" id="mq-query"     placeholder="Keyword (e.g. health)">
-          <select class="fi" id="mq-source">
-            <option value="">All Sources</option>
-            <option>UNHCR</option><option>WFP</option><option>UNICEF</option>
-            <option>OCHA</option><option>WHO</option><option>IRC</option>
-            <option>MSF</option><option>IOM</option><option>NRC</option>
-            <option>FAO</option><option>IFRC</option><option>ICRC</option>
-          </select>
-          <input  class="fi" id="mq-source-full" placeholder="Source full name (e.g. World Health Organization)">
-          <select class="fi" id="mq-org-type">
-            <option value="">All Org Types</option>
-            <option>International NGO</option>
-            <option>National NGO</option>
-            <option>Government</option>
-            <option>International Organization</option>
-            <option>United Nations</option>
-            <option>Academic and Research Institution</option>
-            <option>Donor</option>
-            <option>Media</option>
-            <option>Red Cross / Red Crescent</option>
-          </select>
-          <select class="fi" id="mq-theme">
-            <option value="">All Themes</option>
-            <option>Health</option>
-            <option>Food and Nutrition</option>
-            <option>Education</option>
-            <option>Protection</option>
-            <option>Shelter and Non-Food Items</option>
-            <option>Water Sanitation Hygiene</option>
-            <option>Logistics and Telecommunications</option>
-            <option>Mine Action</option>
-          </select>
-          <select class="fi" id="mq-disaster-type">
-            <option value="">All Disaster Types</option>
-            <option>Drought</option>
-            <option>Earthquake</option>
-            <option>Epidemic</option>
-            <option>Flash Flood</option>
-            <option>Flood</option>
-            <option>Food Insecurity</option>
-            <option>Complex Emergency</option>
-            <option>Cyclone</option>
-            <option>Heat Wave</option>
-            <option>Cold Wave</option>
-            <option>Land Slide</option>
-            <option>Mud Slide</option>
-            <option>Fire</option>
-            <option>Storm Surge</option>
-            <option>Tsunami</option>
-            <option>Volcano</option>
-            <option>Wild Fire</option>
-          </select>
-          <input  class="fi" id="mq-disaster" placeholder="Disaster name (e.g. Turkey-Syria Earthquake)">
-          <select class="fi" id="mq-format">
-            <option value="">All Formats</option>
-            <option>Situation Report</option>
-            <option>News and Press Release</option>
-            <option>Assessment</option>
-            <option>Appeal</option>
-            <option>Map</option>
-            <option>Infographic</option>
-            <option>Analysis</option>
-          </select>
-          <select class="fi" id="mq-language">
-            <option value="">All Languages</option>
-            <option value="en">English</option>
-            <option value="ar">Arabic</option>
-            <option value="fr">French</option>
-            <option value="es">Spanish</option>
-          </select>
-          <input class="fi" id="mq-from" type="date" title="From date">
-          <input class="fi" id="mq-to"   type="date" title="To date">
-          <input class="fi" id="mq-limit" type="number" placeholder="Limit (50)" value="50" min="1" max="1000" style="max-width:90px">
-        </div>
-
-        <div class="mq-actions">
-          <button class="btn btn-primary"   id="mq-search-btn"  onclick="mqSearch()">Search</button>
-          <button class="btn btn-secondary" id="mq-dl-sel-btn"  onclick="mqDownloadSelected()" disabled>⬇ Download Selected</button>
-          <button class="btn btn-secondary" id="mq-dl-new-btn"  onclick="mqDownloadNew()"      disabled>⬇ Download All New</button>
-          <label class="mq-sel-all-label">
-            <input type="checkbox" id="mq-select-all" onchange="mqToggleAll(this.checked)"> Select all
-          </label>
-          <span class="fi-count" id="mq-count" style="margin-left:auto"></span>
-        </div>
-
-        <div id="mq-status" class="ingest-status" style="display:none"></div>
-
-        <div class="table-wrap">
-          <table class="rtable">
-            <thead>
-              <tr>
-                <th style="width:36px"></th>
-                <th>ID</th>
-                <th>Date</th>
-                <th>Country</th>
-                <th>Source</th>
-                <th>Title</th>
-                <th>Format</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="mq-tbody">
-              <tr><td colspan="8" class="empty"><div class="icon"></div>Enter filters above and click Search</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ── Upload PDF ─────────────────────────── -->
-      <div class="ingest-section">
-        <div class="ingest-section-hdr">
-          <h3>Upload Report — Manual PDF Ingest</h3>
-        </div>
-        <p class="ingest-hint">Upload a PDF with custom metadata. ID will be auto-generated with a <strong>TR-</strong> prefix.</p>
-
-        <form id="upload-form" onsubmit="return uploadReport(event)" enctype="multipart/form-data">
-          <div class="up-grid">
-
-            <div class="form-group up-full">
-              <label>Title *</label>
-              <input class="fi" id="up-title" required placeholder="Report title">
-            </div>
-
-            <div class="form-group">
-              <label>Source Organization *</label>
-              <input class="fi" id="up-source" required placeholder="e.g. UNHCR, WFP" list="up-source-list">
-              <datalist id="up-source-list">
-                <option value="UNHCR"><option value="WFP"><option value="UNICEF">
-                <option value="OCHA"><option value="WHO"><option value="IRC">
-                <option value="MSF"><option value="IOM"><option value="NRC">
-                <option value="FAO"><option value="IFRC"><option value="ICRC">
-              </datalist>
-            </div>
-
-            <div class="form-group">
-              <label>Format *</label>
-              <input class="fi" id="up-format" required placeholder="e.g. Situation Report" list="up-format-list">
-              <datalist id="up-format-list">
-                <option value="Situation Report"><option value="Assessment">
-                <option value="Analysis"><option value="Appeal">
-                <option value="News and Press Release"><option value="Map">
-                <option value="Infographic"><option value="Other">
-              </datalist>
-            </div>
-
-            <div class="form-group up-full">
-              <label>Country / Countries *</label>
-              <div class="tag-box" id="up-country-tags"></div>
-              <div class="tag-input-row">
-                <input class="fi" id="up-country-input" placeholder="Type country and press Enter" list="up-country-list">
-                <button type="button" class="btn btn-secondary" onclick="tagAdd('country')">+ Add</button>
-              </div>
-              <datalist id="up-country-list">
-                <option value="Afghanistan"><option value="Bangladesh"><option value="Burkina Faso">
-                <option value="Central African Republic"><option value="Chad"><option value="Colombia">
-                <option value="Democratic Republic of the Congo"><option value="Ethiopia">
-                <option value="Haiti"><option value="Indonesia"><option value="Iran">
-                <option value="Iraq"><option value="Jordan"><option value="Kenya">
-                <option value="Lebanon"><option value="Libya"><option value="Mali">
-                <option value="Mozambique"><option value="Myanmar"><option value="Niger">
-                <option value="Nigeria"><option value="Pakistan"><option value="Palestine">
-                <option value="Philippines"><option value="Somalia"><option value="South Sudan">
-                <option value="Sudan"><option value="Syria"><option value="Turkey">
-                <option value="Uganda"><option value="Ukraine"><option value="Venezuela">
-                <option value="Yemen">
-              </datalist>
-            </div>
-
-            <div class="form-group up-full">
-              <label>Themes</label>
-              <div class="tag-box" id="up-theme-tags"></div>
-              <div class="tag-input-row">
-                <input class="fi" id="up-theme-input" placeholder="Select or type a theme" list="up-theme-list">
-                <button type="button" class="btn btn-secondary" onclick="tagAdd('theme')">+ Add</button>
-              </div>
-              <datalist id="up-theme-list">
-                <option value="Health"><option value="Food and Nutrition">
-                <option value="Education"><option value="Protection">
-                <option value="Shelter and Non-Food Items"><option value="Water Sanitation Hygiene">
-                <option value="Logistics and Telecommunications"><option value="Mine Action">
-                <option value="Coordination"><option value="Gender">
-              </datalist>
-            </div>
-
-            <div class="form-group">
-              <label>Language *</label>
-              <select class="fi" id="up-language" required>
-                <option value="">— Select —</option>
-                <option value="en">English</option>
-                <option value="tr">Turkish</option>
-                <option value="ar">Arabic</option>
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-                <option value="ru">Russian</option>
-                <option value="de">German</option>
-                <option value="pt">Portuguese</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Report Date *</label>
-              <input class="fi" id="up-date" type="date" required>
-            </div>
-
-            <div class="form-group up-full">
-              <label>PDF File *</label>
-              <input class="fi up-file" type="file" id="up-pdf" accept=".pdf" required>
-            </div>
-
-          </div>
-
-          <div class="up-submit-row">
-            <button type="submit" class="btn btn-primary" id="up-submit-btn">Upload &amp; Ingest</button>
-            <button type="button" class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
-          </div>
-        </form>
-
-        <div id="up-status" class="ingest-status" style="display:none"></div>
-
-        <div id="up-history" style="display:none;margin-top:18px">
-          <h4 style="font-size:13px;color:var(--text-muted);margin:0 0 8px">Recently Uploaded</h4>
-          <div class="table-wrap">
-            <table class="rtable">
-              <thead><tr><th>TR ID</th><th>Title</th><th>Source</th><th>Country</th><th>Date</th><th>Chunks</th></tr></thead>
-              <tbody id="up-history-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div><!-- /#panel-ingest -->
-
 </div><!-- /.main -->
 
 <!-- ═══════════════════════════════════════════════
@@ -572,6 +327,111 @@
       </div>
       <div class="modal-label">Cited Text</div>
       <div class="sitrep-modal-context" id="sitrep-modal-context"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PDF UPLOAD MODAL (admin-only)
+     ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="upload-modal" onclick="if(event.target===this)hideUploadModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">Upload PDF Report</div>
+      <button class="modal-close" onclick="hideUploadModal()">✕</button>
+    </div>
+    <div class="modal-bdy">
+      <form id="upload-form" onsubmit="return submitUpload(event)" enctype="multipart/form-data">
+        <div class="up-grid">
+          <div class="form-group up-full">
+            <label>Title *</label>
+            <input class="fi" id="up-title" required placeholder="Report title">
+          </div>
+          <div class="form-group">
+            <label>Source Organization *</label>
+            <input class="fi" id="up-source" required placeholder="e.g. UNHCR, WFP" list="up-source-list">
+            <datalist id="up-source-list">
+              <option value="UNHCR"><option value="WFP"><option value="UNICEF">
+              <option value="OCHA"><option value="WHO"><option value="IRC">
+              <option value="MSF"><option value="IOM"><option value="NRC">
+              <option value="FAO"><option value="IFRC"><option value="ICRC">
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label>Format *</label>
+            <input class="fi" id="up-format" required placeholder="e.g. Situation Report" list="up-format-list">
+            <datalist id="up-format-list">
+              <option value="Situation Report"><option value="Assessment">
+              <option value="Analysis"><option value="Appeal">
+              <option value="News and Press Release"><option value="Map">
+              <option value="Infographic"><option value="Other">
+            </datalist>
+          </div>
+          <div class="form-group up-full">
+            <label>Country / Countries *</label>
+            <div class="tag-box" id="up-country-tags"></div>
+            <div class="tag-input-row">
+              <input class="fi" id="up-country-input" placeholder="Type country and press Enter" list="up-country-list">
+              <button type="button" class="btn btn-secondary" onclick="tagAdd('country')">+ Add</button>
+            </div>
+            <datalist id="up-country-list">
+              <option value="Afghanistan"><option value="Bangladesh"><option value="Burkina Faso">
+              <option value="Central African Republic"><option value="Chad"><option value="Colombia">
+              <option value="Democratic Republic of the Congo"><option value="Ethiopia">
+              <option value="Haiti"><option value="Indonesia"><option value="Iran">
+              <option value="Iraq"><option value="Jordan"><option value="Kenya">
+              <option value="Lebanon"><option value="Libya"><option value="Mali">
+              <option value="Mozambique"><option value="Myanmar"><option value="Niger">
+              <option value="Nigeria"><option value="Pakistan"><option value="Palestine">
+              <option value="Philippines"><option value="Somalia"><option value="South Sudan">
+              <option value="Sudan"><option value="Syria"><option value="Turkey">
+              <option value="Uganda"><option value="Ukraine"><option value="Venezuela">
+              <option value="Yemen">
+            </datalist>
+          </div>
+          <div class="form-group up-full">
+            <label>Themes</label>
+            <div class="tag-box" id="up-theme-tags"></div>
+            <div class="tag-input-row">
+              <input class="fi" id="up-theme-input" placeholder="Select or type a theme" list="up-theme-list">
+              <button type="button" class="btn btn-secondary" onclick="tagAdd('theme')">+ Add</button>
+            </div>
+            <datalist id="up-theme-list">
+              <option value="Health"><option value="Food and Nutrition">
+              <option value="Education"><option value="Protection">
+              <option value="Shelter and Non-Food Items"><option value="Water Sanitation Hygiene">
+              <option value="Logistics and Telecommunications"><option value="Mine Action">
+              <option value="Coordination"><option value="Gender">
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label>Language *</label>
+            <select class="fi" id="up-language" required>
+              <option value="">— Select —</option>
+              <option value="en">English</option>
+              <option value="tr">Turkish</option>
+              <option value="ar">Arabic</option>
+              <option value="fr">French</option>
+              <option value="es">Spanish</option>
+              <option value="ru">Russian</option>
+              <option value="de">German</option>
+              <option value="pt">Portuguese</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Report Date *</label>
+            <input class="fi" id="up-date" type="date" required>
+          </div>
+          <div class="form-group up-full">
+            <label>PDF File *</label>
+            <input class="fi up-file" type="file" id="up-pdf" accept=".pdf" required>
+          </div>
+        </div>
+        <div class="up-submit-row">
+          <button type="submit" class="btn btn-primary" id="up-submit-btn">Upload &amp; Ingest</button>
+          <button type="button" class="btn btn-secondary" onclick="clearUploadForm()">Clear</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
