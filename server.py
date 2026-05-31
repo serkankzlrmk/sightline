@@ -1082,11 +1082,19 @@ def api_sitrep_countries():
     except Exception:
         pass
     try:
+        import json as _json
         conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT DISTINCT primary_country FROM reports WHERE primary_country IS NOT NULL AND primary_country != '' ORDER BY primary_country").fetchall()
+        rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
         conn.close()
-        return jsonify([row["primary_country"] for row in rows])
+        countries_set = set()
+        for row in rows:
+            try:
+                for c in _json.loads(row[0]):
+                    if c and isinstance(c, str):
+                        countries_set.add(c.strip())
+            except (ValueError, TypeError):
+                pass
+        return jsonify(sorted(countries_set))
     except Exception as exc:
         logger.error("api_sitrep_countries error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load countries"}), 500
@@ -1101,24 +1109,26 @@ def api_sitrep_date_range(country):
         result = db.get_date_range(country)
         # If ChromaDB has no data, fall back to SQLite
         if result.get("count", 0) == 0:
-            from reliefweb_api.db_manager import DatabaseManager
-            from config import DB_PATH
-            sql_db = DatabaseManager(str(DB_PATH))
+            import json as _json
+            conn = sqlite3.connect(str(DB_PATH))
             try:
-                conn = sql_db._connect()
                 rows = conn.execute(
-                    "SELECT date FROM reports WHERE primary_country = ? ORDER BY date",
-                    (country,),
+                    "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
                 ).fetchall()
                 conn.close()
-                if rows:
-                    dates = [r[0][:10] for r in rows if r[0]]
-                    if dates:
-                        result = {"min": min(dates), "max": max(dates), "count": len(dates)}
+                dates = []
+                for r in rows:
+                    try:
+                        cs = _json.loads(r[1])
+                        if country in cs:
+                            if r[0]:
+                                dates.append(r[0][:10])
+                    except (ValueError, TypeError):
+                        pass
+                if dates:
+                    result = {"min": min(dates), "max": max(dates), "count": len(dates)}
             except Exception:
                 pass
-            finally:
-                sql_db.close()
         return jsonify(result)
     except Exception as exc:
         logger.error("api_sitrep_date_range error: %s", exc, exc_info=True)

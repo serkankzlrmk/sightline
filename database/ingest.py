@@ -48,7 +48,8 @@ def sync_sqlite_to_chroma(db: DatabaseManager, vs: VectorStore) -> dict:
     Read all reports from SQLite and push any that are missing from ChromaDB.
     Useful for migration and re-indexing without re-downloading.
     """
-    reports = db.conn.execute(
+    conn = db._connect()
+    reports = conn.execute(
         "SELECT report_id, title, date, source, countries, themes, url FROM reports"
     ).fetchall()
 
@@ -62,7 +63,7 @@ def sync_sqlite_to_chroma(db: DatabaseManager, vs: VectorStore) -> dict:
             continue
 
         # Read chunks for this report
-        chunk_rows = db.conn.execute(
+        chunk_rows = conn.execute(
             "SELECT chunk_index, source_type, content FROM chunks WHERE report_id = ? ORDER BY chunk_index",
             (rid,),
         ).fetchall()
@@ -97,6 +98,7 @@ def sync_sqlite_to_chroma(db: DatabaseManager, vs: VectorStore) -> dict:
         pushed += 1
         print(f"  → {rid}  embedded {len(chunks)} chunks  {row['title'][:55]}")
 
+    conn.close()
     return {"pushed": pushed, "skipped": skipped}
 
 
