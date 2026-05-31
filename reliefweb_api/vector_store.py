@@ -46,6 +46,7 @@ class VectorStore:
 
     def __init__(self, persist_dir: str = CHROMA_DIR, backend: str = None):
         self.backend = backend or VECTOR_BACKEND
+        self.persist_dir = persist_dir  # Store for get_stats()
 
         if self.backend == "pgvector":
             from reliefweb_api.pgvector_store import PgVectorStore
@@ -234,7 +235,7 @@ class VectorStore:
         return {
             "total_chunks": self.collection.count(),
             "collection": COLLECTION_NAME,
-            "persist_dir": str(Path(self.persist_dir).resolve()),
+            "persist_dir": str(Path(self.persist_dir).resolve()) if hasattr(self, 'persist_dir') and self.persist_dir else "N/A",
         }
 
     def purge_by_report_ids(self, report_ids: List[int]) -> int:
