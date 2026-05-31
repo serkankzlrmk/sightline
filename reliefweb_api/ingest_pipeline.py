@@ -33,7 +33,7 @@ from .reliefweb_config import (
     PDF_SIZE_LIMIT,
     _ssl_verify,
 )
-from .reliefweb_utils import clean_html_body
+from .reliefweb_utils import clean_html_body, retry_request
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +162,15 @@ def auto_ingest(
         vs = VectorStore(chroma_dir)
         n_chunks = vs.add_report(report_id, chunks, metadata)
     except Exception as e:
+        # ChromaDB failed — rollback SQLite insert to avoid orphaned records
+        logger.error(f"ChromaDB insert failed for {report_id}: {e}. Rolling back SQLite.")
+        try:
+            db = DatabaseManager(db_path)
+            db.delete_report(report_id)
+            db.close()
+            logger.info(f"Rolled back SQLite insert for report {report_id}")
+        except Exception as rollback_err:
+            logger.error(f"SQLite rollback also failed for {report_id}: {rollback_err}")
         return {"success": False, "error": f"ChromaDB insert failed: {e}"}
 
     return {
@@ -217,7 +226,7 @@ def ingest_from_api(
             f"&fields[include][]=format"
             f"&fields[include][]=language"
         )
-        resp = requests.get(url, timeout=API_TIMEOUT_LONG, verify=_ssl_verify())
+        resp = retry_request("get", url, timeout=API_TIMEOUT_LONG, verify=_ssl_verify())
         resp.raise_for_status()
         data = resp.json()
 
@@ -286,8 +295,8 @@ def ingest_from_api(
                 )
             elif pdf_url:
                 # Download PDF into memory (not to disk)
-                pdf_resp = requests.get(
-                    pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify()
+                pdf_resp = retry_request(
+                    "get", pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify()
                 )
                 pdf_resp.raise_for_status()
 

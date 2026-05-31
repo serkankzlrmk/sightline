@@ -67,7 +67,7 @@ def fetch_report_ids_for_date(target_date: str) -> list:
     
     Returns a list of report IDs.
     """
-    import requests
+    from reliefweb_api.reliefweb_utils import retry_request
     
     all_ids = []
     offset = 0
@@ -100,8 +100,8 @@ def fetch_report_ids_for_date(target_date: str) -> list:
             url = f"{RELIEFWEB_API_URL}?appname={APPNAME}"
         
         try:
-            resp = requests.post(
-                url,
+            resp = retry_request(
+                "post", url,
                 json=payload,
                 headers=headers,
                 timeout=30,
@@ -201,14 +201,14 @@ def purge_old_data(days: int = PURGE_DAYS, dry_run: bool = False) -> dict:
         log.info("Dry run: would purge %d reports", len(old_ids))
         return {"reports_purged": len(old_ids), "chunks_purged_chroma": 0}
     
-    # Purge from ChromaDB first
+    # Purge from SQLite first (authoritative source)
+    sqlite_purged = db.purge_old_reports(days=days)
+    log.info("Purged %d reports from SQLite", sqlite_purged)
+    
+    # Then purge from ChromaDB (derived index)
     vs = VectorStore(CHROMA_DIR)
     chroma_removed = vs.purge_by_report_ids(old_ids)
     log.info("Purged %d chunks from ChromaDB", chroma_removed)
-    
-    # Purge from SQLite
-    sqlite_purged = db.purge_old_reports(days=days)
-    log.info("Purged %d reports from SQLite", sqlite_purged)
     
     return {
         "reports_purged": sqlite_purged,

@@ -256,6 +256,26 @@ class DatabaseManager:
         pass
 
     # -------------------------------------------------------------------------
+    # SINGLE REPORT DELETE (for rollback)
+    # -------------------------------------------------------------------------
+
+    def delete_report(self, report_id: int) -> bool:
+        """Delete a single report and its chunks by report_id.
+
+        Used for rollback when ChromaDB insert fails after SQLite insert.
+        Returns True if a report was deleted, False if not found.
+        """
+        conn = self._connect()
+        try:
+            # Delete chunks first (FK constraint)
+            conn.execute("DELETE FROM chunks WHERE report_id = ?", (report_id,))
+            cursor = conn.execute("DELETE FROM reports WHERE report_id = ?", (report_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+
+    # -------------------------------------------------------------------------
     # PURGE OLD DATA
     # -------------------------------------------------------------------------
 

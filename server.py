@@ -1076,7 +1076,28 @@ def api_sitrep_date_range(country):
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        return jsonify(db.get_date_range(country))
+        result = db.get_date_range(country)
+        # If ChromaDB has no data, fall back to SQLite
+        if result.get("count", 0) == 0:
+            from reliefweb_api.db_manager import DatabaseManager
+            from config import DB_PATH
+            sql_db = DatabaseManager(str(DB_PATH))
+            try:
+                conn = sql_db._connect()
+                rows = conn.execute(
+                    "SELECT date FROM reports WHERE primary_country = ? ORDER BY date",
+                    (country,),
+                ).fetchall()
+                conn.close()
+                if rows:
+                    dates = [r[0][:10] for r in rows if r[0]]
+                    if dates:
+                        result = {"min": min(dates), "max": max(dates), "count": len(dates)}
+            except Exception:
+                pass
+            finally:
+                sql_db.close()
+        return jsonify(result)
     except Exception as exc:
         logger.error("api_sitrep_date_range error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load date range"}), 500

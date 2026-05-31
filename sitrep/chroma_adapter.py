@@ -42,6 +42,7 @@ class ChromaAdapter:
         self.collection = self.client.get_or_create_collection(
             name=CHROMA_COLLECTION,
             embedding_function=self.ef,
+            metadata={"hnsw:space": "cosine"},
         )
 
     # ------------------------------------------------------------------
@@ -85,6 +86,82 @@ class ChromaAdapter:
         }
 
     # ------------------------------------------------------------------
+    # Country name normalization
+    # ------------------------------------------------------------------
+
+    _COUNTRY_ALIASES = {
+        "syria": "Syria",
+        "syrian arab republic": "Syria",
+        "ukraine": "Ukraine",
+        "sudan": "Sudan",
+        "south sudan": "South Sudan",
+        "democratic republic of the congo": "Democratic Republic of the Congo",
+        "drc": "Democratic Republic of the Congo",
+        "dr congo": "Democratic Republic of the Congo",
+        "congo": "Republic of the Congo",
+        "afghanistan": "Afghanistan",
+        "yemen": "Yemen",
+        "myanmar": "Myanmar",
+        "burma": "Myanmar",
+        "ethiopia": "Ethiopia",
+        "somalia": "Somalia",
+        "nigeria": "Nigeria",
+        "haiti": "Haiti",
+        "occupied palestinian territory": "occupied Palestinian territory",
+        "palestine": "occupied Palestinian territory",
+        "gaza": "occupied Palestinian territory",
+        "israel": "Israel",
+        "lebanon": "Lebanon",
+        "iraq": "Iraq",
+        "libya": "Libya",
+        "mali": "Mali",
+        "niger": "Niger",
+        "cameroon": "Cameroon",
+        "burkina faso": "Burkina Faso",
+        "central african republic": "Central African Republic",
+        "car": "Central African Republic",
+        "chad": "Chad",
+        "mozambique": "Mozambique",
+        "bangladesh": "Bangladesh",
+        "philippines": "Philippines",
+        "pakistan": "Pakistan",
+        "india": "India",
+        "kenya": "Kenya",
+        "tanzania": "Tanzania",
+        "uganda": "Uganda",
+        "zimbabwe": "Zimbabwe",
+        "venezuela": "Venezuela",
+        "colombia": "Colombia",
+        "ecuador": "Ecuador",
+        "peru": "Peru",
+        "brazil": "Brazil",
+        "turkey": "Türkiye",
+        "turkiye": "Türkiye",
+    }
+
+    def _normalize_country(self, country: str) -> str:
+        """Normalize a country name for ChromaDB query.
+
+        Tries alias map first, then falls back to checking available
+        countries for a case-insensitive match.
+        """
+        lower = country.strip().lower()
+        # Check alias map
+        if lower in self._COUNTRY_ALIASES:
+            return self._COUNTRY_ALIASES[lower]
+        # Check exact match against available countries
+        available = self.list_countries()
+        for c in available:
+            if c.lower() == lower:
+                return c
+        # Check partial match
+        for c in available:
+            if lower in c.lower() or c.lower() in lower:
+                return c
+        # No match found — return original
+        return country
+
+    # ------------------------------------------------------------------
     # Data retrieval
     # ------------------------------------------------------------------
 
@@ -95,12 +172,14 @@ class ChromaAdapter:
     ) -> List[Dict]:
         """
         Returns all chunks belonging to a given country.
+        Normalizes country name for better matching.
 
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
         """
+        normalized = self._normalize_country(country)
         results = self.collection.get(
-            where={"primary_country": {"$eq": country}},
+            where={"primary_country": {"$eq": normalized}},
             limit=limit,
             include=["documents", "metadatas", "embeddings"],
         )
