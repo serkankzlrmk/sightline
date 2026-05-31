@@ -1097,7 +1097,7 @@ body.auth-locked .auth-box   { pointer-events: auto; }
 
 .run-form { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
 .run-form.hidden { display: none; }
-.run-form input, .run-form textarea {
+.run-form input, .run-form textarea, .run-form select {
   width: 100%; padding: 9px 12px;
   background: rgba(255,255,255,.05);
   border: 1px solid rgba(255,255,255,.1);
@@ -1107,7 +1107,9 @@ body.auth-locked .auth-box   { pointer-events: auto; }
   transition: border var(--transition);
 }
 .run-form input::placeholder { color: rgba(255,255,255,.25); }
-.run-form input:focus { border-color: var(--primary); }
+.run-form input:focus, .run-form select:focus { border-color: var(--primary); }
+.run-form select option { background: #1a1a2e; color: #fff; }
+.run-form select:invalid { color: rgba(255,255,255,.4); }
 .run-form label { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.4); font-size: 11px; cursor: pointer; }
 .run-form label input[type=checkbox] { accent-color: var(--primary); cursor: pointer; }
 #btn-run {

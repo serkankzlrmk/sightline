@@ -1070,6 +1070,28 @@ def api_sitrep_themes():
         return jsonify({"error": "Failed to load themes"}), 500
 
 
+@app.route("/api/sitrep/countries")
+@require_auth
+def api_sitrep_countries():
+    """Return unique country values — ChromaDB first, SQLite fallback."""
+    try:
+        from sitrep.chroma_adapter import ChromaAdapter
+        db = ChromaAdapter()
+        if db.count() > 0:
+            return jsonify(db.list_countries())
+    except Exception:
+        pass
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT DISTINCT primary_country FROM reports WHERE primary_country IS NOT NULL AND primary_country != '' ORDER BY primary_country").fetchall()
+        conn.close()
+        return jsonify([row["primary_country"] for row in rows])
+    except Exception as exc:
+        logger.error("api_sitrep_countries error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load countries"}), 500
+
+
 @app.route("/api/sitrep/date-range/<country>")
 @require_auth
 def api_sitrep_date_range(country):

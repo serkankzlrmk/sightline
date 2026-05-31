@@ -153,7 +153,7 @@ function switchTab(name) {
   if (resetBtn) resetBtn.style.display = (name === 'agent') ? '' : 'none';
 
   if (name === 'db') reloadReports();
-  if (name === 'sitrep') { loadSitrepReportsList(); loadThemePills(); }
+  if (name === 'sitrep') { loadSitrepReportsList(); loadThemePills(); loadCountryDropdown(); }
   if (name === 'admin') loadAdminUsers();
 }
 
@@ -1291,6 +1291,27 @@ async function loadThemePills() {
   }
 }
 
+// ── Country dropdown loader ─────────────────────────────────────────────────
+async function loadCountryDropdown() {
+  const sel = document.getElementById('inp-country');
+  if (!sel) return;
+  try {
+    const resp = await api('/api/sitrep/countries');
+    const countries = await resp.json();
+    if (!countries.length || countries.error) return;
+    // Keep the placeholder option, add countries
+    sel.innerHTML = '<option value="">Select country…</option>';
+    countries.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  } catch {
+    // Silently fail — dropdown stays empty
+  }
+}
+
 // ── Country date-range hint ─────────────────────────────────────────────────
 async function fetchCountryDateRange(country) {
   const hint = document.getElementById('date-range-hint');
@@ -1689,14 +1710,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRun = document.getElementById('btn-run');
   if (btnRun) btnRun.addEventListener('click', runPipeline);
 
-  ['inp-country', 'inp-event', 'inp-themes'].forEach(id => {
+  ['inp-event', 'inp-themes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') runPipeline(); });
   });
 
   const countryEl = document.getElementById('inp-country');
   if (countryEl) {
-    countryEl.addEventListener('change', () => fetchCountryDateRange(countryEl.value.trim()));
+    countryEl.addEventListener('change', () => fetchCountryDateRange(countryEl.value));
   }
 
   ['inp-date-from', 'inp-date-to'].forEach(id => {
