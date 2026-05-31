@@ -1046,25 +1046,7 @@ def api_sitrep_themes():
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        if db.count() > 0:
-            return jsonify(db.list_themes())
-    except Exception:
-        pass
-    try:
-        import json as _json
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
-        conn.close()
-        themes_set = set()
-        for row in rows:
-            try:
-                for t in _json.loads(row["themes"]):
-                    if t and isinstance(t, str):
-                        themes_set.add(t.strip())
-            except (ValueError, TypeError):
-                pass
-        return jsonify(sorted(themes_set))
+        return jsonify(db.list_themes())
     except Exception as exc:
         logger.error("api_sitrep_themes error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load themes"}), 500
@@ -1077,24 +1059,7 @@ def api_sitrep_countries():
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        if db.count() > 0:
-            return jsonify(db.list_countries())
-    except Exception:
-        pass
-    try:
-        import json as _json
-        conn = sqlite3.connect(str(DB_PATH))
-        rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
-        conn.close()
-        countries_set = set()
-        for row in rows:
-            try:
-                for c in _json.loads(row[0]):
-                    if c and isinstance(c, str):
-                        countries_set.add(c.strip())
-            except (ValueError, TypeError):
-                pass
-        return jsonify(sorted(countries_set))
+        return jsonify(db.list_countries())
     except Exception as exc:
         logger.error("api_sitrep_countries error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load countries"}), 500
@@ -1106,30 +1071,7 @@ def api_sitrep_date_range(country):
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        result = db.get_date_range(country)
-        # If ChromaDB has no data, fall back to SQLite
-        if result.get("count", 0) == 0:
-            import json as _json
-            conn = sqlite3.connect(str(DB_PATH))
-            try:
-                rows = conn.execute(
-                    "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
-                ).fetchall()
-                conn.close()
-                dates = []
-                for r in rows:
-                    try:
-                        cs = _json.loads(r[1])
-                        if country in cs:
-                            if r[0]:
-                                dates.append(r[0][:10])
-                    except (ValueError, TypeError):
-                        pass
-                if dates:
-                    result = {"min": min(dates), "max": max(dates), "count": len(dates)}
-            except Exception:
-                pass
-        return jsonify(result)
+        return jsonify(db.get_date_range(country))
     except Exception as exc:
         logger.error("api_sitrep_date_range error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load date range"}), 500

@@ -54,36 +54,108 @@ class ChromaAdapter:
         return self.collection.count()
 
     def list_countries(self) -> List[str]:
-        """Returns unique primary_country values in the DB."""
-        results = self.collection.get(include=["metadatas"])
-        countries = {m.get("primary_country", "") for m in results["metadatas"]}
-        countries.discard("")
-        return sorted(countries)
+        """Returns unique primary_country values — ChromaDB first, SQLite fallback."""
+        try:
+            if self.collection.count() > 0:
+                results = self.collection.get(include=["metadatas"])
+                countries = {m.get("primary_country", "") for m in results["metadatas"]}
+                countries.discard("")
+                if countries:
+                    return sorted(countries)
+        except Exception:
+            pass
+        # SQLite fallback
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
+            conn.close()
+            countries_set = set()
+            for row in rows:
+                try:
+                    for c in _json.loads(row[0]):
+                        if c and isinstance(c, str):
+                            countries_set.add(c.strip())
+                except (ValueError, TypeError):
+                    pass
+            return sorted(countries_set)
+        except Exception:
+            return []
 
     def list_themes(self) -> List[str]:
-        """Returns unique theme values in the DB."""
-        results = self.collection.get(include=["metadatas"])
-        themes: set = set()
-        for m in results["metadatas"]:
-            raw = m.get("themes", "")
-            if raw:
-                for t in raw.split(","):
-                    t = t.strip()
-                    if t:
-                        themes.add(t)
-        return sorted(themes)
+        """Returns unique theme values — ChromaDB first, SQLite fallback."""
+        try:
+            if self.collection.count() > 0:
+                results = self.collection.get(include=["metadatas"])
+                themes: set = set()
+                for m in results["metadatas"]:
+                    raw = m.get("themes", "")
+                    if raw:
+                        for t in raw.split(","):
+                            t = t.strip()
+                            if t:
+                                themes.add(t)
+                if themes:
+                    return sorted(themes)
+        except Exception:
+            pass
+        # SQLite fallback
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
+            conn.close()
+            themes_set = set()
+            for row in rows:
+                try:
+                    for t in _json.loads(row[0]):
+                        if t and isinstance(t, str):
+                            themes_set.add(t.strip())
+                except (ValueError, TypeError):
+                    pass
+            return sorted(themes_set)
+        except Exception:
+            return []
 
     def get_date_range(self, country: str) -> Dict:
         """Returns the available date range for a given country."""
-        chunks = self.get_chunks_by_country(country, limit=5000)
-        if not chunks:
-            return {"min": None, "max": None, "count": 0}
-        dates = sorted(set(c.get("date", "")[:10] for c in chunks if c.get("date")))
-        return {
-            "min": dates[0] if dates else None,
-            "max": dates[-1] if dates else None,
-            "count": len(chunks),
-        }
+        normalized = self._normalize_country(country)
+        chunks = self.get_chunks_by_country(normalized, limit=5000)
+        if chunks:
+            dates = sorted(set(c.get("date", "")[:10] for c in chunks if c.get("date")))
+            return {
+                "min": dates[0] if dates else None,
+                "max": dates[-1] if dates else None,
+                "count": len(chunks),
+            }
+        # SQLite fallback
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute(
+                "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
+            ).fetchall()
+            conn.close()
+            dates = []
+            for r in rows:
+                try:
+                    cs = _json.loads(r[1])
+                    if normalized in cs or country in cs:
+                        if r[0]:
+                            dates.append(r[0][:10])
+                except (ValueError, TypeError):
+                    pass
+            if dates:
+                return {"min": min(dates), "max": max(dates), "count": len(dates)}
+        except Exception:
+            pass
+        return {"min": None, "max": None, "count": 0}
 
     # ------------------------------------------------------------------
     # Country name normalization
