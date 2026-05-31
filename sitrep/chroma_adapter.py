@@ -1,8 +1,12 @@
 """
 sitrep_pipeline/chroma_adapter.py
-Data retrieval and semantic retrieval operations on Chroma DB.
+Data retrieval and semantic retrieval operations on vector store.
 
-Replaces Stage 0 (file reading) and ColBERT retrieval from the original pipeline.
+Supports two backends:
+  - 'chromadb' (default): Uses local ChromaDB for vector storage
+  - 'pgvector': Uses Supabase PostgreSQL + pgvector for cloud-hosted storage
+
+Controlled by VECTOR_BACKEND env var (default: 'chromadb').
 """
 
 import os
@@ -11,12 +15,10 @@ from typing import List, Dict, Optional
 os.environ["ORT_LOGGING_LEVEL"] = "3"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-import chromadb
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-
 from config import (
     CHROMA_DIR,
     CHROMA_COLLECTION,
+    VECTOR_BACKEND,
     RETRIEVAL_TOP_K,
     RETRIEVAL_TOP_K_SUMMARY,
 )
@@ -25,6 +27,10 @@ from config import (
 class ChromaAdapter:
     """
     Provides access to the reliefweb_chunks collection.
+
+    Supports two backends:
+      - ChromaDB (local, default)
+      - pgvector (Supabase cloud)
 
     Chunk schema:
         id         : "{report_id}_{chunk_index}"
@@ -36,14 +42,34 @@ class ChromaAdapter:
         }
     """
 
-    def __init__(self) -> None:
-        self.client = chromadb.PersistentClient(path=CHROMA_DIR)
-        self.ef = DefaultEmbeddingFunction()
-        self.collection = self.client.get_or_create_collection(
-            name=CHROMA_COLLECTION,
-            embedding_function=self.ef,
-            metadata={"hnsw:space": "cosine"},
-        )
+    def __init__(self, backend: str = None) -> None:
+        self.backend = backend or VECTOR_BACKEND
+        self._pgvector = None  # Lazy init for pgvector
+
+        if self.backend == "chromadb":
+            import chromadb
+            from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+            self.client = chromadb.PersistentClient(path=CHROMA_DIR)
+            self.ef = DefaultEmbeddingFunction()
+            self.collection = self.client.get_or_create_collection(
+                name=CHROMA_COLLECTION,
+                embedding_function=self.ef,
+                metadata={"hnsw:space": "cosine"},
+            )
+        elif self.backend == "pgvector":
+            # Lazy init — will connect on first use
+            self._pgvector = None
+            self.ef = None  # Will be set when pgvector store is initialized
+        else:
+            raise ValueError(f"Unknown VECTOR_BACKEND: {self.backend!r}. Use 'chromadb' or 'pgvector'.")
+
+    def _get_pgvector(self):
+        """Lazy-initialize pgvector store."""
+        if self._pgvector is None:
+            from reliefweb_api.pgvector_store import PgVectorStore
+            self._pgvector = PgVectorStore()
+            self._pgvector.ensure_schema()
+        return self._pgvector
 
     # ------------------------------------------------------------------
     # Info / statistics
@@ -51,10 +77,24 @@ class ChromaAdapter:
 
     def count(self) -> int:
         """Total chunk count in the collection."""
+        if self.backend == "pgvector":
+            return self._get_pgvector().count()
         return self.collection.count()
 
     def list_countries(self) -> List[str]:
-        """Returns unique primary_country values — ChromaDB first, SQLite fallback."""
+        """Returns unique primary_country values — pgvector or ChromaDB, then SQLite fallback."""
+        # Try pgvector first
+        if self.backend == "pgvector":
+            try:
+                countries = self._get_pgvector().list_countries()
+                if countries:
+                    return countries
+            except Exception:
+                pass
+            # SQLite fallback
+            return self._sqlite_list_countries()
+
+        # ChromaDB path
         try:
             if self.collection.count() > 0:
                 results = self.collection.get(include=["metadatas"])
@@ -65,27 +105,22 @@ class ChromaAdapter:
         except Exception:
             pass
         # SQLite fallback
-        try:
-            import json as _json
-            from config import DB_PATH
-            import sqlite3
-            conn = sqlite3.connect(str(DB_PATH))
-            rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
-            conn.close()
-            countries_set = set()
-            for row in rows:
-                try:
-                    for c in _json.loads(row[0]):
-                        if c and isinstance(c, str):
-                            countries_set.add(c.strip())
-                except (ValueError, TypeError):
-                    pass
-            return sorted(countries_set)
-        except Exception:
-            return []
+        return self._sqlite_list_countries()
 
     def list_themes(self) -> List[str]:
-        """Returns unique theme values — ChromaDB first, SQLite fallback."""
+        """Returns unique theme values — pgvector or ChromaDB, then SQLite fallback."""
+        # Try pgvector first
+        if self.backend == "pgvector":
+            try:
+                themes = self._get_pgvector().list_themes()
+                if themes:
+                    return themes
+            except Exception:
+                pass
+            # SQLite fallback
+            return self._sqlite_list_themes()
+
+        # ChromaDB path
         try:
             if self.collection.count() > 0:
                 results = self.collection.get(include=["metadatas"])
@@ -102,28 +137,24 @@ class ChromaAdapter:
         except Exception:
             pass
         # SQLite fallback
-        try:
-            import json as _json
-            from config import DB_PATH
-            import sqlite3
-            conn = sqlite3.connect(str(DB_PATH))
-            rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
-            conn.close()
-            themes_set = set()
-            for row in rows:
-                try:
-                    for t in _json.loads(row[0]):
-                        if t and isinstance(t, str):
-                            themes_set.add(t.strip())
-                except (ValueError, TypeError):
-                    pass
-            return sorted(themes_set)
-        except Exception:
-            return []
+        return self._sqlite_list_themes()
 
     def get_date_range(self, country: str) -> Dict:
         """Returns the available date range for a given country."""
         normalized = self._normalize_country(country)
+
+        # Try pgvector first
+        if self.backend == "pgvector":
+            try:
+                result = self._get_pgvector().get_date_range(normalized)
+                if result.get("min"):
+                    return result
+            except Exception:
+                pass
+            # SQLite fallback
+            return self._sqlite_get_date_range(normalized, country)
+
+        # ChromaDB path
         chunks = self.get_chunks_by_country(normalized, limit=5000)
         if chunks:
             dates = sorted(set(c.get("date", "")[:10] for c in chunks if c.get("date")))
@@ -133,29 +164,7 @@ class ChromaAdapter:
                 "count": len(chunks),
             }
         # SQLite fallback
-        try:
-            import json as _json
-            from config import DB_PATH
-            import sqlite3
-            conn = sqlite3.connect(str(DB_PATH))
-            rows = conn.execute(
-                "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
-            ).fetchall()
-            conn.close()
-            dates = []
-            for r in rows:
-                try:
-                    cs = _json.loads(r[1])
-                    if normalized in cs or country in cs:
-                        if r[0]:
-                            dates.append(r[0][:10])
-                except (ValueError, TypeError):
-                    pass
-            if dates:
-                return {"min": min(dates), "max": max(dates), "count": len(dates)}
-        except Exception:
-            pass
-        return {"min": None, "max": None, "count": 0}
+        return self._sqlite_get_date_range(normalized, country)
 
     # ------------------------------------------------------------------
     # Country name normalization
@@ -250,6 +259,11 @@ class ChromaAdapter:
             [{id, text, title, url, source, date, themes, primary_country}]
         """
         normalized = self._normalize_country(country)
+
+        if self.backend == "pgvector":
+            return self._get_pgvector().get_chunks_by_country(normalized, limit=limit)
+
+        # ChromaDB path
         results = self.collection.get(
             where={"primary_country": {"$eq": normalized}},
             limit=limit,
@@ -273,6 +287,13 @@ class ChromaAdapter:
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
         """
+        if self.backend == "pgvector":
+            normalized = self._normalize_country(country)
+            return self._get_pgvector().get_chunks_by_country_and_themes(
+                normalized, themes=themes, date_from=date_from, date_to=date_to, limit=limit
+            )
+
+        # ChromaDB path
         if not themes and not date_from and not date_to:
             return self.get_chunks_by_country(country, limit)
 
@@ -322,6 +343,10 @@ class ChromaAdapter:
         Returns:
             [{rank, similarity, id, text, title, url, source, date, themes, primary_country}]
         """
+        if self.backend == "pgvector":
+            return self._get_pgvector().retrieve(query, country=country, k=k, candidate_pool=candidate_pool)
+
+        # ChromaDB path
         total = self.collection.count()
         if total == 0:
             return []
@@ -353,6 +378,10 @@ class ChromaAdapter:
         Bulk retrieval for multiple queries (used before RRF).
         Returns a separate result list for each query.
         """
+        if self.backend == "pgvector":
+            return self._get_pgvector().retrieve_bulk(queries, country=country, k=k, candidate_pool=candidate_pool)
+
+        # ChromaDB path
         return [
             self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool)
             for q in queries
@@ -371,7 +400,13 @@ class ChromaAdapter:
         """
         import numpy as np
 
-        query_emb = self.ef([query])[0]
+        # Get the right embedding function based on backend
+        if self.backend == "pgvector":
+            ef = self._get_pgvector().ef
+        else:
+            ef = self.ef
+
+        query_emb = ef([query])[0]
         query_vec = np.array(query_emb, dtype=float)
 
         scored = []
@@ -456,3 +491,75 @@ class ChromaAdapter:
                 "all_countries": meta.get("all_countries", ""),
             })
         return output
+
+    # ------------------------------------------------------------------
+    # SQLite fallback methods (used when vector store is unavailable)
+    # ------------------------------------------------------------------
+
+    def _sqlite_list_countries(self) -> List[str]:
+        """SQLite fallback for list_countries."""
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
+            conn.close()
+            countries_set = set()
+            for row in rows:
+                try:
+                    for c in _json.loads(row[0]):
+                        if c and isinstance(c, str):
+                            countries_set.add(c.strip())
+                except (ValueError, TypeError):
+                    pass
+            return sorted(countries_set)
+        except Exception:
+            return []
+
+    def _sqlite_list_themes(self) -> List[str]:
+        """SQLite fallback for list_themes."""
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
+            conn.close()
+            themes_set = set()
+            for row in rows:
+                try:
+                    for t in _json.loads(row[0]):
+                        if t and isinstance(t, str):
+                            themes_set.add(t.strip())
+                except (ValueError, TypeError):
+                    pass
+            return sorted(themes_set)
+        except Exception:
+            return []
+
+    def _sqlite_get_date_range(self, normalized: str, country: str) -> Dict:
+        """SQLite fallback for get_date_range."""
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute(
+                "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
+            ).fetchall()
+            conn.close()
+            dates = []
+            for r in rows:
+                try:
+                    cs = _json.loads(r[1])
+                    if normalized in cs or country in cs:
+                        if r[0]:
+                            dates.append(r[0][:10])
+                except (ValueError, TypeError):
+                    pass
+            if dates:
+                return {"min": min(dates), "max": max(dates), "count": len(dates)}
+        except Exception:
+            pass
+        return {"min": None, "max": None, "count": 0}

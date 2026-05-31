@@ -1,6 +1,12 @@
 """
-ReliefWeb ChromaDB Vector Store
+ReliefWeb Vector Store
 Persistent semantic search over ingested report chunks.
+
+Supports two backends:
+  - 'chromadb' (default): Uses local ChromaDB for vector storage
+  - 'pgvector': Uses Supabase PostgreSQL + pgvector for cloud-hosted storage
+
+Controlled by VECTOR_BACKEND env var (default: 'chromadb').
 
 Usage:
     from reliefweb_api.vector_store import VectorStore
@@ -9,22 +15,15 @@ Usage:
     results = vs.search("Sudan flooding health", n_results=5, country="Sudan")
 """
 
+import os
 from pathlib import Path
 from typing import List, Dict, Optional
 
-try:
-    import chromadb
-    from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-except ImportError:
-    raise ImportError(
-        "chromadb is required. Install it with: pip install chromadb"
-    )
+from config import VECTOR_BACKEND
 
 # Force ONNX Runtime to skip TensorRT provider — avoids ~3 sec retry on every query
-# when nvinfer_10.dll (TensorRT) is not installed.
-import os as _os
-_os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
-_os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
+os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
+os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 
 # ============================================================================
 # CONFIG
@@ -40,25 +39,33 @@ COLLECTION_NAME = "reliefweb_chunks"
 
 class VectorStore:
     """
-    ChromaDB-backed semantic search over ReliefWeb report chunks.
+    Semantic search over ReliefWeb report chunks.
 
-    Each chunk is stored with metadata:
-      report_id, chunk_index, source_type, title, date, source,
-      primary_country, all_countries, themes, url
-
-    Deduplication: chunk IDs are "{report_id}_{chunk_index}",
-    so checking for "{report_id}_0" is a fast existence test.
+    Delegates to either ChromaDB or pgvector based on VECTOR_BACKEND config.
     """
 
-    def __init__(self, persist_dir: str = CHROMA_DIR):
-        self.persist_dir = persist_dir
-        self.client = chromadb.PersistentClient(path=persist_dir)
-        self.ef = DefaultEmbeddingFunction()
-        self.collection = self.client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            embedding_function=self.ef,
-            metadata={"hnsw:space": "cosine"},
-        )
+    def __init__(self, persist_dir: str = CHROMA_DIR, backend: str = None):
+        self.backend = backend or VECTOR_BACKEND
+
+        if self.backend == "pgvector":
+            from reliefweb_api.pgvector_store import PgVectorStore
+            self._pgvector = PgVectorStore()
+            self._pgvector.ensure_schema()
+            self._chroma = None
+        elif self.backend == "chromadb":
+            import chromadb
+            from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+            self.client = chromadb.PersistentClient(path=persist_dir)
+            self.ef = DefaultEmbeddingFunction()
+            self.collection = self.client.get_or_create_collection(
+                name=COLLECTION_NAME,
+                embedding_function=self.ef,
+                metadata={"hnsw:space": "cosine"},
+            )
+            self._pgvector = None
+            self._chroma = self
+        else:
+            raise ValueError(f"Unknown VECTOR_BACKEND: {self.backend!r}. Use 'chromadb' or 'pgvector'.")
 
     # -------------------------------------------------------------------------
     # DEDUPLICATION
@@ -66,6 +73,9 @@ class VectorStore:
 
     def report_exists(self, report_id: int) -> bool:
         """Fast check: does chunk 0 of this report exist in the vector DB?"""
+        if self.backend == "pgvector":
+            return self._pgvector.report_exists(report_id)
+        # ChromaDB path
         result = self.collection.get(ids=[f"{report_id}_0"], include=[])
         return len(result["ids"]) > 0
 
@@ -90,6 +100,10 @@ class VectorStore:
         Returns:
             Number of chunks added.
         """
+        if self.backend == "pgvector":
+            return self._pgvector.add_report(report_id, chunks, report_meta)
+
+        # ChromaDB path
         if not chunks:
             return 0
 
@@ -161,6 +175,10 @@ class VectorStore:
             List of dicts with rank, similarity, report_id, title, date,
             source, countries, source_type, url, chunk_preview (first 400 chars)
         """
+        if self.backend == "pgvector":
+            return self._pgvector.search(query, n_results=n_results, country=country, source=source)
+
+        # ChromaDB path
         total = self.collection.count()
         if total == 0:
             return []
@@ -211,6 +229,8 @@ class VectorStore:
     # -------------------------------------------------------------------------
 
     def get_stats(self) -> Dict:
+        if self.backend == "pgvector":
+            return self._pgvector.get_stats()
         return {
             "total_chunks": self.collection.count(),
             "collection": COLLECTION_NAME,
@@ -222,6 +242,10 @@ class VectorStore:
         
         Returns the number of chunk IDs removed.
         """
+        if self.backend == "pgvector":
+            return self._pgvector.purge_by_report_ids(report_ids)
+
+        # ChromaDB path
         if not report_ids:
             return 0
         # Build chunk IDs: "{report_id}_0", "{report_id}_1", ...
@@ -265,5 +289,5 @@ class VectorStore:
 # FACTORY
 # ============================================================================
 
-def get_vector_store(persist_dir: str = CHROMA_DIR) -> VectorStore:
-    return VectorStore(persist_dir)
+def get_vector_store(persist_dir: str = CHROMA_DIR, backend: str = None) -> VectorStore:
+    return VectorStore(persist_dir, backend=backend)

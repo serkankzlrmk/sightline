@@ -25,6 +25,7 @@ from .db_manager import (
     DEFAULT_DB_PATH,
 )
 from .vector_store import VectorStore, CHROMA_DIR
+from config import VECTOR_BACKEND
 from .reliefweb_config import (
     RELIEFWEB_REPORTS_API,
     RELIEFWEB_APPNAME,
@@ -156,14 +157,14 @@ def auto_ingest(
     except Exception as e:
         return {"success": False, "error": f"SQLite insert failed: {e}"}
 
-    # --- Insert ChromaDB ---
+    # --- Insert into Vector Store (ChromaDB or pgvector) ---
     n_chunks = 0
     try:
-        vs = VectorStore(chroma_dir)
+        vs = VectorStore(chroma_dir, backend=VECTOR_BACKEND)
         n_chunks = vs.add_report(report_id, chunks, metadata)
     except Exception as e:
-        # ChromaDB failed — rollback SQLite insert to avoid orphaned records
-        logger.error(f"ChromaDB insert failed for {report_id}: {e}. Rolling back SQLite.")
+        # Vector store failed — rollback SQLite insert to avoid orphaned records
+        logger.error(f"Vector store insert failed for {report_id}: {e}. Rolling back SQLite.")
         try:
             db = DatabaseManager(db_path)
             db.delete_report(report_id)
@@ -171,7 +172,7 @@ def auto_ingest(
             logger.info(f"Rolled back SQLite insert for report {report_id}")
         except Exception as rollback_err:
             logger.error(f"SQLite rollback also failed for {report_id}: {rollback_err}")
-        return {"success": False, "error": f"ChromaDB insert failed: {e}"}
+        return {"success": False, "error": f"Vector store insert failed: {e}"}
 
     return {
         "success": True,
@@ -334,13 +335,13 @@ def ingest_from_api(
     except Exception as e:
         return {"success": False, "error": f"SQLite insert failed: {e}"}
 
-    # ── 7. Insert into ChromaDB ──────────────────────────────────
+    # ── 7. Insert into Vector Store (ChromaDB or pgvector) ──────
     n_chunks = 0
     try:
-        vs = VectorStore(chroma_dir)
+        vs = VectorStore(chroma_dir, backend=VECTOR_BACKEND)
         n_chunks = vs.add_report(report_id, chunks, metadata)
     except Exception as e:
-        return {"success": False, "error": f"ChromaDB insert failed: {e}"}
+        return {"success": False, "error": f"Vector store insert failed: {e}"}
 
     logger.info(
         f"In-memory ingest complete: report {report_id} → "

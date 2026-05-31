@@ -27,6 +27,12 @@ chromadb>=0.5.0
 # Embeddings (chromadb default)
 sentence-transformers>=2.3.0
 
+# Supabase (cloud database — optional, used when VECTOR_BACKEND=pgvector)
+supabase>=2.0.0
+
+# PostgreSQL adapter (for pgvector — optional, used when VECTOR_BACKEND=pgvector)
+psycopg2-binary>=2.9.0
+
 # Environment
 python-dotenv>=1.0.0
 

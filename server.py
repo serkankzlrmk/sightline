@@ -596,10 +596,10 @@ def index():
 
 @app.route("/api/health")
 def health():
-    """Enhanced health check — verifies DB, ChromaDB, and LLM config."""
-    from config import CHROMA_DIR, _LLM_API_KEY, ACTIVE_MODEL, LLM_PROVIDER
+    """Enhanced health check — verifies DB, vector store, and LLM config."""
+    from config import CHROMA_DIR, _LLM_API_KEY, ACTIVE_MODEL, LLM_PROVIDER, VECTOR_BACKEND
 
-    checks = {"status": "ok", "version": "1.1"}
+    checks = {"status": "ok", "version": "1.2"}
 
     # SQLite DB check
     db_ok = False
@@ -612,9 +612,20 @@ def health():
         pass
     checks["db"] = db_ok
 
-    # ChromaDB directory check
-    chroma_ok = Path(str(CHROMA_DIR)).exists()
-    checks["chroma"] = chroma_ok
+    # Vector store check
+    checks["vector_backend"] = VECTOR_BACKEND
+    if VECTOR_BACKEND == "pgvector":
+        # Check Supabase connectivity
+        try:
+            from config import SUPABASE_URL, SUPABASE_DB_URL
+            pg_ok = bool(SUPABASE_URL and SUPABASE_DB_URL)
+            checks["vector"] = pg_ok
+        except Exception:
+            checks["vector"] = False
+    else:
+        # ChromaDB directory check
+        chroma_ok = Path(str(CHROMA_DIR)).exists()
+        checks["vector"] = chroma_ok
 
     # LLM config check
     llm_ok = bool(_LLM_API_KEY)
@@ -634,7 +645,7 @@ def health():
             pass
 
     # Overall status: ok only if all critical checks pass
-    all_ok = db_ok and chroma_ok and llm_ok
+    all_ok = db_ok and checks.get("vector", False) and llm_ok
     checks["status"] = "ok" if all_ok else "degraded"
 
     # Dev mode flag — frontend uses this to auto-bypass auth overlay
