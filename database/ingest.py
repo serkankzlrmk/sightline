@@ -27,6 +27,9 @@ import json
 import argparse
 from pathlib import Path
 
+# Force unbuffered output for real-time logging in nohup/CI
+os.environ["PYTHONUNBUFFERED"] = "1"
+
 # Suppress TensorRT "nvinfer_10.dll not found" warnings from ONNX Runtime.
 os.environ["ORT_LOGGING_LEVEL"] = "3"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -38,15 +41,20 @@ from reliefweb_api.db_manager import DatabaseManager, DEFAULT_DB_PATH, CHUNK_SIZ
 from reliefweb_api.ingest_pipeline import is_ingested, auto_ingest, CHROMA_DIR
 from reliefweb_api.vector_store import VectorStore
 
+# Force line-buffered stdout for real-time logging
+sys.stdout.reconfigure(line_buffering=True)
+
 
 # ============================================================================
 # SYNC: push SQLite chunks → ChromaDB (migration / re-index)
 # ============================================================================
 
-def sync_sqlite_to_chroma(db: DatabaseManager, vs: VectorStore) -> dict:
+def sync_sqlite_to_chroma(db: DatabaseManager, vs: VectorStore, force: bool = False) -> dict:
     """
     Read all reports from SQLite and push any that are missing from ChromaDB.
     Useful for migration and re-indexing without re-downloading.
+
+    If force=True, re-embeds all reports even if they already exist in ChromaDB.
     """
     conn = db._connect()
     reports = conn.execute(
@@ -58,7 +66,7 @@ def sync_sqlite_to_chroma(db: DatabaseManager, vs: VectorStore) -> dict:
 
     for row in reports:
         rid = row["report_id"]
-        if vs.report_exists(rid):
+        if not force and vs.report_exists(rid):
             skipped += 1
             continue
 
@@ -159,6 +167,8 @@ def main():
     parser.add_argument("--stats", action="store_true", help="Show DB + vector stats and exit")
     parser.add_argument("--sync-chroma", action="store_true",
                         help="Push all SQLite chunks to ChromaDB (migration / re-index)")
+    parser.add_argument("--force-sync", action="store_true",
+                        help="With --sync-chroma, re-embed all reports even if they already exist")
     parser.add_argument("--from-api", nargs="+", type=int,
                         help="Ingest report IDs directly from ReliefWeb API (in-memory, no disk writes)")
     args = parser.parse_args()
@@ -199,10 +209,12 @@ def main():
     if args.sync_chroma:
         print("=" * 60)
         print("SYNC SQLite → ChromaDB")
+        if args.force_sync:
+            print("  (force mode: re-embedding all reports)")
         print("=" * 60)
         db = DatabaseManager(args.db)
         vs = VectorStore(args.chroma)
-        result = sync_sqlite_to_chroma(db, vs)
+        result = sync_sqlite_to_chroma(db, vs, force=args.force_sync)
         db.close()
         v_stats = vs.get_stats()
         print()

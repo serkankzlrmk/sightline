@@ -238,11 +238,21 @@ fi
 
 # ── Cleanup old releases ────────────────────────────────────────
 echo "[8/8] Cleaning old releases (keeping last $KEEP_RELEASES)..."
+# Resolve current release directory to avoid deleting it
+CURRENT_RELEASE=$(readlink -f "$CURRENT_LINK" 2>/dev/null || echo "")
 RELEASE_COUNT=$(ls -1d "$RELEASES_DIR"/*/ 2>/dev/null | wc -l | tr -d ' ')
 if [ "$RELEASE_COUNT" -gt "$KEEP_RELEASES" ]; then
-    ls -1d "$RELEASES_DIR"/*/ | sort | head -n -"$KEEP_RELEASES" | xargs rm -rf
-    REMOVED=$((RELEASE_COUNT - KEEP_RELEASES))
-    echo "  ✓ Removed $REMOVE old release(s)"
+    REMOVED=0
+    for dir in $(ls -1d "$RELEASES_DIR"/*/ | sort | head -n -"$KEEP_RELEASES"); do
+        dir_resolved=$(readlink -f "$dir" 2>/dev/null || echo "")
+        if [ "$dir_resolved" = "$CURRENT_RELEASE" ]; then
+            echo "  ⚠ Skipping current release: $(basename "$dir")"
+            continue
+        fi
+        rm -rf "$dir"
+        REMOVED=$((REMOVED + 1))
+    done
+    echo "  ✓ Removed $REMOVED old release(s)"
 else
     echo "  ✓ Only $RELEASE_COUNT release(s), no cleanup needed"
 fi
