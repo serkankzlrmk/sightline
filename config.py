@@ -80,7 +80,7 @@ _LLM_API_KEY:  str  = OPENROUTER_API_KEY if LLM_PROVIDER == "openrouter" else OL
 # ============================================================================
 # ACTIVE MODEL
 # ============================================================================
-ACTIVE_MODEL: str = os.getenv("ACTIVE_MODEL", "google/gemini-2.5-flash")
+ACTIVE_MODEL: str = os.getenv("ACTIVE_MODEL", "google/gemma-4-31b-it")
 
 # reliefwebapi agent uses OLLAMA_MODEL (also aliased to ACTIVE_MODEL)
 OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", ACTIVE_MODEL)
