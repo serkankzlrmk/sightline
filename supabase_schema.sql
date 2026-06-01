@@ -177,6 +177,21 @@ BEGIN
 END;
 $$;
 
+-- Function to list countries with chunk counts
+CREATE OR REPLACE FUNCTION list_countries_with_counts()
+RETURNS TABLE (name text, count bigint)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT primary_country AS name, COUNT(*) AS count
+    FROM chunks
+    WHERE primary_country IS NOT NULL AND primary_country != ''
+    GROUP BY primary_country
+    ORDER BY count DESC;
+END;
+$$;
+
 -- Function to list distinct themes
 CREATE OR REPLACE FUNCTION list_themes()
 RETURNS TABLE (theme text)

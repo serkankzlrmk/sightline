@@ -19,10 +19,15 @@ from typing import List, Dict, Optional
 try:
     import psycopg2
     from psycopg2 import sql, extras
+    HAS_PSYCOPG2 = True
 except ImportError:
-    raise ImportError(
-        "psycopg2 is required. Install it with: pip install psycopg2-binary"
-    )
+    HAS_PSYCOPG2 = False
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 try:
     import numpy as np
@@ -31,6 +36,8 @@ except ImportError:
 
 from config import (
     SUPABASE_DB_URL,
+    SUPABASE_URL,
+    SUPABASE_SERVICE_KEY,
     EMBEDDING_DIM,
     RETRIEVAL_TOP_K,
     RETRIEVAL_TOP_K_SUMMARY,
@@ -44,6 +51,9 @@ from config import (
 # Supabase connection string (PostgreSQL)
 # Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
 DB_URL: str = os.getenv("SUPABASE_DB_URL", SUPABASE_DB_URL)
+# Supabase REST API config (fallback when direct DB connection is unavailable)
+SUPABASE_REST_URL: str = os.getenv("SUPABASE_URL", SUPABASE_URL)
+SUPABASE_REST_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_SERVICE_KEY)
 # EMBEDDING_DIM imported from config.py — do not redeclare here
 
 
@@ -84,21 +94,74 @@ class PgVectorStore:
         self.db_url = db_url
         self.conn = None
         self.ef = get_embedding_function()
+        self._use_rest = False  # Fallback to REST API if DB connection fails
         self._ensure_connection()
 
     def _ensure_connection(self):
-        """Ensure we have a live database connection."""
+        """Ensure we have a live database connection. Falls back to REST API if unavailable."""
+        if not HAS_PSYCOPG2:
+            self._use_rest = True
+            return
         try:
             if self.conn is None or self.conn.closed:
                 self.conn = psycopg2.connect(self.db_url)
                 self.conn.autocommit = True
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect to PostgreSQL: {e}")
+        except Exception:
+            # Direct DB connection failed — use REST API fallback
+            self._use_rest = True
+            self.conn = None
 
     def _get_cursor(self):
         """Get a fresh cursor, reconnecting if needed."""
+        if self._use_rest:
+            raise RuntimeError("Using REST API fallback — direct DB cursor not available")
         self._ensure_connection()
         return self.conn.cursor()
+
+    def _rest_headers(self, service: bool = True) -> dict:
+        """Get headers for Supabase REST API."""
+        key = SUPABASE_REST_KEY if service else os.getenv("SUPABASE_ANON_KEY", "")
+        return {
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        }
+
+    def _rest_get(self, path: str, params: dict = None) -> dict:
+        """GET request to Supabase REST API."""
+        resp = requests.get(
+            f"{SUPABASE_REST_URL}/rest/v1/{path}",
+            headers=self._rest_headers(),
+            params=params or {},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def _rest_post(self, path: str, data, params: dict = None) -> dict:
+        """POST request to Supabase REST API."""
+        headers = self._rest_headers()
+        headers["Prefer"] = "return=minimal"
+        resp = requests.post(
+            f"{SUPABASE_REST_URL}/rest/v1/{path}",
+            json=data,
+            headers=headers,
+            params=params or {},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json() if resp.text else {}
+
+    def _rest_rpc(self, func: str, params: dict = None) -> dict:
+        """RPC call to Supabase SQL function."""
+        resp = requests.post(
+            f"{SUPABASE_REST_URL}/rest/v1/rpc/{func}",
+            json=params or {},
+            headers=self._rest_headers(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     # -------------------------------------------------------------------------
     # SCHEMA SETUP
@@ -419,6 +482,25 @@ class PgVectorStore:
 
     def get_stats(self) -> Dict:
         """Return database statistics."""
+        if self._use_rest:
+            headers = self._rest_headers()
+            headers["Prefer"] = "count=exact"
+            r_resp = requests.get(
+                f"{SUPABASE_REST_URL}/rest/v1/reports?select=report_id&limit=0",
+                headers=headers, timeout=10,
+            )
+            c_resp = requests.get(
+                f"{SUPABASE_REST_URL}/rest/v1/chunks?select=id&limit=0",
+                headers=headers, timeout=10,
+            )
+            report_count = int(r_resp.headers.get("content-range", "*/0").split("/")[-1]) if r_resp.status_code == 200 else 0
+            chunk_count = int(c_resp.headers.get("content-range", "*/0").split("/")[-1]) if c_resp.status_code == 200 else 0
+            return {
+                "total_chunks": chunk_count,
+                "total_reports": report_count,
+                "backend": "pgvector",
+                "embedding_dim": EMBEDDING_DIM,
+            }
         cur = self._get_cursor()
         try:
             cur.execute("SELECT COUNT(*) FROM chunks;")
@@ -436,6 +518,14 @@ class PgVectorStore:
 
     def count(self) -> int:
         """Total chunk count."""
+        if self._use_rest:
+            headers = self._rest_headers()
+            headers["Prefer"] = "count=exact"
+            resp = requests.get(
+                f"{SUPABASE_REST_URL}/rest/v1/chunks?select=id&limit=0",
+                headers=headers, timeout=10,
+            )
+            return int(resp.headers.get("content-range", "*/0").split("/")[-1]) if resp.status_code == 200 else 0
         cur = self._get_cursor()
         try:
             cur.execute("SELECT COUNT(*) FROM chunks;")
@@ -484,6 +574,9 @@ class PgVectorStore:
 
     def list_countries(self) -> List[str]:
         """Get unique primary_country values from chunks."""
+        if self._use_rest:
+            result = self._rest_rpc("list_countries")
+            return [r["country"] for r in result]
         cur = self._get_cursor()
         try:
             cur.execute("""
@@ -497,6 +590,9 @@ class PgVectorStore:
 
     def list_countries_with_counts(self) -> List[Dict]:
         """Get countries with chunk counts, ordered by count descending."""
+        if self._use_rest:
+            result = self._rest_rpc("list_countries_with_counts")
+            return result  # Already in [{name, count}] format
         cur = self._get_cursor()
         try:
             cur.execute("""
@@ -512,6 +608,9 @@ class PgVectorStore:
 
     def list_themes(self) -> List[str]:
         """Get unique themes from chunks (comma-separated field)."""
+        if self._use_rest:
+            result = self._rest_rpc("list_themes")
+            return [r["theme"] for r in result]
         cur = self._get_cursor()
         try:
             cur.execute("""
@@ -531,6 +630,11 @@ class PgVectorStore:
 
     def get_date_range(self, country: str) -> Dict:
         """Get min/max date for chunks matching a country."""
+        if self._use_rest:
+            result = self._rest_rpc("get_date_range", {"country_name": country})
+            if result and isinstance(result, list) and len(result) > 0:
+                return {"min": result[0].get("min_date"), "max": result[0].get("max_date"), "count": result[0].get("count", 0)}
+            return {"min": None, "max": None, "count": 0}
         cur = self._get_cursor()
         try:
             cur.execute("""
