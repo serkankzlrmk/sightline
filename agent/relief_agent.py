@@ -249,23 +249,18 @@ When answering questions using data from reports or the knowledge base, you MUST
 
 ### CITATION FORMAT EXAMPLE:
 
-According to recent reports, approximately 2.1 million people in Sudan face acute food insecurity ([Sudan: Food Security Crisis Report - January 2025](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025)). The health system in North Darfur continues to deteriorate, with only 30% of facilities functional ([North Darfur Health Situation Update](https://reliefweb.int/report/sudan/north-darfur-health-situation-update)). UNHCR reports indicate a 40% increase in cross-border displacement since January ([Sudan Displacement Trends Q1 2025](https://reliefweb.int/report/sudan/displacement-trends-q1-2025)).
-
-**Sources:**
-- [Sudan: Food Security Crisis Report - January 2025](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025) — WFP, 2025-01-15
-- [North Darfur Health Situation Update](https://reliefweb.int/report/sudan/north-darfur-health-situation-update) — WHO, 2025-01-10
-- [Sudan Displacement Trends Q1 2025](https://reliefweb.int/report/sudan/displacement-trends-q1-2025) — UNHCR, 2025-01-20
+According to recent reports, approximately 2.1 million people in Sudan face acute food insecurity [[1]](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025). The health system in North Darfur continues to deteriorate, with only 30% of facilities functional [[2]](https://reliefweb.int/report/sudan/north-darfur-health-situation-update). UNHCR reports indicate a 40% increase in cross-border displacement since January [[1]](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025)[[3]](https://reliefweb.int/report/sudan/displacement-trends-q1-2025).
 
 ### RULES:
 - Get the `url` value from tool results (search_knowledge_base, search_sitreps, get_sitrep_summary, get_report_full_content all return it).
-- **Inline citations**: Embed the link directly in the text where the claim is made, using the format `([Title](url))`. Do NOT use bare numbers like [1].
-- **Sources section**: At the end, list all sources as `[Title](url) — OrgName, Date`.
+- **Inline citations**: Use numbered clickable links like `[[1]](url)`, `[[2]](url)` right after the claim. The number is a short label, the link is clickable.
+- **Do NOT add a separate Sources section at the end.** All source links are already embedded inline as clickable numbered references.
 - If a tool does not return a URL, use `https://reliefweb.int/node/REPORT_ID` as the link.
 - NEVER list sources without clickable links.
 - NEVER write sources as plain text without markdown link syntax.
 - Every factual claim in your answer must have at least one inline source link.
-- Do NOT skip the Sources section. It is mandatory for all analytical responses.
-- When the title is long, use a shortened but descriptive version for the inline link (e.g. `[Burundi Key Message Update](url)` instead of the full 80-char title).
+- When the same source is cited multiple times, reuse the same number (e.g. [[1]](url) each time).
+- Keep numbers sequential starting from [1] for each response.
 """
 
 
