@@ -9,12 +9,50 @@ All values can be overridden via .env file in this directory.
 """
 
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
 # Load .env from this directory (override=True to ensure .env values take precedence)
 _ENV_PATH = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=_ENV_PATH, override=True)
+
+# ── .env Migration: auto-update model names ──────────────────────────────────
+# This ensures production .env stays in sync with config.py defaults.
+# Only updates keys that already exist in .env; does not add missing keys.
+_MODEL_MIGRATIONS = {
+    "google/gemini-2.5-flash": "google/gemma-4-31b-it",
+}
+_MODEL_KEYS = {"ACTIVE_MODEL", "LLM_MODEL", "OLLAMA_MODEL",
+               "LLM_MODEL_QUESTIONS", "LLM_MODEL_FILTER", "LLM_MODEL_ANSWERS"}
+
+def _migrate_env_model_names():
+    """Auto-migrate .env model names. Called once at import time."""
+    if not _ENV_PATH.exists():
+        return False
+    try:
+        lines = _ENV_PATH.read_text(encoding="utf-8").splitlines()
+        changed = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key, value = key.strip(), value.strip()
+            if key in _MODEL_KEYS and value in _MODEL_MIGRATIONS:
+                lines[i] = f"{key}={_MODEL_MIGRATIONS[value]}"
+                changed = True
+        if changed:
+            _ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            # Re-load .env so the new values take effect for this process
+            load_dotenv(dotenv_path=_ENV_PATH, override=True)
+            logging.getLogger(__name__).info("_migrate_env_model_names: .env migrated, values reloaded")
+        return changed
+    except Exception as e:
+        logging.getLogger(__name__).error(f"_migrate_env_model_names: Error: {e}")
+        return False
+
+_migrate_env_model_names()
 
 # Suppress ONNX TensorRT noise early (missing nvinfer DLL on most machines)
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
