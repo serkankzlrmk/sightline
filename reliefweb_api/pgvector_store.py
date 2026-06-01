@@ -44,7 +44,7 @@ from config import (
 # Supabase connection string (PostgreSQL)
 # Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
 DB_URL: str = os.getenv("SUPABASE_DB_URL", SUPABASE_DB_URL)
-EMBEDDING_DIM: int = 384  # all-MiniLM-L6-v2 dimension
+# EMBEDDING_DIM imported from config.py — do not redeclare here
 
 
 # ============================================================================
@@ -249,9 +249,38 @@ class PgVectorStore:
         documents = [c["content"] for c in chunks]
         embeddings = self.ef(documents)
 
-        # ---- insert chunks ----
+        # ---- insert report metadata (upsert to satisfy FK) ----
         cur = self._get_cursor()
         try:
+            cur.execute(
+                """
+                INSERT INTO reports (report_id, title, date, source, url, countries, themes,
+                                      format_type, language, total_chunks)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (report_id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    date = EXCLUDED.date,
+                    source = EXCLUDED.source,
+                    url = EXCLUDED.url,
+                    countries = EXCLUDED.countries,
+                    themes = EXCLUDED.themes,
+                    total_chunks = EXCLUDED.total_chunks
+                """,
+                (
+                    report_id,
+                    report_meta.get("title", ""),
+                    date_str or None,
+                    source_name,
+                    report_meta.get("url", ""),
+                    json.dumps(countries, ensure_ascii=False) if countries else "[]",
+                    json.dumps(themes, ensure_ascii=False) if themes else "[]",
+                    report_meta.get("format", {}).get("name", ""),
+                    report_meta.get("language", {}).get("name", ""),
+                    len(chunks),
+                ),
+            )
+
+            # ---- insert chunks ----
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                 emb_str = "[" + ",".join(str(x) for x in embedding) + "]"
                 cur.execute(
@@ -335,6 +364,15 @@ class PgVectorStore:
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
 
+        # Build final params: [query_emb, ...filters..., query_emb, limit]
+        final_params = [emb_str]
+        if country:
+            final_params.append(country)
+        if source:
+            final_params.append(source)
+        final_params.append(emb_str)
+        final_params.append(n_results)
+
         query_sql = f"""
             SELECT
                 report_id, chunk_index, source_type, content,
@@ -346,32 +384,9 @@ class PgVectorStore:
             LIMIT %s
         """
 
-        # Reorder params: embedding for distance, then filter params, then limit
-        # Actually the query uses %s for embedding twice (similarity + ORDER BY)
-        # Let's restructure
-        query_sql2 = f"""
-            SELECT
-                report_id, chunk_index, source_type, content,
-                title, date, source, primary_country, all_countries, themes, url,
-                1 - (embedding <=> %s::vector) AS similarity
-            FROM chunks
-            {where_clause}
-            ORDER BY embedding <=> %s::vector
-            LIMIT %s
-        """
-
-        # Build final params: [query_emb, ...filters..., query_emb, limit]
-        final_params = [emb_str]
-        if country:
-            final_params.append(country)
-        if source:
-            final_params.append(source)
-        final_params.append(emb_str)
-        final_params.append(n_results)
-
         cur = self._get_cursor()
         try:
-            cur.execute(query_sql2, final_params)
+            cur.execute(query_sql, final_params)
             rows = cur.fetchall()
         finally:
             cur.close()
@@ -477,6 +492,21 @@ class PgVectorStore:
                 ORDER BY primary_country;
             """)
             return [row[0] for row in cur.fetchall()]
+        finally:
+            cur.close()
+
+    def list_countries_with_counts(self) -> List[Dict]:
+        """Get countries with chunk counts, ordered by count descending."""
+        cur = self._get_cursor()
+        try:
+            cur.execute("""
+                SELECT primary_country, COUNT(*) as cnt
+                FROM chunks
+                WHERE primary_country IS NOT NULL AND primary_country != ''
+                GROUP BY primary_country
+                ORDER BY cnt DESC;
+            """)
+            return [{"name": row[0], "count": row[1]} for row in cur.fetchall()]
         finally:
             cur.close()
 

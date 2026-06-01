@@ -1299,12 +1299,21 @@ async function loadCountryDropdown() {
     const resp = await api('/api/sitrep/countries');
     const countries = await resp.json();
     if (!countries.length || countries.error) return;
-    // Keep the placeholder option, add countries
+    // API now returns [{name, count}] — show chunk count and warn if < 20
     sel.innerHTML = '<option value="">Select country…</option>';
     countries.forEach(c => {
       const opt = document.createElement('option');
-      opt.value = c;
-      opt.textContent = c;
+      const name = typeof c === 'string' ? c : c.name;
+      const count = typeof c === 'object' ? (c.count || 0) : 0;
+      opt.value = name;
+      if (count > 0 && count < 20) {
+        opt.textContent = `${name} (${count} chunks — limited data)`;
+        opt.style.color = '#d97706';
+      } else if (count > 0) {
+        opt.textContent = `${name} (${count.toLocaleString()})`;
+      } else {
+        opt.textContent = name;
+      }
       sel.appendChild(opt);
     });
   } catch {

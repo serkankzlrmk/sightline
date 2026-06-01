@@ -45,6 +45,8 @@ class ChromaAdapter:
     def __init__(self, backend: str = None) -> None:
         self.backend = backend or VECTOR_BACKEND
         self._pgvector = None  # Lazy init for pgvector
+        self._countries_cache = None  # Cache for list_countries()
+        self._countries_with_counts_cache = None  # Cache for list_countries_with_counts()
 
         if self.backend == "chromadb":
             import chromadb
@@ -82,7 +84,15 @@ class ChromaAdapter:
         return self.collection.count()
 
     def list_countries(self) -> List[str]:
-        """Returns unique primary_country values — pgvector or ChromaDB, then SQLite fallback."""
+        """Returns unique primary_country values — cached after first call."""
+        if self._countries_cache is not None:
+            return self._countries_cache
+        result = self._list_countries_uncached()
+        self._countries_cache = result
+        return result
+
+    def _list_countries_uncached(self) -> List[str]:
+        """Internal: fetches unique primary_country values from backend."""
         # Try pgvector first
         if self.backend == "pgvector":
             try:
@@ -140,7 +150,8 @@ class ChromaAdapter:
         return self._sqlite_list_themes()
 
     def get_date_range(self, country: str) -> Dict:
-        """Returns the available date range for a given country."""
+        """Returns the available date range for a given country.
+        Uses metadata-only query (no embeddings) for performance."""
         normalized = self._normalize_country(country)
 
         # Try pgvector first
@@ -154,15 +165,26 @@ class ChromaAdapter:
             # SQLite fallback
             return self._sqlite_get_date_range(normalized, country)
 
-        # ChromaDB path
-        chunks = self.get_chunks_by_country(normalized, limit=5000)
-        if chunks:
-            dates = sorted(set(c.get("date", "")[:10] for c in chunks if c.get("date")))
-            return {
-                "min": dates[0] if dates else None,
-                "max": dates[-1] if dates else None,
-                "count": len(chunks),
-            }
+        # ChromaDB path — metadata-only query (no embeddings)
+        try:
+            results = self.collection.get(
+                where={"primary_country": {"$eq": normalized}},
+                include=["metadatas"],
+            )
+            if results and results["metadatas"]:
+                dates = sorted(set(
+                    m.get("date", "")[:10]
+                    for m in results["metadatas"]
+                    if m.get("date")
+                ))
+                if dates:
+                    return {
+                        "min": dates[0],
+                        "max": dates[-1],
+                        "count": len(results["metadatas"]),
+                    }
+        except Exception:
+            pass
         # SQLite fallback
         return self._sqlite_get_date_range(normalized, country)
 
@@ -224,7 +246,9 @@ class ChromaAdapter:
         """Normalize a country name for ChromaDB query.
 
         Tries alias map first, then falls back to checking available
-        countries for a case-insensitive match.
+        countries for a case-insensitive exact match.
+        Partial/substring matching is intentionally avoided to prevent
+        false positives (e.g. 'Sudan' matching 'South Sudan').
         """
         lower = country.strip().lower()
         # Check alias map
@@ -235,12 +259,44 @@ class ChromaAdapter:
         for c in available:
             if c.lower() == lower:
                 return c
-        # Check partial match
-        for c in available:
-            if lower in c.lower() or c.lower() in lower:
-                return c
-        # No match found — return original
+        # No match found — return original (will likely return 0 results)
         return country
+
+    def list_countries_with_counts(self) -> List[Dict]:
+        """Returns countries with chunk counts, sorted by count descending.
+        Useful for UI dropdowns to show data availability."""
+        if self._countries_with_counts_cache is not None:
+            return self._countries_with_counts_cache
+
+        if self.backend == "pgvector":
+            try:
+                result = self._get_pgvector().list_countries_with_counts()
+                self._countries_with_counts_cache = result
+                return result
+            except Exception:
+                pass
+
+        # ChromaDB path — metadata-only scan
+        try:
+            if self.collection.count() > 0:
+                results = self.collection.get(include=["metadatas"])
+                counts: Dict[str, int] = {}
+                for m in results["metadatas"]:
+                    c = m.get("primary_country", "")
+                    if c:
+                        counts[c] = counts.get(c, 0) + 1
+                result = sorted(
+                    [{"name": k, "count": v} for k, v in counts.items()],
+                    key=lambda x: x["count"],
+                    reverse=True,
+                )
+                self._countries_with_counts_cache = result
+                return result
+        except Exception:
+            pass
+
+        # SQLite fallback
+        return self._sqlite_list_countries_with_counts()
 
     # ------------------------------------------------------------------
     # Data retrieval
@@ -563,3 +619,20 @@ class ChromaAdapter:
         except Exception:
             pass
         return {"min": None, "max": None, "count": 0}
+
+    def _sqlite_list_countries_with_counts(self) -> List[Dict]:
+        """SQLite fallback for list_countries_with_counts."""
+        try:
+            import json as _json
+            from config import DB_PATH
+            import sqlite3
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute(
+                "SELECT primary_country, COUNT(*) as cnt FROM reports "
+                "WHERE primary_country IS NOT NULL AND primary_country != '' "
+                "GROUP BY primary_country ORDER BY cnt DESC"
+            ).fetchall()
+            conn.close()
+            return [{"name": row[0], "count": row[1]} for row in rows if row[0]]
+        except Exception:
+            return []

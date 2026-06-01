@@ -1146,11 +1146,11 @@ def api_sitrep_themes():
 @app.route("/api/sitrep/countries")
 @require_auth
 def api_sitrep_countries():
-    """Return unique country values — ChromaDB first, SQLite fallback."""
+    """Return country values with chunk counts for SITREP dropdown."""
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        return jsonify(db.list_countries())
+        return jsonify(db.list_countries_with_counts())
     except Exception as exc:
         logger.error("api_sitrep_countries error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load countries"}), 500
