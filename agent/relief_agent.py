@@ -241,30 +241,31 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 
 When answering questions using data from reports or the knowledge base, you MUST:
 
-1. **Use numbered inline citations** like [1], [2], [3] in the body text right after the claim.
-2. **End EVERY analytical response** with a **Sources:** section listing each numbered source.
-3. **Each source MUST be a clickable markdown link** using the `url` field returned by your tools.
-4. **The numbers in the text MUST match** the numbers in the Sources section.
+1. **Embed clickable markdown links directly inline** in the body text right after the claim, using the report title as the link text.
+2. **Do NOT use numbered citations** like [1], [2], [3]. Instead, embed the source link directly where the claim is made.
+3. **End EVERY analytical response** with a **Sources:** section listing all sources used.
+4. **Each source MUST be a clickable markdown link** using the `url` field returned by your tools.
+5. **Every factual claim must have at least one inline source link.**
 
 ### CITATION FORMAT EXAMPLE:
 
-According to recent reports, approximately 2.1 million people in Sudan face acute food insecurity [1]. 
-The health system in North Darfur continues to deteriorate, with only 30% of facilities functional [2]. 
-UNHCR reports indicate a 40% increase in cross-border displacement since January [1][3].
+According to recent reports, approximately 2.1 million people in Sudan face acute food insecurity ([Sudan: Food Security Crisis Report - January 2025](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025)). The health system in North Darfur continues to deteriorate, with only 30% of facilities functional ([North Darfur Health Situation Update](https://reliefweb.int/report/sudan/north-darfur-health-situation-update)). UNHCR reports indicate a 40% increase in cross-border displacement since January ([Sudan Displacement Trends Q1 2025](https://reliefweb.int/report/sudan/displacement-trends-q1-2025)).
 
 **Sources:**
-1. [Sudan: Food Security Crisis Report - January 2025](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025) — WFP, 2025-01-15
-2. [North Darfur Health Situation Update](https://reliefweb.int/report/sudan/north-darfur-health-situation-update) — WHO, 2025-01-10
-3. [Sudan Displacement Trends Q1 2025](https://reliefweb.int/report/sudan/displacement-trends-q1-2025) — UNHCR, 2025-01-20
+- [Sudan: Food Security Crisis Report - January 2025](https://reliefweb.int/report/sudan/food-security-crisis-report-january-2025) — WFP, 2025-01-15
+- [North Darfur Health Situation Update](https://reliefweb.int/report/sudan/north-darfur-health-situation-update) — WHO, 2025-01-10
+- [Sudan Displacement Trends Q1 2025](https://reliefweb.int/report/sudan/displacement-trends-q1-2025) — UNHCR, 2025-01-20
 
 ### RULES:
 - Get the `url` value from tool results (search_knowledge_base, search_sitreps, get_sitrep_summary, get_report_full_content all return it).
-- Format each source as: `[Title](url) — OrgName, Date`
+- **Inline citations**: Embed the link directly in the text where the claim is made, using the format `([Title](url))`. Do NOT use bare numbers like [1].
+- **Sources section**: At the end, list all sources as `[Title](url) — OrgName, Date`.
 - If a tool does not return a URL, use `https://reliefweb.int/node/REPORT_ID` as the link.
 - NEVER list sources without clickable links.
 - NEVER write sources as plain text without markdown link syntax.
-- Every factual claim in your answer must have at least one [N] citation.
+- Every factual claim in your answer must have at least one inline source link.
 - Do NOT skip the Sources section. It is mandatory for all analytical responses.
+- When the title is long, use a shortened but descriptive version for the inline link (e.g. `[Burundi Key Message Update](url)` instead of the full 80-char title).
 """
 
 
