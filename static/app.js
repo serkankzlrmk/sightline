@@ -171,7 +171,7 @@ const QUICK_PROMPTS = [
 
 const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
-    <div class="msg-label">AgenTRC</div>
+    <div class="msg-label">ReliefAgent</div>
     <div class="msg-body">
       Hello! I'm connected to the ReliefAgent Data Platform.<br><br>
       What I can do:
@@ -202,7 +202,7 @@ function addMsg(role, html) {
     wrap.innerHTML = `<div class="msg-body">${html}</div>`;
   } else {
     wrap.innerHTML = `
-      <div class="msg-label">AgenTRC</div>
+      <div class="msg-label">ReliefAgent</div>
       <div class="msg-body">${html}</div>`;
   }
   center.appendChild(wrap);
@@ -1002,7 +1002,7 @@ function renderSitrepReport(report, filename) {
         <div class="report-subtitle">${escHtml(evt)}</div>
       </div>
       <div class="report-actions">
-        <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">Discuss with AgenTRC</button>
+        <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">Discuss with ReliefAgent</button>
       </div>
     </div>`;
 

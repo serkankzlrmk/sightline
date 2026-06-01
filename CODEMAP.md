@@ -27,7 +27,7 @@
 | Tab | İşlev | Kullanıcı |
 |-----|-------|-----------|
 | **Database** | ReliefWeb raporlarını tarayıcı, filtrele, detay görüntüle | Herkes |
-| **AgenTRC** | AI destekli sohbet asistanı (ChromaDB + ReliefWeb API) | Herkes |
+| **ReliefAgent** | AI destekli sohbet asistanı (ChromaDB + ReliefWeb API) | Herkes |
 | **SITREP** | Otomatik durum raporu üretim hattı (9.5 aşama) | Admin |
 
 **Teknoloji Stack:**
