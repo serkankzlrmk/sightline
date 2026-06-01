@@ -189,3 +189,20 @@ def get_model(skip_checks: bool = False) -> Optional[ChatOpenAI]:
     except ModelInitializationError as e:
         logger.error(f"Model initialization error: {e}")
         return None
+
+
+def reinitialize_model() -> ChatOpenAI:
+    """
+    Reinitialize the model singleton with current config values.
+    Useful after config reload to pick up new model settings.
+    
+    Returns:
+        Newly initialized ChatOpenAI instance
+        
+    Raises:
+        ModelInitializationError: If model initialization fails
+    """
+    import importlib
+    importlib.reload(config)
+    logger.info("Reinitializing model with updated config: %s", config.OLLAMA_MODEL)
+    return initialize_model(skip_checks=True)

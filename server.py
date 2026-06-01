@@ -585,6 +585,86 @@ def api_admin_get_user(uid):
         logger.error("api_admin_get_user error: %s", exc, exc_info=True)
         return jsonify({"error": "User not found"}), 404
 
+
+@app.route("/api/admin/config", methods=["GET"])
+@require_admin
+def api_admin_config():
+    """Get current runtime config values. Admin only."""
+    from config import ACTIVE_MODEL, LLM_MODEL, LLM_PROVIDER, MODEL_TEMPERATURE, MODEL_MAX_TOKENS
+    return jsonify({
+        "ACTIVE_MODEL": ACTIVE_MODEL,
+        "LLM_MODEL": LLM_MODEL,
+        "LLM_PROVIDER": LLM_PROVIDER,
+        "MODEL_TEMPERATURE": MODEL_TEMPERATURE,
+        "MODEL_MAX_TOKENS": MODEL_MAX_TOKENS,
+    })
+
+
+@app.route("/api/admin/config", methods=["POST"])
+@require_admin
+def api_admin_update_config():
+    """Update .env config values and reload config. Admin only.
+    
+    Accepts JSON body with key-value pairs to update in the .env file.
+    Only whitelisted keys are allowed. After updating .env, reloads config
+    and reinitializes the LLM model.
+    """
+    ALLOWED_KEYS = {"ACTIVE_MODEL", "LLM_MODEL", "MODEL_TEMPERATURE", "MODEL_MAX_TOKENS",
+                    "LLM_MODEL_QUESTIONS", "LLM_MODEL_FILTER", "LLM_MODEL_ANSWERS"}
+    data = request.get_json(silent=True) or {}
+    updates = {k: v for k, v in data.items() if k in ALLOWED_KEYS}
+    if not updates:
+        return jsonify({"error": f"No valid keys. Allowed: {', '.join(sorted(ALLOWED_KEYS))}"}), 400
+
+    # Read existing .env
+    env_path = Path(__file__).parent / ".env"
+    lines = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    
+    # Update or add each key
+    updated_keys = set()
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if "=" in stripped and not stripped.startswith("#"):
+            key = stripped.split("=", 1)[0].strip()
+            if key in updates:
+                lines[i] = f"{key}={updates[key]}"
+                updated_keys.add(key)
+    # Add keys not yet in the file
+    for key in updates:
+        if key not in updated_keys:
+            lines.append(f"{key}={updates[key]}")
+    
+    # Write back
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    logger.info("api_admin_update_config: Updated .env keys: %s", list(updates.keys()))
+
+    # Reload config module
+    import importlib
+    import config as config_module
+    importlib.reload(config_module)
+    # Re-import updated values into server module
+    global ACTIVE_MODEL
+    ACTIVE_MODEL = config_module.ACTIVE_MODEL
+    logger.info("api_admin_update_config: ACTIVE_MODEL is now %s", ACTIVE_MODEL)
+
+    # Reinitialize the LLM model if agent is loaded
+    try:
+        from agent.model import reinitialize_model
+        reinitialize_model()
+        logger.info("api_admin_update_config: LLM model reinitialized successfully")
+    except Exception as e:
+        logger.warning("api_admin_update_config: Could not reinitialize model: %s", e)
+
+    return jsonify({
+        "ok": True,
+        "updated": list(updates.keys()),
+        "ACTIVE_MODEL": config_module.ACTIVE_MODEL,
+        "LLM_MODEL": config_module.LLM_MODEL,
+    })
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
