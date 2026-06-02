@@ -162,29 +162,49 @@ function switchTab(name) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const QUICK_PROMPTS = [
-  { label: "Sudan Situation", text: "What is the current humanitarian situation in Sudan?" },
-  { label: "Recent Reports", text: "Fetch and download the most recent health reports about Ukraine" },
-  { label: "Food Security", text: "Summarize the latest food security reports for East Africa" },
-  { label: "Displacement", text: "What are the main displacement trends in the Middle East region?" },
-  { label: "Earthquake Response", text: "Show me situation reports about earthquake response efforts" },
+  // Search & Discovery
+  { label: "🔍 Latest Headlines", text: "What are the latest humanitarian headlines?", cat: "search" },
+  { label: "🌍 Country Search", text: "Search for recent situation reports about Sudan", cat: "search" },
+  { label: "🏥 Theme Filter", text: "Find health reports from WHO in the last month", cat: "search" },
+  { label: "📋 Disaster Tracker", text: "What ongoing disasters are there in Southeast Asia?", cat: "search" },
+  // Knowledge Base
+  { label: "💬 Ask a Question", text: "What is the current food security situation in East Africa?", cat: "kb" },
+  { label: "📊 Summarize Topic", text: "Summarize displacement trends in the Middle East", cat: "kb" },
+  // Ingest & Download
+  { label: "⬇️ Fetch Reports", text: "Find and download the latest Ukraine situation reports", cat: "ingest" },
+  { label: "📎 Paste a URL", text: "Fetch this report: https://reliefweb.int/report/sudan/humanitarian-snapshot", cat: "ingest" },
+  // Deep Analysis
+  { label: "📄 Full Report", text: "Show me the full content of report 12345", cat: "analysis" },
+  { label: "📑 Convert to MD", text: "Convert report 12345 to markdown format", cat: "analysis" },
 ];
 
 const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
     <div class="msg-label">ReliefAgent</div>
     <div class="msg-body">
-      Hello! I'm connected to the ReliefAgent Data Platform.<br><br>
-      What I can do:
-      <ul>
-        <li>Search reports by country, theme, or source</li>
-        <li>Download reports and save them to the local database</li>
-        <li>Run semantic queries and summaries over downloaded reports</li>
-      </ul>
+      <div class="welcome-greeting">Welcome to ReliefAgent</div>
+      <div class="welcome-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
+      <div class="welcome-section">
+        <div class="welcome-section-title">🔍 Search & Discover</div>
+        <div class="welcome-section-desc">Search ReliefWeb's entire database by country, theme, organization, disaster type, or date range. Get the latest headlines or deep-dive into specific crises.</div>
+      </div>
+      <div class="welcome-section">
+        <div class="welcome-section-title">💬 Ask Questions</div>
+        <div class="welcome-section-desc">Ask natural-language questions — I'll search the knowledge base and provide cited answers from downloaded reports. Every claim is linked to its source.</div>
+      </div>
+      <div class="welcome-section">
+        <div class="welcome-section-title">⬇️ Ingest & Save</div>
+        <div class="welcome-section-desc">Found a useful report? I can fetch and save it to the knowledge base with one command. Paste a ReliefWeb URL or ask me to batch-download search results.</div>
+      </div>
+      <div class="welcome-section">
+        <div class="welcome-section-title">📊 More Features</div>
+        <div class="welcome-section-desc">Switch to the <strong>Database</strong> tab to browse and filter all stored reports. Use the <strong>SITREP</strong> tab to generate automated situation reports with clustering and AI analysis.</div>
+      </div>
     </div>
   </div>
   <div class="quick-prompts">
     <div class="quick-prompts-title">Try asking:</div>
-    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn" onclick="sendQuickPrompt('${p.text.replace(/'/g, "\\'")}')">${p.label}</button>`).join('')}
+    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" onclick="sendQuickPrompt('${p.text.replace(/'/g, "\\'")}')">${p.label}</button>`).join('')}
   </div>
 </div>`;
 
