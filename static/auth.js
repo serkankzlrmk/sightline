@@ -150,12 +150,21 @@ function updateRateLimitUI() {
   const bar = document.getElementById("user-bar");
   if (!bar) return;
 
+  // Find or create badges container
+  let badgesDiv = bar.querySelector(".user-bar-badges");
+  if (!badgesDiv) {
+    badgesDiv = document.createElement("div");
+    badgesDiv.className = "user-bar-badges";
+    const infoDiv = bar.querySelector(".user-bar-info");
+    if (infoDiv) infoDiv.appendChild(badgesDiv);
+  }
+
   // Role badge
   let roleBadge = document.getElementById("role-badge");
   if (!roleBadge) {
     roleBadge = document.createElement("span");
     roleBadge.id = "role-badge";
-    bar.insertBefore(roleBadge, bar.querySelector("button"));
+    badgesDiv.appendChild(roleBadge);
   }
   const role = window.__userRole || "free";
   if (role === "admin") {
@@ -175,7 +184,7 @@ function updateRateLimitUI() {
   if (!badge) {
     badge = document.createElement("span");
     badge.id = "rate-badge";
-    bar.insertBefore(badge, bar.querySelector("button"));
+    badgesDiv.appendChild(badge);
   }
   const rl = window.__rateLimit;
   if (!rl || window.__isAdmin) {

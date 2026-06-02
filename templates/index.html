@@ -16,72 +16,166 @@
      AUTH LOGIN OVERLAY
      ═══════════════════════════════════════════════ -->
 <div id="auth-overlay" class="auth-overlay">
-  <div class="auth-box">
-    <div class="auth-brand">
+  <!-- Left: Hero / Introduction -->
+  <div class="auth-hero">
+    <div class="auth-hero-content">
+      <div class="auth-hero-badge">Humanitarian Data Analytics</div>
+      <h1 class="auth-hero-title">Intelligence for<br>Humanitarian Action</h1>
+      <p class="auth-hero-desc">ReliefAgent connects you to the world's largest humanitarian data network. Search, analyze, and generate situation reports from verified ReliefWeb sources — powered by AI with cited evidence.</p>
+      <div class="auth-hero-stats">
+        <div class="auth-hero-stat">
+          <span class="auth-hero-stat-value">600+</span>
+          <span class="auth-hero-stat-label">Reports Ingested</span>
+        </div>
+        <div class="auth-hero-stat">
+          <span class="auth-hero-stat-value">86</span>
+          <span class="auth-hero-stat-label">Countries Covered</span>
+        </div>
+        <div class="auth-hero-stat">
+          <span class="auth-hero-stat-value">24K+</span>
+          <span class="auth-hero-stat-label">Data Chunks</span>
+        </div>
+      </div>
+      <div class="auth-hero-features">
+        <div class="auth-hero-feature">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>Semantic search across humanitarian reports</span>
+        </div>
+        <div class="auth-hero-feature">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>AI-powered SITREP generation pipeline</span>
+        </div>
+        <div class="auth-hero-feature">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Every answer backed by cited sources</span>
+        </div>
+        <div class="auth-hero-feature">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Batch ingest &amp; PDF processing</span>
+        </div>
+      </div>
+      <!-- Data Sources / Integrations -->
+      <div class="auth-hero-sources">
+        <div class="auth-hero-sources-label">Data Sources</div>
+        <div class="auth-hero-sources-list">
+          <div class="auth-hero-source active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>ReliefWeb</span>
+            <span class="source-badge active">Live</span>
+          </div>
+          <div class="auth-hero-source coming">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>OCHA</span>
+            <span class="source-badge coming">Soon</span>
+          </div>
+          <div class="auth-hero-source coming">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>UNHCR</span>
+            <span class="source-badge coming">Soon</span>
+          </div>
+          <div class="auth-hero-source coming">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>UNICEF</span>
+            <span class="source-badge coming">Soon</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Right: Login Card -->
+  <div class="auth-card">
+    <div class="auth-card-inner">
       <img src="/static/logo.png" alt="ReliefAgent" class="auth-logo">
       <h1>ReliefAgent</h1>
-      <p class="auth-subtitle">Humanitarian Data Analytics Platform</p>
+      <p class="auth-subtitle">Sign in to access the platform</p>
+      <div class="auth-card-features">
+        <div class="auth-card-feature">
+          <div class="auth-card-feature-icon" style="background:rgba(37,99,235,.08);color:#2563eb;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
+          <div>
+            <strong>Search &amp; Discover</strong>
+            <span>Query ReliefWeb by country, theme, or source</span>
+          </div>
+        </div>
+        <div class="auth-card-feature">
+          <div class="auth-card-feature-icon" style="background:rgba(139,92,246,.08);color:#8b5cf6;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div>
+            <strong>Ask &amp; Analyze</strong>
+            <span>AI chat with cited humanitarian answers</span>
+          </div>
+        </div>
+        <div class="auth-card-feature">
+          <div class="auth-card-feature-icon" style="background:rgba(5,150,105,.08);color:#059669;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <strong>SITREP Reports</strong>
+            <span>Automated situation report generation</span>
+          </div>
+        </div>
+      </div>
+      <button id="auth-google-btn" class="auth-google-btn">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <span>Sign in with Google</span>
+      </button>
+      <div id="auth-error" class="auth-error"></div>
+      <div class="auth-legal">By signing in you agree to the <a href="#" onclick="return false">Terms of Use</a> and <a href="#" onclick="return false">Privacy Policy</a></div>
     </div>
-    <div class="auth-features">
-      <div class="auth-feature">
-        <div class="auth-feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        </div>
-        <div class="auth-feature-text">
-          <strong>Intelligent Search</strong>
-          <span>Query humanitarian reports by country, theme, or source</span>
-        </div>
-      </div>
-      <div class="auth-feature">
-        <div class="auth-feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        </div>
-        <div class="auth-feature-text">
-          <strong>SITREP Generation</strong>
-          <span>AI-powered situation reports with cited evidence</span>
-        </div>
-      </div>
-      <div class="auth-feature">
-        <div class="auth-feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <div class="auth-feature-text">
-          <strong>Source Citations</strong>
-          <span>Every answer linked to verified humanitarian data</span>
-        </div>
-      </div>
-    </div>
-    <button id="auth-google-btn" class="auth-google-btn">
-      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-      <span>Sign in with Google</span>
-    </button>
-    <div id="auth-error" class="auth-error"></div>
-    <div class="auth-legal">By signing in you agree to the <a href="#" onclick="return false">Terms of Use</a> and <a href="#" onclick="return false">Privacy Policy</a></div>
   </div>
   <div class="auth-copyright">&copy; 2026 ReliefAgent Data Platform</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════
-     TOP NAVIGATION — 4 tabs + user info
+     LEFT SIDEBAR NAVIGATION (Stitch-inspired)
      ═══════════════════════════════════════════════ -->
-<nav class="nav">
-  <div class="nav-logo">
-    <img class="nav-logo-img" src="/static/logo.png" alt="ReliefAgent">
-    <span class="nav-brand">ReliefAgent</span>
+<nav class="sidebar-nav" id="sidebar-nav">
+  <div class="sidebar-nav-head">
+    <img class="sidebar-logo" src="/static/logo.png" alt="ReliefAgent">
+    <span class="sidebar-brand">ReliefAgent</span>
+    <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarNav()" title="Toggle sidebar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
   </div>
-  <div class="tab-group">
-    <button class="tab-btn" id="tab-db"     onclick="switchTab('db')">Database</button>
-    <button class="tab-btn active" id="tab-agent"  onclick="switchTab('agent')">ReliefAgent</button>
-    <button class="tab-btn" id="tab-sitrep" onclick="switchTab('sitrep')">SITREP</button>
-    <button class="tab-btn" id="tab-admin" onclick="switchTab('admin')" style="display:none">Admin</button>
+  <!-- Expand handle — visible when sidebar is collapsed -->
+  <button class="sidebar-expand-handle" id="sidebar-expand-handle" onclick="toggleSidebarNav()" title="Expand sidebar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+  </button>
+
+  <div class="sidebar-nav-tabs">
+    <button class="sidebar-tab" id="tab-db" onclick="switchTab('db')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <span class="sidebar-tab-label">Database</span>
+    </button>
+    <button class="sidebar-tab active" id="tab-agent" onclick="switchTab('agent')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="sidebar-tab-label">Chat</span>
+    </button>
+    <button class="sidebar-tab" id="tab-sitrep" onclick="switchTab('sitrep')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span class="sidebar-tab-label">SITREP</span>
+    </button>
+    <button class="sidebar-tab" id="tab-admin" onclick="switchTab('admin')" style="display:none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="sidebar-tab-label">Admin</span>
+    </button>
   </div>
-  <div id="user-bar" class="user-bar hidden">
-    <img id="user-photo" src="" alt="">
-    <span id="user-name"></span>
-    <button id="user-logout" onclick="signOut()">Logout</button>
+
+  <div class="sidebar-nav-footer">
+    <div class="busy-dot" id="busy-dot" title="Agent is running..."></div>
+    <div id="user-bar" class="user-bar hidden">
+      <img id="user-photo" src="" alt="">
+      <div class="user-bar-info">
+        <span id="user-name"></span>
+        <div class="user-bar-badges"></div>
+      </div>
+      <button id="user-logout" onclick="signOut()" title="Logout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
   </div>
-  <div class="busy-dot" id="busy-dot" title="Agent is running..."></div>
-  <button class="nav-reset" id="agent-reset-btn" onclick="resetChat()">↺ Reset</button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════
@@ -92,12 +186,20 @@
   <!-- ─── TAB 1: DATABASE ─────────────────────── -->
   <div class="panel" id="panel-db">
     <div class="reports-wrap">
-      <!-- Stats row -->
+      <!-- Stats cards (Stitch-inspired) -->
       <div class="stats-row" id="stats-row">
-        <div class="stat-pill"><strong id="s-reports">—</strong> Reports</div>
-        <div class="stat-pill"><strong id="s-chunks">—</strong> Chunks</div>
-        <button class="btn btn-secondary" id="btn-upload-pdf" onclick="showUploadModal()" style="display:none">⬆ Upload PDF</button>
-        <button class="refresh-btn" onclick="reloadReports()">↻ Refresh</button>
+        <div class="stat-card stat-blue">
+          <span class="stat-card-label">Reports</span>
+          <span class="stat-card-value" id="s-reports">—</span>
+        </div>
+        <div class="stat-card stat-green">
+          <span class="stat-card-label">Chunks</span>
+          <span class="stat-card-value" id="s-chunks">—</span>
+        </div>
+        <div class="stats-actions">
+          <button class="btn btn-secondary" id="btn-upload-pdf" onclick="showUploadModal()" style="display:none">⬆ Upload PDF</button>
+          <button class="refresh-btn" onclick="reloadReports()">↻ Refresh</button>
+        </div>
       </div>
       <!-- Filters -->
       <div class="filters">
@@ -227,8 +329,11 @@
           </div>
         </div>
 
-        <div class="sidebar-section-title">Available Reports</div>
-        <div id="sitrep-reports-list"><div class="sidebar-empty">Loading...</div></div>
+        <div class="sidebar-section-title collapsible-header" onclick="toggleSitrepReports()">
+          Available Reports
+          <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div id="sitrep-reports-list" class="collapsible-body open"><div class="sidebar-empty">Loading...</div></div>
       </aside>
 
       <!-- Main area -->

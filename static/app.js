@@ -139,6 +139,19 @@ function md(text) {
 }
 
 // ── Tab switching ────────────────────────────────────────────────────────────
+function toggleSidebarNav() {
+  const nav = document.getElementById('sidebar-nav');
+  if (nav) nav.classList.toggle('collapsed');
+}
+
+function toggleSitrepReports() {
+  const header = document.querySelector('.collapsible-header');
+  const body = document.getElementById('sitrep-reports-list');
+  if (!header || !body) return;
+  header.classList.toggle('collapsed');
+  body.classList.toggle('closed');
+}
+
 function switchTab(name) {
   currentTab = name;
   const allTabs = ['db', 'agent', 'sitrep', 'admin'];
@@ -148,9 +161,6 @@ function switchTab(name) {
     if (panel) panel.classList.toggle('active', t === name);
     if (tab) tab.classList.toggle('active', t === name);
   });
-  // Show/hide agent reset button
-  const resetBtn = document.getElementById('agent-reset-btn');
-  if (resetBtn) resetBtn.style.display = (name === 'agent') ? '' : 'none';
 
   if (name === 'db') reloadReports();
   if (name === 'sitrep') { loadSitrepReportsList(); loadThemePills(); loadCountryDropdown(); }
@@ -163,19 +173,19 @@ function switchTab(name) {
 
 const QUICK_PROMPTS = [
   // Search & Discovery
-  { label: "🔍 Latest Headlines", text: "What are the latest humanitarian headlines?", cat: "search" },
-  { label: "🌍 Country Search", text: "Search for recent situation reports about Sudan", cat: "search" },
-  { label: "🏥 Theme Filter", text: "Find health reports from WHO in the last month", cat: "search" },
-  { label: "📋 Disaster Tracker", text: "What ongoing disasters are there in Southeast Asia?", cat: "search" },
+  { label: "Latest Headlines", text: "What are the latest humanitarian headlines?", cat: "search" },
+  { label: "Country Search", text: "Search for recent situation reports about Sudan", cat: "search" },
+  { label: "Theme Filter", text: "Find health reports from WHO in the last month", cat: "search" },
+  { label: "Disaster Tracker", text: "What ongoing disasters are there in Southeast Asia?", cat: "search" },
   // Knowledge Base
-  { label: "💬 Ask a Question", text: "What is the current food security situation in East Africa?", cat: "kb" },
-  { label: "📊 Summarize Topic", text: "Summarize displacement trends in the Middle East", cat: "kb" },
+  { label: "Ask a Question", text: "What is the current food security situation in East Africa?", cat: "kb" },
+  { label: "Summarize Topic", text: "Summarize displacement trends in the Middle East", cat: "kb" },
   // Ingest & Download
-  { label: "⬇️ Fetch Reports", text: "Find and download the latest Ukraine situation reports", cat: "ingest" },
-  { label: "📎 Paste a URL", text: "Fetch this report: https://reliefweb.int/report/sudan/humanitarian-snapshot", cat: "ingest" },
+  { label: "Fetch Reports", text: "Find and download the latest Ukraine situation reports", cat: "ingest" },
+  { label: "Paste a URL", text: "Fetch this report: https://reliefweb.int/report/sudan/humanitarian-snapshot", cat: "ingest" },
   // Deep Analysis
-  { label: "📄 Full Report", text: "Show me the full content of report 12345", cat: "analysis" },
-  { label: "📑 Convert to MD", text: "Convert report 12345 to markdown format", cat: "analysis" },
+  { label: "Full Report", text: "Show me the full content of report 12345", cat: "analysis" },
+  { label: "Convert to MD", text: "Convert report 12345 to markdown format", cat: "analysis" },
 ];
 
 const WELCOME_HTML = `<div class="chat-center">
@@ -185,19 +195,19 @@ const WELCOME_HTML = `<div class="chat-center">
       <div class="welcome-greeting">Welcome to ReliefAgent</div>
       <div class="welcome-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
       <div class="welcome-section">
-        <div class="welcome-section-title">🔍 Search & Discover</div>
+        <div class="welcome-section-title">Search & Discover</div>
         <div class="welcome-section-desc">Search ReliefWeb's entire database by country, theme, organization, disaster type, or date range. Get the latest headlines or deep-dive into specific crises.</div>
       </div>
       <div class="welcome-section">
-        <div class="welcome-section-title">💬 Ask Questions</div>
+        <div class="welcome-section-title">Ask Questions</div>
         <div class="welcome-section-desc">Ask natural-language questions — I'll search the knowledge base and provide cited answers from downloaded reports. Every claim is linked to its source.</div>
       </div>
       <div class="welcome-section">
-        <div class="welcome-section-title">⬇️ Ingest & Save</div>
+        <div class="welcome-section-title">Ingest & Save</div>
         <div class="welcome-section-desc">Found a useful report? I can fetch and save it to the knowledge base with one command. Paste a ReliefWeb URL or ask me to batch-download search results.</div>
       </div>
       <div class="welcome-section">
-        <div class="welcome-section-title">📊 More Features</div>
+        <div class="welcome-section-title">More Features</div>
         <div class="welcome-section-desc">Switch to the <strong>Database</strong> tab to browse and filter all stored reports. Use the <strong>SITREP</strong> tab to generate automated situation reports with clustering and AI analysis.</div>
       </div>
     </div>
