@@ -268,7 +268,7 @@ async function sendMessage() {
   const rl = window.__rateLimit;
   const role = window.__userRole || "free";
   if (rl && rl.remaining <= 0 && role !== "admin") {
-    toast('Daily message limit reached. Upgrade to Premium for more access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
+    // Show inline message instead of toast, input is already locked
     return;
   }
   const text = chatInput.value.trim();
@@ -299,7 +299,6 @@ async function sendMessage() {
         const errData = await resp.json();
         if (errData.remaining === 0) {
           currentAiEl.innerHTML = `<div class="rate-limit-msg"><div class="rate-limit-msg-title">Daily message limit reached (${errData.used}/${errData.limit})</div><div class="rate-limit-msg-body">Upgrade to Premium for unlimited access.</div><div class="rate-limit-msg-contact">Contact: <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></div></div>`;
-          toast(`Daily limit reached: ${errData.used}/${errData.limit} messages used`, 'error');
           updateChatRateUI(errData);
         } else {
           currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
@@ -361,7 +360,6 @@ async function sendMessage() {
     loadChatSidebar();
     // Refresh chat list after delay to pick up auto-generated title (full reload)
     setTimeout(() => loadChatList(), 3000);
-    refreshChatRateHint();
   }
 }
 
@@ -369,32 +367,20 @@ function updateChatRateUI(rateData) {
   if (!rateData) return;
   window.__rateLimit = rateData;
   if (typeof updateRateLimitUI === 'function') updateRateLimitUI();
-  refreshChatRateHint();
+  lockChatInput();
 }
 
-function refreshChatRateHint() {
+function lockChatInput() {
   const rl = window.__rateLimit;
-  const hint = document.getElementById('chat-rate-hint');
   const role = window.__userRole || "free";
-  if (!hint) return;
-  if (role === "admin" || !rl) { hint.innerHTML = ''; chatInput.disabled = false; chatInput.placeholder = 'Message ReliefAgent...'; return; }
-  const { remaining, limit, used } = rl;
-  if (remaining <= 0) {
-    hint.innerHTML = `Daily limit reached (${used}/${limit}) — <span class="rate-upgrade">Upgrade to Premium for more access. Contact <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></span>`;
-    hint.className = 'chat-rate-hint exhausted';
-    chatInput.disabled = true;
-    chatInput.placeholder = 'Daily limit reached';
-  } else if (remaining <= 3) {
-    hint.innerHTML = `${remaining}/${limit} messages remaining today`;
-    hint.className = 'chat-rate-hint low';
+  if (role === "admin" || !rl || rl.remaining > 0) {
     chatInput.disabled = false;
     chatInput.placeholder = 'Message ReliefAgent...';
-  } else {
-    hint.innerHTML = `${remaining}/${limit} messages remaining today`;
-    hint.className = 'chat-rate-hint';
-    chatInput.disabled = false;
-    chatInput.placeholder = 'Message ReliefAgent...';
+    return;
   }
+  // Rate limit exhausted — lock input
+  chatInput.disabled = true;
+  chatInput.placeholder = 'Daily limit reached';
 }
 
 async function resetChat() {
@@ -1712,7 +1698,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const role = window.__userRole || 'free';
     if (rl && rl.remaining <= 0 && role !== 'admin') {
       e.preventDefault();
-      toast('Daily message limit reached. Upgrade to Premium for more access — contact serkankizilirmaak@gmail.com', 'warning', 5000);
       return;
     }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }

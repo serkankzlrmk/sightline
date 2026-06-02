@@ -763,16 +763,7 @@ body {
 .quick-prompt-btn.cat-analysis:hover { border-color: #f59e0b; background: #f59e0b15; box-shadow: 0 2px 8px #f59e0b30; }
 
 /* ── Chat rate hint ── */
-.chat-rate-hint {
-  text-align: center; font-size: 11px; color: var(--text-muted);
-  padding: 4px 0 0; letter-spacing: .1px; max-width: 780px; width: calc(100% - 48px);
-  margin: 0 auto; min-height: 18px;
-}
-.chat-rate-hint.low { color: var(--amber); font-weight: 600; }
-.chat-rate-hint.exhausted { color: var(--red); font-weight: 600; }
-.rate-upgrade { color: var(--primary); font-weight: 500; }
-.rate-upgrade a { color: var(--primary); text-decoration: underline; }
-.rate-upgrade a:hover { color: var(--primary-dark, #2563eb); }
+/* Rate limit hint removed — badge in user-bar is sufficient */
 
 /* Rate limit message in chat (shown when limit reached) */
 .rate-limit-msg {
@@ -1638,7 +1629,6 @@ body.auth-locked .auth-box   { pointer-events: auto; }
   .chat-sidebar { width: 85vw; }
   .chat-center { width: calc(100% - 24px); padding: 16px 0; }
   .chat-input-wrap { width: calc(100% - 24px); }
-  .chat-rate-hint { width: calc(100% - 24px); }
   .msg.user .msg-body { max-width: 90%; }
   .chat-footer { padding: 8px 12px 14px; }
 

@@ -195,6 +195,9 @@ function updateRateLimitUI() {
     badge.textContent = remaining + "/" + rl.limit;
     badge.className = "rate-badge";
   }
+
+  // Lock/unlock chat input based on rate limit
+  if (typeof lockChatInput === 'function') lockChatInput();
 }
 
 function updateVisibility() {
