@@ -298,15 +298,22 @@ class PgVectorStore:
         )[:10]
 
         countries = report_meta.get("countries", [])
-        primary_country = (
-            countries[0].get("shortname", countries[0].get("name", ""))
-            if countries else ""
-        )
-        all_countries = ", ".join(
-            c.get("shortname", c.get("name", "")) for c in countries[:8]
-        )
+        # Handle both dict and string entries in countries list
+        def _get_country_name(c):
+            if isinstance(c, dict):
+                return c.get("shortname", c.get("name", ""))
+            return str(c) if c else ""
+
+        primary_country = _get_country_name(countries[0]) if countries else ""
+        all_countries = ", ".join(_get_country_name(c) for c in countries[:8])
         themes = [t.get("name", "") for t in report_meta.get("themes", [])]
         themes_str = ", ".join(themes[:6])
+
+        # format/language are lists of dicts from ReliefWeb API
+        raw_format = report_meta.get("format", [])
+        format_name = raw_format[0].get("name", "") if isinstance(raw_format, list) and raw_format else (raw_format.get("name", "") if isinstance(raw_format, dict) else str(raw_format) if raw_format else "")
+        raw_language = report_meta.get("language", [])
+        language_name = raw_language[0].get("name", "") if isinstance(raw_language, list) and raw_language else (raw_language.get("name", "") if isinstance(raw_language, dict) else str(raw_language) if raw_language else "")
 
         # ---- compute embeddings ----
         documents = [c["content"] for c in chunks]
@@ -337,8 +344,8 @@ class PgVectorStore:
                     report_meta.get("url", ""),
                     json.dumps(countries, ensure_ascii=False) if countries else "[]",
                     json.dumps(themes, ensure_ascii=False) if themes else "[]",
-                    report_meta.get("format", {}).get("name", ""),
-                    report_meta.get("language", {}).get("name", ""),
+                    format_name,
+                    language_name,
                     len(chunks),
                 ),
             )

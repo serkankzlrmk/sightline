@@ -240,6 +240,10 @@ def ingest_from_api(
         return {"success": False, "error": f"API fetch failed: {e}"}
 
     # ── 2. Build metadata dict (same format as metadata.json) ────
+    # Note: ReliefWeb API returns format/language as lists of dicts,
+    # e.g. [{"id": 12570, "name": "Infographic"}]
+    raw_format = fields.get("format", [])
+    raw_language = fields.get("language", [])
     metadata = {
         "id": report_id,
         "title": fields.get("title", ""),
@@ -249,8 +253,8 @@ def ingest_from_api(
         "disasters": fields.get("disaster", []),
         "themes": fields.get("theme", []),
         "url": fields.get("url", ""),
-        "language": fields.get("language", ""),
-        "format": fields.get("format", ""),
+        "language": raw_language if isinstance(raw_language, list) else [raw_language] if raw_language else [],
+        "format": raw_format if isinstance(raw_format, list) else [raw_format] if raw_format else [],
     }
 
     chunks = []
