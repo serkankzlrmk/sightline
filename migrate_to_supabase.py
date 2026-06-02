@@ -262,7 +262,7 @@ def migrate_chunks_with_embeddings(
         for chunk in batch:
             meta = chunk["metadata"]
             emb = chunk["embedding"]
-            emb_str = "[" + ",".join(str(x) for x in emb) + "]" if emb else None
+            emb_str = "[" + ",".join(str(x) for x in emb) + "]" if emb is not None and len(emb) > 0 else None
 
             try:
                 cur.execute("""

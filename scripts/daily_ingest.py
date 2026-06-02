@@ -46,6 +46,13 @@ RELIEFWEB_APPNAME = _rw_cfg.RELIEFWEB_APPNAME
 _ssl_verify = _rw_cfg._ssl_verify
 
 # ── Logging ────────────────────────────────────────────────────────────────
+# Ensure log directory exists (cron redirects to /var/log/reliefagent/)
+_LOG_DIR = Path("/var/log/reliefagent")
+try:
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass  # May not have permissions — that's OK, cron will handle or skip
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",

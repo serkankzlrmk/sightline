@@ -621,18 +621,34 @@ class ChromaAdapter:
         return {"min": None, "max": None, "count": 0}
 
     def _sqlite_list_countries_with_counts(self) -> List[Dict]:
-        """SQLite fallback for list_countries_with_counts."""
+        """SQLite fallback for list_countries_with_counts.
+        Parses the `countries` JSON array column (each report may list multiple countries).
+        """
         try:
             import json as _json
             from config import DB_PATH
             import sqlite3
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
-                "SELECT primary_country, COUNT(*) as cnt FROM reports "
-                "WHERE primary_country IS NOT NULL AND primary_country != '' "
-                "GROUP BY primary_country ORDER BY cnt DESC"
+                "SELECT countries FROM reports "
+                "WHERE countries IS NOT NULL AND countries != '[]'"
             ).fetchall()
             conn.close()
-            return [{"name": row[0], "count": row[1]} for row in rows if row[0]]
+            counts: Dict[str, int] = {}
+            for row in rows:
+                try:
+                    for c in _json.loads(row[0]):
+                        if c and isinstance(c, str):
+                            c = c.strip()
+                            if c:
+                                counts[c] = counts.get(c, 0) + 1
+                except (ValueError, TypeError):
+                    pass
+            result = sorted(
+                [{"name": k, "count": v} for k, v in counts.items()],
+                key=lambda x: x["count"],
+                reverse=True,
+            )
+            return result
         except Exception:
             return []
