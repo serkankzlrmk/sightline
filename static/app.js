@@ -1844,18 +1844,51 @@ async function loadBulletinList() {
 
 async function generateBulletin() {
   const btn = document.querySelector('.bulletin-gen-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
   try {
     const result = await api('/api/sitrep/bulletin/generate', { method: 'POST' });
-    showToast('Bulletin generated: ' + (result.message || 'OK'), 'success');
-    loadBulletinList();
-    // Auto-open the generated bulletin
-    if (result.filename) openBulletin(result.filename);
+    if (result.job_id) {
+      // Async generation — poll for status
+      if (btn) { btn.textContent = 'Generating…'; }
+      const filename = await pollBulletinJob(result.job_id);
+      showToast('Bulletin generated!', 'success');
+      loadBulletinList();
+      if (filename) openBulletin(filename);
+    } else if (result.filename) {
+      // Sync fallback (shouldn't happen but just in case)
+      showToast('Bulletin generated!', 'success');
+      loadBulletinList();
+      openBulletin(result.filename);
+    }
   } catch (e) {
     console.error('[bulletin] generateBulletin error:', e);
     showToast('Failed to generate bulletin: ' + (e.message || 'Unknown error'), 'error');
+  } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Generate Weekly Bulletin'; }
   }
+}
+
+async function pollBulletinJob(jobId) {
+  const maxAttempts = 120; // 120 × 2s = 4 min max
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const status = await api(`/api/sitrep/bulletin/generate/status/${jobId}`);
+      if (status.status === 'done') {
+        return status.result?.filename || null;
+      }
+      if (status.status === 'error') {
+        throw new Error(status.error || 'Generation failed');
+      }
+      // Still running — update button text
+      const btn = document.querySelector('.bulletin-gen-btn');
+      if (btn) { btn.textContent = `Generating… (${i * 2 + 2}s)`; }
+    } catch (e) {
+      if (e.message?.includes('Generation failed')) throw e;
+      // Network error — keep polling
+    }
+  }
+  throw new Error('Bulletin generation timed out');
 }
 
 async function openBulletin(filename) {

@@ -1391,6 +1391,9 @@ def api_bulletin_generate():
     
     Accepts optional JSON body: {"date_from": "YYYY-MM-DD", "date_to": "YYYY-MM-DD"}
     If no dates provided, defaults to last week (Mon-Sun).
+    
+    Runs generation in a background thread and returns a job_id immediately.
+    Frontend can poll /api/sitrep/bulletin/generate/status/<job_id> for progress.
     """
     from sitrep.weekly_bulletin import generate_weekly_bulletin
     from datetime import datetime, timedelta
@@ -1407,16 +1410,84 @@ def api_bulletin_generate():
         date_from = date_from or last_monday.strftime("%Y-%m-%d")
         date_to = date_to or last_sunday.strftime("%Y-%m-%d")
     
-    try:
-        path = generate_weekly_bulletin(date_from=date_from, date_to=date_to)
-        return jsonify({
-            "status": "ok",
-            "message": f"Bulletin generated for {date_from} to {date_to}",
-            "filename": path.name,
-        })
-    except Exception as exc:
-        logging.exception("Bulletin generation failed")
-        return jsonify({"error": str(exc)}), 500
+    # Create a job for background generation
+    job_id = f"bulletin-{_time.time():.0f}"
+    with _jobs_lock:
+        _jobs[job_id] = {
+            "status": "running",
+            "queue": queue.Queue(),
+            "started_at": _time.time(),
+            "type": "bulletin",
+            "date_from": date_from,
+            "date_to": date_to,
+        }
+    
+    def _run_bulletin():
+        q = _jobs[job_id]["queue"]
+        try:
+            q.put(f"Generating bulletin for {date_from} to {date_to}...")
+            path = generate_weekly_bulletin(date_from=date_from, date_to=date_to)
+            q.put(f"Bulletin saved: {path.name}")
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "done"
+                _jobs[job_id]["finished_at"] = _time.time()
+                _jobs[job_id]["result"] = {
+                    "filename": path.name,
+                    "date_from": date_from,
+                    "date_to": date_to,
+                }
+        except Exception as exc:
+            logging.exception("Bulletin generation failed")
+            q.put(f"[ERROR] {exc}")
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "error"
+                _jobs[job_id]["finished_at"] = _time.time()
+                _jobs[job_id]["error"] = str(exc)
+        finally:
+            q.put(None)  # sentinel
+    
+    thread = threading.Thread(target=_run_bulletin, daemon=True)
+    thread.start()
+    
+    return jsonify({
+        "status": "started",
+        "job_id": job_id,
+        "message": f"Generating bulletin for {date_from} to {date_to}",
+        "date_from": date_from,
+        "date_to": date_to,
+    })
+
+
+@app.route("/api/sitrep/bulletin/generate/status/<job_id>")
+@require_admin
+def api_bulletin_generate_status(job_id):
+    """Poll bulletin generation job status (admin only)."""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    
+    # Collect any new log lines from the queue
+    logs = []
+    q = job["queue"]
+    while not q.empty():
+        line = q.get_nowait() if hasattr(q, 'get_nowait') else None
+        if line is None:
+            break
+        logs.append(line)
+    
+    response = {
+        "status": job["status"],
+        "logs": logs,
+        "date_from": job.get("date_from", ""),
+        "date_to": job.get("date_to", ""),
+    }
+    if job["status"] == "done" and "result" in job:
+        response["result"] = job["result"]
+    if job["status"] == "error" and "error" in job:
+        response["error"] = job["error"]
+    
+    return jsonify(response)
 
 
 # =============================================================================
