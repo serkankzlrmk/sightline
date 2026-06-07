@@ -387,19 +387,43 @@ def run_clustering(
 
     n_iter = n_iterations or HP_SEARCH_ITERATIONS
 
-    # 1. Get embeddings (from Chroma via "embedding" key)
+    # 1. Get embeddings (from Chroma/pgvector via "embedding" key)
     embeddings_list = [c.get("embedding") for c in chunks]
-    embeddings_list = [e for e in embeddings_list if e is not None]
 
-    if len(embeddings_list) != len(chunks):
-        raise ValueError(
-            f"Some chunks are missing embeddings. "
-            f"({len(embeddings_list)}/{len(chunks)} embeddings available.) "
-            "Ensure include=['embeddings'] is set in "
-            "chroma_adapter.get_chunks_by_country() call."
-        )
+    # Normalise embeddings: handle string format from pgvector/psycopg2
+    import json as _json
+    parsed = []
+    for i, e in enumerate(embeddings_list):
+        if e is None:
+            raise ValueError(
+                f"Chunk {i} (id={chunks[i].get('id', '?')}) is missing an embedding. "
+                "Ensure include=['embeddings'] is set in the data source call."
+            )
+        if isinstance(e, str):
+            # pgvector/psycopg2 may return embeddings as strings like '[-0.07,0.05,...]'
+            try:
+                parsed.append(_json.loads(e))
+            except (ValueError, _json.JSONDecodeError):
+                # Fallback: strip brackets and split
+                stripped = e.strip()
+                if stripped.startswith('[') and stripped.endswith(']'):
+                    stripped = stripped[1:-1]
+                parsed.append([float(x) for x in stripped.split(',') if x.strip()])
+        elif isinstance(e, np.ndarray):
+            parsed.append(e.tolist())
+        elif isinstance(e, list):
+            parsed.append(e)
+        else:
+            # Last resort: try numpy conversion
+            try:
+                parsed.append(np.array(e).tolist())
+            except Exception:
+                raise ValueError(
+                    f"Chunk {i} has an unparseable embedding of type {type(e).__name__}. "
+                    "Cannot convert to float list."
+                )
 
-    embeddings = np.array(embeddings_list, dtype=float)
+    embeddings = np.array(parsed, dtype=float)
     logger.info("Clustering starting: %d chunks, %d dimensions", len(chunks), embeddings.shape[1])
 
     # 2. Hyperparameter search

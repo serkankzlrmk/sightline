@@ -175,6 +175,23 @@ def run_pipeline(
         _save_checkpoint(chunks, "chunks_raw", country, event, suffix=fh)
     logger.info("    %d chunks loaded.", len(chunks))
 
+    # ---- Auto-detect themes if not provided ----
+    if not themes:
+        detected_themes = set()
+        for c in chunks:
+            raw = c.get("themes", "")
+            if raw:
+                for t in raw.split(","):
+                    t = t.strip()
+                    if t:
+                        detected_themes.add(t)
+        themes = sorted(detected_themes)
+        logger.info("    Auto-detected %d themes: %s", len(themes), ", ".join(themes[:10]))
+        if len(themes) > 10:
+            logger.info("    ... and %d more", len(themes) - 10)
+    else:
+        logger.info("    Using %d user-specified themes: %s", len(themes), ", ".join(themes))
+
     # ---- Step 2: Clustering ----
     logger.info("[2] Running clustering...")
     clusters = _load_checkpoint("clusters", country, event, suffix=fh) if not skip_cache else None

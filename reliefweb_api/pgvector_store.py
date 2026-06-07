@@ -72,6 +72,47 @@ def get_embedding_function():
         )
 
 
+def _parse_embedding(emb):
+    """Parse an embedding value from pgvector into a Python list of floats.
+
+    psycopg2 may return pgvector columns as:
+      - str:  '[-0.07,0.05,...]'  (most common with text connection)
+      - list: [−0.07, 0.05, ...]  (if using register_vector adapter)
+      - np.ndarray: array([...])   (if numpy adapter is registered)
+
+    This function normalises all formats to a plain Python list of floats.
+    """
+    if emb is None:
+        return None
+    # Already a list of floats — return as-is
+    if isinstance(emb, list):
+        return emb
+    # numpy ndarray — convert to list
+    if np is not None and isinstance(emb, np.ndarray):
+        return emb.tolist()
+    # String like '[-0.07,0.05,...]' — parse it
+    if isinstance(emb, str):
+        import json as _json
+        try:
+            parsed = _json.loads(emb)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Fallback: strip brackets and split by comma
+        stripped = emb.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            stripped = stripped[1:-1]
+        return [float(x) for x in stripped.split(',') if x.strip()]
+    # Unknown type — try numpy conversion as last resort
+    if np is not None:
+        try:
+            return np.array(emb).tolist()
+        except Exception:
+            pass
+    return None
+
+
 # ============================================================================
 # PGVECTOR VECTOR STORE
 # ============================================================================
@@ -684,8 +725,8 @@ class PgVectorStore:
             for row in cur.fetchall():
                 entry = dict(zip(columns, row))
                 # Convert embedding to list for compatibility
-                if entry.get("embedding") and np is not None:
-                    entry["embedding"] = np.array(entry["embedding"]).tolist()
+                if entry.get("embedding") is not None:
+                    entry["embedding"] = _parse_embedding(entry["embedding"])
                 results.append(entry)
             return results
         finally:
@@ -707,11 +748,18 @@ class PgVectorStore:
         params: list = [country]
 
         if themes:
-            # OR logic: any theme matches
+            # Exact theme matching: split comma-separated themes column and match exactly
+            # Uses ANY with array literal for precise matching (avoids substring false positives)
             theme_conditions = []
             for t in themes:
-                theme_conditions.append("themes ILIKE %s")
-                params.append(f"%{t}%")
+                theme_conditions.append(
+                    "(themes ILIKE %s OR themes ILIKE %s OR themes ILIKE %s OR themes = %s)"
+                )
+                # Match: "Health, ..." | "..., Health, ..." | "..., Health" | exact "Health"
+                params.append(f"{t},%")
+                params.append(f"%, {t},%")
+                params.append(f"%, {t}")
+                params.append(t)
             conditions.append(f"({ ' OR '.join(theme_conditions) })")
 
         if date_from:
@@ -745,8 +793,8 @@ class PgVectorStore:
             results = []
             for row in cur.fetchall():
                 entry = dict(zip(columns, row))
-                if entry.get("embedding") and np is not None:
-                    entry["embedding"] = np.array(entry["embedding"]).tolist()
+                if entry.get("embedding") is not None:
+                    entry["embedding"] = _parse_embedding(entry["embedding"])
                 results.append(entry)
             return results
         finally:
@@ -853,6 +901,10 @@ class PgVectorStore:
         scored = []
         for chunk in pool:
             chunk_emb = chunk.get("embedding")
+            if chunk_emb is None:
+                continue
+            # Ensure embedding is a proper list of floats (not a string)
+            chunk_emb = _parse_embedding(chunk_emb)
             if chunk_emb is None:
                 continue
             chunk_vec = np.array(chunk_emb, dtype=float)

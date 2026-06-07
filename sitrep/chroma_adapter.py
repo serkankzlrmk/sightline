@@ -357,11 +357,15 @@ class ChromaAdapter:
         raw = self.get_chunks_by_country(country, limit=limit * 2)
         filtered = raw
 
-        # Theme filter (OR logic)
+        # Theme filter (OR logic, exact match after splitting comma-separated themes)
         if themes:
+            themes_lower = {t.strip().lower() for t in themes}
             filtered = [
                 c for c in filtered
-                if any(t.lower() in c["themes"].lower() for t in themes)
+                if any(
+                    ct.strip().lower() in themes_lower
+                    for ct in c.get("themes", "").split(",")
+                )
             ]
 
         # Date filter
@@ -470,6 +474,16 @@ class ChromaAdapter:
             chunk_emb = chunk.get("embedding")
             if chunk_emb is None:
                 continue
+            # Handle string embeddings from pgvector/psycopg2
+            if isinstance(chunk_emb, str):
+                import json as _json
+                try:
+                    chunk_emb = _json.loads(chunk_emb)
+                except (ValueError, _json.JSONDecodeError):
+                    stripped = chunk_emb.strip()
+                    if stripped.startswith('[') and stripped.endswith(']'):
+                        stripped = stripped[1:-1]
+                    chunk_emb = [float(x) for x in stripped.split(',') if x.strip()]
             chunk_vec = np.array(chunk_emb, dtype=float)
             # Cosine similarity
             denom = (np.linalg.norm(query_vec) * np.linalg.norm(chunk_vec))
@@ -521,6 +535,15 @@ class ChromaAdapter:
             }
             if emb is not None:
                 import numpy as np
+                if isinstance(emb, str):
+                    import json as _json
+                    try:
+                        emb = _json.loads(emb)
+                    except (ValueError, _json.JSONDecodeError):
+                        stripped = emb.strip()
+                        if stripped.startswith('[') and stripped.endswith(']'):
+                            stripped = stripped[1:-1]
+                        emb = [float(x) for x in stripped.split(',') if x.strip()]
                 entry["embedding"] = emb.tolist() if isinstance(emb, np.ndarray) else list(emb)
             output.append(entry)
         return output
