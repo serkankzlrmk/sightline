@@ -1452,7 +1452,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 /* ── Narrative report body ─────────────────────────────────────────────────── */
 .narrative-body {
   line-height: 1.85; font-size: 14.5px; color: var(--text);
-  max-width: 820px;
+  width: 100%;
 }
 .narrative-body h1,
 .narrative-body h2,
