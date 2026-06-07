@@ -196,7 +196,9 @@ QUESTION_RUNS_PER_CLUSTER:  int   = int(os.getenv("QUESTION_RUNS_PER_CLUSTER",  
 QUESTION_DEDUP_THRESHOLD:   float = float(os.getenv("QUESTION_DEDUP_THRESHOLD", "0.7"))
 MAX_QUESTIONS_PER_CLUSTER:  int   = int(os.getenv("MAX_QUESTIONS_PER_CLUSTER",  "4"))
 MAX_TOTAL_QUESTIONS:        int   = int(os.getenv("MAX_TOTAL_QUESTIONS",        "120"))
-MAX_CLUSTERS:              int   = int(os.getenv("MAX_CLUSTERS",              "30"))
+# Note: MAX_CLUSTERS removed — HDBSCAN determines cluster count naturally.
+# MAX_TOTAL_QUESTIONS distributes budget proportionally across all clusters,
+# so more clusters = fewer questions per cluster, but all topics are preserved.
 
 # ============================================================================
 # OUTPUT DIRECTORIES — sitrep pipeline

@@ -180,28 +180,43 @@ def answer_questions(
     """
     all_answers: List[Dict] = []
 
-    # --- Enforce MAX_TOTAL_QUESTIONS ---
+    # --- Dynamic question budget: distribute MAX_TOTAL_QUESTIONS proportionally ---
     total_questions = sum(
         len(cd.get("filtered_questions", []))
         for cd in filtered_questions.values()
     )
+    num_clusters = len(filtered_questions)
+
     if total_questions > MAX_TOTAL_QUESTIONS:
-        logger.warning(
-            "Total questions (%d) exceeds MAX_TOTAL_QUESTIONS=%d. "
-            "Truncating per-cluster question lists.",
-            total_questions, MAX_TOTAL_QUESTIONS,
-        )
-        # Distribute budget proportionally across clusters
-        budget_per = max(1, MAX_TOTAL_QUESTIONS // max(1, len(filtered_questions)))
+        # Calculate per-cluster budget based on cluster size
+        # Larger clusters get proportionally more questions
+        cluster_sizes = {
+            cid: len(cd.get("filtered_questions", []))
+            for cid, cd in filtered_questions.items()
+        }
+        total_size = sum(cluster_sizes.values())
+
+        # Distribute budget proportionally, with minimum 1 question per cluster
         remaining = MAX_TOTAL_QUESTIONS
         for cid, cd in filtered_questions.items():
-            qs = cd.get("filtered_questions", [])
-            take = min(len(qs), budget_per, remaining)
-            cd["filtered_questions"] = qs[:take]
-            remaining -= take
             if remaining <= 0:
-                break
-        logger.info("Truncated to %d total questions.", MAX_TOTAL_QUESTIONS)
+                cd["filtered_questions"] = []
+                continue
+            # Proportional share: (cluster_size / total_size) * budget
+            share = max(1, round(cluster_sizes[cid] / total_size * MAX_TOTAL_QUESTIONS))
+            take = min(len(cd.get("filtered_questions", [])), share, remaining)
+            cd["filtered_questions"] = cd["filtered_questions"][:take]
+            remaining -= take
+
+        actual_total = sum(
+            len(cd.get("filtered_questions", []))
+            for cd in filtered_questions.values()
+        )
+        logger.info(
+            "Dynamic budget: %d clusters, %d→%d questions (budget=%d, ~%.1f per cluster)",
+            num_clusters, total_questions, actual_total, MAX_TOTAL_QUESTIONS,
+            MAX_TOTAL_QUESTIONS / max(1, num_clusters),
+        )
 
     # --- Resume from checkpoint if available ---
     completed_clusters: set = set()
