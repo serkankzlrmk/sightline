@@ -1443,21 +1443,34 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 
 /* ── Narrative report body ── */
 .narrative-body {
-  line-height: 1.8; font-size: 14px; color: var(--text);
-  text-align: justify;
+  line-height: 1.85; font-size: 14.5px; color: var(--text);
+  max-width: 780px;
 }
 .narrative-body h1,
 .narrative-body h2,
 .narrative-body h3 {
-  font-size: 16px; font-weight: 700;
-  margin: 24px 0 10px; letter-spacing: -.3px;
-  color: var(--text); border-bottom: 1px solid var(--border-light);
-  padding-bottom: 6px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 28px;
+  margin-bottom: 12px;
+  letter-spacing: -.3px;
 }
-.narrative-body h3 { font-size: 15px; border-bottom: none; padding-bottom: 0; margin: 18px 0 8px; }
-.narrative-body p { margin: 8px 0; }
+.narrative-body h1 { font-size: 20px; border-bottom: 2px solid var(--primary); padding-bottom: 8px; }
+.narrative-body h2 { font-size: 17px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.narrative-body h3 { font-size: 15px; border-bottom: none; padding-bottom: 0; }
+.narrative-body p {
+  margin: 0 0 16px 0;
+  text-align: left;
+}
+.narrative-body p:last-child { margin-bottom: 0; }
 .narrative-body a { color: var(--primary); text-decoration: none; font-weight: 500; }
 .narrative-body a:hover { text-decoration: underline; }
+.narrative-body ul, .narrative-body ol {
+  margin: 0 0 16px 20px;
+  padding: 0;
+}
+.narrative-body li { margin-bottom: 6px; }
+.narrative-body strong { font-weight: 700; color: var(--text); }
 
 .sidebar-section-title {
   padding: 14px 18px 6px;

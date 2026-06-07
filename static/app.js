@@ -1121,8 +1121,10 @@ function renderNarrativeCitations(htmlText, narrativeSources) {
 }
 
 function buildNarrativeSourcesList(narrativeSources) {
+  // Filter out non-citation keys (cluster_titles, exec_summary_used)
   const entries = Object.entries(narrativeSources)
-    .filter(([, src]) => src && (src.url || src.title))
+    .filter(([num, src]) => src && typeof src === 'object' && (src.url || src.title))
+    .filter(([num]) => !isNaN(Number(num)))  // only numeric keys
     .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
   if (!entries.length) return '';
   let items = '';

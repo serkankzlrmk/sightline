@@ -79,17 +79,24 @@ Your task is to produce a **coherent, flowing narrative report** in HTML format.
 def _format_cluster_sources(cluster_summaries: Dict) -> tuple:
     """
     Converts cluster summaries to numbered source format.
-    Returns: (source_text: str, num_start: int)
+    Returns: (source_text: str, source_meta: dict)
+        source_meta maps source number → {title, url}
     """
     parts = []
+    source_meta = {}
     num = 1
     for cid, cdata in sorted(cluster_summaries.items()):
         title = cdata.get("title", f"Cluster {cid}")
         summary = cdata.get("summary", "").strip()
         if summary:
             parts.append(f"**Source {num}: [{title}]**\n{summary}")
+            # Collect representative URL from cluster's used_contexts_meta
+            meta_values = list(cdata.get("used_contexts_meta", {}).values())
+            urls = [m.get("url", "") for m in meta_values if isinstance(m, dict) and m.get("url")]
+            rep_url = max(set(urls), key=urls.count) if urls else ""
+            source_meta[str(num)] = {"title": title, "url": rep_url}
             num += 1
-    return "\n\n".join(parts), num
+    return "\n\n".join(parts), source_meta
 
 
 def generate_narrative_report(
@@ -117,7 +124,7 @@ def generate_narrative_report(
         }
     """
     summary_text = exec_summary.get("summary", "").strip()
-    cluster_source_text, _ = _format_cluster_sources(cluster_summaries)
+    cluster_source_text, cluster_source_meta = _format_cluster_sources(cluster_summaries)
 
     event_label = event if event else country
 
@@ -133,6 +140,20 @@ def generate_narrative_report(
                 "exec_summary_used": False,
             },
         }
+
+    # Build source metadata for citations:
+    # Source 0 = Executive Summary, Sources 1+ = Cluster Summaries
+    # The narrative prompt labels them as "Source 0", "Source 1", etc.
+    # We map these to {title, url} for clickable citations.
+    exec_meta = exec_summary.get("cited_paragraphs_meta", {})
+    # Find the most representative URL from exec summary citations
+    exec_urls = [v.get("url", "") for v in exec_meta.values() if isinstance(v, dict) and v.get("url")]
+    exec_rep_url = max(set(exec_urls), key=exec_urls.count) if exec_urls else ""
+    exec_title = exec_summary.get("summary", "")[:80].strip() + "..." if len(exec_summary.get("summary", "")) > 80 else exec_summary.get("summary", "")
+
+    # Combined source map: "0" = exec summary, "1".."N" = cluster summaries
+    narrative_citation_meta = {"0": {"title": "Executive Summary", "url": exec_rep_url}}
+    narrative_citation_meta.update(cluster_source_meta)
 
     prompt = _NARRATIVE_USER_TEMPLATE.format(
         country=country,
@@ -174,6 +195,7 @@ def generate_narrative_report(
         "narrative_sources": {
             "cluster_titles": cluster_titles,
             "exec_summary_used": bool(summary_text),
+            **narrative_citation_meta,
         },
     }
 
