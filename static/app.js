@@ -1836,7 +1836,9 @@ async function loadBulletinList() {
   if (!container) return;
   container.innerHTML = '<div class="sidebar-empty">Loading…</div>';
   try {
-    const bulletins = await api('/api/sitrep/bulletins');
+    const resp = await api('/api/sitrep/bulletins');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const bulletins = await resp.json();
     if (!bulletins.length) {
       container.innerHTML = `
         <div class="sidebar-empty">
@@ -1861,23 +1863,28 @@ async function generateBulletin() {
   const btn = document.querySelector('.bulletin-gen-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
   try {
-    const result = await api('/api/sitrep/bulletin/generate', { method: 'POST' });
+    const resp = await api('/api/sitrep/bulletin/generate', { method: 'POST' });
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${resp.status}`);
+    }
+    const result = await resp.json();
     if (result.job_id) {
       // Async generation — poll for status
       if (btn) { btn.textContent = 'Generating…'; }
       const filename = await pollBulletinJob(result.job_id);
-      showToast('Bulletin generated!', 'success');
+      toast('Bulletin generated!', 'success');
       loadBulletinList();
       if (filename) openBulletin(filename);
     } else if (result.filename) {
       // Sync fallback (shouldn't happen but just in case)
-      showToast('Bulletin generated!', 'success');
+      toast('Bulletin generated!', 'success');
       loadBulletinList();
       openBulletin(result.filename);
     }
   } catch (e) {
     console.error('[bulletin] generateBulletin error:', e);
-    showToast('Failed to generate bulletin: ' + (e.message || 'Unknown error'), 'error');
+    toast('Failed to generate bulletin: ' + (e.message || 'Unknown error'), 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Generate Weekly Bulletin'; }
   }
@@ -1888,7 +1895,12 @@ async function pollBulletinJob(jobId) {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(r => setTimeout(r, 2000));
     try {
-      const status = await api(`/api/sitrep/bulletin/generate/status/${jobId}`);
+      const resp = await api(`/api/sitrep/bulletin/generate/status/${jobId}`);
+      if (!resp.ok) {
+        if (resp.status === 404) throw new Error('Job not found');
+        continue; // Network error — keep polling
+      }
+      const status = await resp.json();
       if (status.status === 'done') {
         return status.result?.filename || null;
       }
@@ -1899,7 +1911,7 @@ async function pollBulletinJob(jobId) {
       const btn = document.querySelector('.bulletin-gen-btn');
       if (btn) { btn.textContent = `Generating… (${i * 2 + 2}s)`; }
     } catch (e) {
-      if (e.message?.includes('Generation failed')) throw e;
+      if (e.message?.includes('Generation failed') || e.message?.includes('Job not found')) throw e;
       // Network error — keep polling
     }
   }
@@ -1912,7 +1924,9 @@ async function openBulletin(filename) {
   if (!content) return;
   content.innerHTML = '<div class="bulletin-loading">Loading bulletin…</div>';
   try {
-    const b = await api(`/api/sitrep/bulletin/${filename}`);
+    const resp = await api(`/api/sitrep/bulletin/${filename}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const b = await resp.json();
     renderBulletin(b, content);
   } catch (e) {
     console.error('[bulletin] openBulletin error:', e);
