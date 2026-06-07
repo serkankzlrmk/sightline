@@ -259,7 +259,11 @@ def run_pipeline(
     questions_raw = _load_checkpoint("questions", country, event, suffix=fh) if not skip_cache else None
     if questions_raw is None:
         from question_generation import generate_questions
-        questions_raw = generate_questions(clusters, event=event, country=country)
+        try:
+            questions_raw = generate_questions(clusters, event=event, country=country)
+        except Exception as exc:
+            logger.error("[3] Question generation failed: %s", exc, exc_info=True)
+            raise RuntimeError(f"Question generation failed: {exc}") from exc
         _save_checkpoint(questions_raw, "questions", country, event, suffix=fh)
 
     # ---- Step 4: Question filtering ----
@@ -267,7 +271,20 @@ def run_pipeline(
     filtered_questions = _load_checkpoint("filtered", country, event, suffix=fh) if not skip_cache else None
     if filtered_questions is None:
         from question_filtering import filter_questions
-        filtered_questions = filter_questions(questions_raw)
+        try:
+            filtered_questions = filter_questions(questions_raw)
+        except Exception as exc:
+            logger.error("[4] Question filtering failed: %s", exc, exc_info=True)
+            # Fallback: use all questions unfiltered
+            logger.warning("[4] Using unfiltered questions as fallback.")
+            filtered_questions = {}
+            for cid, cdata in questions_raw.items():
+                filtered_questions[cid] = {
+                    "cluster_headline": cdata.get("cluster_headline", ""),
+                    "filtered_questions": cdata.get("unique_questions", []),
+                    "total_evaluated": len(cdata.get("unique_questions", [])),
+                    "total_passed": len(cdata.get("unique_questions", [])),
+                }
         _save_checkpoint(filtered_questions, "filtered", country, event, suffix=fh)
 
     total_q = sum(len(v["filtered_questions"]) for v in filtered_questions.values())
@@ -322,7 +339,21 @@ def run_pipeline(
     cluster_summaries = _load_checkpoint("summaries", country, event, suffix=fh) if not skip_cache else None
     if cluster_summaries is None:
         from cluster_summary import generate_cluster_summaries
-        cluster_summaries = generate_cluster_summaries(postprocessed, clusters)
+        try:
+            cluster_summaries = generate_cluster_summaries(postprocessed, clusters)
+        except Exception as exc:
+            logger.error("[7] Cluster summary generation failed: %s", exc, exc_info=True)
+            # Fallback: generate simple summaries from cluster headlines
+            cluster_summaries = {}
+            for cid, cdata in clusters.items():
+                headline = cdata.get("cluster_headline", f"Cluster {cid}")
+                cluster_summaries[cid] = {
+                    "cluster_id": cid,
+                    "headline": headline,
+                    "summary": f"Summary unavailable for cluster: {headline}",
+                    "key_findings": [],
+                }
+            logger.warning("[7] Using fallback cluster summaries (headlines only).")
         _save_checkpoint(cluster_summaries, "summaries", country, event, suffix=fh)
 
     # ---- Step 8: Executive summary ----
