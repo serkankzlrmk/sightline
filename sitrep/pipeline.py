@@ -289,7 +289,16 @@ def run_pipeline(
     exec_summary = _load_checkpoint("exec_summary", country, event, suffix=fh) if not skip_cache else None
     if exec_summary is None:
         from executive_summary import generate_executive_summary
-        exec_summary = generate_executive_summary(postprocessed, cluster_summaries=cluster_summaries)
+        try:
+            exec_summary = generate_executive_summary(postprocessed, cluster_summaries=cluster_summaries)
+        except Exception as exc:
+            logger.error("[8] Executive summary generation failed: %s", exc, exc_info=True)
+            exec_summary = {
+                "summary": "Executive summary generation failed. See cluster summaries for details.",
+                "cited_paragraphs": {},
+                "cited_paragraphs_meta": {},
+                "full_paragraphs": [],
+            }
         _save_checkpoint(exec_summary, "exec_summary", country, event, suffix=fh)
 
     # ---- Step 8.5: Narrative report ----
@@ -297,12 +306,26 @@ def run_pipeline(
     narrative = _load_checkpoint("narrative", country, event, suffix=fh) if not skip_cache else None
     if narrative is None:
         from narrative_report import generate_narrative_report
-        narrative = generate_narrative_report(
-            country=country,
-            event=event,
-            cluster_summaries=cluster_summaries,
-            exec_summary=exec_summary,
-        )
+        try:
+            narrative = generate_narrative_report(
+                country=country,
+                event=event,
+                cluster_summaries=cluster_summaries,
+                exec_summary=exec_summary,
+            )
+        except Exception as exc:
+            logger.error("[8.5] Narrative report generation failed: %s", exc, exc_info=True)
+            summary_text = exec_summary.get("summary", "") if exec_summary else ""
+            narrative = {
+                "narrative_html": (
+                    f"<h2>1. Executive Overview</h2>"
+                    f"<p>{summary_text or 'Narrative report generation failed.'}</p>"
+                ),
+                "narrative_sources": {
+                    "cluster_titles": [],
+                    "exec_summary_used": bool(summary_text),
+                },
+            }
         _save_checkpoint(narrative, "narrative", country, event, suffix=fh)
 
     # ---- Step 9: Report assembly ----
