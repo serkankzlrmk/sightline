@@ -373,21 +373,65 @@ Paylaşılan yardımcı fonksiyonlar.
 | `validate_country/date/limit()` | Girdi doğrulama |
 | `retry_request(method, url, max_retries)` | 429/5xx/network hatalarında retry |
 
+#### `reliefweb_api/hdx_client.py` (~900 satır)
+HDX HAPI API doğrudan HTTP istemcisi (MCP server bağımlılığı yok).
+
+| Sınıf/Fonksiyon | İşlev |
+|-----------------|-------|
+| `HDXClient` | Ana istemci sınıfı, async + sync metodlar |
+| `HDXResult` | API yanıt sarmalayıcı (data, success, error) |
+| `SimpleCache` | 24h TTL bellek içi önbellek |
+| `get_country_overview_sync(cc)` | 9 endpoint paralel fetch |
+| `get_sitrep_context_sync(cc)` | SITREP-ready format (summary + data_sources) |
+| `get_refugees/idps/funding/conflict_sync()` | Tekil veri endpoint'leri |
+
+#### `reliefweb_api/hdx_tools.py` (~200 satır)
+LangChain @tool tanımları (6 HDX aracı).
+
+| Tool | İşlev |
+|------|-------|
+| `hdx_get_country_overview` | Kapsamlı ülke insani veri özeti |
+| `hdx_get_data_availability` | Veri bulunabilirliği kontrolü |
+| `hdx_get_refugees` | UNHCR mülteci verileri |
+| `hdx_get_idps` | IDP verileri |
+| `hdx_get_funding` | Finansman verileri |
+| `hdx_get_conflict_events` | ACLED çatışma olayları |
+
+#### `reliefweb_api/country_codes.py` (~200 satır)
+Ülke adı → ISO 3166-1 alpha-3 kod eşlemesi (128 ülke).
+
+| Fonksiyon | İşlev |
+|-----------|-------|
+| `get_iso_code(country_name)` | Ülke adı → ISO kod (fuzzy match dahil) |
+| `get_country_name(iso_code)` | ISO kod → ülke adı |
+| `COUNTRY_TO_ISO` | 128 ülke eşleme dict |
+
 ---
 
 ### 3.4 `sitrep/` Dizini
 
-#### `sitrep/pipeline.py` (~200 satır)
-9.5 aşamalı SITREP pipeline orkestrasyonu. Checkpoint/resume desteği.
+#### `sitrep/pipeline.py` (~250 satır)
+10.5 aşamalı SITREP pipeline orkestrasyonu. Checkpoint/resume desteği. HDX enrichment Stage 1.5.
 
 | Fonksiyon | İşlev |
 |-----------|-------|
 | `_safe_name(country, event)` | Güvenli dosya adı |
 | `_filter_hash(themes, date_from, date_to)` | MD5 hash (checkpoint farklılaştırma) |
 | `_checkpoint_path/load/save()` | Checkpoint JSON oku/yaz |
-| `run_pipeline(country, event, themes, ...)` | Tam pipeline çalıştırıcı |
+| `run_pipeline(country, event, themes, ...)` | Tam pipeline çalıştırıcı (HDX enrichment dahil) |
 
-**Not:** `MIN_CHUNKS_FOR_CLUSTERING=20` (altında tek küme). `sys.path.insert` subprocess için.
+**Not:** `MIN_CHUNKS_FOR_CLUSTERING=20` (altında tek küme). `sys.path.insert` subprocess için. Stage 1.5 HDX enrichment optional — fallback ile çalışır.
+
+#### `sitrep/hdx_enrichment.py` (~250 satır)
+HDX veri formatlama fonksiyonları (SITREP, bulletin, RAG, narrative için).
+
+| Fonksiyon | İşlev |
+|-----------|-------|
+| `fetch_hdx_context(country)` | Ülke adı → HDX context dict (ISO kod dönüşümü dahil) |
+| `format_hdx_summary_for_prompt(ctx)` | LLM prompt için özet format |
+| `format_hdx_for_rag_context(ctx)` | RAG source format (numbered) |
+| `format_hdx_for_bulletin(ctx)` | Bulletin key_figures + context_text |
+| `format_hdx_for_narrative(ctx)` | Narrative report için yapılandırılmış veri |
 
 ---
 
