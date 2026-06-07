@@ -1005,28 +1005,40 @@ function renderSitrepReport(report, filename) {
   const evt     = parts.slice(1).join(' ');
 
   const hasNarrative = !!(report.narrative_html && report.narrative_html.trim());
-
-  let html = `
-    <div class="report-header">
-      <div>
-        <div class="report-title">${escHtml(country)}</div>
-        <div class="report-subtitle">${escHtml(evt)}</div>
-      </div>
-      <div class="report-actions">
-        <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">Discuss with ReliefAgent</button>
-      </div>
-    </div>`;
-
-  // Filters meta (themes, date range)
   const rThemes = report.themes || [];
   const rDateFrom = report.date_from || '';
   const rDateTo   = report.date_to   || '';
-  if (rThemes.length || rDateFrom || rDateTo) {
-    let metaParts = [];
-    if (rThemes.length) metaParts.push(`<span class="report-meta-label">Themes:</span> ${rThemes.map(t => `<span class="report-meta-pill">${escHtml(t)}</span>`).join(' ')}`);
-    if (rDateFrom || rDateTo) metaParts.push(`<span class="report-meta-label">Date Range:</span> ${escHtml(rDateFrom || '…')} → ${escHtml(rDateTo || '…')}`);
-    html += `<div class="report-meta-bar">${metaParts.join('<span class="report-meta-sep">|</span>')}</div>`;
+  const clusters = report.clusters || [];
+  const narrSources = hasNarrative ? (report.narrative_sources || {}) : {};
+  const sourceCount = Object.entries(narrSources).filter(([k, v]) => !isNaN(Number(k)) && v && typeof v === 'object' && (v.url || v.title)).length;
+
+  // ── Hero banner ──
+  let html = `
+    <div class="report-hero">
+      <div class="report-hero-content">
+        <div class="report-hero-badge">📋 SITREP</div>
+        <h1 class="report-hero-title">${escHtml(country)}</h1>
+        <div class="report-hero-subtitle">${escHtml(evt)}</div>
+        <div class="report-hero-meta">
+          ${(rDateFrom || rDateTo) ? `<span class="report-hero-date">📅 ${escHtml(rDateFrom || '…')} — ${escHtml(rDateTo || '…')}</span>` : ''}
+          ${rThemes.length ? rThemes.map(t => `<span class="report-hero-theme">${escHtml(t)}</span>`).join('') : ''}
+        </div>
+      </div>
+      <div class="report-hero-actions">
+        <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">💬 Discuss with ReliefAgent</button>
+      </div>
+    </div>`;
+
+  // ── Key figures row ──
+  html += `<div class="report-kf-row">`;
+  html += `<div class="report-kf-card"><div class="report-kf-value">${clusters.length}</div><div class="report-kf-label">Clusters</div></div>`;
+  html += `<div class="report-kf-card"><div class="report-kf-value">${sourceCount || Object.keys(narrSources).filter(k => !isNaN(Number(k))).length}</div><div class="report-kf-label">Sources</div></div>`;
+  html += `<div class="report-kf-card"><div class="report-kf-value">${rThemes.length}</div><div class="report-kf-label">Themes</div></div>`;
+  if (rDateFrom && rDateTo) {
+    const days = Math.max(1, Math.round((new Date(rDateTo) - new Date(rDateFrom)) / 86400000));
+    html += `<div class="report-kf-card"><div class="report-kf-value">${days}</div><div class="report-kf-label">Days Covered</div></div>`;
   }
+  html += `</div>`;
 
   // View toggle (only if narrative exists)
   if (hasNarrative) {
@@ -1039,7 +1051,6 @@ function renderSitrepReport(report, filename) {
 
   // ── Narrative view ──
   if (hasNarrative) {
-    const narrSources = report.narrative_sources || {};
     html += `<div id="report-narrative-view" class="report-view-section">`;
     html += `<div class="narrative-body">${renderNarrativeCitations(md(sanitizeHtml(report.narrative_html)), narrSources)}</div>`;
     html += buildNarrativeSourcesList(narrSources);
@@ -1134,18 +1145,26 @@ function buildNarrativeSourcesList(narrativeSources) {
     try { domain = new URL(src.url || '').hostname.replace(/^www\./, ''); } catch {}
     const href  = src.url ? escHtml(src.url) : '#';
     const noUrl = src.url ? '' : 'style="opacity:0.6;pointer-events:none"';
+    // Determine source type icon
+    let icon = '📄';
+    if (domain.includes('reliefweb')) icon = '🌐';
+    else if (domain.includes('un')) icon = '🇺🇳';
+    else if (domain.includes('ocha')) icon = '📍';
+    else if (src.url) icon = '🔗';
     items += `
-      <a class="source-item" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
-        <span class="source-item-num">${escHtml(num)}</span>
-        <span class="source-item-body">
-          <div class="source-item-title">${escHtml(src.title || '—')}</div>
-          ${src.date ? `<div class="source-item-domain">${escHtml(src.date)}</div>` : ''}
-          ${domain ? `<div class="source-item-domain">${escHtml(domain)}</div>` : ''}
-        </span>
-        <span class="source-item-icon">↗</span>
+      <a class="source-card" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
+        <div class="source-card-icon">${icon}</div>
+        <div class="source-card-body">
+          <div class="source-card-title">${escHtml(src.title || '—')}</div>
+          <div class="source-card-meta">
+            ${domain ? `<span class="source-card-domain">${escHtml(domain)}</span>` : ''}
+            ${src.date ? `<span class="source-card-date">${escHtml(src.date)}</span>` : ''}
+          </div>
+        </div>
+        <span class="source-card-num">[${escHtml(num)}]</span>
       </a>`;
   });
-  return `<div class="sources-section"><div class="sources-title">Sources (${entries.length})</div>${items}</div>`;
+  return `<div class="sources-section"><div class="sources-title">📎 Sources (${entries.length})</div><div class="sources-grid">${items}</div></div>`;
 }
 
 // ── Citation helpers ─────────────────────────────────────────────────────────
