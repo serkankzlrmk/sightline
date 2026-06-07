@@ -667,9 +667,11 @@ def api_admin_update_config():
     })
 
 
+import time as _time
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", v=int(_time.time()))
 
 
 # =============================================================================
