@@ -1415,7 +1415,7 @@ def api_bulletin_generate():
     with _jobs_lock:
         _jobs[job_id] = {
             "status": "running",
-            "queue": queue.Queue(),
+            "queue":   Queue(),
             "started_at": _time.time(),
             "type": "bulletin",
             "date_from": date_from,
@@ -1470,11 +1470,14 @@ def api_bulletin_generate_status(job_id):
     # Collect any new log lines from the queue
     logs = []
     q = job["queue"]
-    while not q.empty():
-        line = q.get_nowait() if hasattr(q, 'get_nowait') else None
-        if line is None:
-            break
-        logs.append(line)
+    try:
+        while True:
+            line = q.get_nowait()
+            if line is None:
+                break
+            logs.append(line)
+    except Empty:
+        pass
     
     response = {
         "status": job["status"],
