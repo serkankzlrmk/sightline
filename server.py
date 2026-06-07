@@ -471,9 +471,11 @@ def _run_job(job_id: str, cmd: list):
                 q.put(line)
 
         proc.wait()
+        exit_code = proc.returncode
         with _jobs_lock:
-            _jobs[job_id]["status"] = "done" if proc.returncode == 0 else "error"
+            _jobs[job_id]["status"] = "done" if exit_code == 0 else "error"
             _jobs[job_id]["finished_at"] = _time.time()
+            _jobs[job_id]["exit_code"] = exit_code
     except Exception as exc:
         q.put(f"[SERVER ERROR] {exc}")
         with _jobs_lock:

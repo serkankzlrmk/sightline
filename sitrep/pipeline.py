@@ -231,7 +231,11 @@ def run_pipeline(
                 }
             }
         else:
-            clusters = run_clustering(chunks)
+            try:
+                clusters = run_clustering(chunks)
+            except Exception as exc:
+                logger.error("[2] Clustering failed: %s", exc, exc_info=True)
+                raise RuntimeError(f"Clustering failed: {exc}") from exc
         _save_checkpoint(clusters, "clusters", country, event, suffix=fh)
     logger.info("    %d clusters generated.", len(clusters))
 

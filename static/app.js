@@ -875,6 +875,7 @@ function connectSSE(jobId) {
       } else {
         setSitrepStepState(sitrepCurrentStep, 'error');
         appendLog('─── Pipeline failed with error ───');
+        appendLog('Tip: Check the log above for error details. You can re-run with "Skip cache" to restart from scratch.');
       }
       sitrepActiveJobId = null;
       document.getElementById('btn-run').disabled = false;
