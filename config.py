@@ -149,7 +149,7 @@ LLM_MAX_TOKENS_DEFAULT: int = 1024
 LLM_MAX_TOKENS_ANSWER:  int = 4096
 LLM_MAX_TOKENS_SUMMARY: int = 4096
 LLM_MAX_TOKENS_HEADLINE: int = 64
-LLM_TIMEOUT:     int = int(os.getenv("LLM_TIMEOUT",     "900"))
+LLM_TIMEOUT:     int = int(os.getenv("LLM_TIMEOUT",     "180"))
 LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
 # Question generation
@@ -170,7 +170,7 @@ LLM_TEMPERATURE_ANSWERS: float = float(os.getenv("LLM_TEMPERATURE_ANSWERS", "0.0
 RETRIEVAL_TOP_K:         int   = int(os.getenv("RETRIEVAL_TOP_K",   "10"))
 RETRIEVAL_TOP_K_SUMMARY: int   = int(os.getenv("RETRIEVAL_TOP_K_SUMMARY", "20"))
 RRF_K:                   int   = int(os.getenv("RRF_K",             "60"))
-RRF_NUM_SUBQUERIES:      int   = int(os.getenv("RRF_NUM_SUBQUERIES", "4"))
+RRF_NUM_SUBQUERIES:      int   = int(os.getenv("RRF_NUM_SUBQUERIES", "3"))
 
 # ============================================================================
 # CLUSTERING PARAMETERS — sitrep pipeline
@@ -192,9 +192,11 @@ HP_MIN_CLUSTERS:         int   = int(os.getenv("HP_MIN_CLUSTERS",      "4"))
 # ============================================================================
 # QUESTION GENERATION PARAMETERS
 # ============================================================================
-QUESTION_RUNS_PER_CLUSTER:  int   = int(os.getenv("QUESTION_RUNS_PER_CLUSTER",  "3"))
+QUESTION_RUNS_PER_CLUSTER:  int   = int(os.getenv("QUESTION_RUNS_PER_CLUSTER",  "2"))
 QUESTION_DEDUP_THRESHOLD:   float = float(os.getenv("QUESTION_DEDUP_THRESHOLD", "0.7"))
-MAX_QUESTIONS_PER_CLUSTER:  int   = int(os.getenv("MAX_QUESTIONS_PER_CLUSTER",  "6"))
+MAX_QUESTIONS_PER_CLUSTER:  int   = int(os.getenv("MAX_QUESTIONS_PER_CLUSTER",  "4"))
+MAX_TOTAL_QUESTIONS:        int   = int(os.getenv("MAX_TOTAL_QUESTIONS",        "120"))
+MAX_CLUSTERS:              int   = int(os.getenv("MAX_CLUSTERS",              "30"))
 
 # ============================================================================
 # OUTPUT DIRECTORIES — sitrep pipeline

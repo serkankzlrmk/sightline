@@ -19,8 +19,11 @@ from config import (
     LLM_MAX_TOKENS_ANSWER,
     LLM_MODEL_ANSWERS,
     LLM_TEMPERATURE_ANSWERS,
+    MAX_TOTAL_QUESTIONS,
 )
 import llm_client
+import json as _json
+import os as _os
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +152,7 @@ def answer_questions(
     chroma_adapter,
     country: str,
     hdx_context: Optional[Dict] = None,
+    checkpoint_dir: Optional[str] = None,
 ) -> List[Dict]:
     """
     Answers filtered questions using Chroma RAG Fusion.
@@ -160,6 +164,8 @@ def answer_questions(
                             {cluster_id: {cluster_articles, cluster_headline, metadata}}
         chroma_adapter    : ChromaAdapter instance
         country           : Country name for retrieval filter
+        hdx_context       : Optional HDX enrichment data
+        checkpoint_dir    : Directory for per-cluster checkpoint files (enables resume)
 
     Returns:
         [
@@ -174,7 +180,60 @@ def answer_questions(
     """
     all_answers: List[Dict] = []
 
+    # --- Enforce MAX_TOTAL_QUESTIONS ---
+    total_questions = sum(
+        len(cd.get("filtered_questions", []))
+        for cd in filtered_questions.values()
+    )
+    if total_questions > MAX_TOTAL_QUESTIONS:
+        logger.warning(
+            "Total questions (%d) exceeds MAX_TOTAL_QUESTIONS=%d. "
+            "Truncating per-cluster question lists.",
+            total_questions, MAX_TOTAL_QUESTIONS,
+        )
+        # Distribute budget proportionally across clusters
+        budget_per = max(1, MAX_TOTAL_QUESTIONS // max(1, len(filtered_questions)))
+        remaining = MAX_TOTAL_QUESTIONS
+        for cid, cd in filtered_questions.items():
+            qs = cd.get("filtered_questions", [])
+            take = min(len(qs), budget_per, remaining)
+            cd["filtered_questions"] = qs[:take]
+            remaining -= take
+            if remaining <= 0:
+                break
+        logger.info("Truncated to %d total questions.", MAX_TOTAL_QUESTIONS)
+
+    # --- Resume from checkpoint if available ---
+    completed_clusters: set = set()
+    if checkpoint_dir:
+        _os.makedirs(checkpoint_dir, exist_ok=True)
+        cp_file = _os.path.join(checkpoint_dir, "answers_progress.json")
+        if _os.path.exists(cp_file):
+            try:
+                with open(cp_file, "r", encoding="utf-8") as f:
+                    progress = _json.load(f)
+                completed_clusters = set(progress.get("completed_clusters", []))
+                # Load previously saved answers
+                for cid in completed_clusters:
+                    cluster_cp = _os.path.join(checkpoint_dir, f"answers_{cid}.json")
+                    if _os.path.exists(cluster_cp):
+                        with open(cluster_cp, "r", encoding="utf-8") as f:
+                            all_answers.extend(_json.load(f))
+                logger.info(
+                    "Resumed from checkpoint: %d clusters already done, %d answers loaded.",
+                    len(completed_clusters), len(all_answers),
+                )
+            except Exception as exc:
+                logger.warning("Failed to load checkpoint, starting fresh: %s", exc)
+                all_answers = []
+                completed_clusters = set()
+
     for cluster_id, cluster_data in filtered_questions.items():
+        # Skip already completed clusters (resume support)
+        if cluster_id in completed_clusters:
+            logger.info("Cluster %s: already completed, skipping.", cluster_id)
+            continue
+
         questions = cluster_data.get("filtered_questions", [])
         cluster_chunks = clusters.get(cluster_id, {}).get("cluster_articles", [])
 
@@ -182,6 +241,8 @@ def answer_questions(
             "Cluster %s: Answering %d questions (%d chunks in pool)",
             cluster_id, len(questions), len(cluster_chunks),
         )
+
+        cluster_answers: List[Dict] = []
 
         for question in questions:
             logger.debug("  Question: %s", question[:80])
@@ -219,7 +280,7 @@ def answer_questions(
 
             if not top_chunks:
                 logger.warning("  No chunks found for question: %s", question[:60])
-                all_answers.append({
+                cluster_answers.append({
                     "cluster_id": cluster_id,
                     "question": question,
                     "retrieved_answer": "The provided sources do not contain information relevant to this query.",
@@ -258,7 +319,7 @@ def answer_questions(
                 logger.error("  Answer generation failed: %s", exc)
                 answer = "No clear answer."
 
-            all_answers.append({
+            cluster_answers.append({
                 "cluster_id": cluster_id,
                 "question": question,
                 "retrieved_answer": answer.strip(),
@@ -275,6 +336,23 @@ def answer_questions(
             })
 
             logger.debug("  Answer: %s", answer[:120])
+
+        # --- Per-cluster checkpoint ---
+        if checkpoint_dir:
+            cluster_cp = _os.path.join(checkpoint_dir, f"answers_{cluster_id}.json")
+            try:
+                with open(cluster_cp, "w", encoding="utf-8") as f:
+                    _json.dump(cluster_answers, f, ensure_ascii=False, indent=2)
+                # Update progress file
+                completed_clusters.add(cluster_id)
+                progress = {"completed_clusters": sorted(completed_clusters)}
+                with open(_os.path.join(checkpoint_dir, "answers_progress.json"), "w", encoding="utf-8") as f:
+                    _json.dump(progress, f)
+                logger.info("  Checkpoint saved for cluster %s (%d answers).", cluster_id, len(cluster_answers))
+            except Exception as exc:
+                logger.warning("  Failed to save checkpoint for cluster %s: %s", cluster_id, exc)
+
+        all_answers.extend(cluster_answers)
 
     logger.info("%d questions answered in total.", len(all_answers))
     return all_answers

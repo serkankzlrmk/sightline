@@ -28,6 +28,7 @@ from config import (
     HP_EPSILON_OPTIONS,
     HP_SEARCH_ITERATIONS,
     HP_MIN_CLUSTERS,
+    MAX_CLUSTERS,
     LLM_MAX_TOKENS_HEADLINE,
 )
 import llm_client
@@ -479,6 +480,53 @@ def run_clustering(
             "cluster_headline": headline,
             "metadata": metadata,
         }
+
+    # 4. Merge small clusters if we exceed MAX_CLUSTERS
+    if len(result) > MAX_CLUSTERS:
+        logger.info(
+            "Too many clusters (%d > MAX_CLUSTERS=%d). Merging smallest clusters.",
+            len(result), MAX_CLUSTERS,
+        )
+        # Sort clusters by size (smallest first)
+        sorted_clusters = sorted(
+            result.items(),
+            key=lambda x: len(x[1]["cluster_articles"]),
+        )
+
+        # Keep the largest MAX_CLUSTERS clusters
+        kept = dict(sorted_clusters[-MAX_CLUSTERS:])
+        merged_away = dict(sorted_clusters[:-MAX_CLUSTERS])
+
+        # Merge small clusters into the nearest large cluster
+        # (by headline similarity — simple string overlap)
+        for cid, cdata in merged_away.items():
+            # Find the best matching kept cluster by headline word overlap
+            best_cid = None
+            best_overlap = -1
+            merged_words = set(cdata["cluster_headline"].lower().split())
+
+            for kept_cid, kept_data in kept.items():
+                kept_words = set(kept_data["cluster_headline"].lower().split())
+                overlap = len(merged_words & kept_words)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_cid = kept_cid
+
+            # If no word overlap, merge into the largest cluster
+            if best_cid is None:
+                best_cid = max(kept.keys(), key=lambda k: len(kept[k]["cluster_articles"]))
+
+            # Append articles and metadata
+            kept[best_cid]["cluster_articles"].extend(cdata["cluster_articles"])
+            kept[best_cid]["metadata"].extend(cdata["metadata"])
+
+            logger.info(
+                "  Merged cluster %s (%d chunks) into cluster %s",
+                cid, len(cdata["cluster_articles"]), best_cid,
+            )
+
+        result = kept
+        logger.info("After merging: %d clusters.", len(result))
 
     logger.info("Clustering complete: %d clusters generated.", len(result))
     return result

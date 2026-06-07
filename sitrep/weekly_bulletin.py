@@ -148,6 +148,36 @@ def _get_db():
     return ChromaAdapter()
 
 
+def _get_available_date_range(db) -> Optional[Dict]:
+    """
+    Query the vector store for the actual date range of available data.
+    Returns {'date_from': 'YYYY-MM-DD', 'date_to': 'YYYY-MM-DD'} or None.
+    """
+    try:
+        # Get a sample of chunks to determine date range
+        # Use a large country to get a representative sample
+        countries = db.list_countries_with_counts()
+        if not countries:
+            return None
+
+        # Check the top 5 countries for date range
+        all_dates = []
+        for entry in countries[:5]:
+            chunks = db.get_chunks_by_country(entry["name"], limit=200)
+            for c in chunks:
+                d = c.get("date", "")[:10]
+                if d and len(d) == 10:
+                    all_dates.append(d)
+
+        if not all_dates:
+            return None
+
+        return {"date_from": min(all_dates), "date_to": max(all_dates)}
+    except Exception as exc:
+        logger.warning("Failed to determine available date range: %s", exc)
+        return None
+
+
 def fetch_reports_by_date_range(
     date_from: str,
     date_to: str,
@@ -155,6 +185,9 @@ def fetch_reports_by_date_range(
     """
     Fetch reports from the vector store for a date range,
     grouped by primary_country.
+
+    If no data is found for the requested date range, falls back to
+    the actual date range available in the database.
 
     Returns:
         {country: [chunk_dict, ...], ...}
@@ -198,6 +231,49 @@ def fetch_reports_by_date_range(
 
         if len(unique_reports) >= 3:
             grouped[country] = unique_reports
+
+    # If no data found for the requested date range, fall back to available range
+    if not grouped:
+        available = _get_available_date_range(db)
+        if available:
+            logger.info(
+                "No data found for %s to %s. Falling back to available range: %s to %s",
+                date_from, date_to, available["date_from"], available["date_to"],
+            )
+            date_from = available["date_from"]
+            date_to = available["date_to"]
+
+            for entry in countries_with_counts:
+                country = entry["name"]
+                count = entry.get("count", 0)
+                if count < 3:
+                    continue
+
+                try:
+                    chunks = db.get_chunks_by_country_and_themes(
+                        country,
+                        themes=None,
+                        date_from=date_from,
+                        date_to=date_to,
+                        limit=500,
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to fetch chunks for %s: %s", country, exc)
+                    continue
+
+                if not chunks:
+                    continue
+
+                seen_titles = set()
+                unique_reports = []
+                for c in chunks:
+                    title = c.get("title", "")
+                    if title and title not in seen_titles:
+                        seen_titles.add(title)
+                        unique_reports.append(c)
+
+                if len(unique_reports) >= 3:
+                    grouped[country] = unique_reports
 
     logger.info("Fetched reports for %d countries in date range %s to %s",
                 len(grouped), date_from, date_to)

@@ -12,6 +12,7 @@ Usage:
 """
 
 import sys
+import os
 import json
 import logging
 import argparse
@@ -277,13 +278,34 @@ def run_pipeline(
     raw_answers = _load_checkpoint("answers", country, event, suffix=fh) if not skip_cache else None
     if raw_answers is None:
         from rag_answers import answer_questions
-        raw_answers = answer_questions(
-            filtered_questions=filtered_questions,
-            clusters=clusters,
-            chroma_adapter=db,
-            country=country,
-            hdx_context=hdx_context,
-        )
+        # Use per-cluster checkpointing for resilience on large runs
+        answers_ckpt_dir = os.path.join(OUTPUT_ANSWERS_DIR, f"{country}_{event}_ckpt")
+        try:
+            raw_answers = answer_questions(
+                filtered_questions=filtered_questions,
+                clusters=clusters,
+                chroma_adapter=db,
+                country=country,
+                hdx_context=hdx_context,
+                checkpoint_dir=answers_ckpt_dir,
+            )
+        except Exception as exc:
+            logger.error("Stage 5 (RAG answers) failed: %s", exc, exc_info=True)
+            # Try to recover partial answers from checkpoint
+            partial = []
+            if os.path.isdir(answers_ckpt_dir):
+                for fname in os.listdir(answers_ckpt_dir):
+                    if fname.startswith("answers_") and fname.endswith(".json") and fname != "answers_progress.json":
+                        try:
+                            with open(os.path.join(answers_ckpt_dir, fname), "r", encoding="utf-8") as pf:
+                                partial.extend(json.load(pf))
+                        except Exception:
+                            pass
+            if partial:
+                logger.warning("Recovered %d partial answers from checkpoint.", len(partial))
+                raw_answers = partial
+            else:
+                raise RuntimeError(f"Stage 5 (RAG answers) failed with no recoverable data: {exc}") from exc
         _save_checkpoint(raw_answers, "answers", country, event, suffix=fh)
     logger.info("    %d answers generated.", len(raw_answers))
 

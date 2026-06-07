@@ -142,20 +142,30 @@ COUNTRY_TO_ISO: dict[str, str] = {
     "Sudan": "SDN",
     "Sweden": "SWE",
     "Switzerland": "CHE",
+    "Syrian Arab Republic": "SYR",
     "Tajikistan": "TJK",
     "Thailand": "THA",
     "Togo": "TGO",
     "Tunisia": "TUN",
     "Turkmenistan": "TKM",
+    "Türkiye": "TUR",
+    "Turkey": "TUR",
     "Uganda": "UGA",
     "United Arab Emirates": "ARE",
     "United Kingdom": "GBR",
     "United States": "USA",
     "Uruguay": "URY",
     "Uzbekistan": "UZB",
+    "Vanuatu": "VUT",
     "Vietnam": "VNM",
     "West Bank and Gaza": "PSE",
     "Zambia": "ZMB",
+
+    # --- Territories and special entries ---
+    "World": None,  # Not a country, no ISO code
+    "Guam": "GUM",
+    "Cyprus": "CYP",
+    "Solomon Islands": "SLB",
 }
 
 # Reverse mapping: ISO code → country name
