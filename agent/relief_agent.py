@@ -70,6 +70,9 @@ from reliefweb_api import (
     mcp_langchain_tools,
 )
 
+# HDX tools — humanitarian data from HDX (Humanitarian Data Exchange)
+from reliefweb_api.hdx_tools import HDX_TOOLS, init_hdx_tools, get_hdx_client
+
 # ============================================================================
 # MODEL INITIALIZATION
 # ============================================================================
@@ -80,10 +83,26 @@ if model is None:
     logger.critical("Failed to initialize model. System cannot start.")
     sys.exit(1)
 
-tools_by_name = {t.name: t for t in mcp_langchain_tools}
+# Initialize HDX client (graceful fallback if key not set)
+_hdx_initialized = init_hdx_tools(
+    app_identifier=config.HDX_APP_IDENTIFIER,
+    base_url=config.HDX_BASE_URL,
+    timeout=config.HDX_TIMEOUT,
+    rate_limit_requests=config.HDX_RATE_LIMIT_REQUESTS,
+    rate_limit_period=config.HDX_RATE_LIMIT_PERIOD,
+)
+if _hdx_initialized:
+    logger.info("✓ HDX client initialized — humanitarian data tools available")
+    # Add HDX tools to the agent's tool list
+    all_tools = mcp_langchain_tools + HDX_TOOLS
+else:
+    logger.warning("HDX client not initialized (HDX_APP_IDENTIFIER not set). HDX tools will return errors.")
+    all_tools = mcp_langchain_tools
+
+tools_by_name = {t.name: t for t in all_tools}
 try:
-    model_with_tools = model.bind_tools(mcp_langchain_tools)
-    logger.info("✓ Model tools bound successfully")
+    model_with_tools = model.bind_tools(all_tools)
+    logger.info(f"✓ Model tools bound successfully ({len(all_tools)} tools: {len(mcp_langchain_tools)} ReliefWeb + {len(HDX_TOOLS) if _hdx_initialized else 0} HDX)")
 except Exception as e:
     logger.critical(f"Failed to bind tools to model: {e}")
     sys.exit(1)
@@ -229,6 +248,30 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 10. **Multi-turn**: Remember previously found report IDs for follow-up requests.
 11. **Stay on topic**: If a follow-up question drifts away from humanitarian topics, gently redirect.
 12. **No speculation**: Do not speculate about future events, make predictions, or provide political commentary. Only present documented facts from reports.
+
+## HDX TOOL USAGE (Humanitarian Data Exchange)
+
+When HDX tools are available, use them for **quantitative humanitarian data**:
+
+- **hdx_get_country_overview(country_code)** — Use for broad country overviews with numbers.
+  Best first call when user asks "What's the humanitarian situation in X?"
+- **hdx_get_data_availability(country_code)** — Use BEFORE specific data queries to check
+  what categories exist. Returns available data types and record counts.
+- **hdx_get_refugees(country_code)** — Use for refugee counts, displacement figures, persons of concern.
+- **hdx_get_idps(country_code)** — Use for internally displaced persons (IDP) data.
+- **hdx_get_funding(country_code)** — Use for humanitarian funding: requirements vs. received, funding gaps.
+- **hdx_get_conflict_events(country_code)** — Use for conflict/violence data: event counts, types, actors.
+
+**HDX vs ReliefWeb tools:**
+- HDX → **Quantitative data** (numbers, statistics, counts, funding figures)
+- ReliefWeb → **Qualitative reports** (situation reports, analysis, news, assessments)
+
+**When to combine both:**
+- "How many refugees are in Syria and what are the latest reports?" → hdx_get_refugees("SYR") + search_sitreps(country="Syria")
+- "What's the funding situation in Afghanistan?" → hdx_get_funding("AFG") + search_sitreps(country="Afghanland", theme="Contributions")
+
+**Country codes:** Use ISO 3166-1 alpha-3 codes (SYR, TUR, AFG, UKR, YEM, SDN, ETH, etc.)
+**Always verify data availability first** with hdx_get_data_availability if unsure whether HDX has data for a country.
 
 ## RESPONSE FORMAT
 - Be concise and factual

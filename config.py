@@ -98,6 +98,15 @@ SUPABASE_DB_URL: str = os.getenv("SUPABASE_DB_URL", "")
 EMBEDDING_DIM: int = int(os.getenv("EMBEDDING_DIM", "384"))  # all-MiniLM-L6-v2
 
 # ============================================================================
+# HDX (Humanitarian Data Exchange) — direct API client
+# ============================================================================
+HDX_APP_IDENTIFIER: str = os.getenv("HDX_APP_IDENTIFIER", "")
+HDX_BASE_URL: str = os.getenv("HDX_BASE_URL", "https://hapi.humdata.org/api/v2")
+HDX_TIMEOUT: float = float(os.getenv("HDX_TIMEOUT", "30.0"))
+HDX_RATE_LIMIT_REQUESTS: int = int(os.getenv("HDX_RATE_LIMIT_REQUESTS", "10"))
+HDX_RATE_LIMIT_PERIOD: float = float(os.getenv("HDX_RATE_LIMIT_PERIOD", "60.0"))
+
+# ============================================================================
 # LLM PROVIDER
 # ============================================================================
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openrouter")

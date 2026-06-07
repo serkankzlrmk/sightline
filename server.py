@@ -47,6 +47,10 @@ from config import (
 
 from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
 
+# ── HDX Client (Humanitarian Data Exchange) ──────────────────────────────────
+from reliefweb_api.hdx_tools import init_hdx_tools, get_hdx_client
+from config import HDX_APP_IDENTIFIER, HDX_BASE_URL, HDX_TIMEOUT, HDX_RATE_LIMIT_REQUESTS, HDX_RATE_LIMIT_PERIOD
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -65,6 +69,19 @@ app = Flask(
 )
 app.secret_key = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
+
+# ── Initialize HDX client ────────────────────────────────────────────────────
+_hdx_ok = init_hdx_tools(
+    app_identifier=HDX_APP_IDENTIFIER,
+    base_url=HDX_BASE_URL,
+    timeout=HDX_TIMEOUT,
+    rate_limit_requests=HDX_RATE_LIMIT_REQUESTS,
+    rate_limit_period=HDX_RATE_LIMIT_PERIOD,
+)
+if _hdx_ok:
+    logger.info("✓ HDX client initialized — /api/hdx/* endpoints available")
+else:
+    logger.warning("HDX client not initialized (HDX_APP_IDENTIFIER not set). HDX endpoints will return 503.")
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
@@ -716,6 +733,10 @@ def health():
     checks["llm"] = llm_ok
     checks["llm_provider"] = LLM_PROVIDER
     checks["model"] = ACTIVE_MODEL
+
+    # HDX check
+    hdx = get_hdx_client()
+    checks["hdx"] = hdx is not None
 
     # Release info (if available — written by deploy.sh)
     release_info_path = Path(__file__).parent / "RELEASE_INFO"
@@ -1493,6 +1514,117 @@ def api_bulletin_generate_status(job_id):
         response["error"] = job["error"]
     
     return jsonify(response)
+
+
+# =============================================================================
+# ROUTES — HDX (Humanitarian Data Exchange)
+# =============================================================================
+
+@app.route("/api/hdx/health")
+def api_hdx_health():
+    """HDX connectivity check. No auth required — just checks if client is initialized."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({
+            "status": "not_configured",
+            "message": "HDX_APP_IDENTIFIER not set. Set it in .env to enable HDX data.",
+        }), 503
+    return jsonify({
+        "status": "ok",
+        "base_url": hdx.base_url,
+        "cache_stats": hdx.cache.stats(),
+    })
+
+
+@app.route("/api/hdx/availability/<country_code>")
+@require_role("premium")
+def api_hdx_availability(country_code):
+    """Check what HDX data categories are available for a country."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    result = hdx.get_data_availability_sync(location_code=country_code.upper())
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/hdx/overview/<country_code>")
+@require_role("premium")
+def api_hdx_overview(country_code):
+    """Get comprehensive humanitarian data overview for a country (9 parallel endpoints)."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    result = hdx.get_country_overview_sync(country_code.upper())
+    return jsonify({k: v.to_dict() for k, v in result.items()})
+
+
+@app.route("/api/hdx/refugees/<country_code>")
+@require_role("premium")
+def api_hdx_refugees(country_code):
+    """Get refugee/persons of concern data for a country."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    limit = request.args.get("limit", 10, type=int)
+    result = hdx.get_refugees_sync(location_code=country_code.upper(), limit=min(limit, 50))
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/hdx/idps/<country_code>")
+@require_role("premium")
+def api_hdx_idps(country_code):
+    """Get internally displaced persons (IDP) data for a country."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    limit = request.args.get("limit", 10, type=int)
+    result = hdx.get_idps_sync(location_code=country_code.upper(), limit=min(limit, 50))
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/hdx/funding/<country_code>")
+@require_role("premium")
+def api_hdx_funding(country_code):
+    """Get humanitarian funding data for a country."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    limit = request.args.get("limit", 10, type=int)
+    result = hdx.get_funding_sync(location_code=country_code.upper(), limit=min(limit, 50))
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/hdx/conflict/<country_code>")
+@require_role("premium")
+def api_hdx_conflict(country_code):
+    """Get conflict events data (ACLED) for a country."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    limit = request.args.get("limit", 10, type=int)
+    result = hdx.get_conflict_events_sync(location_code=country_code.upper(), limit=min(limit, 50))
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/hdx/cache/stats")
+@require_admin
+def api_hdx_cache_stats():
+    """Get HDX cache statistics (admin only)."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    return jsonify(hdx.cache.stats())
+
+
+@app.route("/api/hdx/cache/clear", methods=["POST"])
+@require_admin
+def api_hdx_cache_clear():
+    """Clear HDX cache (admin only)."""
+    hdx = get_hdx_client()
+    if not hdx:
+        return jsonify({"error": "HDX client not configured"}), 503
+    hdx.cache.clear()
+    return jsonify({"status": "cache_cleared"})
 
 
 # =============================================================================
