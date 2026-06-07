@@ -1356,6 +1356,68 @@ def api_sitrep_report():
 
 
 # =============================================================================
+# ROUTES — Weekly Bulletin
+# =============================================================================
+
+@app.route("/api/sitrep/bulletins")
+@require_auth
+def api_bulletin_list():
+    """List available weekly bulletins, sorted by date descending."""
+    from sitrep.weekly_bulletin import list_bulletins
+    bulletins = list_bulletins()
+    return jsonify(bulletins)
+
+
+@app.route("/api/sitrep/bulletin/<filename>")
+@require_auth
+def api_bulletin_get(filename):
+    """Get a specific bulletin JSON by filename."""
+    from sitrep.weekly_bulletin import get_bulletin
+    # Prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    bulletin = get_bulletin(filename)
+    if bulletin is None:
+        return jsonify({"error": "Bulletin not found"}), 404
+    return jsonify(bulletin)
+
+
+@app.route("/api/sitrep/bulletin/generate", methods=["POST"])
+@require_admin
+def api_bulletin_generate():
+    """Manually trigger bulletin generation (admin only).
+    
+    Accepts optional JSON body: {"date_from": "YYYY-MM-DD", "date_to": "YYYY-MM-DD"}
+    If no dates provided, defaults to last week (Mon-Sun).
+    """
+    from sitrep.weekly_bulletin import generate_weekly_bulletin
+    from datetime import datetime, timedelta
+    
+    data = request.get_json(silent=True) or {}
+    date_from = data.get("date_from", "")
+    date_to = data.get("date_to", "")
+    
+    if not date_from or not date_to:
+        # Default to last week
+        today = datetime.now()
+        last_monday = today - timedelta(days=today.weekday() + 7)
+        last_sunday = last_monday + timedelta(days=6)
+        date_from = date_from or last_monday.strftime("%Y-%m-%d")
+        date_to = date_to or last_sunday.strftime("%Y-%m-%d")
+    
+    try:
+        path = generate_weekly_bulletin(date_from=date_from, date_to=date_to)
+        return jsonify({
+            "status": "ok",
+            "message": f"Bulletin generated for {date_from} to {date_to}",
+            "filename": path.name,
+        })
+    except Exception as exc:
+        logging.exception("Bulletin generation failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+# =============================================================================
 # ROUTES — Ingest (daily auto-ingest + manual PDF upload)
 # =============================================================================
 

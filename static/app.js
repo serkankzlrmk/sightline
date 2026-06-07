@@ -163,7 +163,7 @@ function switchTab(name) {
   });
 
   if (name === 'db') reloadReports();
-  if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); }
+  if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); loadBulletinList(); }
   if (name === 'admin') loadAdminUsers();
 }
 
@@ -1270,7 +1270,7 @@ function toggleCard(header) {
 }
 
 function showSitrepView(name) {
-  ['welcome', 'pipeline', 'report'].forEach(v => {
+  ['welcome', 'pipeline', 'report', 'bulletin'].forEach(v => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.toggle('hidden', v !== name);
   });
@@ -1784,3 +1784,136 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WEEKLY BULLETIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+function toggleBulletinList() {
+  const body = document.getElementById('bulletin-list');
+  if (body) body.classList.toggle('closed');
+}
+
+async function loadBulletinList() {
+  const container = document.getElementById('bulletin-list');
+  if (!container) return;
+  container.innerHTML = '<div class="sidebar-empty">Loading…</div>';
+  try {
+    const bulletins = await api('/api/sitrep/bulletins');
+    if (!bulletins.length) {
+      container.innerHTML = '<div class="sidebar-empty">No bulletins yet</div>';
+      return;
+    }
+    container.innerHTML = bulletins.map(b => `
+      <div class="bulletin-item" onclick="openBulletin('${b.filename}')">
+        <div class="bulletin-item-title">📰 ${b.week_label}</div>
+        <div class="bulletin-item-meta">${b.countries_affected} countries · ${b.total_reports} reports</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('[bulletin] loadBulletinList error:', e);
+    container.innerHTML = '<div class="sidebar-empty">Failed to load</div>';
+  }
+}
+
+async function openBulletin(filename) {
+  showSitrepView('bulletin');
+  const content = document.getElementById('bulletin-content');
+  if (!content) return;
+  content.innerHTML = '<div class="bulletin-loading">Loading bulletin…</div>';
+  try {
+    const b = await api(`/api/sitrep/bulletin/${filename}`);
+    renderBulletin(b, content);
+  } catch (e) {
+    console.error('[bulletin] openBulletin error:', e);
+    content.innerHTML = '<div class="bulletin-error">Failed to load bulletin</div>';
+  }
+}
+
+function renderBulletin(b, container) {
+  const severityOrder = { high: 0, medium: 1, low: 2 };
+  const crises = (b.crises || []).sort((a, c) =>
+    (severityOrder[a.severity] ?? 3) - (severityOrder[c.severity] ?? 3)
+  );
+
+  const severityBadge = (s) => {
+    const colors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+    const labels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+    return `<span class="severity-badge" style="background:${colors[s]||'#6b7280'}22;color:${colors[s]||'#6b7280'};border:1px solid ${colors[s]||'#6b7280'}44">${labels[s]||s.toUpperCase()}</span>`;
+  };
+
+  const keyFigures = (b.key_figures || []).map(f => `
+    <div class="bulletin-kf-card">
+      <div class="bulletin-kf-value">${f.value}</div>
+      <div class="bulletin-kf-label">${f.label}</div>
+    </div>
+  `).join('');
+
+  const crisisCards = crises.map(c => `
+    <div class="crisis-card crisis-${c.severity}">
+      <div class="crisis-card-header">
+        <div class="crisis-card-country">${c.country}</div>
+        ${severityBadge(c.severity)}
+      </div>
+      <div class="crisis-card-headline">${c.headline}</div>
+      <div class="crisis-card-summary">${c.summary}</div>
+      <div class="crisis-card-meta">
+        <span>${c.report_count} reports</span>
+        ${(c.themes || []).slice(0, 3).map(t => `<span class="crisis-theme-tag">${t}</span>`).join('')}
+      </div>
+      ${c.has_sitrep ? `<button class="crisis-sitrep-btn" onclick="viewBulletinSitrep('${c.country}')">View SITREP →</button>` : ''}
+    </div>
+  `).join('');
+
+  // Map placeholder with glow dots
+  const mapDots = crises.map(c => {
+    const coords = c.coords || { lat: 0, lng: 0 };
+    // Convert lat/lng to % position (simple equirectangular projection)
+    const left = ((coords.lng + 180) / 360) * 100;
+    const top = ((90 - coords.lat) / 180) * 100;
+    const colors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+    const color = colors[c.severity] || '#6b7280';
+    return `<div class="map-dot" style="left:${left}%;top:${top}%;background:${color};box-shadow:0 0 8px ${color}88" title="${c.country}: ${c.headline}"></div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="bulletin-header">
+      <div class="bulletin-title-row">
+        <h2 class="bulletin-title">📰 Weekly Humanitarian Bulletin</h2>
+        <span class="bulletin-date">${b.week_label}</span>
+      </div>
+      <div class="bulletin-kf-row">${keyFigures}</div>
+    </div>
+
+    <div class="bulletin-map-container">
+      <div class="bulletin-map-placeholder">
+        <div class="map-grid-lines"></div>
+        ${mapDots}
+        <div class="map-label">Crisis Locations</div>
+      </div>
+    </div>
+
+    <div class="bulletin-overview">
+      <h3>Global Overview</h3>
+      <p>${b.global_overview}</p>
+    </div>
+
+    <div class="bulletin-crises">
+      <h3>Active Crises</h3>
+      <div class="crisis-grid">${crisisCards}</div>
+    </div>
+  `;
+}
+
+function viewBulletinSitrep(country) {
+  // Find the SITREP report for this country in the sidebar list
+  const items = document.querySelectorAll('#sitrep-reports-list .report-item');
+  for (const item of items) {
+    if (item.textContent.toLowerCase().includes(country.toLowerCase())) {
+      item.click();
+      return;
+    }
+  }
+  // If not found, switch to SITREP and show a message
+  alert(`No SITREP report found for ${country}. You can generate one using the SITREP pipeline.`);
+}

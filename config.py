@@ -197,9 +197,11 @@ OUTPUT_QUESTIONS_DIR = _BASE / "questions"
 OUTPUT_ANSWERS_DIR   = _BASE / "answers"
 OUTPUT_SUMMARIES_DIR = _BASE / "summaries"
 OUTPUT_REPORTS_DIR   = _BASE / "reports"
+OUTPUT_BULLETINS_DIR = _BASE / "bulletins"
 
 for _d in [OUTPUT_DIR, OUTPUT_CLUSTERS_DIR, OUTPUT_QUESTIONS_DIR,
-           OUTPUT_ANSWERS_DIR, OUTPUT_SUMMARIES_DIR, OUTPUT_REPORTS_DIR]:
+           OUTPUT_ANSWERS_DIR, OUTPUT_SUMMARIES_DIR, OUTPUT_REPORTS_DIR,
+           OUTPUT_BULLETINS_DIR]:
     _d.mkdir(parents=True, exist_ok=True)
 
 # ============================================================================

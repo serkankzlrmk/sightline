@@ -329,6 +329,12 @@
           <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </div>
         <div id="sitrep-reports-list" class="collapsible-body open"><div class="sidebar-empty">Loading...</div></div>
+
+        <div class="sidebar-section-title collapsible-header" onclick="toggleBulletinList()" style="margin-top:12px;">
+          📰 Weekly Bulletin
+          <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+        <div id="bulletin-list" class="collapsible-body open"><div class="sidebar-empty">Loading...</div></div>
       </aside>
 
       <!-- Main area -->
@@ -361,6 +367,11 @@
         <!-- Report view -->
         <div id="view-report" class="sitrep-view hidden">
           <div id="report-content"></div>
+        </div>
+
+        <!-- Bulletin view -->
+        <div id="view-bulletin" class="sitrep-view hidden">
+          <div id="bulletin-content"></div>
         </div>
       </div>
 
