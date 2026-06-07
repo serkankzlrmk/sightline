@@ -1075,8 +1075,8 @@ function renderSitrepReport(report, filename) {
       </div>`;
   }
 
-  const clusters = report.clusters || [];
-  clusters.forEach((cluster, ci) => {
+  const clusterList = report.clusters || [];
+  clusterList.forEach((cluster, ci) => {
     const headline = cluster.cluster_headline || `Cluster ${cluster.cluster_id}`;
     const qas      = cluster.questions_and_answers || [];
     const { qaRemaps, sources } = buildClusterContextIndex(cluster);
@@ -1109,7 +1109,7 @@ function renderSitrepReport(report, filename) {
       </div>`;
   });
 
-  if (!clusters.length) {
+  if (!clusterList.length) {
     html += '<div style="color:var(--text-muted);font-size:14px;padding:20px">No clusters found.</div>';
   }
 
