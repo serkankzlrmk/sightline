@@ -2003,6 +2003,28 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   color: #94a3b8;
 }
 
+/* ── Bulletin generate button (sidebar) ─────────────────────────────────── */
+.bulletin-gen-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.bulletin-gen-btn:hover {
+  background: var(--primary-dark);
+}
+.bulletin-gen-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* ── Bulletin loading/error ──────────────────────────────────────────────── */
 .bulletin-loading, .bulletin-error {
   text-align: center;

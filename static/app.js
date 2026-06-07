@@ -1801,7 +1801,11 @@ async function loadBulletinList() {
   try {
     const bulletins = await api('/api/sitrep/bulletins');
     if (!bulletins.length) {
-      container.innerHTML = '<div class="sidebar-empty">No bulletins yet</div>';
+      container.innerHTML = `
+        <div class="sidebar-empty">
+          No bulletins yet<br>
+          <button class="bulletin-gen-btn" onclick="generateBulletin()">Generate Weekly Bulletin</button>
+        </div>`;
       return;
     }
     container.innerHTML = bulletins.map(b => `
@@ -1813,6 +1817,22 @@ async function loadBulletinList() {
   } catch (e) {
     console.error('[bulletin] loadBulletinList error:', e);
     container.innerHTML = '<div class="sidebar-empty">Failed to load</div>';
+  }
+}
+
+async function generateBulletin() {
+  const btn = document.querySelector('.bulletin-gen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const result = await api('/api/sitrep/bulletin/generate', { method: 'POST' });
+    showToast('Bulletin generated: ' + (result.message || 'OK'), 'success');
+    loadBulletinList();
+    // Auto-open the generated bulletin
+    if (result.filename) openBulletin(result.filename);
+  } catch (e) {
+    console.error('[bulletin] generateBulletin error:', e);
+    showToast('Failed to generate bulletin: ' + (e.message || 'Unknown error'), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Weekly Bulletin'; }
   }
 }
 
