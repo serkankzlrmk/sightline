@@ -175,6 +175,20 @@ def run_pipeline(
         _save_checkpoint(chunks, "chunks_raw", country, event, suffix=fh)
     logger.info("    %d chunks loaded.", len(chunks))
 
+    # ---- Step 1.5: Fetch HDX context (optional enrichment) ----
+    logger.info("[1.5] Fetching HDX context for: %s", country)
+    hdx_context = None
+    try:
+        from hdx_enrichment import fetch_hdx_context
+        hdx_context = fetch_hdx_context(country)
+        if hdx_context:
+            logger.info("    HDX enrichment data available: %s", list(hdx_context.get("summary", {}).keys()))
+        else:
+            logger.info("    No HDX data available for %s — continuing without enrichment", country)
+    except Exception as exc:
+        logger.warning("    HDX enrichment failed (non-fatal): %s", exc)
+        hdx_context = None
+
     # ---- Auto-detect themes if not provided ----
     if not themes:
         detected_themes = set()
@@ -268,6 +282,7 @@ def run_pipeline(
             clusters=clusters,
             chroma_adapter=db,
             country=country,
+            hdx_context=hdx_context,
         )
         _save_checkpoint(raw_answers, "answers", country, event, suffix=fh)
     logger.info("    %d answers generated.", len(raw_answers))
@@ -294,7 +309,7 @@ def run_pipeline(
     if exec_summary is None:
         from executive_summary import generate_executive_summary
         try:
-            exec_summary = generate_executive_summary(postprocessed, cluster_summaries=cluster_summaries)
+            exec_summary = generate_executive_summary(postprocessed, cluster_summaries=cluster_summaries, hdx_context=hdx_context)
         except Exception as exc:
             logger.error("[8] Executive summary generation failed: %s", exc, exc_info=True)
             exec_summary = {
@@ -316,6 +331,7 @@ def run_pipeline(
                 event=event,
                 cluster_summaries=cluster_summaries,
                 exec_summary=exec_summary,
+                hdx_context=hdx_context,
             )
         except Exception as exc:
             logger.error("[8.5] Narrative report generation failed: %s", exc, exc_info=True)
@@ -348,6 +364,7 @@ def run_pipeline(
         themes=themes,
         date_from=date_from,
         date_to=date_to,
+        hdx_context=hdx_context,
     )
 
     report_path = save_report(report, country, event, suffix=fh)

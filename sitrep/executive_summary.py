@@ -164,6 +164,7 @@ def _simple_retrieve(
 def generate_executive_summary(
     postprocessed_answers: List[Dict],
     cluster_summaries: Optional[Dict] = None,
+    hdx_context: Optional[Dict] = None,
 ) -> Dict:
     """
     Generates an executive summary.
@@ -205,7 +206,19 @@ def generate_executive_summary(
                 })
 
         if sources:
+            # Inject HDX quantitative data as Source 0 if available
+            hdx_prefix = ""
+            if hdx_context:
+                try:
+                    from hdx_enrichment import format_hdx_summary_for_prompt
+                    hdx_prefix = format_hdx_summary_for_prompt(hdx_context)
+                except Exception as exc:
+                    logger.warning("HDX enrichment for executive summary failed: %s", exc)
+
             context_str = _format_numbered_context(sources)
+            if hdx_prefix:
+                context_str = hdx_prefix + context_str
+
             summary_prompt = _SITREP_SUMMARY_TEMPLATE.format(context=context_str)
 
             try:

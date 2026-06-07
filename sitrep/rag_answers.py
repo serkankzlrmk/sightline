@@ -148,6 +148,7 @@ def answer_questions(
     clusters: Dict,
     chroma_adapter,
     country: str,
+    hdx_context: Optional[Dict] = None,
 ) -> List[Dict]:
     """
     Answers filtered questions using Chroma RAG Fusion.
@@ -228,9 +229,21 @@ def answer_questions(
 
             # 4. Answer synthesis
             context_str = _format_context(top_chunks)
+
+            # Inject HDX quantitative data if available
+            hdx_prefix = ""
+            if hdx_context:
+                try:
+                    from hdx_enrichment import format_hdx_for_rag_context
+                    hdx_text = format_hdx_for_rag_context(hdx_context)
+                    if hdx_text:
+                        hdx_prefix = hdx_text + "\n\n"
+                except Exception as exc:
+                    logger.warning("HDX enrichment for RAG context failed: %s", exc)
+
             answer_prompt = _ANSWER_TEMPLATE.format(
                 n_sources=len(top_chunks),
-                context=context_str,
+                context=hdx_prefix + context_str,
                 question=question,
             )
 

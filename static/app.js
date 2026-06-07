@@ -1038,6 +1038,21 @@ function renderSitrepReport(report, filename) {
     const days = Math.max(1, Math.round((new Date(rDateTo) - new Date(rDateFrom)) / 86400000));
     html += `<div class="report-kf-card"><div class="report-kf-value">${days}</div><div class="report-kf-label">Days Covered</div></div>`;
   }
+  // HDX key figures
+  const hdxData = report.hdx_data || {};
+  const hdxSummary = hdxData.summary || {};
+  if (hdxSummary.refugees_total && hdxSummary.refugees_total > 0) {
+    html += `<div class="report-kf-card hdx-kf"><div class="report-kf-value">${(hdxSummary.refugees_total).toLocaleString()}</div><div class="report-kf-label">Refugees (HDX)</div></div>`;
+  }
+  if (hdxSummary.idps_total && hdxSummary.idps_total > 0) {
+    html += `<div class="report-kf-card hdx-kf"><div class="report-kf-value">${(hdxSummary.idps_total).toLocaleString()}</div><div class="report-kf-label">IDPs (HDX)</div></div>`;
+  }
+  const hdxReq = hdxSummary.funding_required_usd || 0;
+  const hdxFund = hdxSummary.funding_funded_usd || 0;
+  if (hdxReq > 0) {
+    const pct = ((hdxFund / hdxReq) * 100).toFixed(0);
+    html += `<div class="report-kf-card hdx-kf"><div class="report-kf-value">${pct}%</div><div class="report-kf-label">Funded (HDX)</div></div>`;
+  }
   html += `</div>`;
 
   // View toggle (only if narrative exists)
@@ -1924,7 +1939,15 @@ function renderBulletin(b, container) {
     </div>
   `).join('');
 
-  const crisisCards = crises.map(c => `
+  const crisisCards = crises.map(c => {
+    const hdxFigures = (c.hdx_key_figures || []).map(f => `
+      <div class="hdx-kf-mini">
+        <span class="hdx-kf-value">${f.value}</span>
+        <span class="hdx-kf-label">${f.label}</span>
+      </div>
+    `).join('');
+
+    return `
     <div class="crisis-card crisis-${c.severity}">
       <div class="crisis-card-header">
         <div class="crisis-card-country">${c.country}</div>
@@ -1932,13 +1955,14 @@ function renderBulletin(b, container) {
       </div>
       <div class="crisis-card-headline">${c.headline}</div>
       <div class="crisis-card-summary">${c.summary}</div>
+      ${hdxFigures ? `<div class="hdx-kf-row">${hdxFigures}</div>` : ''}
       <div class="crisis-card-meta">
         <span>${c.report_count} reports</span>
         ${(c.themes || []).slice(0, 3).map(t => `<span class="crisis-theme-tag">${t}</span>`).join('')}
       </div>
       ${c.has_sitrep ? `<button class="crisis-sitrep-btn" onclick="viewBulletinSitrep('${c.country}')">View SITREP →</button>` : ''}
     </div>
-  `).join('');
+  `;}).join('');
 
   // Map placeholder with glow dots
   const mapDots = crises.map(c => {

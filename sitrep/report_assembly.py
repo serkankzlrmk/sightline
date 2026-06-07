@@ -148,6 +148,7 @@ def assemble_report(
     themes: Optional[List[str]] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    hdx_context: Optional[Dict] = None,
 ) -> Dict:
     """
     Produces the final report JSON from all pipeline outputs.
@@ -292,6 +293,14 @@ def assemble_report(
         report["narrative_html"] = narrative.get("narrative_html", "")
         report["narrative_sources"] = narrative.get("narrative_sources", {})
 
+    # HDX quantitative data (optional — enrichment)
+    if hdx_context:
+        report["hdx_data"] = {
+            "country": hdx_context.get("country", country),
+            "country_code": hdx_context.get("country_code", ""),
+            "summary": hdx_context.get("summary", {}),
+        }
+
     logger.info(
         "Report ready: %d clusters, %d total QA",
         len(output_clusters),
@@ -334,6 +343,25 @@ def generate_markdown(report: Dict) -> str:
     md = f"# {file_name}\n\n"
     md += "## Summary\n\n"
     md += f"{report.get('summary', '')}\n\n"
+
+    # HDX quantitative data section
+    hdx_data = report.get("hdx_data", {})
+    if hdx_data and hdx_data.get("summary"):
+        md += "## Key Humanitarian Data (HDX)\n\n"
+        hdx_summary = hdx_data["summary"]
+        if "refugees_total" in hdx_summary and hdx_summary["refugees_total"]:
+            md += f"- **Total Refugees**: {hdx_summary['refugees_total']:,.0f}\n"
+        if "idps_total" in hdx_summary and hdx_summary["idps_total"]:
+            md += f"- **Total IDPs**: {hdx_summary['idps_total']:,.0f}\n"
+        required = hdx_summary.get("funding_required_usd", 0) or 0
+        funded = hdx_summary.get("funding_funded_usd", 0) or 0
+        if required > 0:
+            pct = (funded / required * 100) if required > 0 else 0
+            md += f"- **Funding**: ${funded:,.0f} of ${required:,.0f} ({pct:.1f}%)\n"
+        if "risk_class" in hdx_summary:
+            md += f"- **INFORM Risk**: {hdx_summary['risk_class']} (Global Rank #{hdx_summary.get('global_rank', '?')})\n"
+        md += "\n*Source: Humanitarian Data Exchange (HDX)*\n\n"
+
     md += "## Questions and Answers\n\n"
 
     for cluster in report.get("clusters", []):

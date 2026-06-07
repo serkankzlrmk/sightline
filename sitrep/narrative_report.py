@@ -69,6 +69,8 @@ Your task is to produce a **coherent, flowing narrative report** in HTML format.
 **Source 0: Executive Summary**
 {exec_summary}
 
+{hdx_data}
+
 {cluster_sources}
 
 ---
@@ -104,6 +106,7 @@ def generate_narrative_report(
     event: str,
     cluster_summaries: Dict,
     exec_summary: Dict,
+    hdx_context: Optional[Dict] = None,
 ) -> Dict:
     """
     Generates a full narrative report from executive summary and cluster summaries.
@@ -155,11 +158,21 @@ def generate_narrative_report(
     narrative_citation_meta = {"0": {"title": "Executive Summary", "url": exec_rep_url}}
     narrative_citation_meta.update(cluster_source_meta)
 
+    # Inject HDX quantitative data if available
+    hdx_section = ""
+    if hdx_context:
+        try:
+            from hdx_enrichment import format_hdx_for_narrative
+            hdx_section = format_hdx_for_narrative(hdx_context)
+        except Exception as exc:
+            logger.warning("HDX enrichment for narrative report failed: %s", exc)
+
     prompt = _NARRATIVE_USER_TEMPLATE.format(
         country=country,
         event=event_label,
         exec_summary=summary_text or "(No executive summary available)",
         cluster_sources=cluster_source_text or "(No cluster summaries available)",
+        hdx_data=hdx_section,
     )
 
     try:

@@ -117,7 +117,7 @@ Generate a crisis briefing with:
 
 Reports ({count} total):
 {report_list}
-
+{hdx_data}
 Respond with this exact JSON format:
 {{"headline": "...", "summary": "...", "severity": "high|medium|low"}}
 """
@@ -226,6 +226,7 @@ def generate_crisis_summary(
     reports: List[Dict],
     date_from: str,
     date_to: str,
+    hdx_context_text: str = "",
 ) -> Optional[Dict]:
     """Generate a crisis summary for a single country using LLM."""
     from llm_client import chat_simple
@@ -246,12 +247,18 @@ def generate_crisis_summary(
 
     report_list = "\n".join(report_lines)
 
+    # Build HDX context section if available
+    hdx_section = ""
+    if hdx_context_text:
+        hdx_section = f"\n\n**Quantitative Humanitarian Data (HDX):**\n{hdx_context_text}\n"
+
     prompt = _CRISIS_SUMMARY_USER.format(
         country=country,
         date_from=date_from,
         date_to=date_to,
         count=len(reports),
         report_list=report_list,
+        hdx_data=hdx_section,
     )
 
     try:
@@ -403,12 +410,29 @@ def generate_weekly_bulletin(
         # Determine severity
         severity = _determine_severity(len(reports), unique_themes)
 
+        # Fetch HDX enrichment data for this country
+        hdx_data = None
+        hdx_key_figures = []
+        hdx_context_text = ""
+        try:
+            from hdx_enrichment import fetch_hdx_context, format_hdx_for_bulletin
+            hdx_context = fetch_hdx_context(country)
+            if hdx_context:
+                hdx_bulletin = format_hdx_for_bulletin(hdx_context)
+                hdx_key_figures = hdx_bulletin.get("key_figures", [])
+                hdx_context_text = hdx_bulletin.get("context_text", "")
+                hdx_data = hdx_context  # Store full context for the crisis entry
+        except Exception as exc:
+            logger.warning("HDX enrichment for %s failed (non-fatal): %s", country, exc)
+
         # Generate LLM summary (or use metadata-only fallback)
         if skip_llm:
             headline = f"{country} humanitarian situation"
             summary = f"Analysis of {len(reports)} reports from {country} covering themes: {', '.join(unique_themes[:3])}."
+            if hdx_context_text:
+                summary += f" {hdx_context_text}"
         else:
-            llm_result = generate_crisis_summary(country, reports, date_from, date_to)
+            llm_result = generate_crisis_summary(country, reports, date_from, date_to, hdx_context_text=hdx_context_text)
             if llm_result:
                 headline = llm_result["headline"]
                 summary = llm_result["summary"]
@@ -416,6 +440,8 @@ def generate_weekly_bulletin(
             else:
                 headline = f"{country} humanitarian situation"
                 summary = f"Analysis of {len(reports)} reports from {country}."
+                if hdx_context_text:
+                    summary += f" {hdx_context_text}"
 
         # Check if a SITREP report exists for this country
         report_dir = Path(_ROOT_DIR) / "output" / "reports"
@@ -438,6 +464,7 @@ def generate_weekly_bulletin(
             "has_sitrep": has_sitrep,
             "sitrep_file": sitrep_file,
             "coords": COUNTRY_COORDS.get(country, {"lat": 0, "lng": 0}),
+            "hdx_key_figures": hdx_key_figures,
         }
         crises.append(crisis)
 
@@ -451,13 +478,34 @@ def generate_weekly_bulletin(
     else:
         global_overview = generate_global_overview(crises, date_from, date_to, total_reports)
 
-    # 4. Build key figures
+    # 4. Build key figures (with HDX enrichment)
     top_themes = [t for t, _ in all_themes.most_common(5)]
     key_figures = [
         {"label": "Total Reports", "value": str(total_reports), "icon": "description"},
         {"label": "Countries Affected", "value": str(len(crises)), "icon": "public"},
         {"label": "Active Crises", "value": str(sum(1 for c in crises if c["severity"] == "high")), "icon": "warning"},
     ]
+
+    # Add HDX key figures from crises that have them
+    total_refugees = 0
+    total_idps = 0
+    for c in crises:
+        for kf in c.get("hdx_key_figures", []):
+            if kf.get("label") == "Refugees":
+                try:
+                    total_refugees += int(kf.get("value", "0").replace(",", ""))
+                except (ValueError, TypeError):
+                    pass
+            elif kf.get("label") == "IDPs":
+                try:
+                    total_idps += int(kf.get("value", "0").replace(",", ""))
+                except (ValueError, TypeError):
+                    pass
+
+    if total_refugees > 0:
+        key_figures.append({"label": "Total Refugees", "value": f"{total_refugees:,}", "icon": "people"})
+    if total_idps > 0:
+        key_figures.append({"label": "Total IDPs", "value": f"{total_idps:,}", "icon": "home"})
 
     # 5. Assemble bulletin
     bulletin = {
