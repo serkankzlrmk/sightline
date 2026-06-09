@@ -20,7 +20,7 @@ import logging
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from collections import Counter
 
 # Ensure sitrep/ and project root are on sys.path
