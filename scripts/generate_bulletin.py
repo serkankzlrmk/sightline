@@ -85,6 +85,19 @@ def main():
     print(f"Generating weekly bulletin: {date_from} to {date_to}")
     print(f"Skip LLM: {args.skip_llm}")
 
+    # Initialize HDX client if configured (for enrichment)
+    from config import config
+    hdx_app_id = getattr(config, 'HDX_APP_IDENTIFIER', '') or ''
+    if hdx_app_id:
+        try:
+            from reliefweb_api.hdx_tools import init_hdx_tools
+            if init_hdx_tools(app_identifier=hdx_app_id):
+                print("HDX client initialized successfully")
+            else:
+                print("Warning: HDX client initialization failed")
+        except Exception as e:
+            print(f"Warning: HDX init error: {e}")
+
     from sitrep.weekly_bulletin import generate_weekly_bulletin
 
     path = generate_weekly_bulletin(
