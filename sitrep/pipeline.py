@@ -470,6 +470,20 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # Initialize HDX client if configured (for enrichment in Stage 1.5)
+    from config import config
+    hdx_app_id = getattr(config, 'HDX_APP_IDENTIFIER', '') or ''
+    if hdx_app_id:
+        try:
+            from reliefweb_api.hdx_tools import init_hdx_tools
+            if init_hdx_tools(app_identifier=hdx_app_id):
+                logger.info("HDX client initialized for CLI pipeline")
+            else:
+                logger.warning("HDX client initialization failed — continuing without HDX enrichment")
+        except Exception as e:
+            logger.warning("HDX init error: %s — continuing without HDX enrichment", e)
+
     run_pipeline(
         country=args.country,
         event=args.event or args.country,
