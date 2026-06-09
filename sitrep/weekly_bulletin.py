@@ -181,7 +181,7 @@ def _get_available_date_range(db) -> Optional[Dict]:
 def fetch_reports_by_date_range(
     date_from: str,
     date_to: str,
-) -> Dict[str, List[Dict]]:
+) -> Dict[str, Any]:
     """
     Fetch reports from the vector store for a date range,
     grouped by primary_country.
@@ -190,13 +190,21 @@ def fetch_reports_by_date_range(
     the actual date range available in the database.
 
     Returns:
-        {country: [chunk_dict, ...], ...}
+        {
+            "grouped": {country: [chunk_dict, ...], ...},
+            "actual_date_from": str,  # actual date range used (may differ from requested)
+            "actual_date_to": str,
+            "date_fallback": bool,    # True if fallback was used
+        }
     """
     db = _get_db()
     # Get all countries with data
     countries_with_counts = db.list_countries_with_counts()
 
     grouped: Dict[str, List[Dict]] = {}
+    used_fallback = False
+    actual_from = date_from
+    actual_to = date_to
 
     for entry in countries_with_counts:
         country = entry["name"]
@@ -240,8 +248,9 @@ def fetch_reports_by_date_range(
                 "No data found for %s to %s. Falling back to available range: %s to %s",
                 date_from, date_to, available["date_from"], available["date_to"],
             )
-            date_from = available["date_from"]
-            date_to = available["date_to"]
+            actual_from = available["date_from"]
+            actual_to = available["date_to"]
+            used_fallback = True
 
             for entry in countries_with_counts:
                 country = entry["name"]
@@ -253,8 +262,8 @@ def fetch_reports_by_date_range(
                     chunks = db.get_chunks_by_country_and_themes(
                         country,
                         themes=None,
-                        date_from=date_from,
-                        date_to=date_to,
+                        date_from=actual_from,
+                        date_to=actual_to,
                         limit=500,
                     )
                 except Exception as exc:
@@ -276,8 +285,13 @@ def fetch_reports_by_date_range(
                     grouped[country] = unique_reports
 
     logger.info("Fetched reports for %d countries in date range %s to %s",
-                len(grouped), date_from, date_to)
-    return grouped
+                len(grouped), actual_from, actual_to)
+    return {
+        "grouped": grouped,
+        "actual_date_from": actual_from,
+        "actual_date_to": actual_to,
+        "date_fallback": used_fallback,
+    }
 
 
 def _determine_severity(report_count: int, themes: List[str]) -> str:
@@ -424,7 +438,17 @@ def generate_weekly_bulletin(
     logger.info("=" * 60)
 
     # 1. Fetch reports grouped by country
-    grouped = fetch_reports_by_date_range(date_from, date_to)
+    fetch_result = fetch_reports_by_date_range(date_from, date_to)
+    grouped = fetch_result["grouped"]
+    actual_date_from = fetch_result["actual_date_from"]
+    actual_date_to = fetch_result["actual_date_to"]
+    date_fallback = fetch_result["date_fallback"]
+
+    if date_fallback:
+        logger.info(
+            "Date fallback: requested %s-%s, using available data %s-%s",
+            date_from, date_to, actual_date_from, actual_date_to,
+        )
 
     if not grouped:
         logger.warning("No reports found for date range %s to %s", date_from, date_to)
@@ -584,11 +608,21 @@ def generate_weekly_bulletin(
         key_figures.append({"label": "Total IDPs", "value": f"{total_idps:,}", "icon": "home"})
 
     # 5. Assemble bulletin
+    # Use actual data dates for week_start/week_end when fallback is used,
+    # and include data_date_range to show the real data coverage
+    bulletin_week_start = actual_date_from if date_fallback else date_from
+    bulletin_week_end = actual_date_to if date_fallback else date_to
+    bulletin_week_label = (
+        f"{date_from} to {date_to} (data: {actual_date_from} to {actual_date_to})"
+        if date_fallback
+        else f"{date_from} to {date_to}"
+    )
+
     bulletin = {
         "type": "weekly_bulletin",
-        "week_start": date_from,
-        "week_end": date_to,
-        "week_label": f"{date_from} to {date_to}",
+        "week_start": bulletin_week_start,
+        "week_end": bulletin_week_end,
+        "week_label": bulletin_week_label,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "total_reports": total_reports,
         "total_chunks": sum(len(r) for r in grouped.values()),
@@ -598,6 +632,16 @@ def generate_weekly_bulletin(
         "top_themes": top_themes,
         "crises": crises,
     }
+
+    # Include data date range info when fallback was used
+    if date_fallback:
+        bulletin["data_date_range"] = {
+            "requested_from": date_from,
+            "requested_to": date_to,
+            "actual_from": actual_date_from,
+            "actual_to": actual_date_to,
+            "fallback": True,
+        }
 
     return _save_bulletin(bulletin, date_from, date_to)
 
@@ -645,6 +689,7 @@ def list_bulletins() -> List[Dict]:
                 "countries_affected": data.get("countries_affected", 0),
                 "crises_count": len(data.get("crises", [])),
                 "generated_at": data.get("generated_at", ""),
+                "data_date_range": data.get("data_date_range"),
             })
         except (json.JSONDecodeError, Exception) as exc:
             logger.warning("Failed to read bulletin %s: %s", f.name, exc)

@@ -1847,12 +1847,16 @@ async function loadBulletinList() {
         </div>`;
       return;
     }
-    container.innerHTML = bulletins.map(b => `
+    container.innerHTML = bulletins.map(b => {
+      const fallbackTag = b.data_date_range?.fallback
+        ? ' <span style="color:#f59e0b;font-size:11px">⚠ fallback data</span>'
+        : '';
+      return `
       <div class="bulletin-item" onclick="openBulletin('${b.filename}')">
-        <div class="bulletin-item-title">📰 ${b.week_label}</div>
+        <div class="bulletin-item-title">📰 ${b.week_label}${fallbackTag}</div>
         <div class="bulletin-item-meta">${b.countries_affected} countries · ${b.total_reports} reports</div>
       </div>
-    `).join('');
+    `;}).join('');
   } catch (e) {
     console.error('[bulletin] loadBulletinList error:', e);
     container.innerHTML = '<div class="sidebar-empty">Failed to load</div>';
@@ -1989,12 +1993,21 @@ function renderBulletin(b, container) {
     return `<div class="map-dot" style="left:${left}%;top:${top}%;background:${color};box-shadow:0 0 8px ${color}88" title="${c.country}: ${c.headline}"></div>`;
   }).join('');
 
+  // Show fallback notice if data date range differs from requested range
+  const fallbackNotice = b.data_date_range?.fallback
+    ? `<div class="bulletin-fallback-notice">
+        ⚠️ No data available for ${b.data_date_range.requested_from} to ${b.data_date_range.requested_to}.
+        Showing data from ${b.data_date_range.actual_from} to ${b.data_date_range.actual_to} instead.
+      </div>`
+    : '';
+
   container.innerHTML = `
     <div class="bulletin-header">
       <div class="bulletin-title-row">
         <h2 class="bulletin-title">📰 Weekly Humanitarian Bulletin</h2>
         <span class="bulletin-date">${b.week_label}</span>
       </div>
+      ${fallbackNotice}
       <div class="bulletin-kf-row">${keyFigures}</div>
     </div>
 

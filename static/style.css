@@ -2296,6 +2296,15 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   padding: 4px 12px;
   border-radius: var(--radius-sm);
 }
+.bulletin-fallback-notice {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin: 8px 0;
+  border: 1px solid #f59e0b44;
+}
 
 /* ── Key figures row ─────────────────────────────────────────────────────── */
 .bulletin-kf-row {
