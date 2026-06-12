@@ -234,7 +234,17 @@ CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
 # SSL verification for outbound HTTP requests (ReliefWeb API, PDF downloads)
 SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
 SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
-SECRET_KEY:  str = os.getenv("SECRET_KEY", os.urandom(24).hex())
+SECRET_KEY:  str = os.getenv("SECRET_KEY", "")
+if not SECRET_KEY:
+    if os.getenv("SERVER_DEBUG", "").lower() == "true":
+        SECRET_KEY = "dev-only-secret-key"
+        import warnings
+        warnings.warn("SECRET_KEY not set — using insecure dev key. Set SECRET_KEY in .env for production!")
+    else:
+        import sys
+        print("FATAL: SECRET_KEY is not set. Refusing to start in production mode.", file=sys.stderr)
+        print("Set SECRET_KEY in your .env file or environment.", file=sys.stderr)
+        sys.exit(1)
 
 # Aliases for reliefwebapi compatibility
 FLASK_PORT  = SERVER_PORT

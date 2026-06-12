@@ -18,12 +18,15 @@ Tabs:
 import sys
 import os
 import re
-import uuid
 import json
+import time
+import uuid
 import sqlite3
+import hashlib
 import threading
 import subprocess
 import logging
+import secrets
 from pathlib import Path
 from queue import Queue, Empty
 
@@ -135,6 +138,7 @@ _agent_lock   = threading.Lock()
 import time as _time
 _chats_lock     = threading.Lock()
 _user_active_chat = {}  # uid → chat_id
+_user_active_chat_lock = threading.Lock()
 _user_agent_busy = {}  # uid → bool  (per-user agent busy flag)
 _user_agent_busy_since = {}  # uid → timestamp
 _AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
@@ -332,24 +336,24 @@ def _db_clear_messages(chat_id):
 def _ensure_active_chat(uid=""):
     """Return the active chat_id for the user, creating one if needed."""
     with _chats_lock:
-        cid = _user_active_chat.get(uid)
-        if cid and _db_chat_exists(cid) and (not uid or _db_chat_belongs_to(cid, uid)):
+        with _user_active_chat_lock:
+            cid = _user_active_chat.get(uid)
+            if cid and _db_chat_exists(cid) and (not uid or _db_chat_belongs_to(cid, uid)):
+                return cid
+            if uid:
+                conn = _chats_db()
+                row = conn.execute(
+                    "SELECT id FROM chats WHERE uid = ? ORDER BY created DESC LIMIT 1",
+                    (uid,)
+                ).fetchone()
+                conn.close()
+                if row and _db_chat_belongs_to(row["id"], uid):
+                    _user_active_chat[uid] = row["id"]
+                    return row["id"]
+            cid = _new_chat_id()
+            _db_create_chat(cid, uid=uid)
+            _user_active_chat[uid] = cid
             return cid
-        # Try to recover most recent chat from DB instead of always creating new
-        if uid:
-            conn = _chats_db()
-            row = conn.execute(
-                "SELECT id FROM chats WHERE uid = ? ORDER BY created DESC LIMIT 1",
-                (uid,)
-            ).fetchone()
-            conn.close()
-            if row and _db_chat_belongs_to(row["id"], uid):
-                _user_active_chat[uid] = row["id"]
-                return row["id"]
-        cid = _new_chat_id()
-        _db_create_chat(cid, uid=uid)
-        _user_active_chat[uid] = cid
-        return cid
 
 def _load_langchain_messages(chat_id):
     """Load messages from DB as LangChain message objects."""
@@ -437,6 +441,47 @@ def _parse_countries(json_str):
 _jobs: dict = {}
 _jobs_lock  = threading.Lock()
 _JOBS_MAX_AGE = 3600  # Clean up completed jobs older than 1 hour
+
+# ── Nonce store for SITREP stream auth ────────────────────────────────────────
+# Replaces JWT-in-query-param (EventSource can't send Authorization headers).
+# Nonces are single-use, expire after 5 minutes, tied to a UID.
+_stream_nonces: dict = {}  # {nonce_str: {"uid": str, "expires": float, "used": bool}}
+_stream_nonces_lock = threading.Lock()
+_STREAM_NONCE_TTL = 300  # 5 minutes
+
+
+def _create_stream_nonce(uid: str) -> str:
+    """Create a single-use nonce for SITREP stream access, tied to a UID."""
+    nonce = secrets.token_urlsafe(32)
+    with _stream_nonces_lock:
+        _stream_nonces[nonce] = {"uid": uid, "expires": time.time() + _STREAM_NONCE_TTL, "used": False}
+    return nonce
+
+
+def _consume_stream_nonce(nonce: str, uid: str) -> bool:
+    """Validate and consume a stream nonce. Returns True if valid."""
+    with _stream_nonces_lock:
+        entry = _stream_nonces.get(nonce)
+        if entry is None:
+            return False
+        if entry["used"]:
+            return False
+        if time.time() > entry["expires"]:
+            del _stream_nonces[nonce]
+            return False
+        if entry["uid"] != uid:
+            return False
+        entry["used"] = True
+        return True
+
+
+def _cleanup_stream_nonces():
+    """Remove expired nonces. Called periodically."""
+    now = time.time()
+    with _stream_nonces_lock:
+        expired = [k for k, v in _stream_nonces.items() if now > v["expires"]]
+        for k in expired:
+            del _stream_nonces[k]
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHF]')
 _NOISE   = [
@@ -1200,7 +1245,7 @@ def api_sitrep_chunk_preview():
     try:
         from sitrep.chroma_adapter import ChromaAdapter
         db = ChromaAdapter()
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         country = data.get("country", "").strip()
         if not country:
             return jsonify({"error": "country is required"}), 400
@@ -1236,7 +1281,7 @@ def api_sitrep_chunk_preview():
 @app.route("/api/sitrep/run", methods=["POST"])
 @require_role("premium")
 def api_sitrep_run():
-    data    = request.get_json() or {}
+    data    = request.get_json(silent=True) or {}
     country = data.get("country", "").strip()[:100]
     event   = data.get("event",   "").strip()[:200]
     if not country:
@@ -1286,27 +1331,50 @@ def api_sitrep_run():
 
     t = threading.Thread(target=_run_job, args=(job_id, cmd), daemon=True)
     t.start()
-    return jsonify({"job_id": job_id})
+    nonce = _create_stream_nonce(current_uid())
+    return jsonify({"job_id": job_id, "stream_nonce": nonce})
 
 
 @app.route("/api/sitrep/stream/<job_id>")
 def api_sitrep_stream(job_id):
     from auth import _api_key, verify_firebase_token, _dev_mode
-    # Dev mode bypass
+
+    uid = ""
+
     if not _dev_mode():
         api_key = _api_key()
         if api_key:
             provided = request.args.get("api_key", "") or request.headers.get("X-API-Key", "")
-            if provided != api_key:
+            if not secrets.compare_digest(provided, api_key):
                 return jsonify({"error": "Invalid API key"}), 403
+            uid = "api-key"
         else:
-            token = request.args.get("token", "")
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[len("Bearer "):].strip()
+            else:
+                token = request.args.get("token", "")
             if not token:
-                return jsonify({"error": "Missing token"}), 401
-            try:
-                verify_firebase_token(token)
-            except Exception:
-                return jsonify({"error": "Invalid token"}), 401
+                nonce = request.args.get("nonce", "")
+                if nonce and _consume_stream_nonce(nonce, ""):
+                    uid = "nonce"
+                else:
+                    return jsonify({"error": "Missing token or valid nonce"}), 401
+            if uid != "nonce":
+                try:
+                    decoded = verify_firebase_token(token)
+                    uid = decoded.get("uid", "")
+                except Exception:
+                    nonce = request.args.get("nonce", "")
+                    if nonce and _consume_stream_nonce(nonce, uid):
+                        uid = uid or "nonce"
+                    else:
+                        return jsonify({"error": "Invalid token"}), 401
+    else:
+        uid = "dev-local"
+
+    _cleanup_stream_nonces()
+
     if job_id not in _jobs:
         return jsonify({"error": "Unknown job id"}), 404
 
@@ -1371,10 +1439,11 @@ def api_sitrep_reports():
 @require_auth
 def api_sitrep_report():
     filename = request.args.get("file", "")
-    # Prevent path traversal
     if not filename or ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
-    path = OUTPUT_REPORTS_DIR / filename
+    path = (OUTPUT_REPORTS_DIR / filename).resolve()
+    if not str(path).startswith(str(OUTPUT_REPORTS_DIR.resolve())):
+        return jsonify({"error": "Invalid filename"}), 400
     if not path.exists():
         return jsonify({"error": "Report not found"}), 404
     return path.read_text(encoding="utf-8"), 200, {"Content-Type": "application/json"}
@@ -1398,7 +1467,6 @@ def api_bulletin_list():
 def api_bulletin_get(filename):
     """Get a specific bulletin JSON by filename."""
     from sitrep.weekly_bulletin import get_bulletin
-    # Prevent path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
     bulletin = get_bulletin(filename)

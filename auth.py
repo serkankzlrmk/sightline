@@ -13,6 +13,8 @@ auth.py — Single source of truth for authentication and role management.
 """
 import os
 import functools
+import hmac
+import secrets
 from flask import request, jsonify, g
 
 # ── Role hierarchy ────────────────────────────────────────────────────────────
@@ -243,7 +245,7 @@ def require_auth(f):
 
         if api_key:
             provided = request.headers.get("X-API-Key", "")
-            if not provided or provided != api_key:
+            if not provided or not hmac.compare_digest(provided, api_key):
                 return jsonify({"error": "Invalid API key"}), 403
             g.current_user = {"uid": "api-key", "role": "admin", "admin": True}
             return f(*args, **kwargs)
@@ -298,7 +300,7 @@ def require_admin(f):
 
         if api_key:
             provided = request.headers.get("X-API-Key", "")
-            if not provided or provided != api_key:
+            if not provided or not hmac.compare_digest(provided, api_key):
                 return jsonify({"error": "Invalid API key"}), 403
             g.current_user = {"uid": "api-key", "role": "admin", "admin": True}
             return f(*args, **kwargs)
@@ -361,7 +363,7 @@ def require_role(minimum: str):
 
             if api_key:
                 provided = request.headers.get("X-API-Key", "")
-                if not provided or provided != api_key:
+                if not provided or not hmac.compare_digest(provided, api_key):
                     return jsonify({"error": "Invalid API key"}), 403
                 g.current_user = {"uid": "api-key", "role": "admin", "admin": True}
                 return f(*args, **kwargs)

@@ -19,11 +19,24 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      DEV_AUTH_BYPASS: "true"
+      SERVER_DEBUG: "true"
+      OLLAMA_BASE_URL: "http://localhost:11434/v1"
+      LLM_PROVIDER: "openrouter"
+      OPENROUTER_API_KEY: "test-key"
+      ACTIVE_MODEL: "test-model"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - run: pip install pytest
-      - run: pytest tests/ -v
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run tests
+        run: pytest tests/ -v --tb=short -x
+        timeout-minutes: 10

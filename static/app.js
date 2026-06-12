@@ -82,6 +82,13 @@ function sanitizeHtml(html) {
         el.removeAttribute(attr.name);
       }
     });
+    // Also strip href/src attributes with javascript: protocol
+    ['href', 'src', 'action', 'formaction', 'xlink:href'].forEach(attrName => {
+      const val = el.getAttribute(attrName);
+      if (val && val.trim().toLowerCase().startsWith('javascript:')) {
+        el.removeAttribute(attrName);
+      }
+    });
   });
   return tmp.innerHTML;
 }

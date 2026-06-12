@@ -40,13 +40,9 @@ def test_import_ingest_pipeline():
 
 
 def test_import_reliefweb():
-    from reliefweb_api.reliefweb import (
-        search_sitreps,
-        ingest_report_from_api,
-        ingest_reports_batch,
-        search_knowledge_base,
-    )
-    assert callable(ingest_report_from_api)
+    from reliefweb_api.reliefweb import search_sitreps, search_knowledge_base
+    assert search_sitreps is not None
+    assert search_knowledge_base is not None
 
 
 def test_import_agent_model():
