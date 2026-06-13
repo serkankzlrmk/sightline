@@ -215,12 +215,8 @@ function updateVisibility() {
   const isPremium = role === "premium" || isAdmin;
 
   // SITREP run form: visible for premium + admin
-  const sitrepRunForm = document.getElementById("btn-toggle-form");
-  const runForm = document.getElementById("run-form");
-  if (sitrepRunForm) {
-    sitrepRunForm.style.display = isPremium ? "" : "none";
-    if (runForm && !isPremium) runForm.classList.add("hidden");
-  }
+  const sitrepFormBar = document.getElementById("sitrep-form-bar");
+  if (sitrepFormBar) sitrepFormBar.style.display = isPremium ? "" : "none";
 
   // PDF upload button: admin only
   const uploadBtn = document.getElementById("btn-upload-pdf");
