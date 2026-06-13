@@ -2457,17 +2457,6 @@ function renderBulletin(b, container) {
     </div>
   `;}).join('');
 
-  // Map placeholder with glow dots
-  const mapDots = crises.map(c => {
-    const coords = c.coords || { lat: 0, lng: 0 };
-    // Convert lat/lng to % position (simple equirectangular projection)
-    const left = ((coords.lng + 180) / 360) * 100;
-    const top = ((90 - coords.lat) / 180) * 100;
-    const colors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
-    const color = colors[c.severity] || '#6b7280';
-    return `<div class="map-dot" style="left:${left}%;top:${top}%;background:${color};box-shadow:0 0 8px ${color}88" title="${c.country}: ${c.headline}"></div>`;
-  }).join('');
-
   // Show fallback notice if data date range differs from requested range
   const fallbackNotice = b.data_date_range?.fallback
     ? `<div class="bulletin-fallback-notice">
@@ -2484,14 +2473,6 @@ function renderBulletin(b, container) {
       </div>
       ${fallbackNotice}
       <div class="bulletin-kf-row">${keyFigures}</div>
-    </div>
-
-    <div class="bulletin-map-container">
-      <div class="bulletin-map-placeholder">
-        <div class="map-grid-lines"></div>
-        ${mapDots}
-        <div class="map-label">Crisis Locations</div>
-      </div>
     </div>
 
     <div class="bulletin-overview">
