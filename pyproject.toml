@@ -1,7 +1,7 @@
 [project]
-name = "redagent"
+name = "novasphere"
 version = "1.0.0"
-description = "ReliefAgent Data Platform — humanitarian analytics with RAG"
+description = "NovaSphere — humanitarian analytics with RAG"
 requires-python = ">=3.12"
 
 [tool.ruff]

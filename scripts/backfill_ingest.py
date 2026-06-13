@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-backfill_ingest.py — One-time backfill ingestion for ReliefAgent.
+backfill_ingest.py — One-time backfill ingestion for NovaSphere.
 
 Fetches ALL reports from ReliefWeb API for the last N days (default 30),
 ingests them into SQLite + ChromaDB, then purges data older than 90 days.

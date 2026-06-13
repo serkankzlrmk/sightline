@@ -10,13 +10,13 @@
 
 set -euo pipefail
 
-APP_DIR="/opt/reliefagent"
+APP_DIR="/opt/novasphere"
 RELEASES_DIR="$APP_DIR/releases"
 CURRENT_LINK="$APP_DIR/current"
 HEALTH_URL="http://localhost:5001/api/health"
 HEALTH_RETRIES=10
 HEALTH_INTERVAL=3
-APP_USER="reliefagent"
+APP_USER="novasphere"
 
 # ── List mode ───────────────────────────────────────────────────
 if [ "${1:-}" = "--list" ]; then
@@ -88,7 +88,7 @@ fi
 CURRENT_RELEASE=$(basename "$(readlink -f "$CURRENT_LINK")")
 
 echo "============================================================"
-echo "  ReliefAgent — Rollback"
+echo "  NovaSphere — Rollback"
 echo "============================================================"
 echo "  Current:  $CURRENT_RELEASE"
 echo "  Target:   $TARGET_RELEASE"
@@ -115,7 +115,7 @@ ln -sfn "$TARGET_DIR" "$CURRENT_LINK"
 echo "  ✓ current → $TARGET_RELEASE"
 
 echo "Restarting service..."
-systemctl restart reliefagent
+systemctl restart novasphere
 echo "  ✓ Service restarted"
 
 # ── Health check ────────────────────────────────────────────────
@@ -136,7 +136,7 @@ if [ "$HEALTH_OK" = false ]; then
     echo ""
     echo "✗ Health check failed after rollback!"
     echo "  The rolled-back version may also have issues."
-    echo "  Check logs: journalctl -u reliefagent --no-pager -n 50"
+    echo "  Check logs: journalctl -u novasphere --no-pager -n 50"
     echo ""
     echo "  Available releases: sudo bash $APP_DIR/deploy/rollback.sh --list"
     exit 1
@@ -148,5 +148,5 @@ echo "  ✓ Rollback Successful!"
 echo "============================================================"
 echo "  Now running: $TARGET_RELEASE"
 echo "  Health:     $HEALTH_URL"
-echo "  Logs:       journalctl -u reliefagent -f"
+echo "  Logs:       journalctl -u novasphere -f"
 echo "============================================================"

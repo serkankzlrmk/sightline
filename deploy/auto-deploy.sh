@@ -1,18 +1,18 @@
 #!/bin/bash
-# auto-deploy.sh — Cron-based auto-deploy for ReliefAgent
+# auto-deploy.sh — Cron-based auto-deploy for NovaSphere
 #
-# Runs every 2 minutes via /etc/cron.d/reliefagent-autodeploy
+# Runs every 2 minutes via /etc/cron.d/novasphere-autodeploy
 # Checks for new commits on main branch, deploys with health check + auto-rollback
 #
 # Setup:
-#   1. Copy this script to /opt/reliefagent/auto-deploy.sh
+#   1. Copy this script to /opt/novasphere/auto-deploy.sh
 #   2. Generate SSH deploy key: ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N ""
 #   3. Add public key to GitHub repo as deploy key (with write access for cleanup)
-#   4. Add cron: echo '*/2 * * * * root /opt/reliefagent/auto-deploy.sh >> /var/log/reliefagent/auto-deploy.log 2>&1' > /etc/cron.d/reliefagent-autodeploy
+#   4. Add cron: echo '*/2 * * * * root /opt/novasphere/auto-deploy.sh >> /var/log/novasphere/auto-deploy.log 2>&1' > /etc/cron.d/novasphere-autodeploy
 #
 set -euo pipefail
 
-APP_DIR="/opt/reliefagent"
+APP_DIR="/opt/novasphere"
 DATA_DIR="$APP_DIR/data"
 RELEASES_DIR="$APP_DIR/releases"
 CURRENT_LINK="$APP_DIR/current"
@@ -95,12 +95,12 @@ DEPLOYER=auto-deploy
 DEPLOY_DATE=$(date -Iseconds)
 EOF
 
-chown -R reliefagent:reliefagent "$NEW_RELEASE"
+chown -R novasphere:novasphere "$NEW_RELEASE"
 
 # -- Atomic switch --
 PREV_RELEASE=$(readlink -f "$CURRENT_LINK")
 ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
-systemctl restart reliefagent
+systemctl restart novasphere
 log "Symlink switched, service restarted"
 
 # -- Health check --
@@ -117,7 +117,7 @@ done
 if [ "$HEALTH_OK" = false ]; then
     log "FAILED - rolling back"
     ln -sfn "$PREV_RELEASE" "$CURRENT_LINK"
-    systemctl restart reliefagent
+    systemctl restart novasphere
     exit 1
 fi
 

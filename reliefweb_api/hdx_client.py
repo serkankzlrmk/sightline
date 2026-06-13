@@ -1,25 +1,25 @@
 """
-HDX Direct API Client — RedAgent Entegrasyonu
+HDX Direct API Client — NovaSphere Entegrasyonu
 ==============================================
 
-Bu modül RedAgent'ın Python backend'ine doğrudan entegre edilmek üzere
+Bu modül NovaSphere'ın Python backend'ine doğrudan entegre edilmek üzere
 tasarlanmıştır. MCP server'a ihtiyaç duymaz, HDX HAPI API'ye doğrudan
 HTTP istekleri yapar.
 
 Neden MCP Server'sız?
 ---------------------
 MCP (Model Context Protocol) AI assistant'lar (Claude, GPT) için tasarlanmış
-bir protokol. RedAgent zaten bir Python Flask backend — araya MCP server sokmak
+bir protokol. NovaSphere zaten bir Python Flask backend — araya MCP server sokmak
 gereksiz karmaşıklık yaratır. Bunun yerine direkt HTTP client olarak HDX HAPI
 API'ye bağlanıyoruz:
 
-  ❌ MCP:  RedAgent → MCP Client → MCP Server (ayrı process) → HDX API
-  ✅ Bizim: RedAgent → hdx_client.py (bu dosya) → HDX HAPI API
+  ❌ MCP:  NovaSphere → MCP Client → MCP Server (ayrı process) → HDX API
+  ✅ Bizim: NovaSphere → hdx_client.py (bu dosya) → HDX HAPI API
 
 Tek dosya, tek process, tek deployment.
 
-RedAgent'a Entegrasyon:
-1. Bu dosyayı RedAgent repo root'una kopyala: hdx_client.py
+NovaSphere'a Entegrasyon:
+1. Bu dosyayı NovaSphere repo root'una kopyala: hdx_client.py
 2. .env'e ekle: HDX_APP_IDENTIFIER=<base64_encoded_key>
 3. Flask app'te başlat: hdx = HDXClient.from_env()
 4. API endpoint'lerde kullan: result = hdx.get_refugees_sync("SYR")
@@ -68,8 +68,8 @@ API Key Nasıl Alınır?
 3. Base64 ile encode edilmiş key al (format: base64("app_name:email"))
 4. .env dosyasına ekle: HDX_APP_IDENTIFIER=<key>
 
-Örnek: base64("hdx-mcp-agent:serkan@YOUR_DOMAIN")
-       = "aGR4LW1jcC1hZ2VudDpzZXJrYW5AcmVsaWVmYWdlbnQuZHVja2Rucy5vcmc="
+Örnek: base64("hdx-mcp-agent:your-email@example.com")
+       = "aGR4LW1jcC1hZ2VudDp5b3VyLWVtYWlsQGV4YW1wbGUuY29t=="
 """
 
 import os
@@ -188,7 +188,7 @@ class SimpleCache:
 # ============================================================================
 
 class HDXClient:
-    """HDX Direct API Client — RedAgent Entegrasyonu.
+    """HDX Direct API Client — NovaSphere Entegrasyonu.
 
     HDX HAPI API'ye doğrudan HTTP istekleri yapar. MCP server'a ihtiyaç duymaz.
     Flask app'te singleton olarak kullanılmak üzere tasarlanmıştır.
@@ -688,7 +688,7 @@ class HDXClient:
         return await self._aget("/util/version", kwargs)
 
     # =========================================================================
-    # High-Level Methods (RedAgent SITREP Integration)
+    # High-Level Methods (NovaSphere SITREP Integration)
     # =========================================================================
 
     async def get_country_overview(self, location_code: str) -> Dict[str, HDXResult]:

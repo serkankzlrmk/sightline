@@ -1,11 +1,11 @@
-# ReliefAgent — Daily Ingest Cron
+# NovaSphere — Daily Ingest Cron
 # Fetches yesterday's ReliefWeb reports + purges data older than 90 days
 # Runs at 06:00 UTC every day
 #
-# Install: sudo cp /opt/reliefagent/current/deploy/daily-ingest.cron /etc/cron.d/reliefagent-daily-ingest
-#          sudo chmod 644 /etc/cron.d/reliefagent-daily-ingest
+# Install: sudo cp /opt/novasphere/current/deploy/daily-ingest.cron /etc/cron.d/novasphere-daily-ingest
+#          sudo chmod 644 /etc/cron.d/novasphere-daily-ingest
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-0 6 * * * reliefagent /opt/reliefagent/current/venv/bin/python3 /opt/reliefagent/current/scripts/daily_ingest.py >> /var/log/reliefagent/daily-ingest.log 2>&1
+0 6 * * * novasphere /opt/novasphere/current/venv/bin/python3 /opt/novasphere/current/scripts/daily_ingest.py >> /var/log/novasphere/daily-ingest.log 2>&1

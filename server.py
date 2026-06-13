@@ -105,9 +105,10 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if not SERVER_DEBUG:
         # Production CSP — no localhost, includes OpenRouter for LLM calls
+        # NOTE: 'unsafe-eval' required by marked.js (new Function()). 'unsafe-inline' removed from script-src (onclick handlers migrated to addEventListener).
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; "
+            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https: http:; "
@@ -118,7 +119,7 @@ def add_security_headers(response):
         # Dev CSP — includes localhost for local development
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; "
+            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https: http:; "
@@ -1880,7 +1881,7 @@ if __name__ == "__main__":
     print(f"  http://{SERVER_HOST}:{SERVER_PORT}")
     print(f"  Auth : {auth_status}")
     print(f"  CORS : {cors_display}")
-    print("  Tabs : Database | ReliefAgent | SITREP")
+    print("  Tabs : Database | NovaSphere | SITREP")
     print("=" * 58)
     app.run(
         host=SERVER_HOST,

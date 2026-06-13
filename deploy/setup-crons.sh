@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# setup-crons.sh — Install cron jobs for ReliefAgent
+# setup-crons.sh — Install cron jobs for NovaSphere
 #
 # Installs:
 #   1. Daily ingest (06:00 UTC) — fetches yesterday's reports
@@ -15,56 +15,56 @@
 
 set -euo pipefail
 
-APP_DIR="/opt/reliefagent"
-LOG_DIR="/var/log/reliefagent"
+APP_DIR="/opt/novasphere"
+LOG_DIR="/var/log/novasphere"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
 
 # ── 1. Daily Ingest Cron ────────────────────────────────────────
 echo "[1/3] Installing daily ingest cron (06:00 UTC)..."
-cat > /etc/cron.d/reliefagent-daily-ingest << 'EOF'
-# ReliefAgent — Daily Ingest
+cat > /etc/cron.d/novasphere-daily-ingest << 'EOF'
+# NovaSphere — Daily Ingest
 # Fetches yesterday's ReliefWeb reports + purges data older than 90 days
 # Runs at 06:00 UTC every day
 
 SHELL=/bin/bash
-PATH=/opt/reliefagent/current/venv/bin:/usr/local/bin:/usr/bin:/bin
+PATH=/opt/novasphere/current/venv/bin:/usr/local/bin:/usr/bin:/bin
 
-0 6 * * * root cd /opt/reliefagent/current && /opt/reliefagent/current/venv/bin/python /opt/reliefagent/current/scripts/daily_ingest.py >> /var/log/reliefagent/daily-ingest.log 2>&1
+0 6 * * * root cd /opt/novasphere/current && /opt/novasphere/current/venv/bin/python /opt/novasphere/current/scripts/daily_ingest.py >> /var/log/novasphere/daily-ingest.log 2>&1
 EOF
-chmod 644 /etc/cron.d/reliefagent-daily-ingest
-echo "  ✓ Installed /etc/cron.d/reliefagent-daily-ingest"
+chmod 644 /etc/cron.d/novasphere-daily-ingest
+echo "  ✓ Installed /etc/cron.d/novasphere-daily-ingest"
 
 # ── 2. Weekly Bulletin Cron ────────────────────────────────────
 echo "[2/3] Installing weekly bulletin cron (Monday 06:30 UTC)..."
-cat > /etc/cron.d/reliefagent-bulletin << 'EOF'
-# ReliefAgent — Weekly Bulletin Generation
+cat > /etc/cron.d/novasphere-bulletin << 'EOF'
+# NovaSphere — Weekly Bulletin Generation
 # Runs every Monday at 06:30 UTC (30 minutes after daily_ingest at 06:00)
 # Generates bulletin for the previous week (Mon-Sun)
 
 SHELL=/bin/bash
-PATH=/opt/reliefagent/current/venv/bin:/usr/local/bin:/usr/bin:/bin
+PATH=/opt/novasphere/current/venv/bin:/usr/local/bin:/usr/bin:/bin
 
-30 6 * * 1 root cd /opt/reliefagent/current && /opt/reliefagent/current/venv/bin/python /opt/reliefagent/current/scripts/generate_bulletin.py --last-week >> /var/log/reliefagent/bulletin.log 2>&1
+30 6 * * 1 root cd /opt/novasphere/current && /opt/novasphere/current/venv/bin/python /opt/novasphere/current/scripts/generate_bulletin.py --last-week >> /var/log/novasphere/bulletin.log 2>&1
 EOF
-chmod 644 /etc/cron.d/reliefagent-bulletin
-echo "  ✓ Installed /etc/cron.d/reliefagent-bulletin"
+chmod 644 /etc/cron.d/novasphere-bulletin
+echo "  ✓ Installed /etc/cron.d/novasphere-bulletin"
 
 # ── 3. Daily Backup Cron ────────────────────────────────────────
 echo "[3/3] Installing daily backup cron (03:00 UTC)..."
-cat > /etc/cron.d/reliefagent-backup << 'EOF'
-# ReliefAgent — Daily Backup
+cat > /etc/cron.d/novasphere-backup << 'EOF'
+# NovaSphere — Daily Backup
 # Backs up SQLite + ChromaDB data
 # Runs at 03:00 UTC every day
 
 SHELL=/bin/bash
-PATH=/opt/reliefagent/current/venv/bin:/usr/local/bin:/usr/bin:/bin
+PATH=/opt/novasphere/current/venv/bin:/usr/local/bin:/usr/bin:/bin
 
-0 3 * * * root /opt/reliefagent/current/deploy/backup.sh >> /var/log/reliefagent/backup.log 2>&1
+0 3 * * * root /opt/novasphere/current/deploy/backup.sh >> /var/log/novasphere/backup.log 2>&1
 EOF
-chmod 644 /etc/cron.d/reliefagent-backup
-echo "  ✓ Installed /etc/cron.d/reliefagent-backup"
+chmod 644 /etc/cron.d/novasphere-backup
+echo "  ✓ Installed /etc/cron.d/novasphere-backup"
 
 # ── Summary ─────────────────────────────────────────────────────
 echo ""
@@ -72,10 +72,10 @@ echo "============================================================"
 echo "  ✓ All cron jobs installed!"
 echo "============================================================"
 echo ""
-echo "  Daily ingest:  06:00 UTC → /var/log/reliefagent/daily-ingest.log"
-echo "  Weekly bulletin: Mon 06:30 UTC → /var/log/reliefagent/bulletin.log"
-echo "  Daily backup:  03:00 UTC → /var/log/reliefagent/backup.log"
+echo "  Daily ingest:  06:00 UTC → /var/log/novasphere/daily-ingest.log"
+echo "  Weekly bulletin: Mon 06:30 UTC → /var/log/novasphere/bulletin.log"
+echo "  Daily backup:  03:00 UTC → /var/log/novasphere/backup.log"
 echo ""
-echo "  Verify:  crontab -l | grep reliefagent"
-echo "  Test:    sudo /opt/reliefagent/current/venv/bin/python /opt/reliefagent/current/scripts/daily_ingest.py --dry-run"
+echo "  Verify:  crontab -l | grep novasphere"
+echo "  Test:    sudo /opt/novasphere/current/venv/bin/python /opt/novasphere/current/scripts/daily_ingest.py --dry-run"
 echo "============================================================"

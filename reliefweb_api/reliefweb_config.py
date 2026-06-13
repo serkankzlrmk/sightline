@@ -25,7 +25,7 @@ def _ssl_verify():
 # ========================================================================
 
 # ReliefWeb API Settings
-RELIEFWEB_APPNAME = os.getenv("RELIEFWEB_APPNAME", "redagent_platform")
+RELIEFWEB_APPNAME = os.getenv("RELIEFWEB_APPNAME", "novasphere_platform")
 RELIEFWEB_API_BASE = "https://api.reliefweb.int/v2"
 RELIEFWEB_REPORTS_API = f"{RELIEFWEB_API_BASE}/reports"
 RELIEFWEB_DISASTERS_API = f"{RELIEFWEB_API_BASE}/disasters"

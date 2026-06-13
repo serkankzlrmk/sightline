@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================================
-# backup.sh — Daily SQLite + ChromaDB backup for ReliefAgent
-# Add to crontab: 0 3 * * * /opt/reliefagent/deploy/backup.sh
+# backup.sh — Daily SQLite backup for NovaSphere
+# Add to crontab: 0 3 * * * /opt/novasphere/deploy/backup.sh
 # ============================================================
 
 set -euo pipefail
 
-APP_DIR="/opt/reliefagent"
-BACKUP_DIR="/opt/reliefagent/backups"
+APP_DIR="/opt/novasphere"
+BACKUP_DIR="/opt/novasphere/backups"
 DATE=$(date +%Y%m%d_%H%M)
 MAX_BACKUPS=14  # Keep 2 weeks of backups
 

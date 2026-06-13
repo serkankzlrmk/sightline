@@ -41,7 +41,7 @@ def this_week_range():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Weekly Bulletin Generator — ReliefAgent CLI"
+        description="Weekly Bulletin Generator — NovaSphere CLI"
     )
     date_group = parser.add_mutually_exclusive_group(required=True)
     date_group.add_argument(

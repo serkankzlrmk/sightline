@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# setup.sh — ReliefAgent Production Setup (Oracle Cloud)
+# setup.sh — NovaSphere Production Setup (Oracle Cloud)
 #
 # Run as root on a fresh Oracle Linux 9 VM:
 #   sudo bash deploy/setup.sh
@@ -9,7 +9,7 @@
 #   sudo bash deploy/setup.sh --skip-iptables-flush
 #
 # Creates the symlink-based release directory structure:
-#   /opt/reliefagent/
+#   /opt/novasphere/
 #   ├── current → releases/YYYYMMDD_HHMMSS   (symlink)
 #   ├── releases/                             (timestamped deploys)
 #   ├── data/                                 (shared persistent data)
@@ -33,15 +33,15 @@ for arg in "$@"; do
     esac
 done
 
-APP_DIR="/opt/reliefagent"
-APP_USER="reliefagent"
+APP_DIR="/opt/novasphere"
+APP_USER="novasphere"
 DATA_DIR="$APP_DIR/data"
 RELEASES_DIR="$APP_DIR/releases"
-LOG_DIR="/var/log/reliefagent"
+LOG_DIR="/var/log/novasphere"
 REPO_URL="https://github.com/serkankzlrmk/RedAgent.git"
 
 echo "============================================================"
-echo "  ReliefAgent Data Platform — Production Setup"
+echo "  NovaSphere — Production Setup"
 echo "  Branch: $BRANCH"
 echo "============================================================"
 echo ""
@@ -241,16 +241,16 @@ echo "[9/10] Setting up current symlink and systemd service..."
 ln -sfn "$FIRST_RELEASE" "$APP_DIR/current"
 
 # Install systemd service
-cp "$FIRST_RELEASE/deploy/reliefagent.service" /etc/systemd/system/
+cp "$FIRST_RELEASE/deploy/novasphere.service" /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable reliefagent
+systemctl enable novasphere
 
 # ── 10. Nginx ───────────────────────────────────────────────────
 echo "[10/10] Configuring Nginx..."
 
 if [ "$PKG_MGR" = "dnf" ]; then
     # Oracle Linux / RHEL — nginx uses conf.d/ not sites-available/
-    cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/conf.d/reliefagent.conf
+    cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/conf.d/novasphere.conf
     # Remove default server block if it conflicts
     if [ -f /etc/nginx/nginx.conf ] && grep -q "server {" /etc/nginx/nginx.conf; then
         # Comment out the default server block in nginx.conf to avoid conflict
@@ -258,9 +258,9 @@ if [ "$PKG_MGR" = "dnf" ]; then
     fi
 else
     # Ubuntu — use sites-available/sites-enabled
-    cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/sites-available/reliefagent
+    cp "$FIRST_RELEASE/deploy/nginx.conf" /etc/nginx/sites-available/novasphere
     rm -f /etc/nginx/sites-enabled/default
-    ln -sf /etc/nginx/sites-available/reliefagent /etc/nginx/sites-enabled/
+    ln -sf /etc/nginx/sites-available/novasphere /etc/nginx/sites-enabled/
 fi
 
 nginx -t
@@ -318,7 +318,7 @@ else
 fi
 
 echo "  Start the service:"
-echo "    sudo systemctl start reliefagent"
+echo "    sudo systemctl start novasphere"
 echo "    sudo systemctl reload nginx"
 echo ""
 echo "  Verify:"
@@ -326,9 +326,9 @@ echo "    curl http://localhost/api/health"
 echo ""
 echo "  Update nginx server_name:"
 if [ "$PKG_MGR" = "dnf" ]; then
-    echo "    sudo nano /etc/nginx/conf.d/reliefagent.conf"
+    echo "    sudo nano /etc/nginx/conf.d/novasphere.conf"
 else
-    echo "    sudo nano /etc/nginx/sites-available/reliefagent"
+    echo "    sudo nano /etc/nginx/sites-available/novasphere"
 fi
 echo "    Replace YOUR_SERVER_IP with your domain or IP"
 echo "    sudo nginx -t && sudo systemctl reload nginx"
@@ -344,18 +344,18 @@ echo "    sudo bash $APP_DIR/current/deploy/rollback.sh"
 echo "    sudo bash $APP_DIR/current/deploy/rollback.sh --list"
 echo ""
 echo "  Useful commands:"
-echo "    sudo systemctl status reliefagent   # check status"
-echo "    sudo journalctl -u reliefagent -f   # live logs"
+echo "    sudo systemctl status novasphere   # check status"
+echo "    sudo journalctl -u novasphere -f   # live logs"
 echo "    sudo bash $APP_DIR/current/deploy/backup.sh  # manual backup"
 echo ""
 echo "  Add backup cron:"
-echo "    echo '0 3 * * * /opt/reliefagent/current/deploy/backup.sh' | sudo tee /etc/cron.d/reliefagent-backup"
+echo "    echo '0 3 * * * /opt/novasphere/current/deploy/backup.sh' | sudo tee /etc/cron.d/novasphere-backup"
 echo ""
 echo "  Add weekly bulletin cron (Monday 06:30 UTC):"
-echo "    sudo cp /opt/reliefagent/current/deploy/weekly-bulletin.cron /etc/cron.d/reliefagent-bulletin"
-echo "    sudo chmod 644 /etc/cron.d/reliefagent-bulletin"
+echo "    sudo cp /opt/novasphere/current/deploy/weekly-bulletin.cron /etc/cron.d/novasphere-bulletin"
+echo "    sudo chmod 644 /etc/cron.d/novasphere-bulletin"
 echo "============================================================"
 echo "  tail -f $LOG_DIR/error.log          # gunicorn logs"
-echo "  sudo systemctl restart reliefagent  # restart app"
-echo "  cd $APP_DIR && sudo -u reliefagent git pull origin main && sudo systemctl restart reliefagent  # update"
+echo "  sudo systemctl restart novasphere  # restart app"
+echo "  cd $APP_DIR && sudo -u reliefagent git pull origin main && sudo systemctl restart novasphere  # update"
 echo ""

@@ -33,8 +33,8 @@ def _get_base_url_and_headers() -> tuple[str, dict]:
     
     if LLM_PROVIDER == "openrouter":
         headers["Authorization"] = f"Bearer {_LLM_API_KEY}"
-        headers["HTTP-Referer"] = "https://reliefagent.org"
-        headers["X-Title"] = "ReliefAgent"
+        headers["HTTP-Referer"] = "https://example.com"
+        headers["X-Title"] = "NovaSphere"
         return _LLM_BASE_URL, headers
     else:
         if OLLAMA_API_KEY:

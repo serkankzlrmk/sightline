@@ -1,8 +1,8 @@
-# Stitch Prompt — ReliefAgent Data Platform UI Redesign
+# Stitch Prompt — NovaSphere UI Redesign
 
 ## Overview
 
-Redesign the **ReliefAgent Data Platform** — a humanitarian data analytics web application with 3 main tabs (Database, ReliefAgent Chat, SITREP). The app uses Firebase Auth (Google Sign-In) and has role-based access (free/premium/admin).
+Redesign the **NovaSphere** — a humanitarian data analytics web application with 3 main tabs (Database, NovaSphere Chat, SITREP). The app uses Firebase Auth (Google Sign-In) and has role-based access (free/premium/admin).
 
 ## Current Tech Stack
 
@@ -49,7 +49,7 @@ Redesign the **ReliefAgent Data Platform** — a humanitarian data analytics web
 
 ### 1. Login/Auth Screen
 - Full-screen overlay with centered card
-- ReliefAgent logo + "Humanitarian Data Analytics Platform" subtitle
+- NovaSphere logo + "Humanitarian Data Analytics Platform" subtitle
 - 3 feature cards: Intelligent Search, SITREP Generation, Source Citations
 - Google Sign-In button (prominent, centered)
 - Clean, professional, humanitarian feel
@@ -57,7 +57,7 @@ Redesign the **ReliefAgent Data Platform** — a humanitarian data analytics web
 ### 2. Main Layout (3 tabs)
 - **Top nav:** Logo left, tabs center, user bar right (avatar, name, role badge, logout)
 - **Tab 1 — Database:** Table-based report browser with filters (country, theme, source, date range), stats cards at top
-- **Tab 2 — ReliefAgent (Chat):** Gemini-style chat interface
+- **Tab 2 — NovaSphere (Chat):** Gemini-style chat interface
   - Left sidebar: Chat history (slide drawer)
   - Center: Chat messages with welcome screen
   - Welcome screen has feature sections (Search, Ask, Ingest, More) + category-tinted quick prompt buttons
@@ -78,7 +78,7 @@ Redesign the **ReliefAgent Data Platform** — a humanitarian data analytics web
 ### Chat Welcome Screen
 ```
 ┌─────────────────────────────────────────┐
-│          Welcome to ReliefAgent          │
+│          Welcome to NovaSphere          │
 │  Your AI-powered humanitarian data       │
 │  analyst. Search, analyze, and synthesize │
 │  reports from ReliefWeb.                 │

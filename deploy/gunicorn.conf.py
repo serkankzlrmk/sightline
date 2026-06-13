@@ -1,4 +1,4 @@
-# Gunicorn configuration for ReliefAgent
+# Gunicorn configuration for NovaSphere
 # Usage: gunicorn -c deploy/gunicorn.conf.py server:app
 
 import os
@@ -19,8 +19,8 @@ max_requests = 1000  # Restart workers after N requests (prevents memory leaks)
 max_requests_jitter = 50
 
 # Logging
-accesslog = "/var/log/reliefagent/access.log"
-errorlog = "/var/log/reliefagent/error.log"
+accesslog = "/var/log/novasphere/access.log"
+errorlog = "/var/log/novasphere/error.log"
 loglevel = "info"
 capture_output = True
 

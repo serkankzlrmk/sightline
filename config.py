@@ -220,7 +220,7 @@ for _d in [OUTPUT_DIR, OUTPUT_CLUSTERS_DIR, OUTPUT_QUESTIONS_DIR,
 # ============================================================================
 # RELIEFWEB API
 # ============================================================================
-RELIEFWEB_APPNAME: str = os.getenv("RELIEFWEB_APPNAME", "redagent_platform")
+RELIEFWEB_APPNAME: str = os.getenv("RELIEFWEB_APPNAME", "novasphere_platform")
 
 # ============================================================================
 # FLASK / SERVER

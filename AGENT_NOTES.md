@@ -1,4 +1,4 @@
-# AGENT_NOTES.md — ReliefAgent Production Handoff Notes
+# AGENT_NOTES.md — NovaSphere Production Handoff Notes
 
 > Created: 24 Nisan 2026
 > Branch: feature/ui-redesign
@@ -32,7 +32,7 @@
 - `deploy/update.sh` — Git pull + pip install + restart
 - `deploy/backup.sh` — SQLite + ChromaDB günlük yedekleme
 - `deploy/gunicorn.conf.py` — 1 worker, 4 threads, 120s timeout
-- `deploy/reliefagent.service` — systemd unit
+- `deploy/novasphere.service` — systemd unit
 - `deploy/nginx.conf` — reverse proxy (SSE support)
 - `deploy/logrotate.conf` — log rotation
 
@@ -59,7 +59,7 @@
 - https://cloud.oracle.com → Sign Up (kart gerekiyor, always free, para çekilmez)
 - Region: **Frankfurt** (veya London)
 - Compute → Instances → Create Instance
-- Name: `reliefagent`, Image: Ubuntu 24.04, Shape: Ampere A1 (4 OCPU, 24GB RAM)
+- Name: `novasphere`, Image: Ubuntu 24.04, Shape: Ampere A1 (4 OCPU, 24GB RAM)
 - SSH Key oluştur, Boot volume: 50GB
 - Public IP adresini not al
 - Security List ingress rules: Port 22, 80, 443 (source: 0.0.0.0/0)
@@ -69,14 +69,14 @@
 ssh -i /path/to/key ubuntu@YOUR_PUBLIC_IP
 
 sudo apt update && sudo apt install -y git
-git clone -b feature/ui-redesign https://github.com/serkankzlrmk/RedAgent.git /opt/reliefagent
-sudo bash /opt/reliefagent/deploy/setup.sh
+git clone -b feature/ui-redesign https://github.com/serkankzlrmk/RedAgent.git /opt/novasphere
+sudo bash /opt/novasphere/deploy/setup.sh
 ```
 
 ### Adım 3: Manuel Ayarlar
 #### 3a. .env Düzenleme
 ```bash
-sudo nano /opt/reliefagent/.env
+sudo nano /opt/novasphere/.env
 ```
 **Zorunlu değişiklikler:**
 - `OLLAMA_API_KEY=` → Gerçek Ollama Cloud API key
@@ -87,20 +87,20 @@ sudo nano /opt/reliefagent/.env
 
 #### 3b. firebase-service-account.json Kopyalama
 ```bash
-scp -i /path/to/key firebase-service-account.json ubuntu@YOUR_PUBLIC_IP:/opt/reliefagent/
+scp -i /path/to/key firebase-service-account.json ubuntu@YOUR_PUBLIC_IP:/opt/novasphere/
 ```
 
 #### 3c. nginx.conf Public IP Güncelleme
 ```bash
-sudo nano /etc/nginx/sites-available/reliefagent
+sudo nano /etc/nginx/sites-available/novasphere
 # YOUR_SERVER_IP yerine VM'in public IP adresini yaz
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### Adım 4: Servisi Başlatma
 ```bash
-sudo systemctl start reliefagent
-sudo systemctl status reliefagent
+sudo systemctl start novasphere
+sudo systemctl status novasphere
 curl http://localhost:5000/api/health  # 200 döndürmeli
 ```
 
@@ -118,20 +118,20 @@ sudo certbot --nginx -d yourdomain.com
 
 ### Adım 7: Yedekleme Kurulumu
 ```bash
-echo "0 3 * * * /opt/reliefagent/deploy/backup.sh" | sudo crontab -
-sudo cp /opt/reliefagent/deploy/logrotate.conf /etc/logrotate.d/reliefagent
+echo "0 3 * * * /opt/novasphere/deploy/backup.sh" | sudo crontab -
+sudo cp /opt/novasphere/deploy/logrotate.conf /etc/logrotate.d/novasphere
 ```
 
 ### Adım 8: Önemli Komutlar
 ```bash
 # Logları izle
-sudo journalctl -u reliefagent -f
+sudo journalctl -u novasphere -f
 
 # Hızlı güncelleme
-sudo bash /opt/reliefagent/deploy/update.sh
+sudo bash /opt/novasphere/deploy/update.sh
 
 # Servisi yeniden başlat
-sudo systemctl restart reliefagent
+sudo systemctl restart novasphere
 
 # Nginx yeniden yükle
 sudo systemctl reload nginx
@@ -159,20 +159,20 @@ Deploy sonrası:
 
 ## Önemli Dosyalar
 
-- `/opt/reliefagent/.env` — production ayarlar
-- `/opt/reliefagent/.env.example` — referans template
-- `/opt/reliefagent/firebase-service-account.json` — Firebase Admin SDK
-- `/var/log/reliefagent/` — uygulama logları
-- `/etc/nginx/sites-available/reliefagent` — nginx config
-- `/etc/systemd/system/reliefagent.service` — systemd config
-- `/opt/reliefagent/deploy/` — tüm deploy script'leri
+- `/opt/novasphere/.env` — production ayarlar
+- `/opt/novasphere/.env.example` — referans template
+- `/opt/novasphere/firebase-service-account.json` — Firebase Admin SDK
+- `/var/log/novasphere/` — uygulama logları
+- `/etc/nginx/sites-available/novasphere` — nginx config
+- `/etc/systemd/system/novasphere.service` — systemd config
+- `/opt/novasphere/deploy/` — tüm deploy script'leri
 
 ---
 
 ## İletişim / Yardım
 
 Herhangi bir problemde:
-1. `sudo systemctl status reliefagent` ile servis durumunu kontrol et
-2. `sudo journalctl -u reliefagent --no-pager -n 50` ile son logları gör
-3. `tail -f /var/log/reliefagent/error.log` ile canlı log izle
+1. `sudo systemctl status novasphere` ile servis durumunu kontrol et
+2. `sudo journalctl -u novasphere --no-pager -n 50` ile son logları gör
+3. `tail -f /var/log/novasphere/error.log` ile canlı log izle
 4. Health check: `curl http://localhost:5000/api/health`

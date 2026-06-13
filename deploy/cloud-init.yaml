@@ -1,14 +1,14 @@
 #cloud-config
 # ============================================================
-# cloud-init.yaml — ReliefAgent Auto-Setup for Oracle Cloud Ampere A1
+# cloud-init.yaml — NovaSphere Auto-Setup for Oracle Cloud Ampere A1
 #
 # This script runs automatically when the VM boots for the first time.
 # It installs all dependencies, clones the repo, and sets up the app.
 #
 # After VM creation, you only need to:
-#   1. Edit /opt/reliefagent/data/.env (API keys)
-#   2. Copy firebase-service-account.json to /opt/reliefagent/data/
-#   3. sudo systemctl restart reliefagent
+#   1. Edit /opt/novasphere/data/.env (API keys)
+#   2. Copy firebase-service-account.json to /opt/novasphere/data/
+#   3. sudo systemctl restart novasphere
 # ============================================================
 
 package_update: true
@@ -72,7 +72,7 @@ write_files:
       WantedBy=multi-user.target
 
   # ── Nginx config ─────────────────────────────────────────────
-  - path: /etc/nginx/conf.d/reliefagent.conf
+  - path: /etc/nginx/conf.d/novasphere.conf
     content: |
       server {
           listen 80;
@@ -113,20 +113,20 @@ write_files:
       }
 
   # ── Systemd service ──────────────────────────────────────────
-  - path: /etc/systemd/system/reliefagent.service
+  - path: /etc/systemd/system/novasphere.service
     content: |
       [Unit]
-      Description=ReliefAgent Data Platform
+      Description=NovaSphere Data Platform
       After=network.target
 
       [Service]
       Type=simple
-      User=reliefagent
-      Group=reliefagent
-      WorkingDirectory=/opt/reliefagent/current
-      Environment="PATH=/opt/reliefagent/current/venv/bin:/usr/local/bin:/usr/bin"
-      Environment="PYTHONPATH=/opt/reliefagent/current"
-      ExecStart=/opt/reliefagent/current/venv/bin/gunicorn -c deploy/gunicorn.conf.py server:app
+      User=novasphere
+      Group=novasphere
+      WorkingDirectory=/opt/novasphere/current
+      Environment="PATH=/opt/novasphere/current/venv/bin:/usr/local/bin:/usr/bin"
+      Environment="PYTHONPATH=/opt/novasphere/current"
+      ExecStart=/opt/novasphere/current/venv/bin/gunicorn -c deploy/gunicorn.conf.py server:app
       Restart=always
       RestartSec=5
       StandardOutput=journal
@@ -134,17 +134,17 @@ write_files:
       NoNewPrivileges=true
       PrivateTmp=true
       ProtectSystem=strict
-      ReadWritePaths=/opt/reliefagent/current /opt/reliefagent/data /opt/reliefagent/releases /var/log/reliefagent
+      ReadWritePaths=/opt/novasphere/current /opt/novasphere/data /opt/novasphere/releases /var/log/novasphere
       ProtectHome=true
 
       [Install]
       WantedBy=multi-user.target
 
   # ── .env template ─────────────────────────────────────────────
-  - path: /opt/reliefagent/data/.env
+  - path: /opt/novasphere/data/.env
     content: |
-      # ReliefAgent Configuration — EDIT THIS FILE
-      # Run: sudo nano /opt/reliefagent/data/.env
+      # NovaSphere Configuration — EDIT THIS FILE
+      # Run: sudo nano /opt/novasphere/data/.env
       SERVER_PORT=5001
       LLM_PROVIDER=openrouter
       OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
@@ -179,23 +179,23 @@ runcmd:
   - firewall-cmd --reload
 
   # ── 4. Create app user ───────────────────────────────────────
-  - useradd -r -s /bin/false -d /opt/reliefagent reliefagent || true
+  - useradd -r -s /bin/false -d /opt/novasphere novasphere || true
 
   # ── 5. Create directory structure ────────────────────────────
-  - mkdir -p /opt/reliefagent/releases
-  - mkdir -p /opt/reliefagent/backups
-  - mkdir -p /opt/reliefagent/data/reliefweb_downloads
-  - mkdir -p /opt/reliefagent/data/reliefweb_chroma
-  - mkdir -p /opt/reliefagent/data/output
-  - mkdir -p /var/log/reliefagent
+  - mkdir -p /opt/novasphere/releases
+  - mkdir -p /opt/novasphere/backups
+  - mkdir -p /opt/novasphere/data/reliefweb_downloads
+  - mkdir -p /opt/novasphere/data/reliefweb_chroma
+  - mkdir -p /opt/novasphere/data/output
+  - mkdir -p /var/log/novasphere
 
   # ── 6. Clone repository ─────────────────────────────────────
   - TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-  - git clone -b main https://github.com/serkankzlrmk/RedAgent.git /opt/reliefagent/releases/$TIMESTAMP
-  - cd /opt/reliefagent/releases/$TIMESTAMP
+  - git clone -b main https://github.com/serkankzlrmk/RedAgent.git /opt/novasphere/releases/$TIMESTAMP
+  - cd /opt/novasphere/releases/$TIMESTAMP
   - GIT_SHA=$(git rev-parse HEAD)
   - |
-    cat > /opt/reliefagent/releases/$TIMESTAMP/RELEASE_INFO <<EOF
+    cat > /opt/novasphere/releases/$TIMESTAMP/RELEASE_INFO <<EOF
     TIMESTAMP=$TIMESTAMP
     GIT_SHA=$GIT_SHA
     BRANCH=main
@@ -204,27 +204,27 @@ runcmd:
     EOF
 
   # ── 7. Python virtual environment ────────────────────────────
-  - cd /opt/reliefagent/releases/$TIMESTAMP
+  - cd /opt/novasphere/releases/$TIMESTAMP
   - python3 -m venv venv
   - venv/bin/pip install --upgrade pip setuptools wheel
   - venv/bin/pip install -r requirements.txt
   - venv/bin/pip install gunicorn
 
   # ── 8. Link shared data ─────────────────────────────────────
-  - ln -sf /opt/reliefagent/data/.env /opt/reliefagent/releases/$TIMESTAMP/.env
-  - ln -sfn /opt/reliefagent/data/reliefweb_chroma /opt/reliefagent/releases/$TIMESTAMP/reliefweb_chroma
-  - ln -sfn /opt/reliefagent/data/reliefweb_downloads /opt/reliefagent/releases/$TIMESTAMP/reliefweb_downloads
-  - ln -sfn /opt/reliefagent/data/output /opt/reliefagent/releases/$TIMESTAMP/output
-  - ln -sf /opt/reliefagent/data/reliefweb.db /opt/reliefagent/releases/$TIMESTAMP/reliefweb.db || true
-  - ln -sf /opt/reliefagent/data/chats.db /opt/reliefagent/releases/$TIMESTAMP/chats.db || true
+  - ln -sf /opt/novasphere/data/.env /opt/novasphere/releases/$TIMESTAMP/.env
+  - ln -sfn /opt/novasphere/data/reliefweb_chroma /opt/novasphere/releases/$TIMESTAMP/reliefweb_chroma
+  - ln -sfn /opt/novasphere/data/reliefweb_downloads /opt/novasphere/releases/$TIMESTAMP/reliefweb_downloads
+  - ln -sfn /opt/novasphere/data/output /opt/novasphere/releases/$TIMESTAMP/output
+  - ln -sf /opt/novasphere/data/reliefweb.db /opt/novasphere/releases/$TIMESTAMP/reliefweb.db || true
+  - ln -sf /opt/novasphere/data/chats.db /opt/novasphere/releases/$TIMESTAMP/chats.db || true
 
   # ── 9. Set current symlink ──────────────────────────────────
-  - ln -sfn /opt/reliefagent/releases/$TIMESTAMP /opt/reliefagent/current
+  - ln -sfn /opt/novasphere/releases/$TIMESTAMP /opt/novasphere/current
 
   # ── 10. Set permissions ─────────────────────────────────────
-  - chown -R reliefagent:reliefagent /opt/reliefagent
-  - chown -R reliefagent:reliefagent /var/log/reliefagent
-  - chmod 600 /opt/reliefagent/data/.env
+  - chown -R novasphere:novasphere /opt/novasphere
+  - chown -R novasphere:novasphere /var/log/novasphere
+  - chmod 600 /opt/novasphere/data/.env
 
   # ── 11. Configure nginx ─────────────────────────────────────
   # Comment out default server block in nginx.conf to avoid conflict
@@ -232,29 +232,29 @@ runcmd:
   - systemctl enable nginx
   - systemctl start nginx
 
-  # ── 12. Enable reliefagent service (but don't start — .env needs config) ──
+  # ── 12. Enable novasphere.service (but don't start — .env needs config) ──
   - systemctl daemon-reload
-  - systemctl enable reliefagent
+  - systemctl enable novasphere
 
   # ── 13. Generate random SECRET_KEY ──────────────────────────
   - SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
-  - sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" /opt/reliefagent/data/.env
+  - sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" /opt/novasphere/data/.env
 
   # ── 14. Print setup summary ─────────────────────────────────
   - |
     echo ""
     echo "============================================================"
-    echo "  ReliefAgent Setup Complete!"
+    echo "  NovaSphere Setup Complete!"
     echo "============================================================"
     echo ""
     echo "  NEXT STEPS:"
     echo "  1. SSH into this VM:  ssh opc@<PUBLIC_IP>"
-    echo "  2. Edit .env:         sudo nano /opt/reliefagent/data/.env"
+    echo "  2. Edit .env:         sudo nano /opt/novasphere/data/.env"
     echo "     - Set OPENROUTER_API_KEY"
     echo "     - Set ADMIN_UIDS (your Firebase UID)"
     echo "     - Set CORS_ORIGINS (your domain or *)"
     echo "  3. Copy Firebase key: scp firebase-service-account.json opc@<IP>:/tmp/"
-    echo "     Then: sudo cp /tmp/firebase-service-account.json /opt/reliefagent/data/"
-    echo "  4. Start service:     sudo systemctl start reliefagent"
+    echo "     Then: sudo cp /tmp/firebase-service-account.json /opt/novasphere/data/"
+    echo "  4. Start service:     sudo systemctl start novasphere"
     echo "  5. Verify:           curl http://localhost/api/health"
     echo "============================================================"

@@ -31,7 +31,7 @@ SUBNET_ID=""            # e.g., ocid1.subnet.oc1.eu-frankfurt-1.aaaa...
 AVAILABILITY_DOMAIN=""  # e.g., "XyZG:EU-FRANKFURT-1-AD-1"
 IMAGE_ID=""             # e.g., ocid1.image.oc1.eu-frankfurt-1.aaaa...
 SSH_KEY_FILE="$HOME/.ssh/id_rsa.pub"  # or path to your public SSH key
-INSTANCE_NAME="reliefagent"
+INSTANCE_NAME="novasphere"
 SHAPE="VM.Standard.E2.1.Micro"
 RETRY_INTERVAL=30       # seconds between retries
 # ────────────────────────────────────────────────────────────────

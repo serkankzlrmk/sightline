@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// app.js — Merged frontend for ReliefAgent Data Platform
+// app.js — Merged frontend for NovaSphere
 //
 // Tab 1: Database  → /api/db/*
 // Tab 2: Agent     → /api/agent/chat
@@ -197,9 +197,9 @@ const QUICK_PROMPTS = [
 
 const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
-    <div class="msg-label">ReliefAgent</div>
+    <div class="msg-label">NovaSphere</div>
     <div class="msg-body">
-      <div class="welcome-greeting">Welcome to ReliefAgent</div>
+      <div class="welcome-greeting">Welcome to NovaSphere</div>
       <div class="welcome-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
       <div class="welcome-section">
         <div class="welcome-section-title">Search & Discover</div>
@@ -221,7 +221,7 @@ const WELCOME_HTML = `<div class="chat-center">
   </div>
   <div class="quick-prompts">
     <div class="quick-prompts-title">Try asking:</div>
-    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" onclick="sendQuickPrompt('${p.text.replace(/'/g, "\\'")}')">${p.label}</button>`).join('')}
+    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" data-action="quick-prompt" data-text="${esc(p.text.replace(/"/g, '&quot;'))}">${p.label}</button>`).join('')}
   </div>
 </div>`;
 
@@ -239,7 +239,7 @@ function addMsg(role, html) {
     wrap.innerHTML = `<div class="msg-body">${html}</div>`;
   } else {
     wrap.innerHTML = `
-      <div class="msg-label">ReliefAgent</div>
+      <div class="msg-label">NovaSphere</div>
       <div class="msg-body">${html}</div>`;
   }
   center.appendChild(wrap);
@@ -281,6 +281,9 @@ function sendQuickPrompt(text) {
 
 async function sendMessage() {
   if (isStreaming) return;
+  // Exit welcome mode on first message
+  const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
+  if (chatMain) chatMain.classList.remove('welcome-mode');
   // Block sending when rate limit is exhausted
   const rl = window.__rateLimit;
   const role = window.__userRole || "free";
@@ -392,7 +395,7 @@ function lockChatInput() {
   const role = window.__userRole || "free";
   if (role === "admin" || !rl || rl.remaining > 0) {
     chatInput.disabled = false;
-    chatInput.placeholder = 'Message ReliefAgent...';
+    chatInput.placeholder = 'Message NovaSphere...';
     return;
   }
   // Rate limit exhausted — lock input
@@ -405,6 +408,8 @@ async function resetChat() {
   await api('/api/agent/chat/reset', { method: 'POST' });
   chatDiv.innerHTML = WELCOME_HTML;
   currentAiText = '';
+  const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
+  if (chatMain) chatMain.classList.add('welcome-mode');
   loadChatList();
 }
 
@@ -424,8 +429,8 @@ async function loadChatSidebar() {
       item.innerHTML = `
         <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
         <span class="chat-item-actions">
-          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}', this)" title="Rename">R</button>
-          <button class="chat-item-btn delete" onclick="event.stopPropagation(); confirmDeleteChat('${c.id}', this)" title="Delete">X</button>
+          <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
+          <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
         </span>`;
       item.addEventListener('click', () => selectChat(c.id));
       list.appendChild(item);
@@ -451,18 +456,20 @@ async function loadChatList() {
       item.innerHTML = `
         <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
         <span class="chat-item-actions">
-          <button class="chat-item-btn" onclick="event.stopPropagation(); renameChat('${c.id}', this)" title="Rename">R</button>
-          <button class="chat-item-btn delete" onclick="event.stopPropagation(); confirmDeleteChat('${c.id}', this)" title="Delete">X</button>
+          <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
+          <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
         </span>`;
       item.addEventListener('click', () => selectChat(c.id));
       list.appendChild(item);
     }
     // If there's an active chat, load its messages
+    const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
     if (d.active) {
       try {
         const mr = await api(`/api/agent/chats/${d.active}/messages`);
         const msgData = await mr.json();
         if (msgData.messages && msgData.messages.length > 0) {
+          if (chatMain) chatMain.classList.remove('welcome-mode');
           chatDiv.innerHTML = '';
           const center = document.createElement('div');
           center.className = 'chat-center';
@@ -476,11 +483,13 @@ async function loadChatList() {
           }
           currentAiText = '';
         } else {
+          if (chatMain) chatMain.classList.add('welcome-mode');
           chatDiv.innerHTML = WELCOME_HTML;
           currentAiText = '';
         }
       } catch { chatDiv.innerHTML = WELCOME_HTML; currentAiText = ''; }
     } else {
+      if (chatMain) chatMain.classList.add('welcome-mode');
       chatDiv.innerHTML = WELCOME_HTML;
       currentAiText = '';
     }
@@ -493,6 +502,8 @@ async function newChat() {
     await api('/api/agent/chats/new', { method: 'POST' });
     chatDiv.innerHTML = WELCOME_HTML;
     currentAiText = '';
+    const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
+    if (chatMain) chatMain.classList.add('welcome-mode');
     await loadChatList();
   } catch { /* ignore */ }
 }
@@ -504,8 +515,10 @@ async function selectChat(chatId) {
     // Load and render saved messages
     const r = await api(`/api/agent/chats/${chatId}/messages`);
     const d = await r.json();
+    const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
     chatDiv.innerHTML = '';
     if (d.messages && d.messages.length > 0) {
+      if (chatMain) chatMain.classList.remove('welcome-mode');
       for (const m of d.messages) {
         if (m.role === 'user') {
           addMsg('user', esc(m.content));
@@ -514,6 +527,7 @@ async function selectChat(chatId) {
         }
       }
     } else {
+      if (chatMain) chatMain.classList.add('welcome-mode');
       chatDiv.innerHTML = WELCOME_HTML;
     }
     currentAiText = '';
@@ -568,8 +582,8 @@ function confirmDeleteChat(chatId, btn) {
   overlay.className = 'delete-confirm';
   overlay.innerHTML = `
     <span class="dc-label">Delete this chat?</span>
-    <button class="dc-yes" onclick="event.stopPropagation(); executeDeleteChat('${chatId}', this)">Delete</button>
-    <button class="dc-no" onclick="event.stopPropagation(); this.closest('.delete-confirm').remove()">Cancel</button>`;
+    <button class="dc-yes" data-action="confirm-delete-chat" data-chat-id="${esc(chatId)}">Delete</button>
+    <button class="dc-no" data-action="cancel-delete-chat">Cancel</button>`;
   overlay.addEventListener('click', e => e.stopPropagation());
   item.appendChild(overlay);
 }
@@ -684,7 +698,7 @@ function sortBy(key) {
   else { sortKey = key; sortAsc = true; }
 
   document.querySelectorAll('.rtable thead th').forEach(th => {
-    th.classList.toggle('sorted', th.getAttribute('onclick') === `sortBy('${key}')`);
+    th.classList.toggle('sorted', th.dataset.sort === key);
   });
   renderTable();
 }
@@ -714,7 +728,7 @@ function renderTable() {
       ? '<span class="badge b-green">PDF</span>'
       : '<span class="badge b-gray">—</span>';
 
-    return `<tr onclick="openDbReport(${r.report_id})">
+    return `<tr class="db-report-row" data-report-id="${r.report_id}">
       <td class="id-cell">${r.report_id}</td>
       <td style="white-space:nowrap">${r.date || ''}</td>
       <td>${esc(r.primary_country || '')}</td>
@@ -858,10 +872,9 @@ function appendLog(line) {
   }
 }
 
-function connectSSE(jobId) {
+function connectSSE(jobId, nonce) {
   sitrepActiveJobId = jobId;
-  const tok = typeof getIdToken === 'function' ? getIdToken() : '';
-  const es  = new EventSource(`/api/sitrep/stream/${jobId}${tok ? '?token=' + encodeURIComponent(tok) : ''}`);
+  const es  = new EventSource(`/api/sitrep/stream/${jobId}?nonce=${encodeURIComponent(nonce || '')}`);
   const dot = document.getElementById('log-dot');
 
   es.onmessage = (e) => {
@@ -936,9 +949,9 @@ async function runPipeline() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ country, event, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
     });
-    const { job_id, error } = await resp.json();
+    const { job_id, stream_nonce, error } = await resp.json();
     if (error) { alert('Error: ' + error); document.getElementById('btn-run').disabled = false; return; }
-    connectSSE(job_id);
+    connectSSE(job_id, stream_nonce);
   } catch (err) {
     alert('Server error: ' + err);
     document.getElementById('btn-run').disabled = false;
@@ -1032,7 +1045,7 @@ function renderSitrepReport(report, filename) {
         </div>
       </div>
       <div class="report-hero-actions">
-        <button class="btn-sm btn-discuss-agent" onclick="discussSitrepWithAgent()">💬 Discuss with ReliefAgent</button>
+        <button class="btn-sm btn-discuss-agent" data-action="discuss-sitrep">💬 Discuss with NovaSphere</button>
       </div>
     </div>`;
 
@@ -1066,17 +1079,27 @@ function renderSitrepReport(report, filename) {
   if (hasNarrative) {
     html += `
       <div class="report-view-toggle">
-        <button class="report-view-btn active" data-mode="narrative" onclick="switchReportView('narrative')">Narrative Report</button>
-        <button class="report-view-btn" data-mode="qa" onclick="switchReportView('qa')">Q&A View</button>
+        <button class="report-view-btn active" data-mode="narrative" data-action="switch-report-view">Narrative Report</button>
+        <button class="report-view-btn" data-mode="qa" data-action="switch-report-view">Q&A View</button>
       </div>`;
   }
 
   // ── Narrative view ──
   if (hasNarrative) {
+    let narrativeHtml = renderNarrativeCitations(md(sanitizeHtml(report.narrative_html)), narrSources);
+    // Add id attributes to headings for TOC anchor links
+    narrativeHtml = narrativeHtml.replace(/<h([1-3])([^>]*)>([\s\S]*?)<\/h[1-3]>/gi, (match, level, attrs, inner) => {
+      const text = inner.replace(/<[^>]+>/g, '').trim();
+      const id = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 60);
+      return `<h${level} id="${esc(id)}"${attrs}>${inner}</h${level}>`;
+    });
+    const tocHtml = buildNarrativeToc(narrativeHtml);
     html += `<div id="report-narrative-view" class="report-view-section">`;
-    html += `<div class="narrative-body">${renderNarrativeCitations(md(sanitizeHtml(report.narrative_html)), narrSources)}</div>`;
+    html += `<div class="narrative-layout">`;
+    if (tocHtml) html += `<nav class="narrative-toc"><div class="narrative-toc-title">Contents</div>${tocHtml}</nav>`;
+    html += `<div class="narrative-content"><div class="narrative-body">${narrativeHtml}</div>`;
     html += buildNarrativeSourcesList(narrSources);
-    html += `</div>`;
+    html += `</div></div></div>`;
   }
 
   // ── Q&A view ──
@@ -1086,7 +1109,7 @@ function renderSitrepReport(report, filename) {
     const summaryCtx = report.summary_contexts || {};
     html += `
       <div class="sitrep-section-card">
-        <div class="sitrep-section-header" onclick="toggleCard(this)">
+        <div class="sitrep-section-header" data-action="toggle-card">
           <span>Executive Summary</span>
           <span class="toggle-icon">▾</span>
         </div>
@@ -1119,7 +1142,7 @@ function renderSitrepReport(report, filename) {
 
     html += `
       <div class="sitrep-section-card">
-        <div class="sitrep-section-header" onclick="toggleCard(this)">
+        <div class="sitrep-section-header" data-action="toggle-card">
           <span class="cluster-badge">Cluster ${cluster.cluster_id}</span>
           &nbsp;${escHtml(headline)}
           <span class="toggle-icon">▾</span>
@@ -1150,8 +1173,19 @@ function renderNarrativeCitations(htmlText, narrativeSources) {
     const ctxTitle = encodeURIComponent(src.title || '');
     const ctxUrl   = encodeURIComponent(src.url || '');
     const ctxDate  = encodeURIComponent(src.date || '');
-    return `<span class="citation" onclick="showCitation(${num},'${ctxDate}','${ctxTitle}','${ctxUrl}')">[${num}]</span>`;
+    return `<span class="citation" data-action="show-citation" data-num="${num}" data-date="${ctxDate}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${num}]</span>`;
   });
+}
+
+function buildNarrativeToc(html) {
+  const headingRegex = /<h([1-3])[^>]*id=["']([^"']*)["'][^>]*>([\s\S]*?)<\/h[1-3]>/gi;
+  const headings = [];
+  let match;
+  while ((match = headingRegex.exec(html)) !== null) {
+    headings.push({ level: parseInt(match[1]), id: match[2], text: match[3].replace(/<[^>]+>/g, '').trim() });
+  }
+  if (headings.length < 2) return '';
+  return headings.map(h => `<a href="#${esc(h.id)}" class="level-h${h.level}" onclick="event.preventDefault();document.getElementById('${esc(h.id)}')?.scrollIntoView({behavior:'smooth',block:'start'})">${escHtml(h.text.substring(0, 60))}${h.text.length > 60 ? '…' : ''}</a>`).join('\n');
 }
 
 function buildNarrativeSourcesList(narrativeSources) {
@@ -1227,7 +1261,7 @@ function renderCitationsRemapped(escapedText, remap) {
     const ctxText  = encodeURIComponent(ctx.context || '');
     const ctxTitle = encodeURIComponent(ctx.title || '');
     const ctxUrl   = encodeURIComponent(ctx.url || '');
-    return `<span class="citation" onclick="showCitation(${newNum},'${ctxText}','${ctxTitle}','${ctxUrl}')">[${newNum}]</span>`;
+    return `<span class="citation" data-action="show-citation" data-num="${newNum}" data-date="${ctxText}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${newNum}]</span>`;
   });
 }
 
@@ -1238,7 +1272,7 @@ function renderCitations(escapedText, contexts) {
     const ctxText  = encodeURIComponent(ctx.context || '');
     const ctxTitle = encodeURIComponent(ctx.title || '');
     const ctxUrl   = encodeURIComponent(ctx.url || '');
-    return `<span class="citation" onclick="showCitation(${num},'${ctxText}','${ctxTitle}','${ctxUrl}')">[${num}]</span>`;
+    return `<span class="citation" data-action="show-citation" data-num="${num}" data-date="${ctxText}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${num}]</span>`;
   });
 }
 
@@ -1256,6 +1290,15 @@ function showCitation(num, ctxEnc, titleEnc, urlEnc) {
   else     { linkEl.href = '#'; linkEl.setAttribute('data-no-url', '1'); }
 
   document.getElementById('sitrep-modal-overlay').classList.remove('hidden');
+}
+
+function showCitationFromEl(el) {
+  showCitation(
+    el.dataset.num,
+    el.dataset.date || '',
+    el.dataset.title || '',
+    el.dataset.url || ''
+  );
 }
 
 function closeSitrepModal() {
@@ -1585,7 +1628,7 @@ function tagRemove(field, idx) {
 function tagRender(field) {
   const box = document.getElementById(`up-${field}-tags`);
   box.innerHTML = _tags[field].map((v, i) =>
-    `<span class="tag-chip">${escHtml(v)}<button type="button" onclick="tagRemove('${field}',${i})">×</button></span>`
+    `<span class="tag-chip">${escHtml(v)}<button type="button" data-action="tag-remove" data-field="${field}" data-idx="${i}">×</button></span>`
   ).join('');
 }
 
@@ -1668,9 +1711,9 @@ async function loadAdminUsers() {
         <td>${esc(u.displayName || '—')}</td>
         <td><span class="admin-role-badge ${roleClass}">${u.role}</span></td>
         <td class="admin-actions">
-          ${u.role !== 'free' ? `<button class="btn btn-xs" onclick="setUserRole('${u.uid}','free')">Free</button>` : ''}
-          ${u.role !== 'premium' ? `<button class="btn btn-xs btn-premium" onclick="setUserRole('${u.uid}','premium')">Premium</button>` : ''}
-          ${u.role !== 'admin' ? `<button class="btn btn-xs btn-admin" onclick="setUserRole('${u.uid}','admin')">Admin</button>` : ''}
+          ${u.role !== 'free' ? `<button class="btn btn-xs" data-action="set-role" data-uid="${esc(u.uid)}" data-role="free">Free</button>` : ''}
+          ${u.role !== 'premium' ? `<button class="btn btn-xs btn-premium" data-action="set-role" data-uid="${esc(u.uid)}" data-role="premium">Premium</button>` : ''}
+          ${u.role !== 'admin' ? `<button class="btn btn-xs btn-admin" data-action="set-role" data-uid="${esc(u.uid)}" data-role="admin">Admin</button>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -1709,6 +1752,83 @@ document.addEventListener('DOMContentLoaded', () => {
   sendBtn   = document.getElementById('send-btn');
   chatDiv   = document.getElementById('chat-messages');
   busyDot   = document.getElementById('busy-dot');
+
+  // Welcome mode — center content until user sends first message
+  const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
+  if (chatMain) chatMain.classList.add('welcome-mode');
+
+  // ── Static element bindings ────────────────────────────────────────────
+
+  // Sidebar nav
+  const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn');
+  if (sidebarCollapseBtn) sidebarCollapseBtn.addEventListener('click', toggleSidebarNav);
+  const sidebarExpandHandle = document.getElementById('sidebar-expand-handle');
+  if (sidebarExpandHandle) sidebarExpandHandle.addEventListener('click', toggleSidebarNav);
+
+  // Tab buttons
+  document.querySelectorAll('.sidebar-tab[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Logout button
+  const logoutBtn = document.getElementById('user-logout');
+  if (logoutBtn) logoutBtn.addEventListener('click', () => { if (typeof signOut === 'function') signOut(); });
+
+  // DB tab
+  const btnUploadPdf = document.getElementById('btn-upload-pdf');
+  if (btnUploadPdf) btnUploadPdf.addEventListener('click', showUploadModal);
+  const btnRefreshReports = document.getElementById('btn-refresh-reports');
+  if (btnRefreshReports) btnRefreshReports.addEventListener('click', reloadReports);
+  const fSearch = document.getElementById('f-search');
+  if (fSearch) fSearch.addEventListener('input', dbFilter);
+  const fCountry = document.getElementById('f-country');
+  if (fCountry) fCountry.addEventListener('change', applyFilters);
+  const fSource = document.getElementById('f-source');
+  if (fSource) fSource.addEventListener('change', applyFilters);
+  const fFrom = document.getElementById('f-from');
+  if (fFrom) fFrom.addEventListener('change', applyFilters);
+  const fTo = document.getElementById('f-to');
+  if (fTo) fTo.addEventListener('change', applyFilters);
+
+  // Table header sort
+  document.querySelectorAll('.rtable thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortBy(th.dataset.sort));
+  });
+
+  // Chat sidebar
+  const chatOverlay = document.getElementById('chat-sidebar-overlay');
+  if (chatOverlay) chatOverlay.addEventListener('click', toggleChatSidebar);
+  const chatCloseBtn = document.getElementById('chat-sidebar-close-btn');
+  if (chatCloseBtn) chatCloseBtn.addEventListener('click', toggleChatSidebar);
+  const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+  if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', toggleChatSidebar);
+  const chatNewBtn = document.getElementById('chat-new-btn');
+  if (chatNewBtn) chatNewBtn.addEventListener('click', newChat);
+  if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+
+  // DB modal
+  const dbModal = document.getElementById('db-modal');
+  if (dbModal) dbModal.addEventListener('click', e => { if (e.target === dbModal) closeDbModal(); });
+  const dbModalCloseBtn = document.getElementById('db-modal-close-btn');
+  if (dbModalCloseBtn) dbModalCloseBtn.addEventListener('click', closeDbModal);
+  const btnAskAbout = document.getElementById('btn-ask-about');
+  if (btnAskAbout) btnAskAbout.addEventListener('click', askAbout);
+
+  // Upload modal
+  const uploadModal = document.getElementById('upload-modal');
+  if (uploadModal) uploadModal.addEventListener('click', e => { if (e.target === uploadModal) hideUploadModal(); });
+  const uploadModalCloseBtn = document.getElementById('upload-modal-close-btn');
+  if (uploadModalCloseBtn) uploadModalCloseBtn.addEventListener('click', hideUploadModal);
+  const uploadForm = document.getElementById('upload-form');
+  if (uploadForm) uploadForm.addEventListener('submit', e => { e.preventDefault(); submitUpload(e); });
+  const btnClearUpload = document.getElementById('btn-clear-upload');
+  if (btnClearUpload) btnClearUpload.addEventListener('click', clearUploadForm);
+
+  // SITREP collapsible headers
+  const sitrepReportsToggle = document.getElementById('sitrep-reports-toggle');
+  if (sitrepReportsToggle) sitrepReportsToggle.addEventListener('click', toggleSitrepReports);
+  const bulletinToggle = document.getElementById('bulletin-toggle');
+  if (bulletinToggle) bulletinToggle.addEventListener('click', toggleBulletinList);
 
   // Agent keyboard
   chatInput.addEventListener('keydown', e => {
@@ -1771,6 +1891,77 @@ document.addEventListener('DOMContentLoaded', () => {
       closeDbModal();
       closeSitrepModal();
     }
+  });
+
+  // ── Event delegation for dynamic elements ──────────────────────────────
+  document.addEventListener('click', e => {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+    const action = target.dataset.action;
+
+    switch (action) {
+      case 'quick-prompt':
+        sendQuickPrompt(target.dataset.text);
+        break;
+      case 'rename-chat':
+        e.stopPropagation();
+        renameChat(target.dataset.chatId, target);
+        break;
+      case 'delete-chat':
+        e.stopPropagation();
+        confirmDeleteChat(target.dataset.chatId, target);
+        break;
+      case 'confirm-delete-chat':
+        e.stopPropagation();
+        executeDeleteChat(target.dataset.chatId, target);
+        break;
+      case 'cancel-delete-chat':
+        e.stopPropagation();
+        target.closest('.delete-confirm')?.remove();
+        break;
+      case 'discuss-sitrep':
+        discussSitrepWithAgent();
+        break;
+      case 'switch-report-view':
+        switchReportView(target.dataset.mode);
+        break;
+      case 'toggle-card':
+        toggleCard(target);
+        break;
+      case 'show-citation':
+        showCitationFromEl(target);
+        break;
+      case 'tag-add':
+        tagAdd(target.dataset.field);
+        break;
+      case 'tag-remove':
+        tagRemove(target.dataset.field, parseInt(target.dataset.idx, 10));
+        break;
+      case 'set-role':
+        setUserRole(target.dataset.uid, target.dataset.role);
+        break;
+      case 'generate-bulletin':
+        generateBulletin();
+        break;
+      case 'open-bulletin':
+        openBulletin(target.dataset.filename);
+        break;
+      case 'view-bulletin-sitrep':
+        viewBulletinSitrep(target.dataset.country);
+        break;
+    }
+  });
+
+  // DB report row click delegation
+  document.getElementById('rtbody')?.addEventListener('click', e => {
+    const row = e.target.closest('.db-report-row');
+    if (row && row.dataset.reportId) openDbReport(parseInt(row.dataset.reportId, 10));
+  });
+
+  // Chat list click delegation (for rename/delete buttons that stop propagation)
+  document.getElementById('chat-list')?.addEventListener('click', e => {
+    const actionEl = e.target.closest('[data-action]');
+    if (actionEl) return; // handled by global delegation
   });
 
   // Init SITREP steps grid
@@ -1850,7 +2041,7 @@ async function loadBulletinList() {
       container.innerHTML = `
         <div class="sidebar-empty">
           No bulletins yet<br>
-          <button class="bulletin-gen-btn" onclick="generateBulletin()">Generate Weekly Bulletin</button>
+          <button class="bulletin-gen-btn" data-action="generate-bulletin">Generate Weekly Bulletin</button>
         </div>`;
       return;
     }
@@ -1859,7 +2050,7 @@ async function loadBulletinList() {
         ? ' <span style="color:#f59e0b;font-size:11px">⚠ fallback data</span>'
         : '';
       return `
-      <div class="bulletin-item" onclick="openBulletin('${b.filename}')">
+      <div class="bulletin-item" data-action="open-bulletin" data-filename="${esc(b.filename)}">
         <div class="bulletin-item-title">📰 ${b.week_label}${fallbackTag}</div>
         <div class="bulletin-item-meta">${b.countries_affected} countries · ${b.total_reports} reports</div>
       </div>
@@ -1985,7 +2176,7 @@ function renderBulletin(b, container) {
         <span>${c.report_count} reports</span>
         ${(c.themes || []).slice(0, 3).map(t => `<span class="crisis-theme-tag">${t}</span>`).join('')}
       </div>
-      ${c.has_sitrep ? `<button class="crisis-sitrep-btn" onclick="viewBulletinSitrep('${c.country}')">View SITREP →</button>` : ''}
+      ${c.has_sitrep ? `<button class="crisis-sitrep-btn" data-action="view-bulletin-sitrep" data-country="${escHtml(c.country)}">View SITREP →</button>` : ''}
     </div>
   `;}).join('');
 

@@ -1,5 +1,5 @@
 /**
- * auth.js — Firebase Authentication (Google Sign-In) for RedAgent online.
+ * auth.js — Firebase Authentication (Google Sign-In) for NovaSphere online.
  *
  * - Handles login / logout via Firebase popup.
  * - Stores the ID token in localStorage as `id_token`.
