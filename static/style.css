@@ -2714,8 +2714,8 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
-  min-height: 350px;
-  height: 55vh;
+  min-height: 400px;
+  height: 65vh;
 }
 .dash-world-map {
   width: 100%;
@@ -3001,66 +3001,26 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   margin-top: 2px;
 }
 
-.dash-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-}
-.dash-crisis-card {
+.dash-weekly-text {
   background: var(--surface-raised);
   backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  cursor: pointer;
+  padding: 20px 24px;
   box-shadow: var(--shadow-glass);
-  transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
-}
-.dash-crisis-card:hover {
-  box-shadow: var(--shadow-elevated);
-  transform: translateY(-2px);
-  border-color: var(--blue);
-}
-.dash-crisis-card:active { transform: translateY(0) scale(.98); }
-.dash-crisis-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.dash-crisis-card-country {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -.2px;
-}
-.dash-crisis-severity {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  padding: 2px 8px;
-  border-radius: var(--radius-xs);
-}
-.dash-crisis-card-headline {
-  font-size: 13px;
+  line-height: 1.7;
   color: var(--text-secondary);
-  line-height: 1.4;
-  margin-bottom: 8px;
+  font-size: 14px;
 }
-.dash-crisis-card-meta {
-  font-size: 11px;
+.dash-weekly-text p {
+  margin: 0;
+}
+.dash-weekly-loading {
   color: var(--text-muted);
-}
-.dash-crisis-theme {
-  background: var(--bg);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-xs);
-  padding: 1px 6px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  margin-left: 4px;
+  font-size: 13px;
+  text-align: center;
+  padding: 16px;
 }
 
 .dash-archives {
@@ -3255,7 +3215,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   .dash-actions { grid-template-columns: 1fr; padding: 12px 16px 0; }
   .dash-bulletins { grid-template-columns: 1fr; }
   .dash-world-map { min-height: 280px; }
-  .dash-map-wrap { height: 45vh; margin: 12px 16px 0; }
+  .dash-map-wrap { height: 50vh; margin: 12px 16px 0; }
   .dash-section { padding: 20px 16px 0; }
   .dash-weekly-section { padding: 0 16px 24px; }
   .dash-overview-grid { grid-template-columns: 1fr; }

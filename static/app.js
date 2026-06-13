@@ -1855,29 +1855,15 @@ function renderDashOverview(b) {
     `).join('');
   }
 
-  // Crisis cards
-  const gridEl = document.getElementById('dash-overview-grid');
-  if (gridEl && b.crises) {
-    const severityOrder = { high: 0, medium: 1, low: 2 };
-    const crises = [...b.crises].sort((a, c) =>
-      (severityOrder[a.severity] ?? 3) - (severityOrder[c.severity] ?? 3)
-    ).slice(0, 8);
-
-    gridEl.innerHTML = crises.map(c => {
-      const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
-      const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
-      const color = sevColors[c.severity] || '#6b7280';
-      const themes = (c.themes || []).slice(0, 2).map(t => `<span class="dash-crisis-theme">${esc(t)}</span>`).join('');
-      return `
-        <div class="dash-crisis-card" data-action="dash-view-crisis" data-country="${esc(c.country)}">
-          <div class="dash-crisis-card-header">
-            <span class="dash-crisis-card-country">${esc(c.country)}</span>
-            <span class="dash-crisis-severity" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[c.severity] || c.severity?.toUpperCase()}</span>
-          </div>
-          <div class="dash-crisis-card-headline">${esc(c.headline || '')}</div>
-          <div class="dash-crisis-card-meta">${c.report_count || 0} reports ${themes}</div>
-        </div>`;
-    }).join('');
+  // Weekly overview text (global_overview)
+  const textEl = document.getElementById('dash-weekly-text');
+  if (textEl) {
+    const overview = b.global_overview || '';
+    if (overview) {
+      textEl.innerHTML = `<p>${esc(overview)}</p>`;
+    } else {
+      textEl.innerHTML = '<p class="dash-weekly-loading">No overview available for this week.</p>';
+    }
   }
 }
 
@@ -1885,45 +1871,55 @@ function initWorldMap() {
   const container = document.getElementById('world-map');
   if (!container) return;
 
-  // Check if Leaflet is loaded
   if (typeof L === 'undefined') {
-    container.innerHTML = '<div class="dash-bulletin-empty" style="min-height:200px;display:flex;align-items:center;justify-content:center">Map loading…</div>';
-    // Retry after Leaflet loads
-    setTimeout(() => { if (typeof L !== 'undefined') initWorldMap(); }, 1000);
+    container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Loading map…</div>';
+    let retries = 0;
+    const tryInit = () => {
+      if (typeof L !== 'undefined') {
+        initWorldMap();
+      } else if (retries < 10) {
+        retries++;
+        setTimeout(tryInit, 500);
+      } else {
+        container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Map unavailable. Please refresh.</div>';
+      }
+    };
+    setTimeout(tryInit, 500);
     return;
   }
 
   if (leafletMap) {
-    // Map already initialized — just update markers
     updateMapMarkers();
+    leafletMap.invalidateSize();
     return;
   }
 
-  // Initialize Leaflet map
-  leafletMap = L.map(container, {
-    center: [20, 15],
-    zoom: 2,
-    minZoom: 2,
-    maxZoom: 8,
-    zoomControl: false,
-    attributionControl: true,
-    worldCopyJump: true,
-  });
+  try {
+    leafletMap = L.map(container, {
+      center: [20, 15],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 8,
+      zoomControl: false,
+      attributionControl: true,
+      worldCopyJump: true,
+    });
 
-  // Add zoom control to bottom-right
-  L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+    L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
 
-  // CartoDB Positron (light) tiles — clean, minimal style
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(leafletMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(leafletMap);
 
-  // Invalidate size after a short delay (in case container was hidden)
-  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
+    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 300);
+  } catch (err) {
+    console.error('[map] Leaflet init error:', err);
+    container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Map unavailable.</div>';
+    return;
+  }
 
-  // Add crisis markers from bulletin data
   updateMapMarkers();
 }
 
