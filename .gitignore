@@ -66,3 +66,5 @@ build/
 # ========================================
 ruff_cache/
 .pytest_cache/
+# World map generator data (large)
+static/ne_*_countries.geojson

@@ -151,19 +151,12 @@ function toggleSidebarNav() {
   if (nav) nav.classList.toggle('collapsed');
 }
 
-function toggleSitrepReports() {
-  const header = document.querySelector('.collapsible-header');
-  const body = document.getElementById('sitrep-reports-list');
-  if (!header || !body) return;
-  header.classList.toggle('collapsed');
-  body.classList.toggle('closed');
-}
-
 function switchTab(name) {
   currentTab = name;
-  const allTabs = ['home', 'agent', 'sitrep', 'db', 'admin'];
+  const allTabs = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
   const sidebar = document.getElementById('sidebar-nav');
   const main = document.querySelector('.main');
+  const hamburger = document.getElementById('hamburger-btn');
 
   allTabs.forEach(t => {
     const panel = document.getElementById('panel-' + t);
@@ -172,10 +165,13 @@ function switchTab(name) {
     if (tab) tab.classList.toggle('active', t === name);
   });
 
-  // Hide sidebar on Home dashboard for immersive map view
+  // Home: hide sidebar, show hamburger
   if (name === 'home') {
     if (sidebar) sidebar.classList.add('hidden');
     if (main) main.style.marginLeft = '0';
+    if (hamburger) hamburger.style.display = 'none';
+    // Leaflet needs invalidateSize when container becomes visible
+    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
   } else {
     if (sidebar) sidebar.classList.remove('hidden');
     if (sidebar && sidebar.classList.contains('collapsed')) {
@@ -183,8 +179,10 @@ function switchTab(name) {
     } else {
       if (main) main.style.marginLeft = '';
     }
+    if (hamburger) hamburger.style.display = '';
     if (name === 'db') reloadReports();
-    if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); loadBulletinList(); }
+    if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); }
+    if (name === 'bulletin') loadBulletinList();
     if (name === 'admin') loadAdminUsers();
   }
 
@@ -982,7 +980,7 @@ async function loadSitrepReportsList() {
     const resp  = await api('/api/sitrep/reports');
     const items = await resp.json();
     if (!items.length) {
-      list.innerHTML = '<div class="sidebar-empty">No reports yet.</div>';
+      list.innerHTML = '<div class="empty-state">No reports yet.</div>';
       return;
     }
     list.innerHTML = '';
@@ -996,14 +994,12 @@ async function loadSitrepReportsList() {
       const country = parts[0];
       const evt     = parts.slice(1).join(' ');
 
-      div.innerHTML = `
-        <div class="report-item-name">${escHtml(country)}</div>
-        <div class="report-item-meta">${escHtml(evt) || ''}${evt ? ' &nbsp;·&nbsp; ' : ''}${item.size_kb} KB</div>`;
+      div.innerHTML = `<span>${escHtml(country)}</span>${evt ? `<span style="font-size:10px;color:var(--text-muted);margin-left:4px">${escHtml(evt)}</span>` : ''}`;
       div.addEventListener('click', () => openSitrepReport(item.filename, div));
       list.appendChild(div);
     });
   } catch {
-    list.innerHTML = '<div class="sidebar-empty">Could not connect to server.</div>';
+    list.innerHTML = '<div class="empty-state">Could not connect to server.</div>';
   }
 }
 
@@ -1767,46 +1763,11 @@ window.setUserRole = setUserRole;
 // HOME DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CRISIS_COUNTRIES = {
-  SDN: { name: 'Sudan', lat: 15.5, lng: 32.5 },
-  UKR: { name: 'Ukraine', lat: 48.4, lng: 31.2 },
-  SYR: { name: 'Syria', lat: 35.0, lng: 38.0 },
-  ETH: { name: 'Ethiopia', lat: 9.1, lng: 40.5 },
-  COD: { name: 'DR Congo', lat: -2.5, lng: 23.6 },
-  YEM: { name: 'Yemen', lat: 15.5, lng: 48.5 },
-  MMR: { name: 'Myanmar', lat: 19.7, lng: 96.2 },
-  AFG: { name: 'Afghanistan', lat: 33.9, lng: 67.7 },
-  SOM: { name: 'Somalia', lat: 5.1, lng: 46.2 },
-  SSD: { name: 'South Sudan', lat: 6.9, lng: 31.3 },
-  NER: { name: 'Niger', lat: 17.6, lng: 8.1 },
-  MLI: { name: 'Mali', lat: 17.6, lng: -4.0 },
-  BFA: { name: 'Burkina Faso', lat: 12.2, lng: -1.5 },
-  CMR: { name: 'Cameroon', lat: 7.4, lng: 12.3 },
-  NGA: { name: 'Nigeria', lat: 9.1, lng: 8.7 },
-  TCD: { name: 'Chad', lat: 15.5, lng: 18.7 },
-  PSE: { name: 'Palestine', lat: 31.9, lng: 35.2 },
-  LBN: { name: 'Lebanon', lat: 33.9, lng: 35.5 },
-  VEN: { name: 'Venezuela', lat: 6.4, lng: -66.6 },
-  COL: { name: 'Colombia', lat: 4.6, lng: -74.1 },
-  HTI: { name: 'Haiti', lat: 18.9, lng: -72.3 },
-  BDI: { name: 'Burundi', lat: -3.4, lng: 30.0 },
-  CAF: { name: 'CAR', lat: 6.6, lng: 20.9 },
-  IRN: { name: 'Iran', lat: 32.4, lng: 53.7 },
-  PAK: { name: 'Pakistan', lat: 30.4, lng: 69.3 },
-  IRQ: { name: 'Iraq', lat: 33.2, lng: 43.7 },
-  LBY: { name: 'Libya', lat: 26.3, lng: 17.2 },
-  ERI: { name: 'Eritrea', lat: 15.2, lng: 39.8 },
-  MOZ: { name: 'Mozambique', lat: -18.7, lng: 35.5 },
-  SLB: { name: 'Solomon Islands', lat: -9.4, lng: 160.0 }
-};
-
-function latLngToMapXY(lat, lng, w, h) {
-  const x = ((lng + 180) / 360) * w;
-  const y = ((90 - lat) / 180) * h;
-  return { x, y };
-}
-
 let dashboardLoaded = false;
+let latestBulletinData = null;
+let crisisMapData = {};
+let leafletMap = null;
+let leafletMarkers = [];
 
 async function loadDashboard() {
   if (dashboardLoaded) return;
@@ -1822,154 +1783,219 @@ async function loadDashboard() {
     el('dash-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '—');
   } catch { /* ignore */ }
 
-  // Load SITREP count
+  // Load bulletins + latest bulletin detail
   try {
     const r = await api('/api/sitrep/bulletins');
     const d = await r.json();
     const bulletins = d.bulletins || d || [];
     const el = document.getElementById('dash-sitreps');
     if (el) el.textContent = Array.isArray(bulletins) ? bulletins.length : '—';
-    renderDashBulletins(bulletins);
+
+    // Render weekly overview from latest bulletin
+    if (Array.isArray(bulletins) && bulletins.length > 0) {
+      const latest = bulletins[0];
+      const elDate = document.getElementById('dash-weekly-date');
+      if (elDate) elDate.textContent = latest.week_label || '';
+
+      // Load bulletin detail for overview
+      try {
+        const br = await api('/api/sitrep/bulletin/' + latest.filename);
+        if (br.ok) {
+          latestBulletinData = await br.json();
+          renderDashOverview(latestBulletinData);
+          // Store crisis data for map markers
+          if (latestBulletinData.crises) {
+            latestBulletinData.crises.forEach(c => {
+              if (c.country) crisisMapData[c.country] = c;
+            });
+          }
+        }
+      } catch { /* ignore */ }
+
+      // Archive links for older bulletins
+      if (bulletins.length > 1) {
+        const archivesEl = document.getElementById('dash-archives');
+        if (archivesEl) {
+          const count = bulletins.length - 1;
+          archivesEl.innerHTML = `<button class="dash-archives-btn" data-action="go-bulletin-tab">View ${count} previous bulletin${count > 1 ? 's' : ''} →</button>`;
+        }
+      }
+
+      const linkBtn = document.getElementById('dash-weekly-link');
+      if (linkBtn) {
+        linkBtn.style.display = '';
+        linkBtn.addEventListener('click', () => {
+           switchTab('bulletin');
+           setTimeout(() => {
+             const pills = document.querySelectorAll('.bulletin-tab-pill');
+             if (pills.length > 0) pills[0].click();
+           }, 300);
+        });
+      }
+    } else {
+      document.getElementById('dash-overview-grid').innerHTML = '<div class="dash-bulletin-empty">No bulletins available yet.</div>';
+    }
   } catch { /* ignore */ }
 
-  // Load active crises (countries with data)
-  try {
-    const r = await api('/api/db/countries');
-    const countries = await r.json();
-    renderDashCrises(countries);
-  } catch { /* ignore */ }
-
+  // Initialize map first (creates Leaflet map), then add markers after data loads
   initWorldMap();
 }
 
-function renderDashBulletins(bulletins) {
-  const wrap = document.getElementById('dash-bulletins');
-  if (!wrap) return;
-  if (!bulletins || !bulletins.length) {
-    wrap.innerHTML = '<div class="dash-bulletin-empty">No bulletins available yet.</div>';
-    return;
-  }
-  const recent = bulletins.slice(0, 3);
-  wrap.innerHTML = recent.map(b => {
-    const label = b.week_label || b.country || 'Bulletin';
-    const date = b.data_date_range?.requested_from || b.created || '';
-    const country = b.country || '';
-    return `<div class="dash-bulletin-card" data-action="go-bulletin" data-file="${esc(b.filename || '')}">
-      <div class="dash-bulletin-badge">Weekly Bulletin</div>
-      <div class="dash-bulletin-title">${esc(label)}</div>
-      ${country ? `<div class="dash-bulletin-country">${esc(country)}</div>` : ''}
-      ${date ? `<div class="dash-bulletin-date">${esc(date.substring(0, 10))}</div>` : ''}
-    </div>`;
-  }).join('');
-}
+function renderDashOverview(b) {
+  if (!b) return;
 
-function renderDashCrises(countries) {
-  const wrap = document.getElementById('dash-crises');
-  if (!wrap) return;
-  if (!countries || !countries.length) {
-    wrap.innerHTML = '<div class="dash-bulletin-empty">No data available.</div>';
-    return;
+  // Key figures
+  const statsEl = document.getElementById('dash-overview-stats');
+  if (statsEl && b.key_figures) {
+    statsEl.innerHTML = b.key_figures.map(f => `
+      <div class="dash-kf-card">
+        <div class="dash-kf-value">${esc(f.value)}</div>
+        <div class="dash-kf-label">${esc(f.label)}</div>
+      </div>
+    `).join('');
   }
-  const top = countries.slice(0, 12);
-  wrap.innerHTML = top.map(c => {
-    const name = typeof c === 'string' ? c : (c.name || c.country || c);
-    const code = typeof c === 'object' ? (c.code || c.country_code || '') : '';
-    return `<div class="dash-crisis-chip" data-action="go-sitrep-country" data-country="${esc(name)}">
-      <span class="dash-crisis-dot"></span>
-      <span class="dash-crisis-name">${esc(name)}</span>
-    </div>`;
-  }).join('');
+
+  // Crisis cards
+  const gridEl = document.getElementById('dash-overview-grid');
+  if (gridEl && b.crises) {
+    const severityOrder = { high: 0, medium: 1, low: 2 };
+    const crises = [...b.crises].sort((a, c) =>
+      (severityOrder[a.severity] ?? 3) - (severityOrder[c.severity] ?? 3)
+    ).slice(0, 8);
+
+    gridEl.innerHTML = crises.map(c => {
+      const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+      const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+      const color = sevColors[c.severity] || '#6b7280';
+      const themes = (c.themes || []).slice(0, 2).map(t => `<span class="dash-crisis-theme">${esc(t)}</span>`).join('');
+      return `
+        <div class="dash-crisis-card" data-action="dash-view-crisis" data-country="${esc(c.country)}">
+          <div class="dash-crisis-card-header">
+            <span class="dash-crisis-card-country">${esc(c.country)}</span>
+            <span class="dash-crisis-severity" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[c.severity] || c.severity?.toUpperCase()}</span>
+          </div>
+          <div class="dash-crisis-card-headline">${esc(c.headline || '')}</div>
+          <div class="dash-crisis-card-meta">${c.report_count || 0} reports ${themes}</div>
+        </div>`;
+    }).join('');
+  }
 }
 
 function initWorldMap() {
   const container = document.getElementById('world-map');
   if (!container) return;
-  if (container.querySelector('.dash-map-svg')) return;
 
-  const w = 960, h = 480;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  svg.setAttribute('class', 'dash-map-svg');
-  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-
-  // Simplified world outline (major landmasses as background)
-  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-  bg.setAttribute('width', w);
-  bg.setAttribute('height', h);
-  bg.setAttribute('fill', 'transparent');
-  svg.appendChild(bg);
-
-  // Grid lines
-  for (let lng = -180; lng <= 180; lng += 30) {
-    const x = ((lng + 180) / 360) * w;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', x); line.setAttribute('y1', 0);
-    line.setAttribute('x2', x); line.setAttribute('y2', h);
-    line.setAttribute('class', 'dash-map-grid');
-    svg.appendChild(line);
-  }
-  for (let lat = -60; lat <= 80; lat += 30) {
-    const y = ((90 - lat) / 180) * h;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', 0); line.setAttribute('y1', y);
-    line.setAttribute('x2', w); line.setAttribute('y2', y);
-    line.setAttribute('class', 'dash-map-grid');
-    svg.appendChild(line);
+  // Check if Leaflet is loaded
+  if (typeof L === 'undefined') {
+    container.innerHTML = '<div class="dash-bulletin-empty" style="min-height:200px;display:flex;align-items:center;justify-content:center">Map loading…</div>';
+    // Retry after Leaflet loads
+    setTimeout(() => { if (typeof L !== 'undefined') initWorldMap(); }, 1000);
+    return;
   }
 
-  // Equator
-  const eq = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  eq.setAttribute('x1', 0); eq.setAttribute('y1', h / 2);
-  eq.setAttribute('x2', w); eq.setAttribute('y2', h / 2);
-  eq.setAttribute('class', 'dash-map-equator');
-  svg.appendChild(eq);
+  if (leafletMap) {
+    // Map already initialized — just update markers
+    updateMapMarkers();
+    return;
+  }
 
-  // Crisis country dots
-  Object.entries(CRISIS_COUNTRIES).forEach(([code, c]) => {
-    const pos = latLngToMapXY(c.lat, c.lng, w, h);
-    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('class', 'dash-map-dot-group');
-    g.setAttribute('data-country', c.name);
-    g.style.cursor = 'pointer';
-
-    // Pulse ring
-    const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    pulse.setAttribute('cx', pos.x); pulse.setAttribute('cy', pos.y);
-    pulse.setAttribute('r', '12');
-    pulse.setAttribute('class', 'dash-map-pulse');
-    g.appendChild(pulse);
-
-    // Outer glow
-    const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    glow.setAttribute('cx', pos.x); glow.setAttribute('cy', pos.y);
-    glow.setAttribute('r', '6');
-    glow.setAttribute('class', 'dash-map-glow');
-    g.appendChild(glow);
-
-    // Inner dot
-    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot.setAttribute('cx', pos.x); dot.setAttribute('cy', pos.y);
-    dot.setAttribute('r', '3');
-    dot.setAttribute('class', 'dash-map-dot');
-    g.appendChild(dot);
-
-    // Label
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', pos.x); text.setAttribute('y', pos.y - 16);
-    text.setAttribute('class', 'dash-map-label');
-    text.textContent = c.name;
-    g.appendChild(text);
-
-    g.addEventListener('click', () => {
-      switchTab('sitrep');
-      const sel = document.getElementById('inp-country');
-      if (sel) sel.value = c.name;
-    });
-    svg.appendChild(g);
+  // Initialize Leaflet map
+  leafletMap = L.map(container, {
+    center: [20, 15],
+    zoom: 2,
+    minZoom: 2,
+    maxZoom: 8,
+    zoomControl: false,
+    attributionControl: true,
+    worldCopyJump: true,
   });
 
-  container.appendChild(svg);
+  // Add zoom control to bottom-right
+  L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+
+  // CartoDB Positron (light) tiles — clean, minimal style
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(leafletMap);
+
+  // Invalidate size after a short delay (in case container was hidden)
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 200);
+
+  // Add crisis markers from bulletin data
+  updateMapMarkers();
 }
+
+function updateMapMarkers() {
+  if (!leafletMap || typeof L === 'undefined') return;
+
+  // Remove existing markers
+  leafletMarkers.forEach(m => leafletMap.removeLayer(m));
+  leafletMarkers = [];
+
+  const crises = Object.values(crisisMapData);
+  if (!crises.length) return;
+
+  crises.forEach(c => {
+    const lat = c.coords?.lat;
+    const lng = c.coords?.lng;
+    if (!lat || !lng) return;
+
+    const sevClass = (c.severity === 'high') ? 'severity-high' : (c.severity === 'medium') ? 'severity-medium' : 'severity-low';
+    const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+    const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+    const color = sevColors[c.severity] || '#007AFF';
+
+    const icon = L.divIcon({
+      className: 'crisis-marker',
+      html: `<div class="crisis-marker-dot ${sevClass}"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+
+    const themes = (c.themes || []).slice(0, 3).join(', ');
+    const popupContent = `
+      <div class="dash-popup-card">
+        <div class="dash-popup-severity" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[c.severity] || ''}</div>
+        <div class="dash-popup-country">${esc(c.country)}</div>
+        <div class="dash-popup-headline">${esc(c.headline || '')}</div>
+        <div class="dash-popup-summary">${esc((c.summary || '').substring(0, 180))}${c.summary && c.summary.length > 180 ? '…' : ''}</div>
+        <div class="dash-popup-meta">${c.report_count || 0} reports${themes ? ' · ' + esc(themes) : ''}</div>
+        ${c.has_sitrep ? `<button class="dash-popup-action" onclick="viewCrisisSitrep('${esc(c.country)}')">View SITREP →</button>` : ''}
+      </div>
+    `;
+
+    const marker = L.marker([lat, lng], { icon })
+      .addTo(leafletMap)
+      .bindPopup(popupContent, {
+        maxWidth: 280,
+        closeButton: true,
+        className: 'crisis-popup',
+      });
+
+    leafletMarkers.push(marker);
+  });
+
+  // Fit map to show all markers
+  if (leafletMarkers.length > 0) {
+    const group = L.featureGroup(leafletMarkers);
+    leafletMap.fitBounds(group.getBounds().pad(0.3));
+  }
+}
+
+function viewCrisisSitrep(country) {
+  leafletMap.closePopup();
+  switchTab('sitrep');
+   setTimeout(() => {
+     const sel = document.getElementById('inp-country');
+     if (sel) sel.value = country;
+   }, 100);
+}
+
+function renderDashBulletins() { /* deprecated — overview renders inline */ }
+function renderDashCrises() { /* deprecated — overview renders inline */ }
+
 
 document.addEventListener('DOMContentLoaded', () => {
   // Agent DOM refs
@@ -1985,10 +2011,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Static element bindings ────────────────────────────────────────────
 
   // Sidebar nav
+  const sidebar = document.getElementById('sidebar-nav');
+  if (sidebar) sidebar.classList.add('collapsed');
+  document.body.classList.add('sidebar-collapsed');
   const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn');
   if (sidebarCollapseBtn) sidebarCollapseBtn.addEventListener('click', toggleSidebarNav);
   const sidebarExpandHandle = document.getElementById('sidebar-expand-handle');
   if (sidebarExpandHandle) sidebarExpandHandle.addEventListener('click', toggleSidebarNav);
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => {
+    const sb = document.getElementById('sidebar-nav');
+    if (sb) { sb.classList.remove('hidden', 'collapsed'); sb.classList.add('expanded-once'); }
+    document.body.classList.remove('sidebar-collapsed');
+  });
 
   // Tab buttons
   document.querySelectorAll('.sidebar-tab[data-tab]').forEach(btn => {
@@ -2049,12 +2084,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearUpload = document.getElementById('btn-clear-upload');
   if (btnClearUpload) btnClearUpload.addEventListener('click', clearUploadForm);
 
-  // SITREP collapsible headers
-  const sitrepReportsToggle = document.getElementById('sitrep-reports-toggle');
-  if (sitrepReportsToggle) sitrepReportsToggle.addEventListener('click', toggleSitrepReports);
-  const bulletinToggle = document.getElementById('bulletin-toggle');
-  if (bulletinToggle) bulletinToggle.addEventListener('click', toggleBulletinList);
-
   // Agent keyboard
   chatInput.addEventListener('keydown', e => {
     // Block input when rate limit is exhausted
@@ -2079,12 +2108,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   chatInput.focus();
 
-  // SITREP event listeners (non-auth, safe to init early)
-  const btnToggle = document.getElementById('btn-toggle-form');
-  if (btnToggle) btnToggle.addEventListener('click', () => {
-    document.getElementById('run-form').classList.toggle('hidden');
-  });
-
+  // SITREP event listeners
   const btnRun = document.getElementById('btn-run');
   if (btnRun) btnRun.addEventListener('click', runPipeline);
 
@@ -2157,16 +2181,30 @@ document.addEventListener('DOMContentLoaded', () => {
         switchTab('db');
         break;
       case 'go-sitrep-country':
-        switchTab('sitrep');
-        setTimeout(() => {
-          const sel = document.getElementById('inp-country');
-          if (sel) { sel.value = target.dataset.country || ''; }
-          const btn = document.getElementById('btn-toggle-form');
-          if (btn && !document.getElementById('run-form')?.classList.contains('hidden')) btn.click();
-        }, 100);
-        break;
+         switchTab('sitrep');
+         setTimeout(() => {
+           const sel = document.getElementById('inp-country');
+           if (sel) { sel.value = target.dataset.country || ''; }
+         }, 100);
+         break;
       case 'go-bulletin':
-        switchTab('sitrep');
+        switchTab('bulletin');
+        break;
+      case 'go-bulletin-tab':
+        switchTab('bulletin');
+        break;
+      case 'dash-view-crisis':
+        const crisisCountry = target.dataset.country;
+        if (crisisCountry) {
+          const crisis = crisisMapData[crisisCountry];
+          if (crisis && crisis.has_sitrep) {
+            switchTab('sitrep');
+            setTimeout(() => {
+              const sel = document.getElementById('inp-country');
+              if (sel) sel.value = crisisCountry;
+             }, 100);
+          }
+        }
         break;
       case 'switch-report-view':
         switchReportView(target.dataset.mode);
@@ -2190,6 +2228,9 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBulletin();
         break;
       case 'open-bulletin':
+        // Highlight active tab-pill
+        document.querySelectorAll('.bulletin-tab-pill').forEach(p => p.classList.remove('active'));
+        target.classList.add('active');
         openBulletin(target.dataset.filename);
         break;
       case 'view-bulletin-sitrep':
@@ -2245,10 +2286,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof window.updateVisibility === 'function') {
       window.updateVisibility();
     } else {
-      const role = window.__userRole || 'free';
-      const isPremium = role === 'premium' || role === 'admin';
-      const sitrepRunForm = document.getElementById("btn-toggle-form");
-      if (sitrepRunForm) sitrepRunForm.style.display = isPremium ? "" : "none";
+       const role = window.__userRole || 'free';
+       const isPremium = role === 'premium' || role === 'admin';
+       const sitrepFormBar = document.getElementById('sitrep-form-bar');
+       if (sitrepFormBar) sitrepFormBar.style.display = isPremium ? '' : 'none';
     }
     updateUploadBtnVisibility();
   }
@@ -2270,40 +2311,34 @@ document.addEventListener('DOMContentLoaded', () => {
 // WEEKLY BULLETIN
 // ═══════════════════════════════════════════════════════════════════════════
 
-function toggleBulletinList() {
-  const body = document.getElementById('bulletin-list');
-  if (body) body.classList.toggle('closed');
-}
-
 async function loadBulletinList() {
-  const container = document.getElementById('bulletin-list');
+  const container = document.getElementById('bulletin-tabs');
   if (!container) return;
-  container.innerHTML = '<div class="sidebar-empty">Loading…</div>';
+  container.innerHTML = '<div class="bulletin-tab-loading">Loading…</div>';
   try {
     const resp = await api('/api/sitrep/bulletins');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const bulletins = await resp.json();
     if (!bulletins.length) {
       container.innerHTML = `
-        <div class="sidebar-empty">
-          No bulletins yet<br>
-          <button class="bulletin-gen-btn" data-action="generate-bulletin">Generate Weekly Bulletin</button>
+        <div class="bulletin-tab-empty">
+          No bulletins yet
+          <button class="bulletin-gen-btn" data-action="generate-bulletin" style="margin-left:8px">Generate Weekly Bulletin</button>
         </div>`;
       return;
     }
-    container.innerHTML = bulletins.map(b => {
+    container.innerHTML = bulletins.map((b, i) => {
       const fallbackTag = b.data_date_range?.fallback
-        ? ' <span style="color:#f59e0b;font-size:11px">⚠ fallback data</span>'
+        ? ' <span style="color:#f59e0b;font-size:10px">⚠</span>'
         : '';
-      return `
-      <div class="bulletin-item" data-action="open-bulletin" data-filename="${esc(b.filename)}">
-        <div class="bulletin-item-title">📰 ${b.week_label}${fallbackTag}</div>
-        <div class="bulletin-item-meta">${b.countries_affected} countries · ${b.total_reports} reports</div>
-      </div>
-    `;}).join('');
+      return `<button class="bulletin-tab-pill${i === 0 ? ' active' : ''}" data-action="open-bulletin" data-filename="${esc(b.filename)}">${esc(b.week_label)}${fallbackTag}</button>`;
+    }).join('');
+    // Auto-select first bulletin
+    const firstBtn = container.querySelector('.bulletin-tab-pill.active');
+    if (firstBtn) firstBtn.click();
   } catch (e) {
     console.error('[bulletin] loadBulletinList error:', e);
-    container.innerHTML = '<div class="sidebar-empty">Failed to load</div>';
+    container.innerHTML = '<div class="bulletin-tab-empty">Failed to load</div>';
   }
 }
 
@@ -2367,7 +2402,6 @@ async function pollBulletinJob(jobId) {
 }
 
 async function openBulletin(filename) {
-  showSitrepView('bulletin');
   const content = document.getElementById('bulletin-content');
   if (!content) return;
   content.innerHTML = '<div class="bulletin-loading">Loading bulletin…</div>';

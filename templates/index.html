@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN5hmHXixI6L5p5I9UHyBn14v7g0cEMQ=" crossorigin="">
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
 <body>
@@ -155,7 +156,11 @@
     </button>
     <button class="sidebar-tab" id="tab-sitrep" data-tab="sitrep">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      <span class="sidebar-tab-label">Reports</span>
+      <span class="sidebar-tab-label">SITREP</span>
+    </button>
+    <button class="sidebar-tab" id="tab-bulletin" data-tab="bulletin">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="sidebar-tab-label">Bulletin</span>
     </button>
     <button class="sidebar-tab" id="tab-db" data-tab="db">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
@@ -186,6 +191,11 @@
      MAIN CONTENT AREA
      ═══════════════════════════════════════════════ -->
 <div class="main">
+
+  <!-- Hamburger button — shown when sidebar is hidden/collapsed -->
+  <button class="hamburger-btn" id="hamburger-btn" title="Open menu">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
 
   <!-- ─── TAB: HOME DASHBOARD ─────────────────── -->
   <div class="panel active" id="panel-home">
@@ -244,19 +254,23 @@
         </span>
       </div>
 
-      <!-- Full-width World Map -->
-      <div class="dash-map-wrap">
+      <!-- Full-width World Map (Leaflet) -->
+      <div class="dash-map-wrap" id="dash-map-wrap">
         <div id="world-map" class="dash-world-map"></div>
       </div>
 
-      <!-- Bulletins -->
-      <div class="dash-section">
+      <!-- Weekly Overview -->
+      <div class="dash-section dash-weekly-section">
         <div class="dash-section-head">
-          <h2 class="dash-section-title">Weekly Bulletins</h2>
+          <h2 class="dash-section-title" id="dash-weekly-title">Weekly Overview</h2>
+          <span class="dash-section-date" id="dash-weekly-date"></span>
+          <button class="dash-section-link" id="dash-weekly-link" style="display:none">View Full Bulletin →</button>
         </div>
-        <div class="dash-bulletins" id="dash-bulletins">
-          <div class="dash-bulletin-empty">Loading bulletins…</div>
+        <div class="dash-overview-stats" id="dash-overview-stats"></div>
+        <div class="dash-overview-grid" id="dash-overview-grid">
+          <div class="dash-bulletin-empty">Loading overview…</div>
         </div>
+        <div class="dash-archives" id="dash-archives"></div>
       </div>
 
     </div>
@@ -360,70 +374,52 @@
 
   <!-- ─── TAB 3: SITREP ─────────────────────────── -->
   <div class="panel" id="panel-sitrep">
-    <!-- SITREP has its own sidebar+main split layout -->
-    <div class="sitrep-layout">
-
-      <!-- Sidebar -->
-      <aside class="sitrep-sidebar">
-        <div class="sitrep-brand">
-          <span class="brand-icon">SR</span>
-          <div>
-            <h1>SITREP</h1>
-            <span>Pipeline Interface</span>
+    <div class="sitrep-page">
+      <!-- Top bar: country select + new report -->
+      <div class="sitrep-topbar">
+        <div class="sitrep-topbar-left">
+          <span class="brand-icon-sm">SR</span>
+          <h2 class="sitrep-topbar-title">SITREP</h2>
+        </div>
+        <div class="sitrep-topbar-form" id="sitrep-form-bar">
+          <select id="inp-country" class="fi">
+            <option value="">Select country…</option>
+          </select>
+          <input id="inp-event" placeholder="Event (optional)" autocomplete="off" class="fi fi-sm">
+          <div class="form-date-field fi-date">
+            <label for="inp-date-from">From</label>
+            <input type="date" id="inp-date-from">
           </div>
-        </div>
-
-        <div class="sidebar-run">
-          <button id="btn-toggle-form">＋ New Report</button>
-          <div id="run-form" class="run-form hidden">
-            <select id="inp-country" class="fi">
-              <option value="">Select country…</option>
-            </select>
-            <input id="inp-event"   placeholder="Event  (optional)" autocomplete="off">
-
-            <div class="form-row-dates">
-              <div class="form-date-field">
-                <label for="inp-date-from">From</label>
-                <input type="date" id="inp-date-from">
-              </div>
-              <div class="form-date-field">
-                <label for="inp-date-to">To</label>
-                <input type="date" id="inp-date-to">
-              </div>
-            </div>
-            <div id="date-range-hint" class="date-range-hint"></div>
-
-            <div id="chunk-preview" class="chunk-preview hidden"></div>
-
-            <label>
-              <input type="checkbox" id="chk-skip-cache">
-              Skip cache (restart from scratch)
-            </label>
-            <button id="btn-run">▶ Run</button>
+          <div class="form-date-field fi-date">
+            <label for="inp-date-to">To</label>
+            <input type="date" id="inp-date-to">
           </div>
+          <button id="btn-run" class="btn btn-primary">▶ Run</button>
+          <label class="sitrep-skip-label">
+            <input type="checkbox" id="chk-skip-cache">
+            Skip cache
+          </label>
         </div>
+        <div id="date-range-hint" class="date-range-hint"></div>
+        <div id="chunk-preview" class="chunk-preview hidden"></div>
+      </div>
 
-        <div class="sidebar-section-title collapsible-header" id="sitrep-reports-toggle">
-          Available SITREPs
-          <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      <!-- Reports list -->
+      <div class="sitrep-reports-bar">
+        <div class="sitrep-reports-bar-head">
+          <span class="sitrep-reports-bar-title">Available SITREPs</span>
         </div>
-        <div id="sitrep-reports-list" class="collapsible-body open"><div class="sidebar-empty">Loading...</div></div>
+        <div id="sitrep-reports-list" class="sitrep-reports-list"><div class="empty-state">Loading...</div></div>
+      </div>
 
-        <div class="sidebar-section-title collapsible-header" id="bulletin-toggle" style="margin-top:12px;">
-          📰 Weekly Bulletin
-          <svg class="collapse-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-        </div>
-        <div id="bulletin-list" class="collapsible-body open"><div class="sidebar-empty">No bulletins yet</div></div>
-      </aside>
-
-      <!-- Main area -->
-      <div class="sitrep-main">
+      <!-- Main content area -->
+      <div class="sitrep-main-content">
         <!-- Welcome view -->
         <div id="view-welcome" class="sitrep-view">
           <div class="welcome-icon">REPORTS</div>
           <div class="welcome-title">Reports</div>
           <div class="welcome-sub">
-            Open an existing report from the sidebar or create a new one using the form above.
+            Select a country and run the pipeline, or choose an existing report above.
           </div>
         </div>
 
@@ -447,17 +443,30 @@
         <div id="view-report" class="sitrep-view hidden">
           <div id="report-content"></div>
         </div>
-
-        <!-- Bulletin view -->
-        <div id="view-bulletin" class="sitrep-view hidden">
-          <div id="bulletin-content"></div>
-        </div>
       </div>
-
-    </div><!-- /.sitrep-layout -->
+    </div>
   </div><!-- /#panel-sitrep -->
 
-  <!-- ─── ADMIN PANEL ─────────────────────────── -->
+  <!-- ─── TAB: WEEKLY BULLETIN ─────────────────── -->
+  <div class="panel" id="panel-bulletin">
+    <div class="bulletin-page">
+      <div class="bulletin-page-head">
+        <h2 class="bulletin-page-title">Weekly Bulletins</h2>
+        <button class="bulletin-gen-btn" data-action="generate-bulletin">+ Generate</button>
+      </div>
+      <div class="bulletin-tabs" id="bulletin-tabs">
+        <div class="bulletin-tab-loading">Loading…</div>
+      </div>
+      <div id="bulletin-content" class="bulletin-content">
+        <div class="bulletin-empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <p>Select a week to view the bulletin</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ADMIN PANEL ───────────────────────────── -->
   <div class="panel" id="panel-admin">
     <div class="admin-panel-content">
       <h2>User Management</h2>
@@ -643,6 +652,7 @@
 
 <div class="toast-container" id="toast-container"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-9QO0Sn5Y2I3mSr0B2Q2CQe6cFz4v0sFBNkC3+4kEJOM=" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script src="/static/app.js?v={{ v }}"></script>
