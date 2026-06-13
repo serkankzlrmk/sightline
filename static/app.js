@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// app.js — Merged frontend for NovaSphere
+// app.js — Merged frontend for Sightline
 //
 // Tab 1: Database  → /api/db/*
 // Tab 2: Agent     → /api/agent/chat
@@ -161,7 +161,10 @@ function toggleSitrepReports() {
 
 function switchTab(name) {
   currentTab = name;
-  const allTabs = ['db', 'agent', 'sitrep', 'admin'];
+  const allTabs = ['home', 'agent', 'sitrep', 'db', 'admin'];
+  const sidebar = document.getElementById('sidebar-nav');
+  const main = document.querySelector('.main');
+
   allTabs.forEach(t => {
     const panel = document.getElementById('panel-' + t);
     const tab = document.getElementById('tab-' + t);
@@ -169,9 +172,23 @@ function switchTab(name) {
     if (tab) tab.classList.toggle('active', t === name);
   });
 
-  if (name === 'db') reloadReports();
-  if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); loadBulletinList(); }
-  if (name === 'admin') loadAdminUsers();
+  // Hide sidebar on Home dashboard for immersive map view
+  if (name === 'home') {
+    if (sidebar) sidebar.classList.add('hidden');
+    if (main) main.style.marginLeft = '0';
+  } else {
+    if (sidebar) sidebar.classList.remove('hidden');
+    if (sidebar && sidebar.classList.contains('collapsed')) {
+      if (main) main.style.marginLeft = '72px';
+    } else {
+      if (main) main.style.marginLeft = '';
+    }
+    if (name === 'db') reloadReports();
+    if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); loadBulletinList(); }
+    if (name === 'admin') loadAdminUsers();
+  }
+
+  if (name === 'home') loadDashboard();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -197,9 +214,9 @@ const QUICK_PROMPTS = [
 
 const WELCOME_HTML = `<div class="chat-center">
   <div class="msg assistant">
-    <div class="msg-label">NovaSphere</div>
+    <div class="msg-label">Sightline</div>
     <div class="msg-body">
-      <div class="welcome-greeting">Welcome to NovaSphere</div>
+      <div class="welcome-greeting">Welcome to Sightline</div>
       <div class="welcome-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
       <div class="welcome-section">
         <div class="welcome-section-title">Search & Discover</div>
@@ -239,7 +256,7 @@ function addMsg(role, html) {
     wrap.innerHTML = `<div class="msg-body">${html}</div>`;
   } else {
     wrap.innerHTML = `
-      <div class="msg-label">NovaSphere</div>
+      <div class="msg-label">Sightline</div>
       <div class="msg-body">${html}</div>`;
   }
   center.appendChild(wrap);
@@ -395,7 +412,7 @@ function lockChatInput() {
   const role = window.__userRole || "free";
   if (role === "admin" || !rl || rl.remaining > 0) {
     chatInput.disabled = false;
-    chatInput.placeholder = 'Message NovaSphere...';
+    chatInput.placeholder = 'Message Sightline...';
     return;
   }
   // Rate limit exhausted — lock input
@@ -1045,7 +1062,7 @@ function renderSitrepReport(report, filename) {
         </div>
       </div>
       <div class="report-hero-actions">
-        <button class="btn-sm btn-discuss-agent" data-action="discuss-sitrep">💬 Discuss with NovaSphere</button>
+        <button class="btn-sm btn-discuss-agent" data-action="discuss-sitrep">💬 Discuss with Sightline</button>
       </div>
     </div>`;
 
@@ -1746,6 +1763,214 @@ window.setUserRole = setUserRole;
 // DOM INIT
 // ═════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HOME DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CRISIS_COUNTRIES = {
+  SDN: { name: 'Sudan', lat: 15.5, lng: 32.5 },
+  UKR: { name: 'Ukraine', lat: 48.4, lng: 31.2 },
+  SYR: { name: 'Syria', lat: 35.0, lng: 38.0 },
+  ETH: { name: 'Ethiopia', lat: 9.1, lng: 40.5 },
+  COD: { name: 'DR Congo', lat: -2.5, lng: 23.6 },
+  YEM: { name: 'Yemen', lat: 15.5, lng: 48.5 },
+  MMR: { name: 'Myanmar', lat: 19.7, lng: 96.2 },
+  AFG: { name: 'Afghanistan', lat: 33.9, lng: 67.7 },
+  SOM: { name: 'Somalia', lat: 5.1, lng: 46.2 },
+  SSD: { name: 'South Sudan', lat: 6.9, lng: 31.3 },
+  NER: { name: 'Niger', lat: 17.6, lng: 8.1 },
+  MLI: { name: 'Mali', lat: 17.6, lng: -4.0 },
+  BFA: { name: 'Burkina Faso', lat: 12.2, lng: -1.5 },
+  CMR: { name: 'Cameroon', lat: 7.4, lng: 12.3 },
+  NGA: { name: 'Nigeria', lat: 9.1, lng: 8.7 },
+  TCD: { name: 'Chad', lat: 15.5, lng: 18.7 },
+  PSE: { name: 'Palestine', lat: 31.9, lng: 35.2 },
+  LBN: { name: 'Lebanon', lat: 33.9, lng: 35.5 },
+  VEN: { name: 'Venezuela', lat: 6.4, lng: -66.6 },
+  COL: { name: 'Colombia', lat: 4.6, lng: -74.1 },
+  HTI: { name: 'Haiti', lat: 18.9, lng: -72.3 },
+  BDI: { name: 'Burundi', lat: -3.4, lng: 30.0 },
+  CAF: { name: 'CAR', lat: 6.6, lng: 20.9 },
+  IRN: { name: 'Iran', lat: 32.4, lng: 53.7 },
+  PAK: { name: 'Pakistan', lat: 30.4, lng: 69.3 },
+  IRQ: { name: 'Iraq', lat: 33.2, lng: 43.7 },
+  LBY: { name: 'Libya', lat: 26.3, lng: 17.2 },
+  ERI: { name: 'Eritrea', lat: 15.2, lng: 39.8 },
+  MOZ: { name: 'Mozambique', lat: -18.7, lng: 35.5 },
+  SLB: { name: 'Solomon Islands', lat: -9.4, lng: 160.0 }
+};
+
+function latLngToMapXY(lat, lng, w, h) {
+  const x = ((lng + 180) / 360) * w;
+  const y = ((90 - lat) / 180) * h;
+  return { x, y };
+}
+
+let dashboardLoaded = false;
+
+async function loadDashboard() {
+  if (dashboardLoaded) return;
+  dashboardLoaded = true;
+
+  // Load stats
+  try {
+    const r = await api('/api/db/stats');
+    const d = await r.json();
+    const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    el('dash-reports', d.report_count != null ? d.report_count.toLocaleString() : '—');
+    el('dash-countries', d.countries != null ? d.countries : '—');
+    el('dash-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '—');
+  } catch { /* ignore */ }
+
+  // Load SITREP count
+  try {
+    const r = await api('/api/sitrep/bulletins');
+    const d = await r.json();
+    const bulletins = d.bulletins || d || [];
+    const el = document.getElementById('dash-sitreps');
+    if (el) el.textContent = Array.isArray(bulletins) ? bulletins.length : '—';
+    renderDashBulletins(bulletins);
+  } catch { /* ignore */ }
+
+  // Load active crises (countries with data)
+  try {
+    const r = await api('/api/db/countries');
+    const countries = await r.json();
+    renderDashCrises(countries);
+  } catch { /* ignore */ }
+
+  initWorldMap();
+}
+
+function renderDashBulletins(bulletins) {
+  const wrap = document.getElementById('dash-bulletins');
+  if (!wrap) return;
+  if (!bulletins || !bulletins.length) {
+    wrap.innerHTML = '<div class="dash-bulletin-empty">No bulletins available yet.</div>';
+    return;
+  }
+  const recent = bulletins.slice(0, 3);
+  wrap.innerHTML = recent.map(b => {
+    const label = b.week_label || b.country || 'Bulletin';
+    const date = b.data_date_range?.requested_from || b.created || '';
+    const country = b.country || '';
+    return `<div class="dash-bulletin-card" data-action="go-bulletin" data-file="${esc(b.filename || '')}">
+      <div class="dash-bulletin-badge">Weekly Bulletin</div>
+      <div class="dash-bulletin-title">${esc(label)}</div>
+      ${country ? `<div class="dash-bulletin-country">${esc(country)}</div>` : ''}
+      ${date ? `<div class="dash-bulletin-date">${esc(date.substring(0, 10))}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderDashCrises(countries) {
+  const wrap = document.getElementById('dash-crises');
+  if (!wrap) return;
+  if (!countries || !countries.length) {
+    wrap.innerHTML = '<div class="dash-bulletin-empty">No data available.</div>';
+    return;
+  }
+  const top = countries.slice(0, 12);
+  wrap.innerHTML = top.map(c => {
+    const name = typeof c === 'string' ? c : (c.name || c.country || c);
+    const code = typeof c === 'object' ? (c.code || c.country_code || '') : '';
+    return `<div class="dash-crisis-chip" data-action="go-sitrep-country" data-country="${esc(name)}">
+      <span class="dash-crisis-dot"></span>
+      <span class="dash-crisis-name">${esc(name)}</span>
+    </div>`;
+  }).join('');
+}
+
+function initWorldMap() {
+  const container = document.getElementById('world-map');
+  if (!container) return;
+  if (container.querySelector('.dash-map-svg')) return;
+
+  const w = 960, h = 480;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.setAttribute('class', 'dash-map-svg');
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  // Simplified world outline (major landmasses as background)
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', w);
+  bg.setAttribute('height', h);
+  bg.setAttribute('fill', 'transparent');
+  svg.appendChild(bg);
+
+  // Grid lines
+  for (let lng = -180; lng <= 180; lng += 30) {
+    const x = ((lng + 180) / 360) * w;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x); line.setAttribute('y1', 0);
+    line.setAttribute('x2', x); line.setAttribute('y2', h);
+    line.setAttribute('class', 'dash-map-grid');
+    svg.appendChild(line);
+  }
+  for (let lat = -60; lat <= 80; lat += 30) {
+    const y = ((90 - lat) / 180) * h;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', 0); line.setAttribute('y1', y);
+    line.setAttribute('x2', w); line.setAttribute('y2', y);
+    line.setAttribute('class', 'dash-map-grid');
+    svg.appendChild(line);
+  }
+
+  // Equator
+  const eq = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  eq.setAttribute('x1', 0); eq.setAttribute('y1', h / 2);
+  eq.setAttribute('x2', w); eq.setAttribute('y2', h / 2);
+  eq.setAttribute('class', 'dash-map-equator');
+  svg.appendChild(eq);
+
+  // Crisis country dots
+  Object.entries(CRISIS_COUNTRIES).forEach(([code, c]) => {
+    const pos = latLngToMapXY(c.lat, c.lng, w, h);
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'dash-map-dot-group');
+    g.setAttribute('data-country', c.name);
+    g.style.cursor = 'pointer';
+
+    // Pulse ring
+    const pulse = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    pulse.setAttribute('cx', pos.x); pulse.setAttribute('cy', pos.y);
+    pulse.setAttribute('r', '12');
+    pulse.setAttribute('class', 'dash-map-pulse');
+    g.appendChild(pulse);
+
+    // Outer glow
+    const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    glow.setAttribute('cx', pos.x); glow.setAttribute('cy', pos.y);
+    glow.setAttribute('r', '6');
+    glow.setAttribute('class', 'dash-map-glow');
+    g.appendChild(glow);
+
+    // Inner dot
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', pos.x); dot.setAttribute('cy', pos.y);
+    dot.setAttribute('r', '3');
+    dot.setAttribute('class', 'dash-map-dot');
+    g.appendChild(dot);
+
+    // Label
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', pos.x); text.setAttribute('y', pos.y - 16);
+    text.setAttribute('class', 'dash-map-label');
+    text.textContent = c.name;
+    g.appendChild(text);
+
+    g.addEventListener('click', () => {
+      switchTab('sitrep');
+      const sel = document.getElementById('inp-country');
+      if (sel) sel.value = c.name;
+    });
+    svg.appendChild(g);
+  });
+
+  container.appendChild(svg);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Agent DOM refs
   chatInput = document.getElementById('chat-input');
@@ -1922,6 +2147,27 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'discuss-sitrep':
         discussSitrepWithAgent();
         break;
+      case 'go-chat':
+        switchTab('agent');
+        break;
+      case 'go-sitrep':
+        switchTab('sitrep');
+        break;
+      case 'go-db':
+        switchTab('db');
+        break;
+      case 'go-sitrep-country':
+        switchTab('sitrep');
+        setTimeout(() => {
+          const sel = document.getElementById('inp-country');
+          if (sel) { sel.value = target.dataset.country || ''; }
+          const btn = document.getElementById('btn-toggle-form');
+          if (btn && !document.getElementById('run-form')?.classList.contains('hidden')) btn.click();
+        }, 100);
+        break;
+      case 'go-bulletin':
+        switchTab('sitrep');
+        break;
       case 'switch-report-view':
         switchReportView(target.dataset.mode);
         break;
@@ -1990,7 +2236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _appInited = true;
     const tok = window.getIdToken ? window.getIdToken() : '';
     if (!tok) return;
-    switchTab('agent');
+    switchTab('home');
     loadChatList();
     updateVisibilityFromAuth();
   }

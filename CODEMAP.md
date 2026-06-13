@@ -1,4 +1,4 @@
-# NovaSphere — Kod Haritası
+# Sightline — Kod Haritası
 
 > Son güncelleme: 28 Mayıs 2026
 > Bu belge projenin geldiği noktayı kaydeder. Her dosyanın ne yaptığını, veri akışını, API route'larını ve mimari kararları açıklar. Gelecek geliştirme oturumlarında hızlıca bağlam kurmak için kullanılır.
@@ -22,12 +22,12 @@
 
 ## 1. Proje Özeti
 
-**NovaSphere**, insani yardım verilerini analiz eden bir web platformudur. 3 ana özellik sunar:
+**Sightline**, insani yardım verilerini analiz eden bir web platformudur. 3 ana özellik sunar:
 
 | Tab | İşlev | Kullanıcı |
 |-----|-------|-----------|
 | **Database** | ReliefWeb raporlarını tarayıcı, filtrele, detay görüntüle | Herkes |
-| **NovaSphere** | AI destekli sohbet asistanı (ChromaDB + ReliefWeb API) | Herkes |
+| **Sightline** | AI destekli sohbet asistanı (ChromaDB + ReliefWeb API) | Herkes |
 | **SITREP** | Otomatik durum raporu üretim hattı (9.5 aşama) | Admin |
 
 **Teknoloji Stack:**
@@ -54,7 +54,7 @@ Kullanıcı → Nginx (HTTPS) → Gunicorn (127.0.0.1:5001) → Flask (server.py
 ## 2. Dizin Yapısı
 
 ```
-NovaSphere/
+Sightline/
 ├── server.py              # Birleşik Flask sunucusu (tüm API route'ları)
 ├── auth.py                # Kimlik doğrulama (Firebase + API key + dev mode)
 ├── config.py              # Tüm konfigürasyon (.env'den override)
@@ -109,7 +109,7 @@ NovaSphere/
 │   ├── update.sh          # deploy.sh wrapper
 │   ├── gunicorn.conf.py   # Gunicorn konfigürasyonu
 │   ├── nginx.conf         # Nginx reverse proxy
-│   ├── novasphere.service# Systemd unit dosyası
+│   ├── sightline.service# Systemd unit dosyası
 │   ├── logrotate.conf     # Log rotasyonu
 │   ├── daily-ingest.cron  # Günlük ingest cron girdisi
 │   └── cloud-init.yaml    # Oracle Cloud VM otomatik kurulum

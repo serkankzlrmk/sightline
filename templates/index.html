@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NovaSphere</title>
+  <title>Sightline</title>
   <link rel="icon" href="/static/logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +21,7 @@
     <div class="auth-hero-content">
       <div class="auth-hero-badge">Humanitarian Data Analytics</div>
       <h1 class="auth-hero-title">Intelligence for<br>Humanitarian Action</h1>
-      <p class="auth-hero-desc">NovaSphere connects you to the world's largest humanitarian data network. Search, analyze, and generate situation reports from verified ReliefWeb sources — powered by AI with cited evidence.</p>
+      <p class="auth-hero-desc">Sightline connects you to the world's largest humanitarian data network. Search, analyze, and generate situation reports from verified ReliefWeb sources — powered by AI with cited evidence.</p>
       <div class="auth-hero-stats">
         <div class="auth-hero-stat">
           <span class="auth-hero-stat-value">600+</span>
@@ -85,8 +85,8 @@
   <!-- Right: Login Card -->
   <div class="auth-card">
     <div class="auth-card-inner">
-      <img src="/static/logo.png" alt="NovaSphere" class="auth-logo">
-      <h1>NovaSphere</h1>
+      <img src="/static/logo.png" alt="Sightline" class="auth-logo">
+      <h1>Sightline</h1>
       <p class="auth-subtitle">Sign in to access the platform</p>
       <div class="auth-card-features">
         <div class="auth-card-feature">
@@ -125,7 +125,7 @@
       <div class="auth-legal">By signing in you agree to the <a href="#">Terms of Use</a> and <a href="#">Privacy Policy</a></div>
     </div>
   </div>
-  <div class="auth-copyright">&copy; 2026 NovaSphere</div>
+  <div class="auth-copyright">&copy; 2026 Sightline</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -133,8 +133,8 @@
      ═══════════════════════════════════════════════ -->
 <nav class="sidebar-nav" id="sidebar-nav">
   <div class="sidebar-nav-head">
-    <img class="sidebar-logo" src="/static/logo.png" alt="NovaSphere">
-    <span class="sidebar-brand">NovaSphere</span>
+    <img class="sidebar-logo" src="/static/logo.png" alt="Sightline">
+    <span class="sidebar-brand">Sightline</span>
     <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Toggle sidebar">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
@@ -145,17 +145,21 @@
   </button>
 
   <div class="sidebar-nav-tabs">
-    <button class="sidebar-tab" id="tab-db" data-tab="db">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-      <span class="sidebar-tab-label">Database</span>
+    <button class="sidebar-tab active" id="tab-home" data-tab="home">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="sidebar-tab-label">Home</span>
     </button>
-    <button class="sidebar-tab active" id="tab-agent" data-tab="agent">
+    <button class="sidebar-tab" id="tab-agent" data-tab="agent">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span class="sidebar-tab-label">Chat</span>
     </button>
     <button class="sidebar-tab" id="tab-sitrep" data-tab="sitrep">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span class="sidebar-tab-label">Reports</span>
+    </button>
+    <button class="sidebar-tab" id="tab-db" data-tab="db">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <span class="sidebar-tab-label">Database</span>
     </button>
     <button class="sidebar-tab" id="tab-admin" data-tab="admin" style="display:none">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -183,7 +187,82 @@
      ═══════════════════════════════════════════════ -->
 <div class="main">
 
-  <!-- ─── TAB 1: DATABASE ─────────────────────── -->
+  <!-- ─── TAB: HOME DASHBOARD ─────────────────── -->
+  <div class="panel active" id="panel-home">
+    <div class="dashboard">
+
+      <!-- Minimal top bar -->
+      <div class="dash-topbar">
+        <div class="dash-topbar-left">
+          <h1 class="dash-topbar-title">Global Overview</h1>
+          <span class="dash-topbar-subtitle">Real-time humanitarian crisis intelligence</span>
+        </div>
+        <div class="dash-topbar-stats">
+          <div class="dash-stat-pill"><span class="dash-stat-num" id="dash-reports">—</span> Reports</div>
+          <div class="dash-stat-pill"><span class="dash-stat-num" id="dash-countries">—</span> Countries</div>
+          <div class="dash-stat-pill"><span class="dash-stat-num" id="dash-chunks">—</span> Chunks</div>
+          <div class="dash-stat-pill"><span class="dash-stat-num" id="dash-sitreps">—</span> SITREPs</div>
+        </div>
+      </div>
+
+      <!-- Data Sources -->
+      <div class="dash-sources">
+        <span class="dash-source active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          ReliefWeb
+          <span class="dash-source-badge live">Live</span>
+        </span>
+        <span class="dash-source active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Sightline AI
+          <span class="dash-source-badge live">Live</span>
+        </span>
+        <span class="dash-source active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          SITREP Pipeline
+          <span class="dash-source-badge live">Live</span>
+        </span>
+        <span class="dash-source active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          HDX
+          <span class="dash-source-badge live">Live</span>
+        </span>
+        <span class="dash-source coming">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          OCHA
+          <span class="dash-source-badge coming">Soon</span>
+        </span>
+        <span class="dash-source coming">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          UNHCR
+          <span class="dash-source-badge coming">Soon</span>
+        </span>
+        <span class="dash-source coming">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          UNICEF
+          <span class="dash-source-badge coming">Soon</span>
+        </span>
+      </div>
+
+      <!-- Full-width World Map -->
+      <div class="dash-map-wrap">
+        <div id="world-map" class="dash-world-map"></div>
+      </div>
+
+      <!-- Bulletins -->
+      <div class="dash-section">
+        <div class="dash-section-head">
+          <h2 class="dash-section-title">Weekly Bulletins</h2>
+        </div>
+        <div class="dash-bulletins" id="dash-bulletins">
+          <div class="dash-bulletin-empty">Loading bulletins…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── TAB: DATABASE ─────────────────────── -->
   <div class="panel" id="panel-db">
     <div class="reports-wrap">
       <!-- Stats cards (Stitch-inspired) -->
@@ -234,7 +313,7 @@
   </div>
 
   <!-- ─── TAB 2: AGENT CHAT ─────────────────────── -->
-  <div class="panel active" id="panel-agent">
+  <div class="panel" id="panel-agent">
     <!-- Sidebar overlay (Gemini-style slide drawer) -->
     <div class="chat-sidebar-overlay" id="chat-sidebar-overlay"></div>
     <aside class="chat-sidebar" id="chat-sidebar">
@@ -253,14 +332,14 @@
         <button class="sidebar-toggle-btn" id="sidebar-toggle-btn" title="Chat history">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
         </button>
-        <span class="topbar-title">NovaSphere</span>
+        <span class="topbar-title">Sightline</span>
       </div>
       <div class="chat-scroll" id="chat-messages">
         <div class="chat-center">
           <div class="msg assistant">
-            <div class="msg-label">NovaSphere</div>
+            <div class="msg-label">Sightline</div>
             <div class="msg-body">
-              <div class="welcome-greeting">Welcome to NovaSphere</div>
+              <div class="welcome-greeting">Welcome to Sightline</div>
               <div class="welcome-desc">Your AI-powered humanitarian data analyst. Loading quick prompts…</div>
             </div>
           </div>
@@ -269,7 +348,7 @@
       <div class="chat-footer">
         <div class="chat-input-wrap">
           <textarea class="chat-textarea" id="chat-input"
-            placeholder="Message NovaSphere..."
+            placeholder="Message Sightline..."
             rows="1"></textarea>
           <button class="send-btn" id="send-btn" title="Send">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>

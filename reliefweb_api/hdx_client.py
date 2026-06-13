@@ -1,25 +1,25 @@
 """
-HDX Direct API Client — NovaSphere Entegrasyonu
+HDX Direct API Client — Sightline Entegrasyonu
 ==============================================
 
-Bu modül NovaSphere'ın Python backend'ine doğrudan entegre edilmek üzere
+Bu modül Sightline'ın Python backend'ine doğrudan entegre edilmek üzere
 tasarlanmıştır. MCP server'a ihtiyaç duymaz, HDX HAPI API'ye doğrudan
 HTTP istekleri yapar.
 
 Neden MCP Server'sız?
 ---------------------
 MCP (Model Context Protocol) AI assistant'lar (Claude, GPT) için tasarlanmış
-bir protokol. NovaSphere zaten bir Python Flask backend — araya MCP server sokmak
+bir protokol. Sightline zaten bir Python Flask backend — araya MCP server sokmak
 gereksiz karmaşıklık yaratır. Bunun yerine direkt HTTP client olarak HDX HAPI
 API'ye bağlanıyoruz:
 
-  ❌ MCP:  NovaSphere → MCP Client → MCP Server (ayrı process) → HDX API
-  ✅ Bizim: NovaSphere → hdx_client.py (bu dosya) → HDX HAPI API
+  ❌ MCP:  Sightline → MCP Client → MCP Server (ayrı process) → HDX API
+  ✅ Bizim: Sightline → hdx_client.py (bu dosya) → HDX HAPI API
 
 Tek dosya, tek process, tek deployment.
 
-NovaSphere'a Entegrasyon:
-1. Bu dosyayı NovaSphere repo root'una kopyala: hdx_client.py
+Sightline'a Entegrasyon:
+1. Bu dosyayı Sightline repo root'una kopyala: hdx_client.py
 2. .env'e ekle: HDX_APP_IDENTIFIER=<base64_encoded_key>
 3. Flask app'te başlat: hdx = HDXClient.from_env()
 4. API endpoint'lerde kullan: result = hdx.get_refugees_sync("SYR")
@@ -188,7 +188,7 @@ class SimpleCache:
 # ============================================================================
 
 class HDXClient:
-    """HDX Direct API Client — NovaSphere Entegrasyonu.
+    """HDX Direct API Client — Sightline Entegrasyonu.
 
     HDX HAPI API'ye doğrudan HTTP istekleri yapar. MCP server'a ihtiyaç duymaz.
     Flask app'te singleton olarak kullanılmak üzere tasarlanmıştır.
@@ -688,7 +688,7 @@ class HDXClient:
         return await self._aget("/util/version", kwargs)
 
     # =========================================================================
-    # High-Level Methods (NovaSphere SITREP Integration)
+    # High-Level Methods (Sightline SITREP Integration)
     # =========================================================================
 
     async def get_country_overview(self, location_code: str) -> Dict[str, HDXResult]:

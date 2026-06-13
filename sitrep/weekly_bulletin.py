@@ -716,7 +716,7 @@ def get_bulletin(filename: str) -> Optional[Dict]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Weekly Bulletin Generator — NovaSphere"
+        description="Weekly Bulletin Generator — Sightline"
     )
     parser.add_argument(
         "--date-from", required=True,

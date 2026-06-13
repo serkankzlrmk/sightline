@@ -1881,7 +1881,7 @@ if __name__ == "__main__":
     print(f"  http://{SERVER_HOST}:{SERVER_PORT}")
     print(f"  Auth : {auth_status}")
     print(f"  CORS : {cors_display}")
-    print("  Tabs : Database | NovaSphere | SITREP")
+    print("  Tabs : Database | Sightline | SITREP")
     print("=" * 58)
     app.run(
         host=SERVER_HOST,

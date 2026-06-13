@@ -1,4 +1,4 @@
-# Gunicorn configuration for NovaSphere
+# Gunicorn configuration for Sightline
 # Usage: gunicorn -c deploy/gunicorn.conf.py server:app
 
 import os
@@ -19,8 +19,8 @@ max_requests = 1000  # Restart workers after N requests (prevents memory leaks)
 max_requests_jitter = 50
 
 # Logging
-accesslog = "/var/log/novasphere/access.log"
-errorlog = "/var/log/novasphere/error.log"
+accesslog = "/var/log/sightline/access.log"
+errorlog = "/var/log/sightline/error.log"
 loglevel = "info"
 capture_output = True
 

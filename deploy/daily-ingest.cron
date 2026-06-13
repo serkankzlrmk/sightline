@@ -1,11 +1,11 @@
-# NovaSphere — Daily Ingest Cron
+# Sightline — Daily Ingest Cron
 # Fetches yesterday's ReliefWeb reports + purges data older than 90 days
 # Runs at 06:00 UTC every day
 #
-# Install: sudo cp /opt/novasphere/current/deploy/daily-ingest.cron /etc/cron.d/novasphere-daily-ingest
-#          sudo chmod 644 /etc/cron.d/novasphere-daily-ingest
+# Install: sudo cp /opt/sightline/current/deploy/daily-ingest.cron /etc/cron.d/sightline-daily-ingest
+#          sudo chmod 644 /etc/cron.d/sightline-daily-ingest
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-0 6 * * * novasphere /opt/novasphere/current/venv/bin/python3 /opt/novasphere/current/scripts/daily_ingest.py >> /var/log/novasphere/daily-ingest.log 2>&1
+0 6 * * * sightline /opt/sightline/current/venv/bin/python3 /opt/sightline/current/scripts/daily_ingest.py >> /var/log/sightline/daily-ingest.log 2>&1

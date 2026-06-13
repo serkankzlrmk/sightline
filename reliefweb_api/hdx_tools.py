@@ -1,5 +1,5 @@
 """
-HDX Tools — LangChain @tool definitions for NovaSphere.
+HDX Tools — LangChain @tool definitions for Sightline.
 
 These tools give the agent access to HDX (Humanitarian Data Exchange) data
 via the HDXClient direct API client. No MCP server dependency.

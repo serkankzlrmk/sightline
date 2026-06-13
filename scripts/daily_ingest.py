@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-daily_ingest.py — Automated daily ingestion + purge for NovaSphere.
+daily_ingest.py — Automated daily ingestion + purge for Sightline.
 
 Runs every morning at 06:00 UTC via cron:
   1. Fetches ALL reports from the previous day (no country/theme filter)
@@ -46,8 +46,8 @@ RELIEFWEB_APPNAME = _rw_cfg.RELIEFWEB_APPNAME
 _ssl_verify = _rw_cfg._ssl_verify
 
 # ── Logging ────────────────────────────────────────────────────────────────
-# Ensure log directory exists (cron redirects to /var/log/novasphere/)
-_LOG_DIR = Path("/var/log/novasphere")
+# Ensure log directory exists (cron redirects to /var/log/sightline/)
+_LOG_DIR = Path("/var/log/sightline")
 try:
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:

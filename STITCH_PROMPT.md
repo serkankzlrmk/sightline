@@ -1,8 +1,8 @@
-# Stitch Prompt — NovaSphere UI Redesign
+# Stitch Prompt — Sightline UI Redesign
 
 ## Overview
 
-Redesign the **NovaSphere** — a humanitarian data analytics web application with 3 main tabs (Database, NovaSphere Chat, SITREP). The app uses Firebase Auth (Google Sign-In) and has role-based access (free/premium/admin).
+Redesign the **Sightline** — a humanitarian data analytics web application with 3 main tabs (Database, Sightline Chat, SITREP). The app uses Firebase Auth (Google Sign-In) and has role-based access (free/premium/admin).
 
 ## Current Tech Stack
 
@@ -49,7 +49,7 @@ Redesign the **NovaSphere** — a humanitarian data analytics web application wi
 
 ### 1. Login/Auth Screen
 - Full-screen overlay with centered card
-- NovaSphere logo + "Humanitarian Data Analytics Platform" subtitle
+- Sightline logo + "Humanitarian Data Analytics Platform" subtitle
 - 3 feature cards: Intelligent Search, SITREP Generation, Source Citations
 - Google Sign-In button (prominent, centered)
 - Clean, professional, humanitarian feel
@@ -57,7 +57,7 @@ Redesign the **NovaSphere** — a humanitarian data analytics web application wi
 ### 2. Main Layout (3 tabs)
 - **Top nav:** Logo left, tabs center, user bar right (avatar, name, role badge, logout)
 - **Tab 1 — Database:** Table-based report browser with filters (country, theme, source, date range), stats cards at top
-- **Tab 2 — NovaSphere (Chat):** Gemini-style chat interface
+- **Tab 2 — Sightline (Chat):** Gemini-style chat interface
   - Left sidebar: Chat history (slide drawer)
   - Center: Chat messages with welcome screen
   - Welcome screen has feature sections (Search, Ask, Ingest, More) + category-tinted quick prompt buttons
@@ -78,7 +78,7 @@ Redesign the **NovaSphere** — a humanitarian data analytics web application wi
 ### Chat Welcome Screen
 ```
 ┌─────────────────────────────────────────┐
-│          Welcome to NovaSphere          │
+│          Welcome to Sightline          │
 │  Your AI-powered humanitarian data       │
 │  analyst. Search, analyze, and synthesize │
 │  reports from ReliefWeb.                 │

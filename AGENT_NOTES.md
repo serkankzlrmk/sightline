@@ -1,4 +1,4 @@
-# AGENT_NOTES.md — NovaSphere Production Handoff Notes
+# AGENT_NOTES.md — Sightline Production Handoff Notes
 
 > Created: 24 Nisan 2026
 > Branch: feature/ui-redesign
@@ -32,7 +32,7 @@
 - `deploy/update.sh` — Git pull + pip install + restart
 - `deploy/backup.sh` — SQLite + ChromaDB günlük yedekleme
 - `deploy/gunicorn.conf.py` — 1 worker, 4 threads, 120s timeout
-- `deploy/novasphere.service` — systemd unit
+- `deploy/sightline.service` — systemd unit
 - `deploy/nginx.conf` — reverse proxy (SSE support)
 - `deploy/logrotate.conf` — log rotation
 
@@ -59,7 +59,7 @@
 - https://cloud.oracle.com → Sign Up (kart gerekiyor, always free, para çekilmez)
 - Region: **Frankfurt** (veya London)
 - Compute → Instances → Create Instance
-- Name: `novasphere`, Image: Ubuntu 24.04, Shape: Ampere A1 (4 OCPU, 24GB RAM)
+- Name: `sightline`, Image: Ubuntu 24.04, Shape: Ampere A1 (4 OCPU, 24GB RAM)
 - SSH Key oluştur, Boot volume: 50GB
 - Public IP adresini not al
 - Security List ingress rules: Port 22, 80, 443 (source: 0.0.0.0/0)
@@ -69,14 +69,14 @@
 ssh -i /path/to/key ubuntu@YOUR_PUBLIC_IP
 
 sudo apt update && sudo apt install -y git
-git clone -b feature/ui-redesign https://github.com/serkankzlrmk/RedAgent.git /opt/novasphere
-sudo bash /opt/novasphere/deploy/setup.sh
+git clone -b feature/ui-redesign https://github.com/serkankzlrmk/RedAgent.git /opt/sightline
+sudo bash /opt/sightline/deploy/setup.sh
 ```
 
 ### Adım 3: Manuel Ayarlar
 #### 3a. .env Düzenleme
 ```bash
-sudo nano /opt/novasphere/.env
+sudo nano /opt/sightline/.env
 ```
 **Zorunlu değişiklikler:**
 - `OLLAMA_API_KEY=` → Gerçek Ollama Cloud API key
@@ -87,20 +87,20 @@ sudo nano /opt/novasphere/.env
 
 #### 3b. firebase-service-account.json Kopyalama
 ```bash
-scp -i /path/to/key firebase-service-account.json ubuntu@YOUR_PUBLIC_IP:/opt/novasphere/
+scp -i /path/to/key firebase-service-account.json ubuntu@YOUR_PUBLIC_IP:/opt/sightline/
 ```
 
 #### 3c. nginx.conf Public IP Güncelleme
 ```bash
-sudo nano /etc/nginx/sites-available/novasphere
+sudo nano /etc/nginx/sites-available/sightline
 # YOUR_SERVER_IP yerine VM'in public IP adresini yaz
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### Adım 4: Servisi Başlatma
 ```bash
-sudo systemctl start novasphere
-sudo systemctl status novasphere
+sudo systemctl start sightline
+sudo systemctl status sightline
 curl http://localhost:5000/api/health  # 200 döndürmeli
 ```
 
@@ -118,20 +118,20 @@ sudo certbot --nginx -d yourdomain.com
 
 ### Adım 7: Yedekleme Kurulumu
 ```bash
-echo "0 3 * * * /opt/novasphere/deploy/backup.sh" | sudo crontab -
-sudo cp /opt/novasphere/deploy/logrotate.conf /etc/logrotate.d/novasphere
+echo "0 3 * * * /opt/sightline/deploy/backup.sh" | sudo crontab -
+sudo cp /opt/sightline/deploy/logrotate.conf /etc/logrotate.d/sightline
 ```
 
 ### Adım 8: Önemli Komutlar
 ```bash
 # Logları izle
-sudo journalctl -u novasphere -f
+sudo journalctl -u sightline -f
 
 # Hızlı güncelleme
-sudo bash /opt/novasphere/deploy/update.sh
+sudo bash /opt/sightline/deploy/update.sh
 
 # Servisi yeniden başlat
-sudo systemctl restart novasphere
+sudo systemctl restart sightline
 
 # Nginx yeniden yükle
 sudo systemctl reload nginx
@@ -159,20 +159,20 @@ Deploy sonrası:
 
 ## Önemli Dosyalar
 
-- `/opt/novasphere/.env` — production ayarlar
-- `/opt/novasphere/.env.example` — referans template
-- `/opt/novasphere/firebase-service-account.json` — Firebase Admin SDK
-- `/var/log/novasphere/` — uygulama logları
-- `/etc/nginx/sites-available/novasphere` — nginx config
-- `/etc/systemd/system/novasphere.service` — systemd config
-- `/opt/novasphere/deploy/` — tüm deploy script'leri
+- `/opt/sightline/.env` — production ayarlar
+- `/opt/sightline/.env.example` — referans template
+- `/opt/sightline/firebase-service-account.json` — Firebase Admin SDK
+- `/var/log/sightline/` — uygulama logları
+- `/etc/nginx/sites-available/sightline` — nginx config
+- `/etc/systemd/system/sightline.service` — systemd config
+- `/opt/sightline/deploy/` — tüm deploy script'leri
 
 ---
 
 ## İletişim / Yardım
 
 Herhangi bir problemde:
-1. `sudo systemctl status novasphere` ile servis durumunu kontrol et
-2. `sudo journalctl -u novasphere --no-pager -n 50` ile son logları gör
-3. `tail -f /var/log/novasphere/error.log` ile canlı log izle
+1. `sudo systemctl status sightline` ile servis durumunu kontrol et
+2. `sudo journalctl -u sightline --no-pager -n 50` ile son logları gör
+3. `tail -f /var/log/sightline/error.log` ile canlı log izle
 4. Health check: `curl http://localhost:5000/api/health`
