@@ -3098,7 +3098,6 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   flex: 1;
   overflow-y: auto;
   padding: 24px 32px;
-  max-width: 1200px;
 }
 .bulletin-empty-state {
   display: flex;
@@ -3402,7 +3401,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 /* ── Key figures row ─────────────────────────────────────────────────────── */
 .bulletin-kf-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -3436,7 +3435,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 .bulletin-map-placeholder {
   position: relative;
   width: 100%;
-  height: 260px;
+  height: 320px;
   background: linear-gradient(135deg, #0f1d36 0%, #1a2d4d 50%, #0f1d36 100%);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -3497,7 +3496,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 }
 .crisis-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 16px;
 }
 .crisis-card {
