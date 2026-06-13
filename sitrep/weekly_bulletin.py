@@ -612,10 +612,30 @@ def generate_weekly_bulletin(
     # and include data_date_range to show the real data coverage
     bulletin_week_start = actual_date_from if date_fallback else date_from
     bulletin_week_end = actual_date_to if date_fallback else date_to
+
+    def _human_week_label(start_str, end_str):
+        try:
+            from datetime import datetime
+            sd = datetime.strptime(start_str, "%Y-%m-%d")
+            ed = datetime.strptime(end_str, "%Y-%m-%d")
+            month_name = sd.strftime("%B")
+            year = sd.strftime("%Y")
+            month_end = ed.strftime("%B")
+            year_end = ed.strftime("%Y")
+            if month_name == month_end and year == year_end:
+                week_of_month = (sd.day - 1) // 7
+                ordinals = ["First", "Second", "Third", "Fourth", "Fifth"]
+                ordinal = ordinals[min(week_of_month, 4)]
+                return f"{ordinal} week of {month_name} {year}"
+            else:
+                return f"{sd.strftime('%b %-d')} – {ed.strftime('%b %-d, %Y')}"
+        except Exception:
+            return f"{start_str} to {end_str}"
+
     bulletin_week_label = (
-        f"{date_from} to {date_to} (data: {actual_date_from} to {actual_date_to})"
+        f"{_human_week_label(date_from, date_to)} (data: {actual_date_from} to {actual_date_to})"
         if date_fallback
-        else f"{date_from} to {date_to}"
+        else _human_week_label(date_from, date_to)
     )
 
     bulletin = {

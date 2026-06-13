@@ -1769,6 +1769,22 @@ let crisisMapData = {};
 let leafletMap = null;
 let leafletMarkers = [];
 
+function humanizeWeekLabel(label) {
+  if (!label) return label;
+  const isoMatch = label.match(/^(\d{4})-(\d{2})-(\d{2})\s+to\s+(\d{4})-(\d{2})-(\d{2})/);
+  if (!isoMatch) return label;
+  const [_, ys, ms, ds, ye, me, de] = isoMatch.map(Number);
+  const sd = new Date(ys, ms - 1, ds);
+  const ed = new Date(ye, me - 1, de);
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const ordinals = ['First','Second','Third','Fourth','Fifth'];
+  if (sd.getMonth() === ed.getMonth() && sd.getFullYear() === ed.getFullYear()) {
+    const weekOfMonth = Math.floor((ds - 1) / 7);
+    return `${ordinals[Math.min(weekOfMonth, 4)]} week of ${monthNames[sd.getMonth()]} ${sd.getFullYear()}`;
+  }
+  return `${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${ed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+
 async function loadDashboard() {
   if (dashboardLoaded) return;
   dashboardLoaded = true;
@@ -1779,7 +1795,6 @@ async function loadDashboard() {
     const d = await r.json();
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     el('dash-reports', d.report_count != null ? d.report_count.toLocaleString() : '—');
-    el('dash-countries', d.countries != null ? d.countries : '—');
     el('dash-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '—');
   } catch { /* ignore */ }
 
@@ -1788,14 +1803,12 @@ async function loadDashboard() {
     const r = await api('/api/sitrep/bulletins');
     const d = await r.json();
     const bulletins = d.bulletins || d || [];
-    const el = document.getElementById('dash-sitreps');
-    if (el) el.textContent = Array.isArray(bulletins) ? bulletins.length : '—';
 
     // Render weekly overview from latest bulletin
     if (Array.isArray(bulletins) && bulletins.length > 0) {
       const latest = bulletins[0];
       const elDate = document.getElementById('dash-weekly-date');
-      if (elDate) elDate.textContent = latest.week_label || '';
+      if (elDate) elDate.textContent = humanizeWeekLabel(latest.week_label || '');
 
       // Load bulletin detail for overview
       try {
@@ -1812,15 +1825,6 @@ async function loadDashboard() {
         }
       } catch { /* ignore */ }
 
-      // Archive links for older bulletins
-      if (bulletins.length > 1) {
-        const archivesEl = document.getElementById('dash-archives');
-        if (archivesEl) {
-          const count = bulletins.length - 1;
-          archivesEl.innerHTML = `<button class="dash-archives-btn" data-action="go-bulletin-tab">View ${count} previous bulletin${count > 1 ? 's' : ''} →</button>`;
-        }
-      }
-
       const linkBtn = document.getElementById('dash-weekly-link');
       if (linkBtn) {
         linkBtn.style.display = '';
@@ -1833,7 +1837,7 @@ async function loadDashboard() {
         });
       }
     } else {
-      document.getElementById('dash-overview-grid').innerHTML = '<div class="dash-bulletin-empty">No bulletins available yet.</div>';
+      document.getElementById('dash-overview-stats').innerHTML = '<div class="dash-weekly-loading">No bulletins available yet.</div>';
     }
   } catch { /* ignore */ }
 
@@ -2186,9 +2190,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'go-bulletin':
         switchTab('bulletin');
         break;
-      case 'go-bulletin-tab':
-        switchTab('bulletin');
-        break;
       case 'dash-view-crisis':
         const crisisCountry = target.dataset.country;
         if (crisisCountry) {
@@ -2327,7 +2328,7 @@ async function loadBulletinList() {
       const fallbackTag = b.data_date_range?.fallback
         ? ' <span style="color:#f59e0b;font-size:10px">⚠</span>'
         : '';
-      return `<button class="bulletin-tab-pill${i === 0 ? ' active' : ''}" data-action="open-bulletin" data-filename="${esc(b.filename)}">${esc(b.week_label)}${fallbackTag}</button>`;
+      return `<button class="bulletin-tab-pill${i === 0 ? ' active' : ''}" data-action="open-bulletin" data-filename="${esc(b.filename)}">${esc(humanizeWeekLabel(b.week_label))}${fallbackTag}</button>`;
     }).join('');
     // Auto-select first bulletin
     const firstBtn = container.querySelector('.bulletin-tab-pill.active');
@@ -2479,7 +2480,7 @@ function renderBulletin(b, container) {
     <div class="bulletin-header">
       <div class="bulletin-title-row">
         <h2 class="bulletin-title">📰 Weekly Humanitarian Bulletin</h2>
-        <span class="bulletin-date">${b.week_label}</span>
+        <span class="bulletin-date">${humanizeWeekLabel(b.week_label)}</span>
       </div>
       ${fallbackNotice}
       <div class="bulletin-kf-row">${keyFigures}</div>
