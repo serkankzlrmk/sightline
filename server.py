@@ -974,7 +974,7 @@ def api_agent_chat():
                 # Create a temporary agent with the selected model
                 from langchain_openai import ChatOpenAI
                 from agent.relief_agent import all_tools, _build_system_prompt
-                from langgraph.graph import StateGraph
+                from langgraph.graph import StateGraph, START
                 from langgraph.graph.message import MessagesState
                 from langgraph.prebuilt import ToolNode
 

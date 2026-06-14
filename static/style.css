@@ -957,7 +957,7 @@ body.sidebar-collapsed .main {
   justify-content: center;
 }
 .chat-main.welcome-mode .chat-topbar {
-  display: flex;
+  display: none;
 }
 .chat-main.welcome-mode .chat-scroll {
   flex: 0 1 auto;
@@ -996,8 +996,11 @@ body.sidebar-collapsed .main {
   padding: 0 20px 20px;
   background: transparent;
 }
-.chat-main.welcome-mode .chat-input-wrap {
+.chat-main.welcome-mode .chat-input-row {
   max-width: 640px;
+  animation: none;
+}
+.chat-main.welcome-mode .chat-input-wrap {
   animation: breathe 4s ease-in-out infinite;
 }
 @keyframes breathe {
@@ -1054,31 +1057,32 @@ body.sidebar-collapsed .main {
   letter-spacing: -.1px;
 }
 
-/* ── Model selector ── */
+/* ── Model selector (inside chat input bar) ── */
 .model-selector {
   position: relative;
-  margin-left: auto;
+  flex-shrink: 0;
 }
 .model-selector-btn {
-  display: flex; align-items: center; gap: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: 5px 12px;
+  display: flex; align-items: center; gap: 3px;
+  background: none;
+  border: none;
+  padding: 6px 8px;
   font-size: 12px; font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
 }
-.model-selector-btn:hover { background: var(--blue-light); color: var(--blue); border-color: rgba(0,122,255,.3); }
+.model-selector-btn:hover { background: rgba(0,122,255,.08); color: var(--blue); }
 .model-selector-label { font-size: 12px; }
 .model-menu {
-  position: absolute; top: calc(100% + 6px); right: 0;
+  position: absolute; bottom: calc(100% + 8px); right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
-  min-width: 180px;
+  min-width: 200px;
   z-index: 100;
   display: none;
   overflow: hidden;
@@ -3771,3 +3775,10 @@ body.auth-locked .mobile-tab-bar { display: none !important; }
 .no-nowrap { white-space: nowrap; }
 .bulletin-gen-inline { margin-left: 8px; }
 .severity-warn-icon { color: #f59e0b; font-size: 10px; }
+
+/* ── Mobile: model selector ── */
+@media (max-width: 768px) {
+  .model-selector-btn { padding: 6px 8px; }
+  .model-selector-label { display: none; }
+  .model-menu { min-width: 160px; left: -8px; }
+}
