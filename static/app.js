@@ -1193,10 +1193,16 @@ function buildNarrativeToc(html) {
   const headings = [];
   let match;
   while ((match = headingRegex.exec(html)) !== null) {
-    headings.push({ level: parseInt(match[1]), id: match[2], text: match[3].replace(/<[^>]+>/g, '').trim() });
+    const raw = match[3].replace(/<[^>]+>/g, '').trim();
+    const text = raw.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+    headings.push({ level: parseInt(match[1]), id: match[2], text });
   }
   if (headings.length < 2) return '';
-  return headings.map(h => `<a href="#${esc(h.id)}" class="level-h${h.level}" onclick="event.preventDefault();document.getElementById('${esc(h.id)}')?.scrollIntoView({behavior:'smooth',block:'start'})">${escHtml(h.text.substring(0, 60))}${h.text.length > 60 ? '…' : ''}</a>`).join('\n');
+  return headings.map(h => {
+    const txt = h.text.substring(0, 60);
+    const ellipsis = h.text.length > 60 ? '…' : '';
+    return `<a href="#${esc(h.id)}" class="level-h${h.level}" onclick="event.preventDefault();document.getElementById('${esc(h.id)}')?.scrollIntoView({behavior:'smooth',block:'start'})">${esc(txt)}${ellipsis}</a>`;
+  }).join('\n');
 }
 
 function buildNarrativeSourcesList(narrativeSources) {
