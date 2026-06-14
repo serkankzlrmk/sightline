@@ -2077,7 +2077,7 @@ function openCrisisPanel(crisis) {
   }
 
   if (crisis.has_sitrep) {
-    html += `<button class="crisis-sitrep-btn" data-country="${esc(crisis.country)}">View SITREP →</button>`;
+    html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(crisis.country)}">View SITREP →</button>`;
   }
 
   bodyEl.innerHTML = html;
@@ -2468,14 +2468,12 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'dash-view-crisis':
         const crisisCountry = target.dataset.country;
         if (crisisCountry) {
-          const crisis = crisisMapData[crisisCountry];
-          if (crisis && crisis.has_sitrep) {
-            switchTab('sitrep');
-            setTimeout(() => {
-              const sel = document.getElementById('inp-country');
-              if (sel) sel.value = crisisCountry;
-             }, 100);
-          }
+          closeCrisisPanel();
+          switchTab('sitrep');
+          setTimeout(() => {
+            const sel = document.getElementById('inp-country');
+            if (sel) sel.value = crisisCountry;
+          }, 100);
         }
         break;
       case 'switch-report-view':
