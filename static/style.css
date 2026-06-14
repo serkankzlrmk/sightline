@@ -1406,6 +1406,36 @@ body.auth-locked .auth-card   { pointer-events: auto; }
   margin-bottom: 4px;
 }
 
+/* ── App Footer ── */
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  letter-spacing: -.01em;
+}
+.app-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.app-footer a:hover {
+  color: var(--blue);
+}
+body.auth-locked .app-footer {
+  display: none;
+}
+
 .auth-copyright {
   position: absolute; bottom: 16px; left: 0; right: 0;
   font-size: 11px; color: var(--text-tertiary);
