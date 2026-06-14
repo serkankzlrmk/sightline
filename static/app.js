@@ -302,6 +302,12 @@ function toggleChatSidebar() {
 }
 
 function sendQuickPrompt(text) {
+  const rl = window.__rateLimit;
+  const role = window.__userRole || 'free';
+  if (rl && rl.remaining <= 0 && role !== 'admin') {
+    toast('Daily message limit reached. Upgrade to Premium for unlimited access.', 'warning');
+    return;
+  }
   chatInput.value = text;
   sendMessage();
 }
@@ -719,10 +725,13 @@ async function loadRecentReports() {
       const date = rep.date || '—';
       const country = rep.primary_country || '—';
       const title = rep.title || 'Untitled';
-      return `<div class="db-recent-item" data-report-id="${rep.report_id}">
+      const url = rep.url || '';
+      const urlAttr = url ? `data-url="${escHtml(url)}"` : '';
+      return `<div class="db-recent-item" data-report-id="${rep.report_id}" ${urlAttr} data-action="view-recent-report" style="cursor:pointer">
         <span class="db-recent-date">${escHtml(date)}</span>
         <span class="db-recent-country">${escHtml(country)}</span>
         <span class="db-recent-title">${escHtml(title)}</span>
+        <svg class="db-recent-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
       </div>`;
     }).join('');
   } catch {
@@ -2478,6 +2487,10 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'switch-report-view':
         switchReportView(target.dataset.mode);
+        break;
+      case 'view-recent-report':
+        const rid = parseInt(target.dataset.reportId, 10);
+        if (rid) openDbReport(rid);
         break;
       case 'toggle-card':
         toggleCard(target);
