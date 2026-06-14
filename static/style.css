@@ -1010,8 +1010,8 @@ body.sidebar-collapsed .main {
   }
 }
 @keyframes slideDownReturn {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Chat mode — messages flow normally ── */
@@ -1062,7 +1062,7 @@ body.sidebar-collapsed .main {
   display: flex; align-items: center; gap: 3px;
   background: none;
   border: none;
-  padding: 6px 8px;
+  padding: 4px 6px;
   font-size: 12px; font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
@@ -1633,7 +1633,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 }
 .chat-input-wrap {
   max-width: 780px; width: calc(100% - 48px);
-  display: flex; align-items: flex-end; gap: 0;
+  display: flex; align-items: center; gap: 4px;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 22px;
