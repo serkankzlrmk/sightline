@@ -1956,18 +1956,14 @@ function updateMapMarkers() {
     const icon = L.divIcon({
       className: 'crisis-marker',
       html: `<div class="crisis-marker-dot ${sevClass}"></div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
     });
 
-    const themes = (c.themes || []).slice(0, 3).join(', ');
     const popupContent = `
       <div class="dash-popup-card">
-        <div class="dash-popup-severity" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[c.severity] || ''}</div>
         <div class="dash-popup-country">${esc(c.country)}</div>
-        <div class="dash-popup-headline">${esc(c.headline || '')}</div>
-        <div class="dash-popup-summary">${esc((c.summary || '').substring(0, 180))}${c.summary && c.summary.length > 180 ? '…' : ''}</div>
-        <div class="dash-popup-meta">${c.report_count || 0} reports${themes ? ' · ' + esc(themes) : ''}</div>
+        <div class="dash-popup-severity" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[c.severity] || ''}</div>
         ${c.has_sitrep ? `<button class="dash-popup-action" onclick="viewCrisisSitrep('${esc(c.country)}')">View SITREP →</button>` : ''}
       </div>
     `;
