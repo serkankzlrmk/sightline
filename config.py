@@ -107,6 +107,16 @@ HDX_RATE_LIMIT_REQUESTS: int = int(os.getenv("HDX_RATE_LIMIT_REQUESTS", "10"))
 HDX_RATE_LIMIT_PERIOD: float = float(os.getenv("HDX_RATE_LIMIT_PERIOD", "60.0"))
 
 # ============================================================================
+# NEWS API (NewsAPI.org) — world news data
+# ============================================================================
+NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
+NEWS_BASE_URL: str = os.getenv("NEWS_BASE_URL", "https://newsapi.org/v2")
+NEWS_TIMEOUT: float = float(os.getenv("NEWS_TIMEOUT", "15.0"))
+NEWS_RATE_LIMIT_REQUESTS: int = int(os.getenv("NEWS_RATE_LIMIT_REQUESTS", "80"))
+NEWS_RATE_LIMIT_PERIOD: float = float(os.getenv("NEWS_RATE_LIMIT_PERIOD", "86400.0"))
+NEWS_CACHE_TTL: int = int(os.getenv("NEWS_CACHE_TTL", "3600"))
+
+# ============================================================================
 # LLM PROVIDER
 # ============================================================================
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openrouter")

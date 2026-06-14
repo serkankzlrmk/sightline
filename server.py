@@ -56,6 +56,10 @@ from auth import require_auth, require_admin, require_role, current_uid, current
 from reliefweb_api.hdx_tools import init_hdx_tools, get_hdx_client
 from config import HDX_APP_IDENTIFIER, HDX_BASE_URL, HDX_TIMEOUT, HDX_RATE_LIMIT_REQUESTS, HDX_RATE_LIMIT_PERIOD
 
+# ── News Client (NewsAPI.org — World News) ──────────────────────────────────
+from reliefweb_api.news_tools import init_news_tools, get_news_client
+from config import NEWS_API_KEY, NEWS_BASE_URL, NEWS_TIMEOUT, NEWS_RATE_LIMIT_REQUESTS, NEWS_RATE_LIMIT_PERIOD
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -87,6 +91,19 @@ if _hdx_ok:
     logger.info("✓ HDX client initialized — /api/hdx/* endpoints available")
 else:
     logger.warning("HDX client not initialized (HDX_APP_IDENTIFIER not set). HDX endpoints will return 503.")
+
+# ── Initialize News client ────────────────────────────────────────────────────
+_news_ok = init_news_tools(
+    api_key=NEWS_API_KEY,
+    base_url=NEWS_BASE_URL,
+    timeout=NEWS_TIMEOUT,
+    rate_limit_requests=NEWS_RATE_LIMIT_REQUESTS,
+    rate_limit_period=NEWS_RATE_LIMIT_PERIOD,
+)
+if _news_ok:
+    logger.info("✓ News client initialized — /api/news/* endpoints available")
+else:
+    logger.warning("News client not initialized (NEWS_API_KEY not set). News endpoints will return 503.")
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
@@ -797,6 +814,10 @@ def health():
     # HDX check
     hdx = get_hdx_client()
     checks["hdx"] = hdx is not None
+
+    # News check
+    news = get_news_client()
+    checks["news"] = news is not None
 
     # Release info (if available — written by deploy.sh)
     release_info_path = Path(__file__).parent / "RELEASE_INFO"
@@ -1766,6 +1787,126 @@ def api_hdx_cache_clear():
     if not hdx:
         return jsonify({"error": "HDX client not configured"}), 503
     hdx.cache.clear()
+    return jsonify({"status": "cache_cleared"})
+
+
+# =============================================================================
+# ROUTES — News API (NewsAPI.org — World News)
+# =============================================================================
+
+@app.route("/api/news/health")
+def api_news_health():
+    """News API connectivity check. No auth required."""
+    news = get_news_client()
+    if not news:
+        return jsonify({
+            "status": "not_configured",
+            "message": "NEWS_API_KEY not set. Set it in .env to enable news data.",
+        }), 503
+    return jsonify({
+        "status": "ok",
+        "base_url": news.base_url,
+        "cache_stats": news.cache.stats(),
+    })
+
+
+@app.route("/api/news/search")
+@require_auth
+def api_news_search():
+    """Search news articles by keyword, country, language, and date range.
+    Query params: q, country, language, from, to, sort_by, page_size
+    """
+    news = get_news_client()
+    if not news:
+        return jsonify({"error": "News client not configured"}), 503
+
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"error": "Missing required parameter: q"}), 400
+
+    country = request.args.get("country")
+    language = request.args.get("language")
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
+    sort_by = request.args.get("sort_by", "relevancy")
+    page_size = request.args.get("page_size", 10, type=int)
+
+    result = news.search_everything_sync(
+        query=query,
+        country=country,
+        language=language,
+        from_date=from_date,
+        to_date=to_date,
+        sort_by=sort_by,
+        page_size=min(page_size, 50),
+    )
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/news/headlines")
+@require_auth
+def api_news_headlines():
+    """Get top/breaking headlines by country and category.
+    Query params: country, category, language, page_size
+    """
+    news = get_news_client()
+    if not news:
+        return jsonify({"error": "News client not configured"}), 503
+
+    country = request.args.get("country")
+    category = request.args.get("category")
+    language = request.args.get("language")
+    page_size = request.args.get("page_size", 10, type=int)
+
+    result = news.get_top_headlines_sync(
+        country=country,
+        category=category,
+        language=language,
+        page_size=min(page_size, 50),
+    )
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/news/sources")
+@require_auth
+def api_news_sources():
+    """List available news sources by category, language, country.
+    Query params: category, language, country
+    """
+    news = get_news_client()
+    if not news:
+        return jsonify({"error": "News client not configured"}), 503
+
+    category = request.args.get("category")
+    language = request.args.get("language")
+    country = request.args.get("country")
+
+    result = news.get_sources_sync(
+        category=category,
+        language=language,
+        country=country,
+    )
+    return jsonify(result.to_dict())
+
+
+@app.route("/api/news/cache/stats")
+@require_admin
+def api_news_cache_stats():
+    """Get News cache statistics (admin only)."""
+    news = get_news_client()
+    if not news:
+        return jsonify({"error": "News client not configured"}), 503
+    return jsonify(news.cache.stats())
+
+
+@app.route("/api/news/cache/clear", methods=["POST"])
+@require_admin
+def api_news_cache_clear():
+    """Clear News cache (admin only)."""
+    news = get_news_client()
+    if not news:
+        return jsonify({"error": "News client not configured"}), 503
+    news.cache.clear()
     return jsonify({"status": "cache_cleared"})
 
 

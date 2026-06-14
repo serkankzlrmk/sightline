@@ -73,6 +73,9 @@ from reliefweb_api import (
 # HDX tools — humanitarian data from HDX (Humanitarian Data Exchange)
 from reliefweb_api.hdx_tools import HDX_TOOLS, init_hdx_tools, get_hdx_client
 
+# News tools — world news data from NewsAPI.org
+from reliefweb_api.news_tools import NEWS_TOOLS, init_news_tools, get_news_client
+
 # ============================================================================
 # MODEL INITIALIZATION
 # ============================================================================
@@ -91,18 +94,39 @@ _hdx_initialized = init_hdx_tools(
     rate_limit_requests=config.HDX_RATE_LIMIT_REQUESTS,
     rate_limit_period=config.HDX_RATE_LIMIT_PERIOD,
 )
+_news_initialized = init_news_tools(
+    api_key=config.NEWS_API_KEY,
+    base_url=config.NEWS_BASE_URL,
+    timeout=config.NEWS_TIMEOUT,
+    rate_limit_requests=config.NEWS_RATE_LIMIT_REQUESTS,
+    rate_limit_period=config.NEWS_RATE_LIMIT_PERIOD,
+)
+
+_tool_groups = [mcp_langchain_tools]
+_tool_labels = [f"{len(mcp_langchain_tools)} ReliefWeb"]
+
 if _hdx_initialized:
     logger.info("✓ HDX client initialized — humanitarian data tools available")
-    # Add HDX tools to the agent's tool list
-    all_tools = mcp_langchain_tools + HDX_TOOLS
+    _tool_groups.append(HDX_TOOLS)
+    _tool_labels.append(f"{len(HDX_TOOLS)} HDX")
 else:
     logger.warning("HDX client not initialized (HDX_APP_IDENTIFIER not set). HDX tools will return errors.")
-    all_tools = mcp_langchain_tools
+
+if _news_initialized:
+    logger.info("✓ News client initialized — world news tools available")
+    _tool_groups.append(NEWS_TOOLS)
+    _tool_labels.append(f"{len(NEWS_TOOLS)} News")
+else:
+    logger.warning("News client not initialized (NEWS_API_KEY not set). News tools will return errors.")
+
+all_tools = []
+for group in _tool_groups:
+    all_tools.extend(group)
 
 tools_by_name = {t.name: t for t in all_tools}
 try:
     model_with_tools = model.bind_tools(all_tools)
-    logger.info(f"✓ Model tools bound successfully ({len(all_tools)} tools: {len(mcp_langchain_tools)} ReliefWeb + {len(HDX_TOOLS) if _hdx_initialized else 0} HDX)")
+    logger.info(f"✓ Model tools bound successfully ({len(all_tools)} tools: {' + '.join(_tool_labels)})")
 except Exception as e:
     logger.critical(f"Failed to bind tools to model: {e}")
     sys.exit(1)
@@ -273,6 +297,35 @@ When HDX tools are available, use them for **quantitative humanitarian data**:
 **Country codes:** Use ISO 3166-1 alpha-3 codes (SYR, TUR, AFG, UKR, YEM, SDN, ETH, etc.)
 **Always verify data availability first** with hdx_get_data_availability if unsure whether HDX has data for a country.
 
+## NEWS TOOL USAGE (World News via NewsAPI.org)
+
+When News tools are available, use them for **current news and media coverage**:
+
+- **news_search(query, country, language, from_date, to_date, sort_by, limit)** — Search news articles by keyword.
+  Best for: "latest news about Sudan conflict", "recent earthquake Turkey news", "media coverage of refugee crisis"
+  - query: Free-text keyword search (e.g., "humanitarian crisis Sudan", "earthquake Turkey")
+  - country: ISO 3166-1 alpha-2 OR alpha-3 code ('sy', 'SYR', 'tr', 'TUR' all work)
+  - language: ISO 639-1 code ('en', 'ar', 'fr', 'es', 'tr')
+  - from_date/to_date: YYYY-MM-DD format for date range filtering
+  - sort_by: 'relevancy' (default), 'popularity', 'publishedAt'
+- **news_headlines(country, category, language, limit)** — Get top/breaking headlines for a country.
+  Best for: "what's happening in Syria right now", "latest crisis headlines from Ukraine"
+  - category: 'general', 'business', 'health', 'science', 'sports', 'technology'
+- **news_sources(category, language, country)** — List available news sources.
+  Best for: "what English news sources cover Afghanistan", "health news sources"
+
+**News vs HDX vs ReliefWeb — when to use which:**
+- **News** → **Current events** (latest headlines, breaking news, media coverage, public perception)
+- **HDX** → **Quantitative data** (refugee counts, IDP numbers, funding figures, conflict statistics)
+- **ReliefWeb** → **Qualitative reports** (situation reports, analysis, assessments, field updates)
+
+**When to combine all three:**
+- "What's the latest on Sudan crisis?" → news_headlines(country="sd") + hdx_get_country_overview("SDN") + search_sitreps(country="Sudan")
+- "How many refugees are in Ukraine and what's the media saying?" → hdx_get_refugees("UKR") + news_search("refugee crisis Ukraine", country="ua") + search_sitreps(country="Ukraine")
+
+**News article content is truncated to ~200 chars.** For full articles, use the URL provided in results.
+**Country codes for News:** Use alpha-2 ('sy', 'tr') or alpha-3 ('SYR', 'TUR') — both are automatically converted.
+
 ## RESPONSE FORMAT
 - Be concise and factual
 - List reports as numbered items with title, date, source, ID
@@ -282,7 +335,7 @@ When HDX tools are available, use them for **quantitative humanitarian data**:
 
 ## CITATION RULES (MANDATORY — NEVER SKIP)
 
-When answering questions using data from reports or the knowledge base, you MUST:
+When answering questions using data from reports, knowledge base, or news sources, you MUST:
 
 1. **Embed clickable markdown links directly inline** in the body text right after the claim, using the report title as the link text.
 2. **Do NOT use numbered citations** like [1], [2], [3]. Instead, embed the source link directly where the claim is made.
