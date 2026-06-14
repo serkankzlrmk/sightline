@@ -229,6 +229,14 @@
       <!-- Full-width World Map (Leaflet) — hero section -->
       <div class="dash-map-wrap" id="dash-map-wrap">
         <div id="world-map" class="dash-world-map"></div>
+        <!-- Crisis Detail Panel (slides in from right) -->
+        <div id="dash-crisis-panel" class="dash-crisis-panel">
+          <div class="dash-crisis-panel-header">
+            <h3 id="dash-crisis-panel-country" class="dash-crisis-panel-country"></h3>
+            <button id="dash-crisis-panel-close" class="dash-crisis-panel-close" aria-label="Close">&times;</button>
+          </div>
+          <div id="dash-crisis-panel-body" class="dash-crisis-panel-body"></div>
+        </div>
         <!-- Data Sources overlay on map -->
         <div class="dash-map-overlay">
           <span class="dash-source active">

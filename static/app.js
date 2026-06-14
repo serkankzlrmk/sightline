@@ -1936,12 +1936,13 @@ function initWorldMap() {
 function updateMapMarkers() {
   if (!leafletMap || typeof L === 'undefined') return;
 
-  // Remove existing markers
   leafletMarkers.forEach(m => leafletMap.removeLayer(m));
   leafletMarkers = [];
 
   const crises = Object.values(crisisMapData);
   if (!crises.length) return;
+
+  const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
 
   crises.forEach(c => {
     const lat = c.coords?.lat;
@@ -1949,8 +1950,6 @@ function updateMapMarkers() {
     if (!lat || !lng) return;
 
     const sevClass = (c.severity === 'high') ? 'severity-high' : (c.severity === 'medium') ? 'severity-medium' : 'severity-low';
-    const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
-    const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
     const color = sevColors[c.severity] || '#007AFF';
 
     const icon = L.divIcon({
@@ -1960,34 +1959,100 @@ function updateMapMarkers() {
       iconAnchor: [8, 8],
     });
 
-    const popupContent = `
-      <div class="dash-popup-card">
-        <div class="dash-popup-country">${esc(c.country)}</div>
-        <div class="dash-popup-severity" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[c.severity] || ''}</div>
-        ${c.has_sitrep ? `<button class="dash-popup-action" onclick="viewCrisisSitrep('${esc(c.country)}')">View SITREP →</button>` : ''}
-      </div>
-    `;
-
     const marker = L.marker([lat, lng], { icon })
       .addTo(leafletMap)
-      .bindPopup(popupContent, {
-        maxWidth: 280,
-        closeButton: true,
-        className: 'crisis-popup',
-      });
+      .on('click', () => openCrisisPanel(c));
 
     leafletMarkers.push(marker);
   });
 
-  // Fit map to show all markers
   if (leafletMarkers.length > 0) {
     const group = L.featureGroup(leafletMarkers);
     leafletMap.fitBounds(group.getBounds().pad(0.3));
   }
 }
 
+function openCrisisPanel(crisis) {
+  const panel = document.getElementById('dash-crisis-panel');
+  const mapEl = document.getElementById('world-map');
+  const countryEl = document.getElementById('dash-crisis-panel-country');
+  const bodyEl = document.getElementById('dash-crisis-panel-body');
+  if (!panel || !countryEl || !bodyEl) return;
+
+  const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+  const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+  const color = sevColors[crisis.severity] || '#007AFF';
+
+  countryEl.textContent = crisis.country || '';
+
+  let html = '';
+
+  html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[crisis.severity] || ''}</span>`;
+
+  if (crisis.headline) {
+    html += `<div class="crisis-headline">${esc(crisis.headline)}</div>`;
+  }
+
+  if (crisis.summary) {
+    html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
+  }
+
+  html += `<div class="crisis-meta">`;
+  if (crisis.report_count) {
+    html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
+  }
+  if (crisis.sources && crisis.sources.length) {
+    html += `<span class="crisis-meta-item"><strong>${crisis.sources.length}</strong> sources</span>`;
+  }
+  html += `</div>`;
+
+  if (crisis.themes && crisis.themes.length) {
+    html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+  }
+
+  if (crisis.hdx_key_figures && crisis.hdx_key_figures.length) {
+    html += `<div class="crisis-hdx-section">`;
+    html += `<div class="crisis-hdx-title">HDX Key Figures</div>`;
+    crisis.hdx_key_figures.forEach(f => {
+      html += `<div class="crisis-hdx-figure"><span class="crisis-hdx-label">${esc(f.label || '')}</span><span class="crisis-hdx-value">${esc(f.value || '')}</span></div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (crisis.has_sitrep) {
+    html += `<button class="crisis-sitrep-btn" data-country="${esc(crisis.country)}">View SITREP →</button>`;
+  }
+
+  bodyEl.innerHTML = html;
+
+  const sitrepBtn = bodyEl.querySelector('.crisis-sitrep-btn');
+  if (sitrepBtn) {
+    sitrepBtn.addEventListener('click', () => {
+      closeCrisisPanel();
+      viewCrisisSitrep(sitrepBtn.dataset.country);
+    });
+  }
+
+  panel.classList.add('open');
+  if (mapEl) mapEl.classList.add('panel-open');
+
+  if (leafletMap) {
+    setTimeout(() => { leafletMap.invalidateSize(); }, 400);
+  }
+}
+
+function closeCrisisPanel() {
+  const panel = document.getElementById('dash-crisis-panel');
+  const mapEl = document.getElementById('world-map');
+  if (panel) panel.classList.remove('open');
+  if (mapEl) mapEl.classList.remove('panel-open');
+  if (leafletMap) {
+    setTimeout(() => { leafletMap.invalidateSize(); }, 400);
+  }
+}
+
 function viewCrisisSitrep(country) {
-  leafletMap.closePopup();
+  closeCrisisPanel();
   switchTab('sitrep');
    setTimeout(() => {
      const sel = document.getElementById('inp-country');
@@ -2000,6 +2065,10 @@ function renderDashCrises() { /* deprecated — overview renders inline */ }
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Crisis panel close button
+  const crisisPanelClose = document.getElementById('dash-crisis-panel-close');
+  if (crisisPanelClose) crisisPanelClose.addEventListener('click', closeCrisisPanel);
+
   // Agent DOM refs
   chatInput = document.getElementById('chat-input');
   sendBtn   = document.getElementById('send-btn');
