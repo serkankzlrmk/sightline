@@ -2134,13 +2134,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!legalModal || !legalTitle || !legalBody) return;
     legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
     legalBody.innerHTML = legalContent[type] || '';
-    legalModal.classList.add('active');
+    legalModal.classList.add('open');
   }
 
   if (termsLink) termsLink.addEventListener('click', (e) => { e.preventDefault(); showLegal('terms'); });
   if (privacyLink) privacyLink.addEventListener('click', (e) => { e.preventDefault(); showLegal('privacy'); });
-  if (legalClose) legalClose.addEventListener('click', () => { legalModal.classList.remove('active'); });
-  if (legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) legalModal.classList.remove('active'); });
+  if (legalClose) legalClose.addEventListener('click', () => { legalModal.classList.remove('open'); });
+  if (legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) legalModal.classList.remove('open'); });
 
   // Crisis panel close button
   const crisisPanelClose = document.getElementById('dash-crisis-panel-close');
