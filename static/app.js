@@ -990,11 +990,9 @@ async function loadSitrepReportsList() {
       div.dataset.file = item.filename;
 
       const name    = item.filename.replace(/_report\.json$/, '').replace(/_/g, ' ');
-      const parts   = name.split(' ');
-      const country = parts[0];
-      const evt     = parts.slice(1).join(' ');
+      const country = name.split(' ')[0];
 
-      div.innerHTML = `<span>${escHtml(country)}</span>${evt ? `<span style="font-size:10px;color:var(--text-muted);margin-left:4px">${escHtml(evt)}</span>` : ''}`;
+      div.innerHTML = `<span>${escHtml(country)}</span>`;
       div.addEventListener('click', () => openSitrepReport(item.filename, div));
       list.appendChild(div);
     });
@@ -2454,13 +2452,7 @@ function renderBulletin(b, container) {
         <div class="crisis-card-country">${c.country}</div>
         ${severityBadge(c.severity)}
       </div>
-      <div class="crisis-card-headline">${c.headline}</div>
-      <div class="crisis-card-summary">${c.summary}</div>
       ${hdxFigures ? `<div class="hdx-kf-row">${hdxFigures}</div>` : ''}
-      <div class="crisis-card-meta">
-        <span>${c.report_count} reports</span>
-        ${(c.themes || []).slice(0, 3).map(t => `<span class="crisis-theme-tag">${t}</span>`).join('')}
-      </div>
       ${c.has_sitrep ? `<button class="crisis-sitrep-btn" data-action="view-bulletin-sitrep" data-country="${escHtml(c.country)}">View SITREP →</button>` : ''}
     </div>
   `;}).join('');
@@ -2476,8 +2468,7 @@ function renderBulletin(b, container) {
   container.innerHTML = `
     <div class="bulletin-header">
       <div class="bulletin-title-row">
-        <h2 class="bulletin-title">📰 Weekly Humanitarian Bulletin</h2>
-        <span class="bulletin-date">${humanizeWeekLabel(b.week_label)}</span>
+        <h2 class="bulletin-title">${humanizeWeekLabel(b.week_label)}</h2>
       </div>
       ${fallbackNotice}
       <div class="bulletin-kf-row">${keyFigures}</div>
