@@ -236,6 +236,11 @@ function updateVisibility() {
   // Admin tab: admin only
   const adminTab = document.getElementById("tab-admin");
   if (adminTab) adminTab.style.display = isAdmin ? "" : "none";
+
+  // Bulletin generate button: admin only
+  document.querySelectorAll(".admin-only").forEach(el => {
+    el.style.display = isAdmin ? "" : "none";
+  });
 }
 
 // ═══════════════════════════════════════════════════════════

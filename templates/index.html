@@ -142,14 +142,7 @@
   <div class="sidebar-nav-head">
     <img class="sidebar-logo" src="/static/logo.png" alt="Sightline">
     <span class="sidebar-brand">Sightline</span>
-    <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Toggle sidebar">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
   </div>
-  <!-- Expand handle — visible when sidebar is collapsed -->
-  <button class="sidebar-expand-handle" id="sidebar-expand-handle" title="Expand sidebar">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-  </button>
 
   <div class="sidebar-nav-tabs">
     <button class="sidebar-tab active" id="tab-home" data-tab="home">
@@ -225,12 +218,12 @@
               Bulletin
             </button>
           </div>
-        </div>
-        <div class="dash-topbar-stats">
-          <div class="dash-stat-pill"><span class="dash-stat-num" id="dash-reports">—</span> Reports</div>
-          <div class="dash-stat-pill"><span class="dash-stat-num" id="dash-chunks">—</span> Chunks</div>
-        </div>
-      </div>
+         </div>
+         <div class="dash-topbar-brand">
+           <img class="dash-topbar-logo" src="/static/logo.png" alt="Sightline">
+           <span class="dash-topbar-brand-name">Sightline</span>
+         </div>
+       </div>
 
       <!-- Full-width World Map (Leaflet) — hero section -->
       <div class="dash-map-wrap" id="dash-map-wrap">
@@ -263,12 +256,12 @@
         </div>
       </div>
 
-      <!-- Weekly Overview -->
-      <div class="dash-section dash-weekly-section">
-        <div class="dash-section-head">
-          <h2 class="dash-section-title" id="dash-weekly-title">Weekly Overview</h2>
-          <span class="dash-section-date" id="dash-weekly-date"></span>
-        </div>
+       <!-- Weekly Overview -->
+       <div class="dash-section dash-weekly-section">
+         <div class="dash-section-head">
+           <h2 class="dash-section-title">Weekly Overview</h2>
+           <span class="dash-section-date" id="dash-weekly-date"></span>
+         </div>
         <div class="dash-overview-stats" id="dash-overview-stats"></div>
         <div class="dash-weekly-text" id="dash-weekly-text">
           <p class="dash-weekly-loading">Loading overview…</p>
@@ -334,12 +327,6 @@
     <!-- Sidebar overlay (Gemini-style slide drawer) -->
     <div class="chat-sidebar-overlay" id="chat-sidebar-overlay"></div>
     <aside class="chat-sidebar" id="chat-sidebar">
-      <div class="chat-sidebar-head">
-        <button class="sidebar-close-btn" id="chat-sidebar-close-btn" title="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-        <span class="sidebar-head-title">Chats</span>
-      </div>
       <button class="chat-new-btn" id="chat-new-btn">+ New Chat</button>
       <div class="chat-list" id="chat-list"></div>
     </aside>
@@ -455,7 +442,7 @@
     <div class="bulletin-page">
       <div class="bulletin-page-head">
         <h2 class="bulletin-page-title">Weekly Bulletins</h2>
-        <button class="bulletin-gen-btn" data-action="generate-bulletin">+ Generate</button>
+        <button class="bulletin-gen-btn admin-only" data-action="generate-bulletin" style="display:none">+ Generate</button>
       </div>
       <div class="bulletin-tabs" id="bulletin-tabs">
         <div class="bulletin-tab-loading">Loading…</div>

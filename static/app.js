@@ -148,7 +148,18 @@ function md(text) {
 // ── Tab switching ────────────────────────────────────────────────────────────
 function toggleSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
-  if (nav) nav.classList.toggle('collapsed');
+  const main = document.querySelector('.main');
+  if (nav) {
+    const wasCollapsed = nav.classList.contains('collapsed');
+    nav.classList.toggle('collapsed');
+    if (nav.classList.contains('collapsed')) {
+      document.body.classList.add('sidebar-collapsed');
+      if (main) main.style.marginLeft = '72px';
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+      if (main) main.style.marginLeft = '';
+    }
+  }
 }
 
 function switchTab(name) {
@@ -214,7 +225,7 @@ const QUICK_PROMPTS = [
   { label: "Convert to MD", text: "Convert report 12345 to markdown format", cat: "analysis" },
 ];
 
-const WELCOME_HTML = `<div class="chat-center">
+const WELCOME_FULL_HTML = `<div class="chat-center">
   <div class="msg assistant">
     <div class="msg-label">Sightline</div>
     <div class="msg-body">
@@ -242,7 +253,69 @@ const WELCOME_HTML = `<div class="chat-center">
     <div class="quick-prompts-title">Try asking:</div>
     ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" data-action="quick-prompt" data-text="${esc(p.text.replace(/"/g, '&quot;'))}">${p.label}</button>`).join('')}
   </div>
+  <button class="welcome-history-btn" data-action="open-chat-history" title="Chat history">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+    Chat history
+  </button>
 </div>`;
+
+const WELCOME_SEEN_KEY = 'sightline_welcome_seen';
+
+function getWelcomeHTML() {
+  const seen = localStorage.getItem(WELCOME_SEEN_KEY);
+  if (seen) {
+    return `<div class="chat-center">
+  <div class="quick-prompts">
+    <div class="quick-prompts-title">Try asking:</div>
+    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" data-action="quick-prompt" data-text="${esc(p.text.replace(/"/g, '&quot;'))}">${p.label}</button>`).join('')}
+  </div>
+  <button class="welcome-history-btn" data-action="open-chat-history" title="Chat history">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+    Chat history
+  </button>
+</div>`;
+  }
+  return WELCOME_FULL_HTML;
+}
+
+function showWelcomePopup() {
+  const overlay = document.createElement('div');
+  overlay.className = 'welcome-popup-overlay';
+  overlay.innerHTML = `<div class="welcome-popup">
+    <div class="welcome-popup-logo">
+      <img src="/static/logo.png" alt="Sightline" style="width:48px;height:48px;border-radius:12px;">
+    </div>
+    <div class="welcome-popup-title">Welcome to Sightline</div>
+    <div class="welcome-popup-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
+    <div class="welcome-popup-features">
+      <div class="welcome-popup-feature">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span><strong>Search & Discover</strong> — ReliefWeb's entire database by country, theme, or disaster type</span>
+      </div>
+      <div class="welcome-popup-feature">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span><strong>Ask Questions</strong> — Natural-language queries with cited answers</span>
+      </div>
+      <div class="welcome-popup-feature">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span><strong>SITREP & Bulletin</strong> — Automated situation reports & weekly analysis</span>
+      </div>
+    </div>
+    <button class="welcome-popup-btn" id="welcome-popup-close">Get Started</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  const closeBtn = overlay.querySelector('#welcome-popup-close');
+  closeBtn.addEventListener('click', () => {
+    overlay.remove();
+    localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+      localStorage.setItem(WELCOME_SEEN_KEY, '1');
+    }
+  });
+}
 
 function addMsg(role, html) {
   // Ensure chat-center container exists inside chat-messages
@@ -300,9 +373,18 @@ function sendQuickPrompt(text) {
 
 async function sendMessage() {
   if (isStreaming) return;
-  // Exit welcome mode on first message
+  // Exit welcome mode — animate input bar sliding down
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
-  if (chatMain) chatMain.classList.remove('welcome-mode');
+  if (chatMain && chatMain.classList.contains('welcome-mode')) {
+    const footer = chatMain.querySelector('.chat-footer');
+    if (footer) {
+      footer.style.animation = 'slideDownReturn .3s ease forwards';
+      await new Promise(r => setTimeout(r, 280));
+    }
+    chatMain.classList.remove('welcome-mode');
+    if (footer) footer.style.animation = '';
+  }
+  localStorage.setItem(WELCOME_SEEN_KEY, '1');
   // Block sending when rate limit is exhausted
   const rl = window.__rateLimit;
   const role = window.__userRole || "free";
@@ -425,7 +507,7 @@ function lockChatInput() {
 async function resetChat() {
   if (!confirm('Clear chat history?')) return;
   await api('/api/agent/chat/reset', { method: 'POST' });
-  chatDiv.innerHTML = WELCOME_HTML;
+  chatDiv.innerHTML = getWelcomeHTML();
   currentAiText = '';
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
   if (chatMain) chatMain.classList.add('welcome-mode');
@@ -451,7 +533,10 @@ async function loadChatSidebar() {
           <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
           <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
         </span>`;
-      item.addEventListener('click', () => selectChat(c.id));
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.chat-item-btn')) return;
+        selectChat(c.id);
+      });
       list.appendChild(item);
     }
   } catch { /* ignore */ }
@@ -478,7 +563,10 @@ async function loadChatList() {
           <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
           <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
         </span>`;
-      item.addEventListener('click', () => selectChat(c.id));
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.chat-item-btn')) return;
+        selectChat(c.id);
+      });
       list.appendChild(item);
     }
     // If there's an active chat, load its messages
@@ -503,13 +591,13 @@ async function loadChatList() {
           currentAiText = '';
         } else {
           if (chatMain) chatMain.classList.add('welcome-mode');
-          chatDiv.innerHTML = WELCOME_HTML;
+          chatDiv.innerHTML = getWelcomeHTML();
           currentAiText = '';
         }
-      } catch { chatDiv.innerHTML = WELCOME_HTML; currentAiText = ''; }
+      } catch { chatDiv.innerHTML = getWelcomeHTML(); currentAiText = ''; }
     } else {
       if (chatMain) chatMain.classList.add('welcome-mode');
-      chatDiv.innerHTML = WELCOME_HTML;
+      chatDiv.innerHTML = getWelcomeHTML();
       currentAiText = '';
     }
   } catch { /* ignore */ }
@@ -519,7 +607,7 @@ async function newChat() {
   if (isStreaming) return;
   try {
     await api('/api/agent/chats/new', { method: 'POST' });
-    chatDiv.innerHTML = WELCOME_HTML;
+    chatDiv.innerHTML = getWelcomeHTML();
     currentAiText = '';
     const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
     if (chatMain) chatMain.classList.add('welcome-mode');
@@ -547,7 +635,7 @@ async function selectChat(chatId) {
       }
     } else {
       if (chatMain) chatMain.classList.add('welcome-mode');
-      chatDiv.innerHTML = WELCOME_HTML;
+      chatDiv.innerHTML = getWelcomeHTML();
     }
     currentAiText = '';
     await loadChatList();
@@ -603,7 +691,14 @@ function confirmDeleteChat(chatId, btn) {
     <span class="dc-label">Delete this chat?</span>
     <button class="dc-yes" data-action="confirm-delete-chat" data-chat-id="${esc(chatId)}">Delete</button>
     <button class="dc-no" data-action="cancel-delete-chat">Cancel</button>`;
-  overlay.addEventListener('click', e => e.stopPropagation());
+  overlay.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const t = e.target.closest('[data-action]');
+    if (!t) return;
+    const a = t.dataset.action;
+    if (a === 'confirm-delete-chat') executeDeleteChat(t.dataset.chatId, t);
+    else if (a === 'cancel-delete-chat') overlay.remove();
+  });
   item.appendChild(overlay);
 }
 
@@ -627,7 +722,7 @@ async function executeDeleteChat(chatId, btn) {
           else addMsg('assistant', md(m.content));
         }
       } else {
-        chatDiv.innerHTML = WELCOME_HTML;
+        chatDiv.innerHTML = getWelcomeHTML();
       }
       currentAiText = '';
     }
@@ -1872,7 +1967,8 @@ function renderDashOverview(b) {
   if (textEl) {
     const overview = b.global_overview || '';
     if (overview) {
-      textEl.innerHTML = `<p>${esc(overview)}</p>`;
+      const rendered = typeof marked !== 'undefined' ? marked.parse(overview) : `<p>${esc(overview)}</p>`;
+      textEl.innerHTML = sanitizeHtml(rendered);
     } else {
       textEl.innerHTML = '<p class="dash-weekly-loading">No overview available for this week.</p>';
     }
@@ -2171,26 +2267,65 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
   if (chatMain) chatMain.classList.add('welcome-mode');
 
+  // Show welcome popup on first visit
+  if (!localStorage.getItem(WELCOME_SEEN_KEY)) {
+    showWelcomePopup();
+  }
+
   // ── Static element bindings ────────────────────────────────────────────
 
   // Sidebar nav
   const sidebar = document.getElementById('sidebar-nav');
   if (sidebar) sidebar.classList.add('collapsed');
   document.body.classList.add('sidebar-collapsed');
-  const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn');
-  if (sidebarCollapseBtn) sidebarCollapseBtn.addEventListener('click', toggleSidebarNav);
-  const sidebarExpandHandle = document.getElementById('sidebar-expand-handle');
-  if (sidebarExpandHandle) sidebarExpandHandle.addEventListener('click', toggleSidebarNav);
   const hamburgerBtn = document.getElementById('hamburger-btn');
   if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => {
     const sb = document.getElementById('sidebar-nav');
-    if (sb) { sb.classList.remove('hidden', 'collapsed'); sb.classList.add('expanded-once'); }
+    const mn = document.querySelector('.main');
+    if (sb) { sb.classList.remove('hidden', 'collapsed'); }
     document.body.classList.remove('sidebar-collapsed');
+    if (mn) mn.style.marginLeft = '';
+    sidebarJustOpened = true;
+    setTimeout(() => { sidebarJustOpened = false; }, 100);
   });
 
-  // Tab buttons
+  // Click outside sidebar → collapse it (premium UX)
+  let sidebarJustOpened = false;
+  const mainEl = document.querySelector('.main');
+  if (mainEl) {
+    mainEl.addEventListener('click', (e) => {
+      if (sidebarJustOpened) { sidebarJustOpened = false; return; }
+      const sb = document.getElementById('sidebar-nav');
+      if (sb && !sb.classList.contains('collapsed') && !sb.classList.contains('hidden')) {
+        sb.classList.add('collapsed');
+        document.body.classList.add('sidebar-collapsed');
+      }
+    });
+  }
+
+  // Prevent sidebar clicks from collapsing
+  const sidebarEl = document.getElementById('sidebar-nav');
+  if (sidebarEl) {
+    sidebarEl.addEventListener('click', (e) => e.stopPropagation());
+  }
+
+  // Tab buttons — double-click any tab to toggle sidebar
+  let lastTabClickTime = 0;
+  let lastTabClickTarget = null;
   document.querySelectorAll('.sidebar-tab[data-tab]').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    btn.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (lastTabClickTarget === btn && now - lastTabClickTime < 400) {
+        e.stopImmediatePropagation();
+        toggleSidebarNav();
+        lastTabClickTime = 0;
+        lastTabClickTarget = null;
+        return;
+      }
+      lastTabClickTime = now;
+      lastTabClickTarget = btn;
+      switchTab(btn.dataset.tab);
+    });
   });
 
   // Logout button
@@ -2219,10 +2354,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Chat sidebar
-  const chatOverlay = document.getElementById('chat-sidebar-overlay');
+      const chatOverlay = document.getElementById('chat-sidebar-overlay');
   if (chatOverlay) chatOverlay.addEventListener('click', toggleChatSidebar);
-  const chatCloseBtn = document.getElementById('chat-sidebar-close-btn');
-  if (chatCloseBtn) chatCloseBtn.addEventListener('click', toggleChatSidebar);
   const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
   if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', toggleChatSidebar);
   const chatNewBtn = document.getElementById('chat-new-btn');
@@ -2314,6 +2447,9 @@ document.addEventListener('DOMContentLoaded', () => {
     switch (action) {
       case 'quick-prompt':
         sendQuickPrompt(target.dataset.text);
+        break;
+      case 'open-chat-history':
+        toggleChatSidebar();
         break;
       case 'rename-chat':
         e.stopPropagation();
