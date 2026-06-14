@@ -957,7 +957,7 @@ body.sidebar-collapsed .main {
   justify-content: center;
 }
 .chat-main.welcome-mode .chat-topbar {
-  display: none;
+  display: flex;
 }
 .chat-main.welcome-mode .chat-scroll {
   flex: 0 1 auto;

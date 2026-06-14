@@ -973,7 +973,7 @@ def api_agent_chat():
             if selected_model_name != config.OLLAMA_MODEL:
                 # Create a temporary agent with the selected model
                 from langchain_openai import ChatOpenAI
-                from agent.relief_agent import all_tools, SYSTEM_PROMPT
+                from agent.relief_agent import all_tools, _build_system_prompt
                 from langgraph.graph import StateGraph
                 from langgraph.graph.message import MessagesState
                 from langgraph.prebuilt import ToolNode
@@ -987,12 +987,13 @@ def api_agent_chat():
                     timeout=config.OLLAMA_TIMEOUT,
                 )
                 temp_llm_with_tools = temp_llm.bind_tools(all_tools)
+                _system_prompt_text = _build_system_prompt()
 
                 def temp_llm_call(state: MessagesState):
                     messages = state["messages"]
-                    if messages and messages[0].content != SYSTEM_PROMPT:
-                        from langchain_core.messages import SystemMessage
-                        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+                    from langchain_core.messages import SystemMessage
+                    if not messages or not isinstance(messages[0], SystemMessage):
+                        messages = [SystemMessage(content=_system_prompt_text)] + messages
                     return {"messages": temp_llm_with_tools.invoke(messages)}
 
                 _temp_builder = StateGraph(MessagesState)
