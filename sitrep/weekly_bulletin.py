@@ -91,6 +91,15 @@ COUNTRY_COORDS: Dict[str, Dict] = {
     "Turkey": {"lat": 39.0, "lng": 35.2},
     "Lebanon": {"lat": 33.9, "lng": 35.5},
     "Israel": {"lat": 31.0, "lng": 34.8},
+    "Syrian Arab Republic": {"lat": 35.0, "lng": 38.0},
+    "Iran": {"lat": 32.4, "lng": 53.7},
+    "Sri Lanka": {"lat": 7.9, "lng": 80.8},
+    "Egypt": {"lat": 26.8, "lng": 30.8},
+    "Angola": {"lat": -11.2, "lng": 17.9},
+    "oPt": {"lat": 31.9, "lng": 35.0},
+    "Jordan": {"lat": 30.6, "lng": 36.2},
+    "Italy": {"lat": 41.9, "lng": 12.5},
+    "Vanuatu": {"lat": -15.4, "lng": 166.9},
 }
 
 # ---------------------------------------------------------------------------

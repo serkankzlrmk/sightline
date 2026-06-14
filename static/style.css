@@ -1137,56 +1137,6 @@ body.sidebar-collapsed .main {
   font-size: 12px; color: var(--text-muted); line-height: 1.55;
 }
 
-/* ── Welcome popup (first visit) ── */
-.welcome-popup-overlay {
-  position: fixed; inset: 0; z-index: 11000;
-  background: rgba(0,0,0,.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex; align-items: center; justify-content: center;
-  animation: fadeIn .2s ease;
-}
-.welcome-popup {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 440px; width: 90%;
-  box-shadow: var(--shadow-elevated);
-  text-align: center;
-}
-.welcome-popup-logo { margin-bottom: 12px; }
-.welcome-popup-title {
-  font-size: 22px; font-weight: 800; color: var(--text);
-  letter-spacing: -.3px; margin-bottom: 8px;
-}
-.welcome-popup-desc {
-  font-size: 14px; color: var(--text-secondary); line-height: 1.6;
-  margin-bottom: 20px;
-}
-.welcome-popup-features {
-  display: flex; flex-direction: column; gap: 10px;
-  text-align: left; margin-bottom: 24px;
-}
-.welcome-popup-feature {
-  display: flex; align-items: flex-start; gap: 10px;
-  font-size: 13px; color: var(--text-secondary); line-height: 1.5;
-  padding: 10px 14px; border-radius: 10px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-light);
-}
-.welcome-popup-feature svg { flex-shrink: 0; color: var(--blue); margin-top: 2px; }
-.welcome-popup-feature strong { color: var(--text); }
-.welcome-popup-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 12px 32px; border: none; border-radius: 12px;
-  background: var(--blue); color: #fff;
-  font-size: 15px; font-weight: 600; cursor: pointer;
-  transition: background var(--transition), transform var(--transition-fast);
-}
-.welcome-popup-btn:hover { background: #0066d6; }
-.welcome-popup-btn:active { transform: scale(.97); }
-
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ── Quick prompt buttons — Apple pill chips ── */
@@ -1226,6 +1176,7 @@ body.sidebar-collapsed .main {
   transform: translateY(-1px);
 }
 .quick-prompt-btn:active { transform: translateY(0) scale(.97); }
+.quick-prompt-btn:disabled { opacity: .4; pointer-events: none; cursor: not-allowed; }
 /* Category-tinted prompt buttons — Apple colors */
 .quick-prompt-btn.cat-search { border-color: rgba(0,122,255,.3); color: var(--blue); }
 .quick-prompt-btn.cat-search:hover { border-color: var(--blue); background: rgba(0,122,255,.08); box-shadow: 0 2px 10px rgba(0,122,255,.15); }

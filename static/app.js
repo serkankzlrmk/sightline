@@ -259,62 +259,8 @@ const WELCOME_FULL_HTML = `<div class="chat-center">
   </button>
 </div>`;
 
-const WELCOME_SEEN_KEY = 'sightline_welcome_seen';
-
 function getWelcomeHTML() {
-  const seen = localStorage.getItem(WELCOME_SEEN_KEY);
-  if (seen) {
-    return `<div class="chat-center">
-  <div class="quick-prompts">
-    <div class="quick-prompts-title">Try asking:</div>
-    ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" data-action="quick-prompt" data-text="${esc(p.text.replace(/"/g, '&quot;'))}">${p.label}</button>`).join('')}
-  </div>
-  <button class="welcome-history-btn" data-action="open-chat-history" title="Chat history">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
-    Chat history
-  </button>
-</div>`;
-  }
   return WELCOME_FULL_HTML;
-}
-
-function showWelcomePopup() {
-  const overlay = document.createElement('div');
-  overlay.className = 'welcome-popup-overlay';
-  overlay.innerHTML = `<div class="welcome-popup">
-    <div class="welcome-popup-logo">
-      <img src="/static/logo.png" alt="Sightline" style="width:48px;height:48px;border-radius:12px;">
-    </div>
-    <div class="welcome-popup-title">Welcome to Sightline</div>
-    <div class="welcome-popup-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
-    <div class="welcome-popup-features">
-      <div class="welcome-popup-feature">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <span><strong>Search & Discover</strong> — ReliefWeb's entire database by country, theme, or disaster type</span>
-      </div>
-      <div class="welcome-popup-feature">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span><strong>Ask Questions</strong> — Natural-language queries with cited answers</span>
-      </div>
-      <div class="welcome-popup-feature">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span><strong>SITREP & Bulletin</strong> — Automated situation reports & weekly analysis</span>
-      </div>
-    </div>
-    <button class="welcome-popup-btn" id="welcome-popup-close">Get Started</button>
-  </div>`;
-  document.body.appendChild(overlay);
-  const closeBtn = overlay.querySelector('#welcome-popup-close');
-  closeBtn.addEventListener('click', () => {
-    overlay.remove();
-    localStorage.setItem(WELCOME_SEEN_KEY, '1');
-  });
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-      localStorage.setItem(WELCOME_SEEN_KEY, '1');
-    }
-  });
 }
 
 function addMsg(role, html) {
@@ -384,7 +330,6 @@ async function sendMessage() {
     chatMain.classList.remove('welcome-mode');
     if (footer) footer.style.animation = '';
   }
-  localStorage.setItem(WELCOME_SEEN_KEY, '1');
   // Block sending when rate limit is exhausted
   const rl = window.__rateLimit;
   const role = window.__userRole || "free";
@@ -497,11 +442,13 @@ function lockChatInput() {
   if (role === "admin" || !rl || rl.remaining > 0) {
     chatInput.disabled = false;
     chatInput.placeholder = 'Message Sightline...';
+    document.querySelectorAll('.quick-prompt-btn').forEach(b => b.disabled = false);
     return;
   }
   // Rate limit exhausted — lock input
   chatInput.disabled = true;
   chatInput.placeholder = 'Daily limit reached';
+  document.querySelectorAll('.quick-prompt-btn').forEach(b => b.disabled = true);
 }
 
 async function resetChat() {
@@ -2116,15 +2063,6 @@ function openCrisisPanel(crisis) {
     html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
   }
 
-  if (crisis.hdx_key_figures && crisis.hdx_key_figures.length) {
-    html += `<div class="crisis-hdx-section">`;
-    html += `<div class="crisis-hdx-title">HDX Key Figures</div>`;
-    crisis.hdx_key_figures.forEach(f => {
-      html += `<div class="crisis-hdx-figure"><span class="crisis-hdx-label">${esc(f.label || '')}</span><span class="crisis-hdx-value">${esc(f.value || '')}</span></div>`;
-    });
-    html += `</div>`;
-  }
-
   if (crisis.has_sitrep) {
     html += `<button class="crisis-sitrep-btn" data-country="${esc(crisis.country)}">View SITREP →</button>`;
   }
@@ -2266,11 +2204,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Welcome mode — center content until user sends first message
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
   if (chatMain) chatMain.classList.add('welcome-mode');
-
-  // Show welcome popup on first visit
-  if (!localStorage.getItem(WELCOME_SEEN_KEY)) {
-    showWelcomePopup();
-  }
 
   // ── Static element bindings ────────────────────────────────────────────
 
@@ -2732,13 +2665,6 @@ function renderBulletin(b, container) {
   `).join('');
 
   const buildCrisisCards = (crises) => crises.map(c => {
-    const hdxFigures = (c.hdx_key_figures || []).map(f => `
-      <div class="hdx-kf-mini">
-        <span class="hdx-kf-value">${f.value}</span>
-        <span class="hdx-kf-label">${f.label}</span>
-      </div>
-    `).join('');
-
     return `
     <div class="crisis-card crisis-${c.severity}" data-severity="${c.severity}">
       <div class="crisis-card-header">
@@ -2747,7 +2673,6 @@ function renderBulletin(b, container) {
       </div>
       ${c.headline ? `<div class="crisis-card-headline">${esc(c.headline)}</div>` : ''}
       ${c.summary ? `<div class="crisis-card-summary">${esc(c.summary)}</div>` : ''}
-      ${hdxFigures ? `<div class="hdx-kf-row">${hdxFigures}</div>` : ''}
       ${c.has_sitrep ? `<button class="crisis-sitrep-btn" data-action="view-bulletin-sitrep" data-country="${esc(c.country)}">View SITREP →</button>` : ''}
     </div>
   `;}).join('');
