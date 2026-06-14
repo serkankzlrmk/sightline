@@ -39,7 +39,7 @@ HEALTH_URL="http://localhost:5001/api/health"
 HEALTH_RETRIES=10
 HEALTH_INTERVAL=3
 KEEP_RELEASES=3
-REPO_URL="https://github.com/serkankzlrmk/RedAgent.git"
+REPO_URL="/opt/reliefagent/repo"
 APP_USER="reliefagent"
 LOG_DIR="/var/log/reliefagent"
 
