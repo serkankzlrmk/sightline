@@ -2075,6 +2075,73 @@ function renderDashCrises() { /* deprecated — overview renders inline */ }
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Legal modal
+  const termsLink = document.getElementById('terms-link');
+  const privacyLink = document.getElementById('privacy-link');
+  const legalModal = document.getElementById('legal-modal');
+  const legalTitle = document.getElementById('legal-modal-title');
+  const legalBody = document.getElementById('legal-modal-body');
+  const legalClose = document.getElementById('legal-modal-close');
+
+  const legalContent = {
+    terms: `<h4>1. Acceptance</h4>
+<p>By accessing and using Sightline, you agree to be bound by these Terms of Use. If you do not agree, please do not use the service.</p>
+<h4>2. Purpose</h4>
+<p>Sightline is a humanitarian data analytics platform that aggregates publicly available information from ReliefWeb and HDX to support humanitarian analysis, research, and decision-making.</p>
+<h4>3. Data Sources</h4>
+<p>All data displayed on Sightline originates from publicly accessible humanitarian sources, primarily the ReliefWeb API and the HDX HAPI API. We do not claim ownership of source data. All rights to original data remain with their respective publishers.</p>
+<h4>4. AI-Generated Content</h4>
+<p>Sightline uses AI to analyze data and generate situation reports, summaries, and responses. AI-generated content may contain inaccuracies. Users should verify critical information against original sources. Every AI response includes citations to source documents.</p>
+<h4>5. User Conduct</h4>
+<ul>
+<li>Use the service only for lawful humanitarian analysis purposes</li>
+<li>Do not attempt to overwhelm or disrupt the service</li>
+<li>Do not misrepresent AI-generated content as official humanitarian guidance</li>
+<li>Respect intellectual property rights of data publishers</li>
+</ul>
+<h4>6. Disclaimer</h4>
+<p>Sightline is provided "as is" without warranties of any kind. We make no guarantees about accuracy, completeness, or timeliness of data or AI-generated content. The service is not a substitute for professional humanitarian assessment.</p>
+<h4>7. Changes</h4>
+<p>We may update these terms at any time. Continued use after changes constitutes acceptance.</p>`,
+    privacy: `<h4>Data We Collect</h4>
+<ul>
+<li><strong>Authentication data:</strong> Google account email and display name when you sign in</li>
+<li><strong>Usage data:</strong> Chat messages, SITREP reports, and bulletin requests you create</li>
+<li><strong>Analytics:</strong> We do not use third-party analytics or tracking services</li>
+</ul>
+<h4>Data We Do NOT Collect</h4>
+<ul>
+<li>We do not sell, share, or distribute your personal data to third parties</li>
+<li>We do not use your data for advertising</li>
+<li>We do not track your browsing across other websites</li>
+<li>We do not collect device fingerprints or location data</li>
+</ul>
+<h4>Data Storage</h4>
+<p>Your chat history and reports are stored securely on our servers and are accessible only to you through your authenticated session. You can delete your data at any time by contacting us.</p>
+<h4>Security</h4>
+<p>We use industry-standard encryption (HTTPS/TLS) for all data in transit. Authentication is handled through Firebase Auth with Google Sign-In. Access tokens are validated on every request.</p>
+<h4>Your Rights</h4>
+<ul>
+<li>Access your data at any time through the platform</li>
+<li>Request deletion of your account and all associated data</li>
+<li>Withdraw consent by discontinuing use of the service</li>
+</ul>
+<h4>Contact</h4>
+<p>For privacy inquiries or data deletion requests, please contact us through the platform.</p>`
+  };
+
+  function showLegal(type) {
+    if (!legalModal || !legalTitle || !legalBody) return;
+    legalTitle.textContent = type === 'terms' ? 'Terms of Use' : 'Privacy Policy';
+    legalBody.innerHTML = legalContent[type] || '';
+    legalModal.classList.add('active');
+  }
+
+  if (termsLink) termsLink.addEventListener('click', (e) => { e.preventDefault(); showLegal('terms'); });
+  if (privacyLink) privacyLink.addEventListener('click', (e) => { e.preventDefault(); showLegal('privacy'); });
+  if (legalClose) legalClose.addEventListener('click', () => { legalModal.classList.remove('active'); });
+  if (legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) legalModal.classList.remove('active'); });
+
   // Crisis panel close button
   const crisisPanelClose = document.getElementById('dash-crisis-panel-close');
   if (crisisPanelClose) crisisPanelClose.addEventListener('click', closeCrisisPanel);
