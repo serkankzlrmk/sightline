@@ -6,30 +6,40 @@
 // Tab 3: SITREP    → /api/sitrep/*
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ── Constants ──────────────────────────────────────────────────────────────
+const ADMIN_EMAIL = 'serkankizilirmaak@gmail.com';
+const TAB_NAMES = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
+
 // ── Shared state ────────────────────────────────────────────────────────────
 let currentTab = 'agent';
 
 // DB tab state
-let allReports     = [];
-let sortKey        = 'date';
-let sortAsc        = false;
-let filterTimer    = null;
-let currentReportTitle = '';
-let currentReportId    = null;
+const dbState = {
+  allReports: [],
+  sortKey: 'date',
+  sortAsc: false,
+  filterTimer: null,
+  currentReportTitle: '',
+  currentReportId: null,
+};
 
 // Agent tab state
-let isStreaming    = false;
-let currentAiEl   = null;
-let currentAiText = '';
+const chatState = {
+  isStreaming: false,
+  currentAiEl: null,
+  currentAiText: '',
+};
 
 // SITREP tab state
-let sitrepCurrentStep  = -1;
+const sitrepState = {
+  currentStep: -1,
+  stepStates: [],
+  activeJobId: null,
+  activeFile: null,
+};
 
 // Upload modal state
 const _tags = { country: [], theme: [] };
-let sitrepStepStates   = [];
-let sitrepActiveJobId  = null;
-let sitrepActiveFile   = null;
 
 // ── DOM references (populated on DOMContentLoaded) ─────────────────────────
 let chatInput, sendBtn, chatDiv, busyDot;
@@ -164,7 +174,7 @@ function toggleSidebarNav() {
 
 function switchTab(name) {
   currentTab = name;
-  const allTabs = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
+  const allTabs = TAB_NAMES;
   const sidebar = document.getElementById('sidebar-nav');
   const main = document.querySelector('.main');
   const hamburger = document.getElementById('hamburger-btn');
@@ -217,38 +227,13 @@ const QUICK_PROMPTS = [
   // Knowledge Base
   { label: "Ask a Question", text: "What is the current food security situation in East Africa?", cat: "kb" },
   { label: "Summarize Topic", text: "Summarize displacement trends in the Middle East", cat: "kb" },
-  // Ingest & Download
-  { label: "Fetch Reports", text: "Find and download the latest Ukraine situation reports", cat: "ingest" },
-  { label: "Paste a URL", text: "Fetch this report: https://reliefweb.int/report/sudan/humanitarian-snapshot", cat: "ingest" },
   // Deep Analysis
   { label: "Full Report", text: "Show me the full content of report 12345", cat: "analysis" },
   { label: "Convert to MD", text: "Convert report 12345 to markdown format", cat: "analysis" },
 ];
 
-const WELCOME_FULL_HTML = `<div class="chat-center">
-  <div class="msg assistant">
-    <div class="msg-label">Sightline</div>
-    <div class="msg-body">
-      <div class="welcome-greeting">Welcome to Sightline</div>
-      <div class="welcome-desc">Your AI-powered humanitarian data analyst. I search, analyze, and synthesize reports from ReliefWeb and your local knowledge base.</div>
-      <div class="welcome-section">
-        <div class="welcome-section-title">Search & Discover</div>
-        <div class="welcome-section-desc">Search ReliefWeb's entire database by country, theme, organization, disaster type, or date range. Get the latest headlines or deep-dive into specific crises.</div>
-      </div>
-      <div class="welcome-section">
-        <div class="welcome-section-title">Ask Questions</div>
-        <div class="welcome-section-desc">Ask natural-language questions — I'll search the knowledge base and provide cited answers from downloaded reports. Every claim is linked to its source.</div>
-      </div>
-      <div class="welcome-section">
-        <div class="welcome-section-title">Ingest & Save</div>
-        <div class="welcome-section-desc">Found a useful report? I can fetch and save it to the knowledge base with one command. Paste a ReliefWeb URL or ask me to batch-download search results.</div>
-      </div>
-      <div class="welcome-section">
-        <div class="welcome-section-title">More Features</div>
-        <div class="welcome-section-desc">Switch to the <strong>Database</strong> tab to browse and filter all stored reports. Use the <strong>SITREP</strong> tab to generate automated situation reports with clustering and AI analysis.</div>
-      </div>
-    </div>
-  </div>
+function getWelcomeHTML() {
+  return `<div class="chat-center">
   <div class="quick-prompts">
     <div class="quick-prompts-title">Try asking:</div>
     ${QUICK_PROMPTS.map(p => `<button class="quick-prompt-btn cat-${p.cat}" data-action="quick-prompt" data-text="${esc(p.text.replace(/"/g, '&quot;'))}">${p.label}</button>`).join('')}
@@ -258,9 +243,6 @@ const WELCOME_FULL_HTML = `<div class="chat-center">
     Chat history
   </button>
 </div>`;
-
-function getWelcomeHTML() {
-  return WELCOME_FULL_HTML;
 }
 
 function addMsg(role, html) {
@@ -318,7 +300,7 @@ function sendQuickPrompt(text) {
 }
 
 async function sendMessage() {
-  if (isStreaming) return;
+  if (chatState.isStreaming) return;
   // Exit welcome mode — animate input bar sliding down
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
   if (chatMain && chatMain.classList.contains('welcome-mode')) {
@@ -344,14 +326,14 @@ async function sendMessage() {
   chatInput.style.height = 'auto';
   addMsg('user', esc(text));
 
-  isStreaming = true;
+  chatState.isStreaming = true;
   sendBtn.disabled    = true;
-  sendBtn.innerHTML   = '<div class="spin" style="width:16px;height:16px;border-width:2px"></div>';
+  sendBtn.innerHTML   = '<div class="spin spin-lg"></div>';
   busyDot.classList.add('visible');
 
-  currentAiEl   = addMsg('assistant',
+  chatState.currentAiEl   = addMsg('assistant',
     '<div class="typing-dots"><span></span><span></span><span></span></div>');
-  currentAiText = '';
+  chatState.currentAiText = '';
 
   try {
     const resp = await api('/api/agent/chat', {
@@ -364,14 +346,14 @@ async function sendMessage() {
       try {
         const errData = await resp.json();
         if (errData.remaining === 0) {
-          currentAiEl.innerHTML = `<div class="rate-limit-msg"><div class="rate-limit-msg-title">Daily message limit reached (${errData.used}/${errData.limit})</div><div class="rate-limit-msg-body">Upgrade to Premium for unlimited access.</div><div class="rate-limit-msg-contact">Contact: <a href="mailto:serkankizilirmaak@gmail.com">serkankizilirmaak@gmail.com</a></div></div>`;
+          chatState.currentAiEl.innerHTML = `<div class="rate-limit-msg"><div class="rate-limit-msg-title">Daily message limit reached (${errData.used}/${errData.limit})</div><div class="rate-limit-msg-body">Upgrade to Premium for unlimited access.</div><div class="rate-limit-msg-contact">Contact: <a href="mailto:${ADMIN_EMAIL}">${ADMIN_EMAIL}</a></div></div>`;
           updateChatRateUI(errData);
         } else {
-          currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
+          chatState.currentAiEl.innerHTML = '<span class="msg-warn">Agent is busy, please wait.</span>';
           toast('Agent is busy, please try again in a moment', 'warning');
         }
       } catch {
-        currentAiEl.innerHTML = '<span style="color:#d97706">Agent is busy, please wait.</span>';
+        chatState.currentAiEl.innerHTML = '<span class="msg-warn">Agent is busy, please wait.</span>';
       }
       return;
     }
@@ -393,34 +375,34 @@ async function sendMessage() {
         try { evt = JSON.parse(line.slice(6)); } catch { continue; }
 
         if (evt.type === 'token') {
-          if (!currentAiText) currentAiEl.innerHTML = '';
-          currentAiText += evt.text;
-          currentAiEl.innerHTML = md(currentAiText);
+          if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '';
+          chatState.currentAiText += evt.text;
+          chatState.currentAiEl.innerHTML = md(chatState.currentAiText);
           chatDiv.scrollTop = chatDiv.scrollHeight;
         } else if (evt.type === 'tool_start') {
-          if (!currentAiText) currentAiEl.innerHTML = '';
+          if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '';
           addToolInd(evt.name);
         } else if (evt.type === 'error') {
-          currentAiEl.innerHTML = `<span style="color:#dc2626">Error: ${esc(evt.text)}</span>`;
+          chatState.currentAiEl.innerHTML = `<span class="msg-error">Error: ${esc(evt.text)}</span>`;
           clearToolInds();
         } else if (evt.type === 'done') {
           clearToolInds();
-          if (!currentAiText) currentAiEl.innerHTML = '<span style="color:#94a3b8">—</span>';
+          if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '<span class="msg-placeholder">—</span>';
           if (typeof checkAdminStatus === 'function') checkAdminStatus();
         }
       }
     }
   } catch (err) {
-    if (currentAiEl) {
-      currentAiEl.innerHTML = `<span style="color:#dc2626">Connection error: ${esc(err.message)}</span>`;
+    if (chatState.currentAiEl) {
+      chatState.currentAiEl.innerHTML = `<span class="msg-error">Connection error: ${esc(err.message)}</span>`;
     }
     clearToolInds();
   } finally {
-    isStreaming          = false;
+    chatState.isStreaming          = false;
     sendBtn.disabled     = false;
     sendBtn.innerHTML    = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>';
     busyDot.classList.remove('visible');
-    currentAiEl          = null;
+    chatState.currentAiEl          = null;
     chatDiv.scrollTop    = chatDiv.scrollHeight;
     // Only update sidebar — do NOT re-render messages (causes layout shift)
     loadChatSidebar();
@@ -455,7 +437,7 @@ async function resetChat() {
   if (!confirm('Clear chat history?')) return;
   await api('/api/agent/chat/reset', { method: 'POST' });
   chatDiv.innerHTML = getWelcomeHTML();
-  currentAiText = '';
+  chatState.currentAiText = '';
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
   if (chatMain) chatMain.classList.add('welcome-mode');
   loadChatList();
@@ -463,34 +445,36 @@ async function resetChat() {
 
 // ── Multi-chat management ────────────────────────────────────────────────
 
+function renderChatList(listEl, chats, activeId) {
+  listEl.innerHTML = '';
+  for (const c of chats) {
+    const item = document.createElement('div');
+    item.className = 'chat-item' + (c.id === activeId ? ' active' : '');
+    item.innerHTML = `
+      <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
+      <span class="chat-item-actions">
+        <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
+        <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
+      </span>`;
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.chat-item-btn')) return;
+      selectChat(c.id);
+    });
+    listEl.appendChild(item);
+  }
+}
+
 async function loadChatSidebar() {
-  // Only update the sidebar chat list — do NOT re-render messages
   try {
     const r = await api('/api/agent/chats');
     const d = await r.json();
     const list = document.getElementById('chat-list');
     if (!list) return;
-    list.innerHTML = '';
-    for (const c of d.chats) {
-      const item = document.createElement('div');
-      item.className = 'chat-item' + (c.id === d.active ? ' active' : '');
-      item.innerHTML = `
-        <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
-        <span class="chat-item-actions">
-          <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
-          <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
-        </span>`;
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.chat-item-btn')) return;
-        selectChat(c.id);
-      });
-      list.appendChild(item);
-    }
+    renderChatList(list, d.chats, d.active);
   } catch { /* ignore */ }
 }
 
 async function loadChatList() {
-  // Ensure admin status is checked before loading
   if (typeof checkAdminStatus === 'function' && typeof getIdToken === 'function' && getIdToken()) {
     await checkAdminStatus();
   }
@@ -500,23 +484,7 @@ async function loadChatList() {
     const d = await r.json();
     const list = document.getElementById('chat-list');
     if (!list) return;
-    list.innerHTML = '';
-    for (const c of d.chats) {
-      const item = document.createElement('div');
-      item.className = 'chat-item' + (c.id === d.active ? ' active' : '');
-      item.innerHTML = `
-        <span class="chat-item-title" title="${esc(c.title)}">${esc(c.title)}</span>
-        <span class="chat-item-actions">
-          <button class="chat-item-btn" data-action="rename-chat" data-chat-id="${esc(c.id)}" title="Rename">R</button>
-          <button class="chat-item-btn delete" data-action="delete-chat" data-chat-id="${esc(c.id)}" title="Delete">X</button>
-        </span>`;
-      item.addEventListener('click', (e) => {
-        if (e.target.closest('.chat-item-btn')) return;
-        selectChat(c.id);
-      });
-      list.appendChild(item);
-    }
-    // If there's an active chat, load its messages
+    renderChatList(list, d.chats, d.active);
     const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
     if (d.active) {
       try {
@@ -535,27 +503,42 @@ async function loadChatList() {
               addMsg('assistant', md(m.content));
             }
           }
-          currentAiText = '';
+          chatState.currentAiText = '';
         } else {
           if (chatMain) chatMain.classList.add('welcome-mode');
           chatDiv.innerHTML = getWelcomeHTML();
-          currentAiText = '';
+          chatState.currentAiText = '';
         }
-      } catch { chatDiv.innerHTML = getWelcomeHTML(); currentAiText = ''; }
+      } catch { chatDiv.innerHTML = getWelcomeHTML(); chatState.currentAiText = ''; }
     } else {
       if (chatMain) chatMain.classList.add('welcome-mode');
       chatDiv.innerHTML = getWelcomeHTML();
-      currentAiText = '';
+      chatState.currentAiText = '';
     }
   } catch { /* ignore */ }
 }
 
 async function newChat() {
-  if (isStreaming) return;
+  if (chatState.isStreaming) return;
   try {
+    // Close sidebar first for smooth transition
+    const sb = document.getElementById('chat-sidebar');
+    const ov = document.getElementById('chat-sidebar-overlay');
+    if (sb) sb.classList.remove('open');
+    if (ov) ov.classList.remove('open');
+
+    // Check if there's an empty chat we can reuse
+    const listR = await api('/api/agent/chats');
+    const listD = await listR.json();
+    const emptyChat = listD.chats.find(c => c.title === 'New Chat' || c.title.startsWith('New Chat'));
+    if (emptyChat) {
+      await selectChat(emptyChat.id);
+      return;
+    }
+    // No empty chat found — create a new one
     await api('/api/agent/chats/new', { method: 'POST' });
     chatDiv.innerHTML = getWelcomeHTML();
-    currentAiText = '';
+    chatState.currentAiText = '';
     const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
     if (chatMain) chatMain.classList.add('welcome-mode');
     await loadChatList();
@@ -563,7 +546,7 @@ async function newChat() {
 }
 
 async function selectChat(chatId) {
-  if (isStreaming) return;
+  if (chatState.isStreaming) return;
   try {
     await api(`/api/agent/chats/${chatId}/select`, { method: 'POST' });
     // Load and render saved messages
@@ -584,7 +567,7 @@ async function selectChat(chatId) {
       if (chatMain) chatMain.classList.add('welcome-mode');
       chatDiv.innerHTML = getWelcomeHTML();
     }
-    currentAiText = '';
+    chatState.currentAiText = '';
     await loadChatList();
     // Close sidebar after selecting
     const sb = document.getElementById('chat-sidebar');
@@ -671,7 +654,7 @@ async function executeDeleteChat(chatId, btn) {
       } else {
         chatDiv.innerHTML = getWelcomeHTML();
       }
-      currentAiText = '';
+      chatState.currentAiText = '';
     }
     setTimeout(() => loadChatList(), 300);
   } catch {
@@ -742,21 +725,21 @@ async function applyFilters() {
     if (country) {
       data = data.filter(r => (r.all_countries || []).includes(country));
     }
-    allReports = data;
+    dbState.allReports = data;
   } catch {
-    allReports = [];
+    dbState.allReports = [];
   }
   renderTable();
 }
 
 function dbFilter() {
-  clearTimeout(filterTimer);
-  filterTimer = setTimeout(applyFilters, 280);
+  clearTimeout(dbState.filterTimer);
+  dbState.filterTimer = setTimeout(applyFilters, 280);
 }
 
 function sortBy(key) {
-  if (sortKey === key) sortAsc = !sortAsc;
-  else { sortKey = key; sortAsc = true; }
+  if (dbState.sortKey === key) dbState.sortAsc = !dbState.sortAsc;
+  else { dbState.sortKey = key; dbState.sortAsc = true; }
 
   document.querySelectorAll('.rtable thead th').forEach(th => {
     th.classList.toggle('sorted', th.dataset.sort === key);
@@ -766,11 +749,11 @@ function sortBy(key) {
 
 function renderTable() {
   const body = document.getElementById('rtbody');
-  const data = [...allReports].sort((a, b) => {
-    const va = String(a[sortKey] ?? '');
-    const vb = String(b[sortKey] ?? '');
-    if (va < vb) return sortAsc ? -1 :  1;
-    if (va > vb) return sortAsc ?  1 : -1;
+  const data = [...dbState.allReports].sort((a, b) => {
+    const va = String(a[dbState.sortKey] ?? '');
+    const vb = String(b[dbState.sortKey] ?? '');
+    if (va < vb) return dbState.sortAsc ? -1 :  1;
+    if (va > vb) return dbState.sortAsc ?  1 : -1;
     return 0;
   });
 
@@ -791,7 +774,7 @@ function renderTable() {
 
     return `<tr class="db-report-row" data-report-id="${r.report_id}">
       <td class="id-cell">${r.report_id}</td>
-      <td style="white-space:nowrap">${r.date || ''}</td>
+      <td class="no-nowrap">${r.date || ''}</td>
       <td>${esc(r.primary_country || '')}</td>
       <td><span class="badge b-yellow">${esc(r.source || '')}</span></td>
       <td class="title-cell" title="${esc(r.title || '')}">${esc(r.title || '')}</td>
@@ -803,11 +786,11 @@ function renderTable() {
 }
 
 async function openDbReport(id) {
-  currentReportId = id;
+  dbState.currentReportId = id;
   try {
     const res = await api('/api/db/reports/' + id);
     const r   = await res.json();
-    currentReportTitle = r.title || '';
+    dbState.currentReportTitle = r.title || '';
 
     document.getElementById('m-title').textContent     = r.title || '—';
     document.getElementById('m-id').textContent        = r.report_id;
@@ -840,7 +823,7 @@ function closeDbModal() {
 function askAbout() {
   closeDbModal();
   switchTab('agent');
-  chatInput.value = `Tell me about the report "${currentReportTitle}" (ID: ${currentReportId}). What are the key findings and summary?`;
+  chatInput.value = `Tell me about the report "${dbState.currentReportTitle}" (ID: ${dbState.currentReportId}). What are the key findings and summary?`;
   chatInput.focus();
   chatInput.dispatchEvent(new Event('input'));
 }
@@ -883,7 +866,7 @@ function buildStepsGrid() {
 
 function setSitrepStepState(idx, state) {
   if (idx < 0 || idx >= STEPS.length) return;
-  sitrepStepStates[idx] = state;
+  sitrepState.stepStates[idx] = state;
   const card = document.getElementById(`step-card-${idx}`);
   if (!card) return;
   card.className = `step-card ${state}`;
@@ -892,9 +875,9 @@ function setSitrepStepState(idx, state) {
 }
 
 function advanceToStep(n) {
-  if (n <= sitrepCurrentStep) return;
-  if (sitrepCurrentStep >= 0) setSitrepStepState(sitrepCurrentStep, 'done');
-  sitrepCurrentStep = n;
+  if (n <= sitrepState.currentStep) return;
+  if (sitrepState.currentStep >= 0) setSitrepStepState(sitrepState.currentStep, 'done');
+  sitrepState.currentStep = n;
   setSitrepStepState(n, 'active');
 }
 
@@ -923,18 +906,18 @@ function appendLog(line) {
     const n = parseInt(m[1]);
     if (CACHE_RE.test(line)) {
       setSitrepStepState(n, 'cached');
-      sitrepCurrentStep = n;
+      sitrepState.currentStep = n;
     } else {
       advanceToStep(n);
     }
   }
-  if (CACHE_RE.test(line) && !m && sitrepCurrentStep >= 0) {
-    setSitrepStepState(sitrepCurrentStep, 'cached');
+  if (CACHE_RE.test(line) && !m && sitrepState.currentStep >= 0) {
+    setSitrepStepState(sitrepState.currentStep, 'cached');
   }
 }
 
 function connectSSE(jobId, nonce) {
-  sitrepActiveJobId = jobId;
+  sitrepState.activeJobId = jobId;
   const es  = new EventSource(`/api/sitrep/stream/${jobId}?nonce=${encodeURIComponent(nonce || '')}`);
   const dot = document.getElementById('log-dot');
 
@@ -949,16 +932,16 @@ function connectSSE(jobId, nonce) {
       if (spinner) { spinner.className = ''; spinner.textContent = status === 'done' ? '✓' : '✗'; }
 
       if (status === 'done') {
-        for (let i = 0; i <= sitrepCurrentStep; i++)
-          if (sitrepStepStates[i] !== 'cached') setSitrepStepState(i, 'done');
+        for (let i = 0; i <= sitrepState.currentStep; i++)
+          if (sitrepState.stepStates[i] !== 'cached') setSitrepStepState(i, 'done');
         appendLog('─── Pipeline completed successfully ───');
         setTimeout(() => loadSitrepReportsList(), 1500);
       } else {
-        setSitrepStepState(sitrepCurrentStep, 'error');
+        setSitrepStepState(sitrepState.currentStep, 'error');
         appendLog('─── Pipeline failed with error ───');
         appendLog('Tip: Check the log above for error details. You can re-run with "Skip cache" to restart from scratch.');
       }
-      sitrepActiveJobId = null;
+      sitrepState.activeJobId = null;
       document.getElementById('btn-run').disabled = false;
       return;
     }
@@ -989,8 +972,8 @@ async function runPipeline() {
   document.getElementById('btn-run').disabled = true;
 
   // Reset progress
-  sitrepCurrentStep = -1;
-  sitrepStepStates  = new Array(STEPS.length).fill('waiting');
+  sitrepState.currentStep = -1;
+  sitrepState.stepStates  = new Array(STEPS.length).fill('waiting');
   buildStepsGrid();
   const cons = document.getElementById('log-console');
   if (cons) cons.innerHTML = '';
@@ -1034,12 +1017,9 @@ async function loadSitrepReportsList() {
       const div = document.createElement('div');
       div.className = 'report-item';
       div.dataset.file = item.filename;
-
-      const name    = item.filename.replace(/_report\.json$/, '').replace(/_/g, ' ');
-      const country = name.split(' ')[0];
+      div.dataset.action = 'open-sitrep-report';
 
       div.innerHTML = `<span>${escHtml(country)}</span>`;
-      div.addEventListener('click', () => openSitrepReport(item.filename, div));
       list.appendChild(div);
     });
   } catch {
@@ -1049,17 +1029,17 @@ async function loadSitrepReportsList() {
 
 function deactivateSitrepItems() {
   document.querySelectorAll('.report-item.active').forEach(el => el.classList.remove('active'));
-  sitrepActiveFile = null;
+  sitrepState.activeFile = null;
 }
 
 async function openSitrepReport(filename, itemEl) {
   deactivateSitrepItems();
   if (itemEl) itemEl.classList.add('active');
-  sitrepActiveFile = filename;
+  sitrepState.activeFile = filename;
 
   showSitrepView('report');
   document.getElementById('report-content').innerHTML =
-    '<div style="color:var(--text-muted);padding:20px">Loading…</div>';
+    '<div class="loading-placeholder">Loading…</div>';
 
   try {
     const resp   = await api(`/api/sitrep/report?file=${encodeURIComponent(filename)}`);
@@ -1068,7 +1048,7 @@ async function openSitrepReport(filename, itemEl) {
     renderSitrepReport(report, filename);
   } catch (err) {
     document.getElementById('report-content').innerHTML =
-      `<div style="color:#ef4444;padding:20px">Could not load report: ${escHtml(err.message)}</div>`;
+      `<div class="error-placeholder">Could not load report: ${escHtml(err.message)}</div>`;
   }
 }
 
@@ -1205,14 +1185,14 @@ function renderSitrepReport(report, filename) {
           <span class="toggle-icon">▾</span>
         </div>
         <div class="sitrep-section-body ${ci > 0 ? 'hidden' : ''}">
-          ${qaHtml || '<div style="color:var(--text-muted);font-size:13px">No Q&A for this cluster.</div>'}
+          ${qaHtml || '<div class="msg-muted no-qa-msg">No Q&A for this cluster.</div>'}
           ${buildSourcesListFromArray(sources)}
         </div>
       </div>`;
   });
 
   if (!clusterList.length) {
-    html += '<div style="color:var(--text-muted);font-size:14px;padding:20px">No clusters found.</div>';
+    html += '<div class="msg-muted no-clusters-msg">No clusters found.</div>';
   }
 
   html += `</div>`; // close report-qa-view
@@ -1223,14 +1203,9 @@ function renderSitrepReport(report, filename) {
 // ── Narrative citation helpers ───────────────────────────────────────────────
 
 function renderNarrativeCitations(htmlText, narrativeSources) {
-  // Replace [N] in already-rendered HTML with clickable citation spans
   return htmlText.replace(/\[(\d+)\]/g, (match, num) => {
     const src = narrativeSources && (narrativeSources[num] || narrativeSources[String(num)]);
-    if (!src) return `<span class="citation" style="background:#94a3b8">[${num}]</span>`;
-    const ctxTitle = encodeURIComponent(src.title || '');
-    const ctxUrl   = encodeURIComponent(src.url || '');
-    const ctxDate  = encodeURIComponent(src.date || '');
-    return `<span class="citation" data-action="show-citation" data-num="${num}" data-date="${ctxDate}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${num}]</span>`;
+    return _renderCitationSpan(num, src);
   });
 }
 
@@ -1252,38 +1227,12 @@ function buildNarrativeToc(html) {
 }
 
 function buildNarrativeSourcesList(narrativeSources) {
-  // Filter out non-citation keys (cluster_titles, exec_summary_used)
-  const entries = Object.entries(narrativeSources)
+  const sources = Object.entries(narrativeSources)
     .filter(([num, src]) => src && typeof src === 'object' && (src.url || src.title))
-    .filter(([num]) => !isNaN(Number(num)))  // only numeric keys
-    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
-  if (!entries.length) return '';
-  let items = '';
-  entries.forEach(([num, src]) => {
-    let domain = '';
-    try { domain = new URL(src.url || '').hostname.replace(/^www\./, ''); } catch {}
-    const href  = src.url ? escHtml(src.url) : '#';
-    const noUrl = src.url ? '' : 'style="opacity:0.6;pointer-events:none"';
-    // Determine source type icon
-    let icon = '📄';
-    if (domain.includes('reliefweb')) icon = '🌐';
-    else if (domain.includes('un')) icon = '🇺🇳';
-    else if (domain.includes('ocha')) icon = '📍';
-    else if (src.url) icon = '🔗';
-    items += `
-      <a class="source-card" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
-        <div class="source-card-icon">${icon}</div>
-        <div class="source-card-body">
-          <div class="source-card-title">${escHtml(src.title || '—')}</div>
-          <div class="source-card-meta">
-            ${domain ? `<span class="source-card-domain">${escHtml(domain)}</span>` : ''}
-            ${src.date ? `<span class="source-card-date">${escHtml(src.date)}</span>` : ''}
-          </div>
-        </div>
-        <span class="source-card-num">[${escHtml(num)}]</span>
-      </a>`;
-  });
-  return `<div class="sources-section"><div class="sources-title">📎 Sources (${entries.length})</div><div class="sources-grid">${items}</div></div>`;
+    .filter(([num]) => !isNaN(Number(num)))
+    .map(([num, src]) => ({ ...src, num }))
+    .sort((a, b) => parseInt(a.num) - parseInt(b.num));
+  return buildSourcesList(sources, { cardStyle: true });
 }
 
 // ── Citation helpers ─────────────────────────────────────────────────────────
@@ -1316,26 +1265,26 @@ function buildClusterContextIndex(cluster) {
   return { qaRemaps, sources };
 }
 
+function _renderCitationSpan(num, ctx) {
+  if (!ctx) return `<span class="citation citation-fallback">[${num}]</span>`;
+  const ctxText = encodeURIComponent(ctx.context || '');
+  const ctxTitle = encodeURIComponent(ctx.title || '');
+  const ctxUrl = encodeURIComponent(ctx.url || '');
+  return `<span class="citation" data-action="show-citation" data-num="${num}" data-date="${ctxText}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${num}]</span>`;
+}
+
 function renderCitationsRemapped(escapedText, remap) {
   return escapedText.replace(/\[(\d+)\]/g, (match, origNum) => {
     const entry = remap && remap[origNum];
-    if (!entry) return `<span class="citation" style="background:#94a3b8">[?]</span>`;
-    const { newNum, ctx } = entry;
-    const ctxText  = encodeURIComponent(ctx.context || '');
-    const ctxTitle = encodeURIComponent(ctx.title || '');
-    const ctxUrl   = encodeURIComponent(ctx.url || '');
-    return `<span class="citation" data-action="show-citation" data-num="${newNum}" data-date="${ctxText}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${newNum}]</span>`;
+    if (!entry) return `<span class="citation citation-fallback">[?]</span>`;
+    return _renderCitationSpan(entry.newNum, entry.ctx);
   });
 }
 
 function renderCitations(escapedText, contexts) {
   return escapedText.replace(/\[(\d+)\]/g, (match, num) => {
     const ctx = contexts && (contexts[num] || contexts[String(num)]);
-    if (!ctx) return `<span class="citation" style="background:#94a3b8">[${num}]</span>`;
-    const ctxText  = encodeURIComponent(ctx.context || '');
-    const ctxTitle = encodeURIComponent(ctx.title || '');
-    const ctxUrl   = encodeURIComponent(ctx.url || '');
-    return `<span class="citation" data-action="show-citation" data-num="${num}" data-date="${ctxText}" data-title="${ctxTitle}" data-url="${ctxUrl}">[${num}]</span>`;
+    return _renderCitationSpan(num, ctx);
   });
 }
 
@@ -1368,48 +1317,62 @@ function closeSitrepModal() {
   document.getElementById('sitrep-modal-overlay').classList.add('hidden');
 }
 
-function buildSummarySourcesList(summaryCtx) {
-  const entries = Object.entries(summaryCtx)
-    .filter(([, ctx]) => ctx && (ctx.url || ctx.title))
-    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
-  if (!entries.length) return '';
-  let items = '';
-  entries.forEach(([num, ctx]) => {
-    let domain = '';
-    try { domain = new URL(ctx.url || '').hostname.replace(/^www\./, ''); } catch {}
-    const href  = ctx.url ? escHtml(ctx.url) : '#';
-    const noUrl = ctx.url ? '' : 'style="opacity:0.6;pointer-events:none"';
-    items += `
-      <a class="source-item" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
-        <span class="source-item-num">${escHtml(num)}</span>
-        <span class="source-item-body">
-          <div class="source-item-title">${escHtml(ctx.title || ctx.url || '—')}</div>
-          ${domain ? `<div class="source-item-domain">${escHtml(domain)}</div>` : ''}
-        </span>
-        <span class="source-item-icon">↗</span>
-      </a>`;
-  });
-  return `<div class="sources-section"><div class="sources-title">Sources (${entries.length})</div>${items}</div>`;
-}
-
-function buildSourcesListFromArray(sources) {
+function buildSourcesList(sources, { cardStyle = false } = {}) {
   const valid = sources.filter(s => s.url || s.title);
   if (!valid.length) return '';
   let items = '';
-  valid.forEach(({ num, title, url }) => {
+  valid.forEach(src => {
     let domain = '';
-    try { domain = new URL(url || '').hostname.replace(/^www\./, ''); } catch {}
-    items += `
-      <a class="source-item" href="${escHtml(url || '#')}" target="_blank" rel="noopener noreferrer">
-        <span class="source-item-num">${num}</span>
-        <span class="source-item-body">
-          <div class="source-item-title">${escHtml(title || url || '—')}</div>
-          ${domain ? `<div class="source-item-domain">${escHtml(domain)}</div>` : ''}
-        </span>
-        <span class="source-item-icon">↗</span>
-      </a>`;
+    try { domain = new URL(src.url || '').hostname.replace(/^www\./, ''); } catch {}
+    const href = src.url ? escHtml(src.url) : '#';
+    const noUrl = src.url ? '' : (cardStyle ? 'class="source-no-url"' : 'class="source-no-url"');
+    const icon = cardStyle ? getSourceIcon(domain, src.url) : null;
+    const num = src.num || src.key;
+    items += cardStyle
+      ? `<a class="source-card" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
+          <div class="source-card-icon">${icon}</div>
+          <div class="source-card-body">
+            <div class="source-card-title">${escHtml(src.title || '—')}</div>
+            <div class="source-card-meta">
+              ${domain ? `<span class="source-card-domain">${escHtml(domain)}</span>` : ''}
+              ${src.date ? `<span class="source-card-date">${escHtml(src.date)}</span>` : ''}
+            </div>
+          </div>
+          <span class="source-card-num">[${escHtml(String(num))}]</span>
+        </a>`
+      : `<a class="source-item" href="${href}" target="_blank" rel="noopener noreferrer" ${noUrl}>
+          <span class="source-item-num">${escHtml(String(num))}</span>
+          <span class="source-item-body">
+            <div class="source-item-title">${escHtml(src.title || src.url || '—')}</div>
+            ${domain ? `<div class="source-item-domain">${escHtml(domain)}</div>` : ''}
+          </span>
+          <span class="source-item-icon">↗</span>
+        </a>`;
   });
-  return `<div class="sources-section"><div class="sources-title">Sources (${valid.length})</div>${items}</div>`;
+  const label = cardStyle ? '📎 Sources' : 'Sources';
+  const containerClass = cardStyle ? 'sources-grid' : '';
+  const inner = cardStyle ? `<div class="sources-grid">${items}</div>` : items;
+  return `<div class="sources-section"><div class="sources-title">${label} (${valid.length})</div>${inner}</div>`;
+}
+
+function getSourceIcon(domain, url) {
+  if (domain.includes('reliefweb')) return '🌐';
+  if (domain.includes('un')) return '🇺🇳';
+  if (domain.includes('ocha')) return '📍';
+  if (url) return '🔗';
+  return '📄';
+}
+
+function buildSummarySourcesList(summaryCtx) {
+  const sources = Object.entries(summaryCtx)
+    .filter(([, ctx]) => ctx && (ctx.url || ctx.title))
+    .map(([num, ctx]) => ({ ...ctx, num }))
+    .sort((a, b) => parseInt(a.num) - parseInt(b.num));
+  return buildSourcesList(sources);
+}
+
+function buildSourcesListFromArray(sources) {
+  return buildSourcesList(sources);
 }
 
 function toggleCard(header) {
@@ -1552,12 +1515,12 @@ function switchReportView(mode) {
 
 // ── SITREP → AgenTRC discuss ────────────────────────────────────────────────
 async function discussSitrepWithAgent() {
-  if (!sitrepActiveFile) return;
+  if (!sitrepState.activeFile) return;
 
   // Fetch the full report JSON
   let report;
   try {
-    const resp = await api(`/api/sitrep/report?file=${encodeURIComponent(sitrepActiveFile)}`);
+    const resp = await api(`/api/sitrep/report?file=${encodeURIComponent(sitrepState.activeFile)}`);
     report = await resp.json();
     if (report.error) throw new Error(report.error);
   } catch (err) {
@@ -1566,7 +1529,7 @@ async function discussSitrepWithAgent() {
   }
 
   // Build a comprehensive context string
-  const raw = report.file_name || sitrepActiveFile.replace(/_report\.json$/, '');
+  const raw = report.file_name || sitrepState.activeFile.replace(/_report\.json$/, '');
   const parts = raw.replace(/_/g, ' ').split(/\s+/);
   const country = parts[0];
   const evt = parts.slice(1).join(' ');
@@ -1645,7 +1608,7 @@ async function discussSitrepWithAgent() {
         else addMsg('assistant', md(m.content));
       }
     }
-    currentAiText = '';
+    chatState.currentAiText = '';
     await loadChatList();
 
     // Focus input
@@ -1927,7 +1890,7 @@ function initWorldMap() {
   if (!container) return;
 
   if (typeof L === 'undefined') {
-    container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Loading map…</div>';
+    container.innerHTML = '<div class="center-loading dash-weekly-loading">Loading map…</div>';
     let retries = 0;
     const tryInit = () => {
       if (typeof L !== 'undefined') {
@@ -1936,7 +1899,7 @@ function initWorldMap() {
         retries++;
         setTimeout(tryInit, 500);
       } else {
-        container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Map unavailable. Please refresh.</div>';
+        container.innerHTML = '<div class="center-loading dash-weekly-loading">Map unavailable. Please refresh.</div>';
       }
     };
     setTimeout(tryInit, 500);
@@ -1979,7 +1942,7 @@ function initWorldMap() {
     setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 500);
   } catch (err) {
     console.error('[map] Leaflet init error:', err);
-    container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Map unavailable.</div>';
+    container.innerHTML = '<div class="center-loading dash-weekly-loading">Map unavailable.</div>';
     return;
   }
 
@@ -2069,14 +2032,6 @@ function openCrisisPanel(crisis) {
 
   bodyEl.innerHTML = html;
 
-  const sitrepBtn = bodyEl.querySelector('.crisis-sitrep-btn');
-  if (sitrepBtn) {
-    sitrepBtn.addEventListener('click', () => {
-      closeCrisisPanel();
-      viewCrisisSitrep(sitrepBtn.dataset.country);
-    });
-  }
-
   panel.classList.add('open');
   if (mapEl) mapEl.classList.add('panel-open');
 
@@ -2104,8 +2059,7 @@ function viewCrisisSitrep(country) {
    }, 100);
 }
 
-function renderDashBulletins() { /* deprecated — overview renders inline */ }
-function renderDashCrises() { /* deprecated — overview renders inline */ }
+
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2287,10 +2241,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Chat sidebar
-      const chatOverlay = document.getElementById('chat-sidebar-overlay');
+  const chatOverlay = document.getElementById('chat-sidebar-overlay');
   if (chatOverlay) chatOverlay.addEventListener('click', toggleChatSidebar);
   const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
   if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', toggleChatSidebar);
+  // User photo click opens chat sidebar
+  const userPhoto = document.getElementById('user-photo');
+  if (userPhoto) userPhoto.addEventListener('click', toggleChatSidebar);
+  const mobileUserPhoto = document.getElementById('mobile-user-photo');
+  if (mobileUserPhoto) mobileUserPhoto.addEventListener('click', toggleChatSidebar);
   const chatNewBtn = document.getElementById('chat-new-btn');
   if (chatNewBtn) chatNewBtn.addEventListener('click', newChat);
   if (sendBtn) sendBtn.addEventListener('click', sendMessage);
@@ -2463,7 +2422,11 @@ document.addEventListener('DOMContentLoaded', () => {
         openBulletin(target.dataset.filename);
         break;
       case 'view-bulletin-sitrep':
+        closeCrisisPanel();
         viewBulletinSitrep(target.dataset.country);
+        break;
+      case 'open-sitrep-report':
+        openSitrepReport(target.dataset.file, target);
         break;
     }
   });
@@ -2482,21 +2445,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Init SITREP steps grid
   buildStepsGrid();
-  sitrepStepStates = new Array(STEPS.length).fill('waiting');
+  sitrepState.stepStates = new Array(STEPS.length).fill('waiting');
   showSitrepView('welcome');
 
-  // Ingest tag input: Enter key support
+  // SITREP tag input: Enter key support
   ['country', 'theme'].forEach(field => {
     const inp = document.getElementById(`up-${field}-input`);
     if (!inp) return;
     inp.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); tagAdd(field); }
     });
-  });
-
-  ['mq-country','mq-query'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') mqSearch(); });
   });
 
   // Wait for auth before making auth-required API calls
@@ -2552,13 +2510,13 @@ async function loadBulletinList() {
       container.innerHTML = `
         <div class="bulletin-tab-empty">
           No bulletins yet
-          <button class="bulletin-gen-btn" data-action="generate-bulletin" style="margin-left:8px">Generate Weekly Bulletin</button>
+          <button class="bulletin-gen-btn bulletin-gen-inline" data-action="generate-bulletin">Generate Weekly Bulletin</button>
         </div>`;
       return;
     }
     container.innerHTML = bulletins.map((b, i) => {
       const fallbackTag = b.data_date_range?.fallback
-        ? ' <span style="color:#f59e0b;font-size:10px">⚠</span>'
+        ? ' <span class="severity-warn-icon">⚠</span>'
         : '';
       return `<button class="bulletin-tab-pill${i === 0 ? ' active' : ''}" data-action="open-bulletin" data-filename="${esc(b.filename)}">${esc(humanizeWeekLabel(b.week_label))}${fallbackTag}</button>`;
     }).join('');
@@ -2699,7 +2657,7 @@ function renderBulletin(b, container) {
 
     <div class="bulletin-overview">
       <h3>Global Overview</h3>
-      <p>${b.global_overview}</p>
+      <div class="bulletin-overview-text">${typeof marked !== 'undefined' ? sanitizeHtml(marked.parse(b.global_overview || '')) : esc(b.global_overview || '')}</div>
     </div>
 
     <div class="bulletin-crises">
