@@ -136,6 +136,30 @@ OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", ACTIVE_MODEL)
 LLM_MODEL: str = os.getenv("LLM_MODEL", ACTIVE_MODEL)
 
 # ============================================================================
+# CHAT MODEL SELECTOR — available models for agent chat
+# ============================================================================
+CHAT_MODELS: dict = {
+    "flash": {
+        "name": "Flash",
+        "model": "google/gemini-2.5-flash",
+        "desc": "Fast responses",
+        "premium": False,
+    },
+    "thinking": {
+        "name": "Thinking",
+        "model": "google/gemma-4-31b-it",
+        "desc": "Balanced",
+        "premium": False,
+    },
+    "ultra": {
+        "name": "Ultra",
+        "model": "google/gemini-2.5-pro",
+        "desc": "Best quality",
+        "premium": True,
+    },
+}
+
+# ============================================================================
 # MODEL PARAMETERS — reliefwebapi agent
 # ============================================================================
 MODEL_TEMPERATURE: float = float(os.getenv("MODEL_TEMPERATURE", "0.3"))

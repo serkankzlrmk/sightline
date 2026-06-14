@@ -241,6 +241,20 @@ function updateVisibility() {
   document.querySelectorAll(".admin-only").forEach(el => {
     el.style.display = isAdmin ? "" : "none";
   });
+
+  // Model selector: lock ultra model for non-premium
+  const ultraOpt = document.querySelector('[data-model="ultra"]');
+  if (ultraOpt) {
+    ultraOpt.classList.toggle("locked", !isPremium);
+  }
+
+  // Database: show premium banner for free users
+  const premiumBanner = document.getElementById("db-premium-banner");
+  const recentList = document.getElementById("db-recent-list");
+  const fullAccess = document.getElementById("db-full-access");
+  if (premiumBanner) premiumBanner.style.display = isPremium ? "none" : "flex";
+  if (recentList) recentList.style.display = isPremium ? "none" : "block";
+  if (fullAccess) fullAccess.classList.toggle("hidden", !isPremium);
 }
 
 // ═══════════════════════════════════════════════════════════

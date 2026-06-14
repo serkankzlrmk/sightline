@@ -46,6 +46,7 @@ from config import (
     SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
     DAILY_MESSAGE_LIMIT, PREMIUM_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
+    CHAT_MODELS,
 )
 
 from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
@@ -573,6 +574,17 @@ def api_auth_me():
         "is_admin": is_admin,
         "role": role,
         "rate_limit": rate,
+        "models": {k: {"name": v["name"], "desc": v["desc"], "premium": v["premium"]} for k, v in CHAT_MODELS.items()},
+    })
+
+
+@app.route("/api/chat/models")
+@require_auth
+def api_chat_models():
+    role = current_role()
+    return jsonify({
+        "models": {k: {"name": v["name"], "desc": v["desc"], "premium": v["premium"], "allowed": not v["premium"] or role in ("premium", "admin")} for k, v in CHAT_MODELS.items()},
+        "default": "thinking",
     })
 
 
@@ -937,6 +949,14 @@ def api_agent_chat():
     if role != "admin":
         _increment_rate_limit(uid)
 
+    # Model selection for chat
+    requested_model = data.get("model", "thinking")
+    model_key = requested_model if requested_model in CHAT_MODELS else "thinking"
+    model_config = CHAT_MODELS[model_key]
+    # Premium model check
+    if model_config["premium"] and role not in ("premium", "admin"):
+        return jsonify({"error": "Premium model requires a premium account", "premium_required": True}), 403
+
     from langchain_core.messages import HumanMessage, AIMessage
 
     def generate():
@@ -948,7 +968,42 @@ def api_agent_chat():
             _db_add_message(chat_id, "user", user_message)
             messages_snapshot = _load_langchain_messages(chat_id)
 
-            agent = _get_agent()
+            # Use selected model or default agent
+            selected_model_name = model_config["model"]
+            if selected_model_name != config.OLLAMA_MODEL:
+                # Create a temporary agent with the selected model
+                from langchain_openai import ChatOpenAI
+                from agent.relief_agent import all_tools, SYSTEM_PROMPT
+                from langgraph.graph import StateGraph
+                from langgraph.graph.message import MessagesState
+                from langgraph.prebuilt import ToolNode
+
+                temp_llm = ChatOpenAI(
+                    model=selected_model_name,
+                    base_url=config._LLM_BASE_URL,
+                    api_key=config._LLM_API_KEY,
+                    temperature=config.MODEL_TEMPERATURE,
+                    max_tokens=config.MODEL_MAX_TOKENS,
+                    timeout=config.OLLAMA_TIMEOUT,
+                )
+                temp_llm_with_tools = temp_llm.bind_tools(all_tools)
+
+                def temp_llm_call(state: MessagesState):
+                    messages = state["messages"]
+                    if messages and messages[0].content != SYSTEM_PROMPT:
+                        from langchain_core.messages import SystemMessage
+                        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+                    return {"messages": temp_llm_with_tools.invoke(messages)}
+
+                _temp_builder = StateGraph(MessagesState)
+                _temp_builder.add_node("llm_call", temp_llm_call)
+                _temp_builder.add_node("tool_node", ToolNode(all_tools))
+                _temp_builder.add_edge(START, "llm_call")
+                _temp_builder.add_conditional_edges("llm_call", lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__", ["tool_node", "__end__"])
+                _temp_builder.add_edge("tool_node", "llm_call")
+                agent = _temp_builder.compile()
+            else:
+                agent = _get_agent()
             full_response = ""
 
             for chunk, metadata in agent.stream(
@@ -1122,6 +1177,11 @@ def api_db_reports():
     source   = request.args.get("source",   "").strip()
     date_from = request.args.get("date_from", "").strip()
     date_to   = request.args.get("date_to",   "").strip()
+    limit    = request.args.get("limit",    "").strip()
+    sort     = request.args.get("sort",      "date").strip()
+    order    = request.args.get("order",     "desc").strip()
+
+    role = current_role()
 
     conn = _db_conn()
     try:
@@ -1145,7 +1205,17 @@ def api_db_reports():
             query += " AND date <= ?"
             params.append(date_to)
 
-        query += " ORDER BY date DESC"
+        # Free users: only last 3 days of reports
+        if role not in ("premium", "admin"):
+            query += " AND date >= date('now', '-3 days')"
+
+        order_dir = "ASC" if order.upper() == "ASC" else "DESC"
+        sort_col = "date" if sort == "date" else "report_id"
+        query += f" ORDER BY {sort_col} {order_dir}"
+
+        if limit and limit.isdigit():
+            query += f" LIMIT {int(limit)}"
+
         rows = conn.execute(query, params).fetchall()
     except Exception:
         return jsonify([])

@@ -7,8 +7,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const ADMIN_EMAIL = 'serkankizilirmaak@gmail.com';
+const ADMIN_EMAIL = 'serkankizilirmak@gmail.com';
 const TAB_NAMES = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
+const DEFAULT_MODEL = 'thinking';
+const CHAT_MODELS = {
+  flash: { name: 'Flash', desc: 'Fast responses', premium: false },
+  thinking: { name: 'Thinking', desc: 'Balanced', premium: false },
+  ultra: { name: 'Ultra', desc: 'Best quality — Premium', premium: true },
+};
 
 // ── Shared state ────────────────────────────────────────────────────────────
 let currentTab = 'agent';
@@ -28,6 +34,7 @@ const chatState = {
   isStreaming: false,
   currentAiEl: null,
   currentAiText: '',
+  selectedModel: DEFAULT_MODEL,
 };
 
 // SITREP tab state
@@ -339,7 +346,7 @@ async function sendMessage() {
     const resp = await api('/api/agent/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message: text }),
+      body:    JSON.stringify({ message: text, model: chatState.selectedModel }),
     });
 
     if (resp.status === 429) {
@@ -667,8 +674,25 @@ async function executeDeleteChat(chatId, btn) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function reloadReports() {
-  await Promise.all([loadStats(), loadFilterOptions()]);
-  await applyFilters();
+  const role = window.__userRole || 'free';
+  const isPremium = role === 'premium' || role === 'admin';
+  const banner = document.getElementById('db-premium-banner');
+  const recentList = document.getElementById('db-recent-list');
+  const fullAccess = document.getElementById('db-full-access');
+
+  if (isPremium) {
+    if (banner) banner.style.display = 'none';
+    if (recentList) recentList.style.display = 'none';
+    if (fullAccess) fullAccess.classList.remove('hidden');
+    await Promise.all([loadStats(), loadFilterOptions()]);
+    await applyFilters();
+  } else {
+    if (banner) banner.style.display = 'flex';
+    if (recentList) recentList.style.display = 'block';
+    if (fullAccess) fullAccess.classList.add('hidden');
+    await loadStats();
+    await loadRecentReports();
+  }
 }
 
 async function loadStats() {
@@ -678,6 +702,32 @@ async function loadStats() {
     document.getElementById('s-reports').textContent = (d.report_count || 0).toLocaleString();
     document.getElementById('s-chunks').textContent  = (d.chunk_count  || 0).toLocaleString();
   } catch { /* ignore */ }
+}
+
+async function loadRecentReports() {
+  const container = document.getElementById('db-recent-items');
+  if (!container) return;
+  try {
+    const r = await api('/api/db/reports?sort=date&order=desc&limit=10');
+    const data = await r.json();
+    const reports = data.reports || data;
+    if (!reports.length) {
+      container.innerHTML = '<div class="msg-muted" style="padding:16px">No recent reports found.</div>';
+      return;
+    }
+    container.innerHTML = reports.slice(0, 10).map(rep => {
+      const date = rep.date || '—';
+      const country = rep.primary_country || '—';
+      const title = rep.title || 'Untitled';
+      return `<div class="db-recent-item" data-report-id="${rep.report_id}">
+        <span class="db-recent-date">${escHtml(date)}</span>
+        <span class="db-recent-country">${escHtml(country)}</span>
+        <span class="db-recent-title">${escHtml(title)}</span>
+      </div>`;
+    }).join('');
+  } catch {
+    container.innerHTML = '<div class="msg-muted" style="padding:16px">Could not load reports.</div>';
+  }
 }
 
 async function loadFilterOptions() {
@@ -1018,7 +1068,7 @@ async function loadSitrepReportsList() {
       div.className = 'report-item';
       div.dataset.file = item.filename;
       div.dataset.action = 'open-sitrep-report';
-
+      const country = item.filename.split('_')[0].replace(/\(/g, ' ').replace(/\)/g, '').trim();
       div.innerHTML = `<span>${escHtml(country)}</span>`;
       list.appendChild(div);
     });
@@ -2155,6 +2205,40 @@ document.addEventListener('DOMContentLoaded', () => {
   chatDiv   = document.getElementById('chat-messages');
   busyDot   = document.getElementById('busy-dot');
 
+  // Model selector
+  const modelToggle = document.getElementById('model-selector-toggle');
+  const modelMenu = document.getElementById('model-menu');
+  if (modelToggle && modelMenu) {
+    modelToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      modelMenu.classList.toggle('open');
+    });
+    document.addEventListener('click', () => modelMenu.classList.remove('open'));
+    modelMenu.addEventListener('click', (e) => e.stopPropagation());
+    modelMenu.querySelectorAll('.model-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const key = opt.dataset.model;
+        if (!key) return;
+        const cfg = CHAT_MODELS[key];
+        if (cfg.premium && window.__userRole !== 'premium' && window.__userRole !== 'admin') {
+          toast('Ultra model requires a Premium account', 'warning');
+          return;
+        }
+        chatState.selectedModel = key;
+        const label = document.getElementById('model-selector-label');
+        if (label) label.textContent = cfg.name;
+        modelMenu.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        modelMenu.classList.remove('open');
+      });
+    });
+    // Lock premium model for non-premium users
+    const ultraOpt = modelMenu.querySelector('[data-model="ultra"]');
+    if (ultraOpt && window.__userRole !== 'premium' && window.__userRole !== 'admin') {
+      ultraOpt.classList.add('locked');
+    }
+  }
+
   // Welcome mode — center content until user sends first message
   const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
   if (chatMain) chatMain.classList.add('welcome-mode');
@@ -2427,6 +2511,9 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'open-sitrep-report':
         openSitrepReport(target.dataset.file, target);
+        break;
+      case 'toggle-model-menu':
+        // Handled by direct event listener above
         break;
     }
   });

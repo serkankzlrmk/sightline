@@ -433,6 +433,43 @@ body.sidebar-collapsed .main {
    ═══════════════════════════════════════════════════════════════════════════ */
 .reports-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 28px 32px; gap: 20px; }
 
+/* ── Database premium banner ── */
+.db-premium-banner {
+  display: flex; align-items: center; gap: 16px;
+  background: linear-gradient(135deg, rgba(0,122,255,.06), rgba(175,82,222,.06));
+  border: 1px solid rgba(0,122,255,.15);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+.db-premium-icon { font-size: 28px; }
+.db-premium-text { flex: 1; }
+.db-premium-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.db-premium-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; }
+.db-premium-btn {
+  background: var(--blue); color: #fff; border: none;
+  border-radius: var(--radius-full); padding: 8px 20px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background var(--transition), transform var(--transition-fast);
+}
+.db-premium-btn:hover { background: var(--blue-hover); transform: scale(1.02); }
+
+/* ── Database recent reports list ── */
+.db-recent-list { margin-top: 4px; }
+.db-recent-header { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.db-recent-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border);
+  margin-bottom: 6px; cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.db-recent-item:hover { background: var(--blue-light); box-shadow: var(--shadow-xs); }
+.db-recent-date { font-size: 11px; color: var(--text-muted); min-width: 64px; }
+.db-recent-country { font-size: 11px; color: var(--blue); font-weight: 600; min-width: 72px; }
+.db-recent-title { font-size: 13px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.db-full-access.hidden { display: none; }
+
 /* Apple-style stat cards with glass effect */
 .stats-row {
   display: grid;
@@ -1016,6 +1053,54 @@ body.sidebar-collapsed .main {
   font-size: 13.5px; font-weight: 600; color: var(--text);
   letter-spacing: -.1px;
 }
+
+/* ── Model selector ── */
+.model-selector {
+  position: relative;
+  margin-left: auto;
+}
+.model-selector-btn {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 5px 12px;
+  font-size: 12px; font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+.model-selector-btn:hover { background: var(--blue-light); color: var(--blue); border-color: rgba(0,122,255,.3); }
+.model-selector-label { font-size: 12px; }
+.model-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  min-width: 180px;
+  z-index: 100;
+  display: none;
+  overflow: hidden;
+}
+.model-menu.open { display: block; }
+.model-option {
+  width: 100%; text-align: left;
+  background: none; border: none;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background var(--transition);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.model-option:hover { background: var(--blue-light); }
+.model-option.active { background: rgba(0,122,255,.08); }
+.model-option-name { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 4px; }
+.model-option-desc { font-size: 11px; color: var(--text-muted); }
+.model-option-premium .model-option-name { color: var(--purple); }
+.model-option-premium .model-option-desc { color: #a78bfa; }
+.model-option-premium.locked { opacity: .5; cursor: not-allowed; }
+.model-option-premium.locked:hover { background: none; }
+.lock-icon { width: 12px; height: 12px; opacity: .7; }
 
 /* Scrollable messages area */
 .chat-scroll {
