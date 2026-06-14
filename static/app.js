@@ -2492,7 +2492,7 @@ async function openBulletin(filename) {
 
 function renderBulletin(b, container) {
   const severityOrder = { high: 0, medium: 1, low: 2 };
-  const crises = (b.crises || []).sort((a, c) =>
+  const allCrises = (b.crises || []).sort((a, c) =>
     (severityOrder[a.severity] ?? 3) - (severityOrder[c.severity] ?? 3)
   );
 
@@ -2509,7 +2509,7 @@ function renderBulletin(b, container) {
     </div>
   `).join('');
 
-  const crisisCards = crises.map(c => {
+  const buildCrisisCards = (crises) => crises.map(c => {
     const hdxFigures = (c.hdx_key_figures || []).map(f => `
       <div class="hdx-kf-mini">
         <span class="hdx-kf-value">${f.value}</span>
@@ -2518,15 +2518,20 @@ function renderBulletin(b, container) {
     `).join('');
 
     return `
-    <div class="crisis-card crisis-${c.severity}">
+    <div class="crisis-card crisis-${c.severity}" data-severity="${c.severity}">
       <div class="crisis-card-header">
-        <div class="crisis-card-country">${c.country}</div>
+        <div class="crisis-card-country">${esc(c.country)}</div>
         ${severityBadge(c.severity)}
       </div>
+      ${c.headline ? `<div class="crisis-card-headline">${esc(c.headline)}</div>` : ''}
+      ${c.summary ? `<div class="crisis-card-summary">${esc(c.summary)}</div>` : ''}
       ${hdxFigures ? `<div class="hdx-kf-row">${hdxFigures}</div>` : ''}
-      ${c.has_sitrep ? `<button class="crisis-sitrep-btn" data-action="view-bulletin-sitrep" data-country="${escHtml(c.country)}">View SITREP →</button>` : ''}
+      ${c.has_sitrep ? `<button class="crisis-sitrep-btn" data-action="view-bulletin-sitrep" data-country="${esc(c.country)}">View SITREP →</button>` : ''}
     </div>
   `;}).join('');
+
+  const counts = { high: 0, medium: 0, low: 0 };
+  allCrises.forEach(c => { if (counts[c.severity] !== undefined) counts[c.severity]++; });
 
   // Show fallback notice if data date range differs from requested range
   const fallbackNotice = b.data_date_range?.fallback
@@ -2551,10 +2556,34 @@ function renderBulletin(b, container) {
     </div>
 
     <div class="bulletin-crises">
-      <h3>Active Crises</h3>
-      <div class="crisis-grid">${crisisCards}</div>
+      <div class="bulletin-crises-head">
+        <h3>Active Crises</h3>
+        <div class="severity-filter" id="severity-filter">
+          <button class="severity-pill active" data-sev="all">All ${allCrises.length}</button>
+          <button class="severity-pill" data-sev="high">High ${counts.high}</button>
+          <button class="severity-pill" data-sev="medium">Medium ${counts.medium}</button>
+          <button class="severity-pill" data-sev="low">Low ${counts.low}</button>
+        </div>
+      </div>
+      <div class="crisis-grid" id="crisis-grid">${buildCrisisCards(allCrises)}</div>
     </div>
   `;
+
+  const filterBtns = container.querySelectorAll('#severity-filter .severity-pill');
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sev = btn.dataset.sev;
+      container.querySelectorAll('.crisis-card').forEach(card => {
+        if (sev === 'all' || card.dataset.severity === sev) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
 }
 
 function viewBulletinSitrep(country) {
