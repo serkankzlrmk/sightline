@@ -1841,8 +1841,8 @@ async function loadDashboard() {
     }
   } catch { /* ignore */ }
 
-  // Initialize map first (creates Leaflet map), then add markers after data loads
-  initWorldMap();
+  // Initialize map after a short delay to ensure container has height
+  setTimeout(() => { initWorldMap(); }, 200);
 }
 
 function renderDashOverview(b) {
@@ -1894,7 +1894,15 @@ function initWorldMap() {
 
   if (leafletMap) {
     updateMapMarkers();
-    leafletMap.invalidateSize();
+    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
+    return;
+  }
+
+  // Ensure container has dimensions before init
+  const wrap = container.closest('.dash-map-wrap');
+  if (wrap && wrap.offsetHeight < 100) {
+    // Container not visible yet, retry
+    setTimeout(() => { initWorldMap(); }, 300);
     return;
   }
 
@@ -1917,7 +1925,7 @@ function initWorldMap() {
       maxZoom: 19,
     }).addTo(leafletMap);
 
-    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 300);
+    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 500);
   } catch (err) {
     console.error('[map] Leaflet init error:', err);
     container.innerHTML = '<div class="dash-weekly-loading" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">Map unavailable.</div>';
