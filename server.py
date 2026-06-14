@@ -47,6 +47,7 @@ from config import (
     DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
     DAILY_MESSAGE_LIMIT, PREMIUM_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
     CHAT_MODELS,
+    OLLAMA_MODEL, _LLM_BASE_URL, _LLM_API_KEY, MODEL_TEMPERATURE, MODEL_MAX_TOKENS, OLLAMA_TIMEOUT,
 )
 
 from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
@@ -970,7 +971,7 @@ def api_agent_chat():
 
             # Use selected model or default agent
             selected_model_name = model_config["model"]
-            if selected_model_name != config.OLLAMA_MODEL:
+            if selected_model_name != OLLAMA_MODEL:
                 # Create a temporary agent with the selected model
                 from langchain_openai import ChatOpenAI
                 from agent.relief_agent import all_tools, _build_system_prompt
@@ -980,11 +981,11 @@ def api_agent_chat():
 
                 temp_llm = ChatOpenAI(
                     model=selected_model_name,
-                    base_url=config._LLM_BASE_URL,
-                    api_key=config._LLM_API_KEY,
-                    temperature=config.MODEL_TEMPERATURE,
-                    max_tokens=config.MODEL_MAX_TOKENS,
-                    timeout=config.OLLAMA_TIMEOUT,
+                    base_url=_LLM_BASE_URL,
+                    api_key=_LLM_API_KEY,
+                    temperature=MODEL_TEMPERATURE,
+                    max_tokens=MODEL_MAX_TOKENS,
+                    timeout=OLLAMA_TIMEOUT,
                 )
                 temp_llm_with_tools = temp_llm.bind_tools(all_tools)
                 _system_prompt_text = _build_system_prompt()
@@ -1045,8 +1046,8 @@ def api_agent_chat():
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
         except Exception as e:
-            logger.exception("Agent chat error")
-            yield f"data: {json.dumps({'type': 'error', 'text': 'An error occurred during processing'})}\n\n"
+            logger.exception("Agent chat error: %s", e)
+            yield f"data: {json.dumps({'type': 'error', 'text': f'Error: {type(e).__name__}: {str(e)[:200]}'})}\n\n"
         finally:
             _user_agent_busy[uid] = False
 

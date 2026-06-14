@@ -996,10 +996,6 @@ body.sidebar-collapsed .main {
   padding: 0 20px 20px;
   background: transparent;
 }
-.chat-main.welcome-mode .chat-input-row {
-  max-width: 640px;
-  animation: none;
-}
 .chat-main.welcome-mode .chat-input-wrap {
   animation: breathe 4s ease-in-out infinite;
 }
