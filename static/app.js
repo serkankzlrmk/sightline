@@ -165,12 +165,16 @@ function switchTab(name) {
     if (tab) tab.classList.toggle('active', t === name);
   });
 
+  // Sync mobile bottom tab bar
+  document.querySelectorAll('.mobile-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === name);
+  });
+
   // Home: hide sidebar, show hamburger
   if (name === 'home') {
     if (sidebar) sidebar.classList.add('hidden');
     if (main) main.style.marginLeft = '0';
     if (hamburger) hamburger.style.display = 'none';
-    // Leaflet needs invalidateSize when container becomes visible
     setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
   } else {
     if (sidebar) sidebar.classList.remove('hidden');
@@ -2074,6 +2078,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // Crisis panel close button
   const crisisPanelClose = document.getElementById('dash-crisis-panel-close');
   if (crisisPanelClose) crisisPanelClose.addEventListener('click', closeCrisisPanel);
+
+  // Mobile bottom tab bar
+  document.querySelectorAll('.mobile-tab[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Mobile user button (logout)
+  const mobileUserBtn = document.getElementById('mobile-user-btn');
+  if (mobileUserBtn) {
+    mobileUserBtn.addEventListener('click', () => {
+      if (typeof signOut === 'function') {
+        if (confirm('Sign out of Sightline?')) signOut();
+      }
+    });
+  }
 
   // Agent DOM refs
   chatInput = document.getElementById('chat-input');

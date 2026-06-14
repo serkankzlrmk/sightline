@@ -90,8 +90,19 @@ function showUserBar(user) {
     if (photo) photo.src = user.photoURL || "";
     if (name)  name.textContent = user.displayName || user.email || "User";
     bar.classList.remove("hidden");
+    // Mobile user button
+    const mBtn  = document.getElementById("mobile-user-btn");
+    const mPhoto = document.getElementById("mobile-user-photo");
+    const mName = document.getElementById("mobile-user-name");
+    if (mBtn) {
+      if (mPhoto) mPhoto.src = user.photoURL || "";
+      if (mName) mName.textContent = (user.displayName || user.email || "User").split(' ')[0];
+      mBtn.style.display = '';
+    }
   } else {
     bar.classList.add("hidden");
+    const mBtn = document.getElementById("mobile-user-btn");
+    if (mBtn) mBtn.style.display = 'none';
   }
 }
 
