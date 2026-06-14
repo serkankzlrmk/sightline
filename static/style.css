@@ -1211,7 +1211,7 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 .auth-overlay {
   position: fixed; inset: 0; z-index: 10000;
   display: flex; align-items: stretch;
-  background: var(--navy);
+  background: #FFFFFF;
   overflow: hidden;
 }
 .auth-overlay.hidden { display: none; }
@@ -1382,7 +1382,10 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 .auth-legal a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); font-weight: 500; }
 .auth-legal a:hover { color: var(--blue); border-bottom-color: var(--blue); }
 
-/* ── Legal Modal ── */
+/* Legal Modal inside auth-overlay — must be above auth card */
+.auth-overlay .modal-overlay {
+  z-index: 10001;
+}
 .legal-modal {
   max-width: 560px;
   max-height: 80vh;
@@ -1404,36 +1407,6 @@ body.auth-locked .auth-card   { pointer-events: auto; }
 }
 .legal-modal .modal-bdy li {
   margin-bottom: 4px;
-}
-
-/* ── App Footer ── */
-.app-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 8px 16px;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  letter-spacing: -.01em;
-}
-.app-footer a {
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-weight: 500;
-}
-.app-footer a:hover {
-  color: var(--blue);
-}
-body.auth-locked .app-footer {
-  display: none;
 }
 
 .auth-copyright {

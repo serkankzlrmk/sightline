@@ -2142,12 +2142,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (legalClose) legalClose.addEventListener('click', () => { legalModal.classList.remove('open'); });
   if (legalModal) legalModal.addEventListener('click', (e) => { if (e.target === legalModal) legalModal.classList.remove('open'); });
 
-  // Footer legal links
-  const footerTerms = document.getElementById('footer-terms-link');
-  const footerPrivacy = document.getElementById('footer-privacy-link');
-  if (footerTerms) footerTerms.addEventListener('click', (e) => { e.preventDefault(); showLegal('terms'); });
-  if (footerPrivacy) footerPrivacy.addEventListener('click', (e) => { e.preventDefault(); showLegal('privacy'); });
-
   // Crisis panel close button
   const crisisPanelClose = document.getElementById('dash-crisis-panel-close');
   if (crisisPanelClose) crisisPanelClose.addEventListener('click', closeCrisisPanel);

@@ -120,18 +120,19 @@
       <div class="auth-legal">By signing in you agree to the <a href="#" id="terms-link">Terms of Use</a> and <a href="#" id="privacy-link">Privacy Policy</a></div>
     </div>
   </div>
-  <div class="auth-copyright">&copy; 2026 Sightline</div>
-</div>
 
-<!-- Legal Modal -->
-<div class="modal-overlay" id="legal-modal">
-  <div class="modal legal-modal">
-    <div class="modal-hdr">
-      <div class="modal-title" id="legal-modal-title">Terms of Use</div>
-      <button class="modal-close" id="legal-modal-close">&times;</button>
+  <!-- Legal Modal (inside auth-overlay for z-index) -->
+  <div class="modal-overlay" id="legal-modal">
+    <div class="modal legal-modal">
+      <div class="modal-hdr">
+        <div class="modal-title" id="legal-modal-title">Terms of Use</div>
+        <button class="modal-close" id="legal-modal-close">&times;</button>
+      </div>
+      <div class="modal-bdy" id="legal-modal-body"></div>
     </div>
-    <div class="modal-bdy" id="legal-modal-body"></div>
   </div>
+
+  <div class="auth-copyright">&copy; 2026 Sightline</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -688,13 +689,5 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script src="/static/app.js?v={{ v }}"></script>
-
-<!-- Footer — always visible -->
-<footer class="app-footer">
-  <span>&copy; 2026 Sightline</span>
-  <a href="#" id="footer-terms-link">Terms of Use</a>
-  <a href="#" id="footer-privacy-link">Privacy Policy</a>
-</footer>
-
 </body>
 </html>
