@@ -16,10 +16,13 @@ Usage:
 """
 
 import os
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional
 
 from config import VECTOR_BACKEND
+
+logger = logging.getLogger(__name__)
 
 # Force ONNX Runtime to skip TensorRT provider — avoids ~3 sec retry on every query
 os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
@@ -261,7 +264,8 @@ class VectorStore:
                 )
                 if results and results.get("ids"):
                     chunk_ids_to_remove.extend(results["ids"])
-            except Exception:
+            except Exception as e:
+                logger.warning(f"ChromaDB get-by-metadata failed during purge: {e}")
                 # Fallback: try common chunk indices
                 for i in range(200):  # reasonable upper bound
                     chunk_ids_to_remove.append(f"{rid}_{i}")
@@ -280,8 +284,8 @@ class VectorStore:
             try:
                 self.collection.delete(ids=batch)
                 total_removed += len(batch)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"ChromaDB purge batch delete failed: {e}")
         
         return total_removed
 

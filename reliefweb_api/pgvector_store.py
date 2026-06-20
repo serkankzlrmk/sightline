@@ -14,7 +14,10 @@ Usage:
 
 import os
 import json
+import logging
 from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
@@ -147,8 +150,9 @@ class PgVectorStore:
             if self.conn is None or self.conn.closed:
                 self.conn = psycopg2.connect(self.db_url)
                 self.conn.autocommit = True
-        except Exception:
+        except Exception as e:
             # Direct DB connection failed — use REST API fallback
+            logger.warning(f"Direct DB connection failed, falling back to REST API: {e}")
             self._use_rest = True
             self.conn = None
 

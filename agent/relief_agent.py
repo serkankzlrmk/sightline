@@ -441,7 +441,7 @@ def run_conversational_agent():
     print("=" * 70)
     print("RELIEFWEB CONVERSATIONAL AGENT")
     print("=" * 70)
-    print(f"Model: {ACTIVE_MODEL}")
+    print(f"Model: {config.ACTIVE_MODEL}")
     print("Powered by: OpenRouter + ReliefWeb API")
     print()
     print("Examples:")

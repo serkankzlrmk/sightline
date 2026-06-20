@@ -180,6 +180,13 @@ def answer_questions(
     """
     all_answers: List[Dict] = []
 
+    # Work on a copy so the caller's filtered_questions dict is not mutated in place.
+    # Mutating in place causes checkpoint/resume corruption: on restart the already-truncated
+    # list gets truncated again, yielding fewer questions than intended.
+    filtered_questions = {cid: dict(cd) for cid, cd in filtered_questions.items()}
+    for cd in filtered_questions.values():
+        cd["filtered_questions"] = list(cd.get("filtered_questions", []))
+
     # --- Dynamic question budget: distribute MAX_TOTAL_QUESTIONS proportionally ---
     total_questions = sum(
         len(cd.get("filtered_questions", []))

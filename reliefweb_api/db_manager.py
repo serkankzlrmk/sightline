@@ -10,9 +10,12 @@ Schema:
 import sqlite3
 import json
 import re
+import logging
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Tuple
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # CONFIGURATION
@@ -412,6 +415,7 @@ def extract_pdf_text(pdf_path: str) -> Tuple[str, int]:
                 pages.append(t.strip())
         return "\n\n".join(pages), len(reader.pages)
     except Exception as e:
+        logger.warning(f"PDF text extraction failed for {pdf_path}: {e}")
         return "", 0
 
 

@@ -48,6 +48,7 @@ from config import (
     DAILY_MESSAGE_LIMIT, PREMIUM_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
     CHAT_MODELS,
     OLLAMA_MODEL, _LLM_BASE_URL, _LLM_API_KEY, MODEL_TEMPERATURE, MODEL_MAX_TOKENS, OLLAMA_TIMEOUT,
+    SITREP_JOB_TIMEOUT,
 )
 
 from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
@@ -525,6 +526,7 @@ def _is_gpu_noise(line: str) -> bool:
 
 def _run_job(job_id: str, cmd: list):
     q = _jobs[job_id]["queue"]
+    proc = None
     try:
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
@@ -544,7 +546,27 @@ def _run_job(job_id: str, cmd: list):
         with _jobs_lock:
             _jobs[job_id]["proc"] = proc
 
-        for raw_line in proc.stdout:
+        deadline = _time.time() + SITREP_JOB_TIMEOUT
+        while True:
+            raw_line = proc.stdout.readline()
+            if not raw_line:
+                # Process closed stdout — check if it actually exited
+                if proc.poll() is not None:
+                    break
+                # No output yet — check timeout, then wait briefly
+                if _time.time() > deadline:
+                    q.put(f"[SERVER TIMEOUT] SITREP job exceeded {SITREP_JOB_TIMEOUT}s, terminating.")
+                    logger.warning("SITREP job %s exceeded %ds timeout, terminating", job_id, SITREP_JOB_TIMEOUT)
+                    try:
+                        proc.terminate()
+                        _time.sleep(5)
+                        if proc.poll() is None:
+                            proc.kill()
+                    except Exception:
+                        pass
+                    break
+                _time.sleep(0.1)
+                continue
             line = _strip_ansi(raw_line.rstrip())
             if not line:
                 continue
@@ -565,6 +587,15 @@ def _run_job(job_id: str, cmd: list):
             _jobs[job_id]["status"] = "error"
             _jobs[job_id]["finished_at"] = _time.time()
     finally:
+        # Ensure the child process is dead if we're leaving with it still running
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()
+                _time.sleep(1)
+                if proc.poll() is None:
+                    proc.kill()
+            except Exception:
+                pass
         q.put(None)  # sentinel
 
 

@@ -129,8 +129,8 @@ def auto_ingest(
                 for raw in chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP):
                     enriched = build_chunk_with_header(raw, metadata, "html")
                     chunks.append({"source_type": "html", "content": enriched})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"HTML processing failed for report {metadata.get('id', '?')}: {e}")
 
     # PDF chunks
     if pdf_files:
@@ -141,8 +141,8 @@ def auto_ingest(
                 for raw in chunk_text(pdf_text, CHUNK_SIZE, CHUNK_OVERLAP):
                     enriched = build_chunk_with_header(raw, metadata, "pdf")
                     chunks.append({"source_type": "pdf", "content": enriched})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"PDF processing failed for report {metadata.get('id', '?')}: {e}")
 
     # --- Insert SQLite ---
     try:
@@ -345,6 +345,14 @@ def ingest_from_api(
         vs = VectorStore(chroma_dir, backend=VECTOR_BACKEND)
         n_chunks = vs.add_report(report_id, chunks, metadata)
     except Exception as e:
+        # Rollback the SQLite insert to avoid orphaned records (matches auto_ingest behavior)
+        logger.error(f"Vector store insert failed for {report_id}, rolling back SQLite: {e}")
+        try:
+            db = DatabaseManager(db_path)
+            db.delete_report(report_id)
+            db.close()
+        except Exception as rb_err:
+            logger.error(f"SQLite rollback ALSO failed for {report_id}: {rb_err}")
         return {"success": False, "error": f"Vector store insert failed: {e}"}
 
     logger.info(
@@ -399,5 +407,5 @@ def _extract_pdf_from_bytes(pdf_bytes: bytes) -> tuple:
             try:
                 import os
                 os.unlink(tmp_path)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not delete temp file {tmp_path}: {e}")

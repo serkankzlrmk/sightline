@@ -186,6 +186,10 @@ LLM_MAX_TOKENS_HEADLINE: int = 64
 LLM_TIMEOUT:     int = int(os.getenv("LLM_TIMEOUT",     "180"))
 LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
+# SITREP pipeline subprocess timeout (seconds). A stuck pipeline (ChromaDB lock,
+# LLM stall) is killed after this deadline to free the worker thread.
+SITREP_JOB_TIMEOUT: int = int(os.getenv("SITREP_JOB_TIMEOUT", "1800"))  # 30 min
+
 # Question generation
 LLM_MODEL_QUESTIONS:       str   = os.getenv("LLM_MODEL_QUESTIONS",       LLM_MODEL)
 LLM_TEMPERATURE_QUESTIONS: float = float(os.getenv("LLM_TEMPERATURE_QUESTIONS", "0.7"))
