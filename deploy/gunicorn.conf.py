@@ -24,6 +24,11 @@ errorlog = "/var/log/reliefagent/error.log"
 loglevel = "info"
 capture_output = True
 
+# Custom access log format — omits query string to prevent leaking
+# ?nonce= / ?token= / ?api_key= secrets to log files.
+# Standard Combined Log Format but with path only (no query string).
+access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(f)s" "%(a)s"'
+
 # Security
 limit_request_line = 8190    # Max size of HTTP request line
 limit_request_fields = 100   # Max number of HTTP header fields

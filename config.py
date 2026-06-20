@@ -289,6 +289,13 @@ if not SERVER_DEBUG and CORS_ORIGINS.strip() == "*":
 # SSL verification for outbound HTTP requests (ReliefWeb API, PDF downloads)
 SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
 SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
+if not SSL_VERIFY and not SERVER_DEBUG:
+    import logging as _ssl_log
+    _ssl_log.getLogger(__name__).warning(
+        "SSL_VERIFY=false in production (SERVER_DEBUG=false) — all outbound "
+        "HTTPS calls (ReliefWeb, HDX, Supabase) are vulnerable to MITM. "
+        "Set SSL_VERIFY=true or configure SSL_CA_BUNDLE for corporate proxies."
+    )
 SECRET_KEY:  str = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
     if os.getenv("SERVER_DEBUG", "").lower() == "true":

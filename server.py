@@ -36,9 +36,6 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
 
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 from flask import Flask, Response, request, jsonify, render_template, send_from_directory, g
 from flask_cors import CORS
 
@@ -50,6 +47,10 @@ from config import (
     OLLAMA_MODEL, _LLM_BASE_URL, _LLM_API_KEY, MODEL_TEMPERATURE, MODEL_MAX_TOKENS, OLLAMA_TIMEOUT,
     SITREP_JOB_TIMEOUT,
 )
+
+import urllib3
+if not SSL_VERIFY:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
 
@@ -134,10 +135,14 @@ def add_security_headers(response):
         # 'unpkg.com' required for Leaflet.js map library. '*.basemaps.cartocdn.com' required for map tiles.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'self'; "
             "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data: https: http:; "
+            "img-src 'self' data: https:; "
             "connect-src 'self' https://www.gstatic.com https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://*.basemaps.cartocdn.com; "
             "frame-src https://YOUR_PROJECT.firebaseapp.com https://accounts.google.com; "
         )
@@ -145,13 +150,20 @@ def add_security_headers(response):
         # Dev CSP — includes localhost for local development
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'self'; "
             "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com http://localhost:5000 http://localhost:5001; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data: https: http:; "
+            "img-src 'self' data: https:; "
             "connect-src 'self' http://localhost:5000 http://localhost:5001 http://127.0.0.1:5000 http://127.0.0.1:5001 https://www.gstatic.com https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://*.basemaps.cartocdn.com; "
             "frame-src https://YOUR_PROJECT.firebaseapp.com https://accounts.google.com; "
         )
+    # HSTS — only when behind HTTPS (nginx sets X-Forwarded-Proto)
+    if request.headers.get("X-Forwarded-Proto", "") == "https" or request.is_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -2190,6 +2202,12 @@ def api_ingest_upload():
     if not pdf_file.mimetype or pdf_file.mimetype not in ("application/pdf",):
         return jsonify({"error": "Only PDF files are accepted"}), 400
 
+    # Magic-byte check: PDF files must start with %PDF-
+    header = pdf_file.read(5)
+    pdf_file.seek(0)
+    if header != b"%PDF-":
+        return jsonify({"error": "File does not appear to be a valid PDF"}), 400
+
     conn = _db_conn()
     try:
         max_row = conn.execute(
@@ -2202,7 +2220,8 @@ def api_ingest_upload():
 
     tmp      = tempfile.mkdtemp()
     try:
-        safe_nm  = re.sub(r'[/\\]', '_', pdf_file.filename)
+        from werkzeug.utils import secure_filename
+        safe_nm  = secure_filename(pdf_file.filename) or "upload.pdf"
         pdf_path = os.path.join(tmp, safe_nm)
         pdf_file.save(pdf_path)
 
