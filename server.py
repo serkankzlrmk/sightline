@@ -164,12 +164,12 @@ _user_active_chat_lock = threading.Lock()
 _user_agent_busy = {}  # uid → bool  (per-user agent busy flag)
 _user_agent_busy_since = {}  # uid → timestamp
 _user_agent_busy_lock = threading.Lock()  # guards _user_agent_busy + _user_agent_busy_since
-_AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
+_AGENT_BUSY_TIMEOUT = int(os.getenv("AGENT_BUSY_TIMEOUT", "600"))  # 10 min max — auto-unlock if stuck
 
 # Simple per-IP rate limiter for unauthenticated endpoints
 _api_rate_lock = threading.Lock()
 _api_rate_counts = {}  # ip → {date: str, count: int}
-_API_DAILY_LIMIT = 100
+_API_DAILY_LIMIT = int(os.getenv("API_DAILY_LIMIT", "100"))
 
 def _check_api_rate_limit():
     """Per-IP rate limit for API endpoints. Returns (ok, remaining)."""
@@ -509,14 +509,14 @@ def _parse_countries(json_str):
 
 _jobs: dict = {}
 _jobs_lock  = threading.Lock()
-_JOBS_MAX_AGE = 3600  # Clean up completed jobs older than 1 hour
+_JOBS_MAX_AGE = int(os.getenv("SITREP_JOBS_MAX_AGE", "3600"))  # Clean up completed jobs older than 1 hour
 
 # ── Nonce store for SITREP stream auth ────────────────────────────────────────
 # Replaces JWT-in-query-param (EventSource can't send Authorization headers).
 # Nonces are single-use, expire after 5 minutes, tied to a UID.
 _stream_nonces: dict = {}  # {nonce_str: {"uid": str, "expires": float, "used": bool}}
 _stream_nonces_lock = threading.Lock()
-_STREAM_NONCE_TTL = 300  # 5 minutes
+_STREAM_NONCE_TTL = int(os.getenv("STREAM_NONCE_TTL", "300"))  # 5 minutes
 
 
 def _create_stream_nonce(uid: str) -> str:
@@ -839,8 +839,6 @@ def api_admin_update_config():
     })
 
 
-import time as _time
-
 @app.route("/")
 def index():
     return render_template("index.html", v=int(_time.time()))
@@ -1155,7 +1153,7 @@ def api_agent_chat():
 
         except Exception as e:
             logger.exception("Agent chat error: %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'text': f'Error: {type(e).__name__}: {str(e)[:200]}'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'text': 'An internal error occurred. Please try again.'})}\n\n"
         finally:
             with _user_agent_busy_lock:
                 _user_agent_busy[uid] = False
@@ -2082,7 +2080,8 @@ def api_ingest_daily():
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Daily ingest timed out (10 min limit)"}), 504
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception("Daily ingest failed: %s", e)
+        return jsonify({"error": "Ingest failed. Check server logs for details."}), 500
 
 
 MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this

@@ -203,9 +203,10 @@ def verify_firebase_token(token: str) -> dict:
             time.sleep(2)
             decoded = firebase_auth.verify_id_token(token, check_revoked=False)
             return decoded
-        raise ValueError(f"Invalid or expired Firebase token: {exc}")
+        raise ValueError("Invalid or expired Firebase token.")
     except Exception as exc:
-        raise ValueError(f"Invalid or expired Firebase token: {exc}")
+        _log.warning("Firebase token verification failed: %s", exc)
+        raise ValueError("Invalid or expired Firebase token.")
 
 
 def current_uid() -> str:
@@ -265,7 +266,7 @@ def require_auth(f):
             g.current_user = decoded
         except ValueError as exc:
             _log.warning("require_auth: token verify failed for %s: %s", request.path, exc)
-            return jsonify({"error": str(exc)}), 401
+            return jsonify({"error": "Authentication failed."}), 401
 
         return f(*args, **kwargs)
     return decorated
@@ -319,7 +320,7 @@ def require_admin(f):
             g.current_user = decoded
         except ValueError as exc:
             _log.warning("require_admin: token verify failed for %s: %s", request.path, exc)
-            return jsonify({"error": str(exc)}), 401
+            return jsonify({"error": "Authentication failed."}), 401
 
         user_role = decoded.get("role", "free")
         if user_role != "admin":
@@ -382,7 +383,7 @@ def require_role(minimum: str):
                 g.current_user = decoded
             except ValueError as exc:
                 _log.warning("require_role(%s): token verify failed for %s: %s", minimum, request.path, exc)
-                return jsonify({"error": str(exc)}), 401
+                return jsonify({"error": "Authentication failed."}), 401
 
             user_role = decoded.get("role", "free")
             user_rank = _role_rank(user_role)
