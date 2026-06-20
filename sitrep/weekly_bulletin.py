@@ -34,6 +34,8 @@ from config import (
     OUTPUT_DIR,
     OUTPUT_BULLETINS_DIR,
     LLM_MODEL,
+    BULLETIN_MAX_COUNTRIES,
+    BULLETIN_CHUNK_LIMIT,
 )
 
 logging.basicConfig(
@@ -169,10 +171,10 @@ def _get_available_date_range(db) -> Optional[Dict]:
         if not countries:
             return None
 
-        # Check the top 5 countries for date range
+        # Check the top 5 countries for date range (limit chunks to avoid memory waste)
         all_dates = []
         for entry in countries[:5]:
-            chunks = db.get_chunks_by_country(entry["name"], limit=200)
+            chunks = db.get_chunks_by_country(entry["name"], limit=min(100, BULLETIN_CHUNK_LIMIT))
             for c in chunks:
                 d = c.get("date", "")[:10]
                 if d and len(d) == 10:
@@ -215,7 +217,15 @@ def fetch_reports_by_date_range(
     actual_from = date_from
     actual_to = date_to
 
-    for entry in countries_with_counts:
+    # Cap countries processed to avoid OOM on 4GB VMs (~80 countries × 500 chunks = 40k dicts)
+    countries_iter = countries_with_counts[:BULLETIN_MAX_COUNTRIES]
+    if len(countries_with_counts) > BULLETIN_MAX_COUNTRIES:
+        logger.info(
+            "Capping bulletin to top %d countries (of %d) to avoid OOM",
+            BULLETIN_MAX_COUNTRIES, len(countries_with_counts),
+        )
+
+    for entry in countries_iter:
         country = entry["name"]
         count = entry.get("count", 0)
         if count < 3:
@@ -228,7 +238,7 @@ def fetch_reports_by_date_range(
                 themes=None,
                 date_from=date_from,
                 date_to=date_to,
-                limit=500,
+                limit=BULLETIN_CHUNK_LIMIT,
             )
         except Exception as exc:
             logger.warning("Failed to fetch chunks for %s: %s", country, exc)
@@ -261,7 +271,7 @@ def fetch_reports_by_date_range(
             actual_to = available["date_to"]
             used_fallback = True
 
-            for entry in countries_with_counts:
+            for entry in countries_iter:
                 country = entry["name"]
                 count = entry.get("count", 0)
                 if count < 3:
@@ -273,7 +283,7 @@ def fetch_reports_by_date_range(
                         themes=None,
                         date_from=actual_from,
                         date_to=actual_to,
-                        limit=500,
+                        limit=BULLETIN_CHUNK_LIMIT,
                     )
                 except Exception as exc:
                     logger.warning("Failed to fetch chunks for %s: %s", country, exc)

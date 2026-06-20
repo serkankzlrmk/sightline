@@ -1228,10 +1228,18 @@ def api_db_stats():
     try:
         report_count = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
         chunk_count  = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-        country_rows = conn.execute("SELECT countries FROM reports").fetchall()
-        source_rows  = conn.execute("SELECT source FROM reports").fetchall()
+        # SQL-side aggregation for sources (stored as plain text in `source` column)
+        source_rows = conn.execute(
+            "SELECT source, COUNT(*) AS cnt FROM reports GROUP BY source ORDER BY cnt DESC LIMIT 10"
+        ).fetchall()
+        # Countries are stored as JSON array text — still need Python-side parse,
+        # but cap the number of rows we load to avoid unbounded memory.
+        country_rows = conn.execute("SELECT countries FROM reports LIMIT 2000").fetchall()
     except Exception:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify({"report_count": 0, "chunk_count": 0, "top_countries": [], "top_sources": []})
     finally:
         try:
@@ -1244,16 +1252,11 @@ def api_db_stats():
         for c in _parse_countries(r[0]):
             country_counts[c] = country_counts.get(c, 0) + 1
 
-    source_counts: dict = {}
-    for r in source_rows:
-        s = r[0] or "?"
-        source_counts[s] = source_counts.get(s, 0) + 1
-
     return jsonify({
         "report_count": report_count,
         "chunk_count":  chunk_count,
         "top_countries": sorted(country_counts.items(), key=lambda x: -x[1])[:15],
-        "top_sources":   sorted(source_counts.items(), key=lambda x: -x[1])[:10],
+        "top_sources":   [(r[0] or "?", r[1]) for r in source_rows],
     })
 
 
@@ -1262,11 +1265,19 @@ def api_db_stats():
 def api_db_countries():
     conn = _db_conn()
     try:
-        rows = conn.execute("SELECT countries FROM reports").fetchall()
+        # Cap rows loaded into memory (countries stored as JSON text, needs Python parse)
+        rows = conn.execute("SELECT countries FROM reports LIMIT 2000").fetchall()
     except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify([])
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
     all_countries = set()
     for r in rows:
         for c in _parse_countries(r[0]):

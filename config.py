@@ -238,6 +238,12 @@ MAX_TOTAL_QUESTIONS:        int   = int(os.getenv("MAX_TOTAL_QUESTIONS",        
 # MAX_TOTAL_QUESTIONS distributes budget proportionally across all clusters,
 # so more clusters = fewer questions per cluster, but all topics are preserved.
 
+# Weekly bulletin — cap number of countries fetched to avoid OOM on 4GB VMs.
+# With ~80 countries × 500 chunks each = 40k chunk dicts in memory, the bulletin
+# generator can exhaust memory. This cap limits the worst case.
+BULLETIN_MAX_COUNTRIES: int = int(os.getenv("BULLETIN_MAX_COUNTRIES", "30"))
+BULLETIN_CHUNK_LIMIT:   int = int(os.getenv("BULLETIN_CHUNK_LIMIT",   "200"))
+
 # ============================================================================
 # OUTPUT DIRECTORIES — sitrep pipeline
 # ============================================================================
