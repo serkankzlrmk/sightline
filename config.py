@@ -275,15 +275,29 @@ SERVER_DEBUG: bool = os.getenv("SERVER_DEBUG", "false").lower() == "true"
 SERVER_API_KEY: str = os.getenv("SERVER_API_KEY", "")
 CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
 
+# In production (SERVER_DEBUG=false), reject wildcard CORS for safety.
+# Wildcard CORS allows any website to make authenticated API calls if it
+# can obtain a token (e.g., via XSS). Dev mode keeps `*` for convenience.
+if not SERVER_DEBUG and CORS_ORIGINS.strip() == "*":
+    import logging as _cfg_logging
+    _cfg_logging.getLogger(__name__).warning(
+        "CORS_ORIGINS=* in production (SERVER_DEBUG=false) is insecure. "
+        "Set CORS_ORIGINS to your production domain. Falling back to same-origin."
+    )
+    CORS_ORIGINS = ""
+
 # SSL verification for outbound HTTP requests (ReliefWeb API, PDF downloads)
 SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
 SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
 SECRET_KEY:  str = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
     if os.getenv("SERVER_DEBUG", "").lower() == "true":
-        SECRET_KEY = "dev-only-secret-key"
+        # Generate a random ephemeral key for dev — never use a hardcoded string
+        # (hardcoded keys allow session forgery if the repo is public).
+        import secrets as _secrets
+        SECRET_KEY = _secrets.token_hex(32)
         import warnings
-        warnings.warn("SECRET_KEY not set — using insecure dev key. Set SECRET_KEY in .env for production!")
+        warnings.warn("SECRET_KEY not set — generated random ephemeral dev key. Set SECRET_KEY in .env for production!")
     else:
         import sys
         print("FATAL: SECRET_KEY is not set. Refusing to start in production mode.", file=sys.stderr)

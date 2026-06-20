@@ -69,7 +69,8 @@ class TestResolveRole:
 
 class TestDevMode:
     def test_dev_auth_bypass_true(self):
-        with patch.dict(os.environ, {"DEV_AUTH_BYPASS": "true"}):
+        # Dev bypass requires loopback SERVER_HOST (safety: no auth bypass on 0.0.0.0)
+        with patch.dict(os.environ, {"DEV_AUTH_BYPASS": "true", "SERVER_HOST": "127.0.0.1"}):
             assert auth._dev_mode() is True
 
     def test_dev_auth_bypass_false(self):
@@ -77,21 +78,26 @@ class TestDevMode:
         with patch.dict(os.environ, env, clear=False):
             assert auth._dev_mode() is False
 
+    def test_dev_auth_bypass_non_loopback_blocked(self):
+        # Dev bypass must NOT work on 0.0.0.0 (public-facing)
+        with patch.dict(os.environ, {"DEV_AUTH_BYPASS": "true", "SERVER_HOST": "0.0.0.0"}):
+            assert auth._dev_mode() is False
+
     def test_dev_mode_server_debug_no_firebase_no_apikey(self):
-        env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": ""}
+        env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": "", "SERVER_HOST": "127.0.0.1"}
         with patch.dict(os.environ, env, clear=False):
             with patch.object(auth, "_api_key", return_value=""), \
                  patch.object(auth, "_firebase_app", return_value=None):
                 assert auth._dev_mode() is True
 
     def test_dev_mode_server_debug_with_apikey(self):
-        env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": ""}
+        env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": "", "SERVER_HOST": "127.0.0.1"}
         with patch.dict(os.environ, env, clear=False):
             with patch.object(auth, "_api_key", return_value="some-key"):
                 assert auth._dev_mode() is False
 
     def test_dev_mode_server_debug_with_firebase(self):
-        env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": ""}
+        env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": "", "SERVER_HOST": "127.0.0.1"}
         with patch.dict(os.environ, env, clear=False):
             with patch.object(auth, "_api_key", return_value=""), \
                  patch.object(auth, "_firebase_app", return_value=MagicMock()):

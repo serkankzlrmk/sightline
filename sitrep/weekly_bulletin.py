@@ -738,13 +738,17 @@ def list_bulletins() -> List[Dict]:
 
 def get_bulletin(filename: str) -> Optional[Dict]:
     """Load a specific bulletin by filename."""
-    path = BULLETINS_DIR / filename
+    base = BULLETINS_DIR.resolve()
+    path = (BULLETINS_DIR / filename).resolve()
+    # Defense-in-depth: verify the resolved path is inside the bulletins dir.
+    if not path.is_relative_to(base):
+        return None
     if not path.exists():
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, Exception) as exc:
+    except Exception as exc:
         logger.warning("Failed to read bulletin %s: %s", filename, exc)
         return None
 

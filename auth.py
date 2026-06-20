@@ -15,7 +15,10 @@ import os
 import functools
 import hmac
 import secrets
+import logging
 from flask import request, jsonify, g
+
+_log = logging.getLogger(__name__)
 
 # ── Role hierarchy ────────────────────────────────────────────────────────────
 # Higher index = higher privilege.  Used by require_role(minimum=).
@@ -81,16 +84,28 @@ def _api_key() -> str:
 def _dev_mode() -> bool:
     """Return True if running in dev mode with auth bypass enabled.
 
-    Auth is bypassed when DEV_AUTH_BYPASS=true is set in .env.
-    This allows local testing without needing Google Sign-In (useful in
-    VS Code integrated browser where popups don't work).
+    Auth is bypassed when DEV_AUTH_BYPASS=true is set in .env AND the server
+    is bound to a loopback address (127.0.0.1/localhost). This prevents
+    accidental auth bypass on a networked VM.
 
     When bypassed, all requests get a mock dev user with admin access.
     """
     if os.getenv("DEV_AUTH_BYPASS", "").lower() == "true":
+        # Only allow dev bypass on loopback — never on 0.0.0.0 or a public IP
+        host = os.getenv("SERVER_HOST", "0.0.0.0").strip()
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            _log.warning(
+                "DEV_AUTH_BYPASS=true but SERVER_HOST=%s is not loopback — "
+                "dev bypass disabled for safety.", host,
+            )
+            return False
         return True
     # Legacy check: SERVER_DEBUG=true AND no Firebase SA file AND no API key
     if os.getenv("SERVER_DEBUG", "").lower() != "true":
+        return False
+    # Only allow legacy dev bypass on loopback too
+    host = os.getenv("SERVER_HOST", "0.0.0.0").strip()
+    if host not in ("127.0.0.1", "localhost", "::1"):
         return False
     if _api_key():
         return False

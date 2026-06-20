@@ -109,6 +109,11 @@ else:
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 
+# ProxyFix: behind nginx, request.remote_addr is 127.0.0.1 for everyone.
+# This makes the per-IP rate limiter see the real client IP from X-Forwarded-For.
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 def _ssl_verify():
     """Return verify kwarg for requests calls based on config."""
     if not SSL_VERIFY:
@@ -148,6 +153,35 @@ def add_security_headers(response):
             "frame-src https://YOUR_PROJECT.firebaseapp.com https://accounts.google.com; "
         )
     return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-IP rate limiting on all /api/* routes (defense-in-depth)
+# ─────────────────────────────────────────────────────────────────────────────
+# Exempt: / (index), static files. The SITREP stream uses nonce auth + is
+# long-lived, so we exempt it too (it has its own auth gate).
+_API_RATE_EXEMPT_PATHS = {"/api/health", "/api/sitrep/stream"}  # stream is long-lived SSE
+
+
+@app.before_request
+def _apply_api_rate_limit():
+    """Apply per-IP rate limit to all /api/* endpoints (except exempt long-lived ones)."""
+    path = request.path
+    # Only rate-limit API endpoints
+    if not path.startswith("/api/"):
+        return None
+    # Exempt long-lived or unauthenticated health endpoints
+    # Stream path has its own nonce auth; health is a quick unauth check but
+    # we still want to limit abuse, so we DO rate-limit health.
+    if path.startswith("/api/sitrep/stream"):
+        return None
+    ok, remaining = _check_api_rate_limit()
+    if not ok:
+        return jsonify({
+            "error": "Rate limit exceeded. Please try again later.",
+            "remaining": 0,
+        }), 429
+    return None
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AGENT: Lazy import + multi-chat conversation state
@@ -514,21 +548,29 @@ _JOBS_MAX_AGE = int(os.getenv("SITREP_JOBS_MAX_AGE", "3600"))  # Clean up comple
 # ── Nonce store for SITREP stream auth ────────────────────────────────────────
 # Replaces JWT-in-query-param (EventSource can't send Authorization headers).
 # Nonces are single-use, expire after 5 minutes, tied to a UID.
-_stream_nonces: dict = {}  # {nonce_str: {"uid": str, "expires": float, "used": bool}}
+_stream_nonces: dict = {}  # {nonce_str: {"uid": str, "job_id": str, "expires": float, "used": bool}}
 _stream_nonces_lock = threading.Lock()
 _STREAM_NONCE_TTL = int(os.getenv("STREAM_NONCE_TTL", "300"))  # 5 minutes
 
 
-def _create_stream_nonce(uid: str) -> str:
-    """Create a single-use nonce for SITREP stream access, tied to a UID."""
+def _create_stream_nonce(uid: str, job_id: str = "") -> str:
+    """Create a single-use nonce for SITREP stream access, tied to a UID and job_id."""
     nonce = secrets.token_urlsafe(32)
     with _stream_nonces_lock:
-        _stream_nonces[nonce] = {"uid": uid, "expires": time.time() + _STREAM_NONCE_TTL, "used": False}
+        _stream_nonces[nonce] = {
+            "uid": uid,
+            "job_id": job_id,
+            "expires": time.time() + _STREAM_NONCE_TTL,
+            "used": False,
+        }
     return nonce
 
 
-def _consume_stream_nonce(nonce: str, uid: str) -> bool:
-    """Validate and consume a stream nonce. Returns True if valid."""
+def _consume_stream_nonce(nonce: str, uid: str, job_id: str = "") -> bool:
+    """Validate and consume a stream nonce. Returns True if valid.
+
+    Checks: nonce exists, not used, not expired, UID matches, job_id matches (if set).
+    """
     with _stream_nonces_lock:
         entry = _stream_nonces.get(nonce)
         if entry is None:
@@ -539,6 +581,9 @@ def _consume_stream_nonce(nonce: str, uid: str) -> bool:
             del _stream_nonces[nonce]
             return False
         if entry["uid"] != uid:
+            return False
+        # If the nonce was created for a specific job, verify it matches
+        if entry.get("job_id") and job_id and entry["job_id"] != job_id:
             return False
         entry["used"] = True
         return True
@@ -1526,64 +1571,68 @@ def api_sitrep_run():
             "proc":    None,
             "country": country,
             "event":   event,
+            "uid":     current_uid(),  # bind job to creator for ownership check
         }
 
     t = threading.Thread(target=_run_job, args=(job_id, cmd), daemon=True)
     t.start()
-    nonce = _create_stream_nonce(current_uid())
+    nonce = _create_stream_nonce(current_uid(), job_id)
     return jsonify({"job_id": job_id, "stream_nonce": nonce})
 
 
 @app.route("/api/sitrep/stream/<job_id>")
 def api_sitrep_stream(job_id):
-    from auth import _api_key, verify_firebase_token, _dev_mode
+    """SITREP SSE stream. Auth via single-use nonce (bound to job_id + UID).
 
-    uid = ""
+    The nonce is issued by /api/sitrep/run and is single-use, 5-min TTL.
+    EventSource cannot send Authorization headers, so we use ?nonce=<token>.
+    The old ?token=<JWT> and ?api_key= query-param fallbacks were removed
+    because they leaked secrets to access logs, browser history, and referrers.
+    """
+    from auth import _dev_mode
 
-    if not _dev_mode():
-        api_key = _api_key()
-        if api_key:
-            provided = request.args.get("api_key", "") or request.headers.get("X-API-Key", "")
-            if not secrets.compare_digest(provided, api_key):
-                return jsonify({"error": "Invalid API key"}), 403
-            uid = "api-key"
-        else:
-            auth_header = request.headers.get("Authorization", "")
-            if auth_header.startswith("Bearer "):
-                token = auth_header[len("Bearer "):].strip()
-            else:
-                token = request.args.get("token", "")
-            if not token:
-                nonce = request.args.get("nonce", "")
-                if nonce and _consume_stream_nonce(nonce, ""):
-                    uid = "nonce"
-                else:
-                    return jsonify({"error": "Missing token or valid nonce"}), 401
-            if uid != "nonce":
-                try:
-                    decoded = verify_firebase_token(token)
-                    uid = decoded.get("uid", "")
-                except Exception:
-                    nonce = request.args.get("nonce", "")
-                    if nonce and _consume_stream_nonce(nonce, uid):
-                        uid = uid or "nonce"
-                    else:
-                        return jsonify({"error": "Invalid token"}), 401
+    # Dev mode: no auth required, but still bind to the job
+    if _dev_mode():
+        requesting_uid = "dev-local"
     else:
-        uid = "dev-local"
+        nonce = request.args.get("nonce", "").strip()
+        if not nonce:
+            return jsonify({"error": "Missing stream nonce. Obtain one from /api/sitrep/run."}), 401
+        # We don't know the UID yet — the nonce carries it.
+        # _consume_stream_nonce checks the nonce's UID against the job's owner UID.
+        # First, look up the job to get the owner UID, then validate the nonce against it.
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            owner_uid = job.get("uid", "") if job else ""
+        if not owner_uid:
+            return jsonify({"error": "Unknown job id"}), 404
+        if not _consume_stream_nonce(nonce, owner_uid, job_id):
+            return jsonify({"error": "Invalid, expired, or mismatched nonce."}), 401
+        requesting_uid = owner_uid
 
     _cleanup_stream_nonces()
 
-    if job_id not in _jobs:
-        return jsonify({"error": "Unknown job id"}), 404
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            return jsonify({"error": "Unknown job id"}), 404
+        # Ownership check: the requesting UID must match the job creator
+        if job.get("uid", "") and requesting_uid != job["uid"]:
+            logger.warning(
+                "SITREP stream access denied: uid=%s attempted to read job %s owned by uid=%s",
+                requesting_uid, job_id, job.get("uid"),
+            )
+            return jsonify({"error": "Access denied"}), 403
+        q = job["queue"]
+        job_status = job.get("status", "running")
 
     def generate():
-        q = _jobs[job_id]["queue"]
         while True:
             try:
                 line = q.get(timeout=25)
                 if line is None:
-                    status = _jobs[job_id].get("status", "done")
+                    with _jobs_lock:
+                        status = _jobs.get(job_id, {}).get("status", "done")
                     yield f"data: __DONE__{status}\n\n"
                     break
                 safe = line.replace("\n", " ").replace("\r", "")
@@ -1605,9 +1654,15 @@ def api_sitrep_stream(job_id):
 @app.route("/api/sitrep/job/<job_id>")
 @require_auth
 def api_sitrep_job(job_id):
-    if job_id not in _jobs:
-        return jsonify({"error": "Unknown job id"}), 404
-    j = _jobs[job_id]
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            return jsonify({"error": "Unknown job id"}), 404
+        # Ownership check
+        uid = current_uid()
+        if job.get("uid", "") and uid != job["uid"]:
+            return jsonify({"error": "Access denied"}), 403
+        j = job
     return jsonify({
         "job_id":  job_id,
         "status":  j.get("status", "running"),
@@ -1640,8 +1695,12 @@ def api_sitrep_report():
     filename = request.args.get("file", "")
     if not filename or ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
+    base = OUTPUT_REPORTS_DIR.resolve()
     path = (OUTPUT_REPORTS_DIR / filename).resolve()
-    if not str(path).startswith(str(OUTPUT_REPORTS_DIR.resolve())):
+    # Defense-in-depth: verify the resolved path is inside the reports dir.
+    # is_relative_to handles the trailing-separator correctly (avoids prefix
+    # collision where /app/output/reports_evil would pass a startswith check).
+    if not path.is_relative_to(base):
         return jsonify({"error": "Invalid filename"}), 400
     if not path.exists():
         return jsonify({"error": "Report not found"}), 404
