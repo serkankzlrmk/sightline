@@ -330,12 +330,16 @@ let _initialized = false;
 
 async function _checkDevMode() {
   /* When server runs in dev mode (SERVER_DEBUG=true, no Firebase SA, no API key),
-     auto-bypass the auth overlay so we can test locally without Google Sign-In. */
+     auto-bypass the auth overlay so we can test locally without Google Sign-In.
+     We probe /api/auth/me with a dummy bearer token — in dev mode the server
+     bypasses auth and returns a mock user; in production it returns 401. */
   try {
-    const resp = await fetch("/api/health");
+    const resp = await fetch("/api/auth/me", {
+      headers: { "Authorization": "Bearer dev-probe" },
+    });
     if (!resp.ok) return false;
     const data = await resp.json();
-    return !!data.dev_mode;
+    return data.uid === "dev-local" || data.dev_mode === true;
   } catch (e) {
     return false;
   }

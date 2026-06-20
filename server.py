@@ -830,8 +830,31 @@ def api_admin_update_config():
     """
     ALLOWED_KEYS = {"ACTIVE_MODEL", "LLM_MODEL", "MODEL_TEMPERATURE", "MODEL_MAX_TOKENS",
                     "LLM_MODEL_QUESTIONS", "LLM_MODEL_FILTER", "LLM_MODEL_ANSWERS"}
+    # Validation regex per key type — prevents .env injection (newline in value
+    # could add arbitrary env keys like ADMIN_UIDS=attacker-uid)
+    import re as _re
+    _VALUE_PATTERNS = {
+        "ACTIVE_MODEL":          _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL":             _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL_QUESTIONS":   _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL_FILTER":      _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL_ANSWERS":     _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "MODEL_TEMPERATURE":     _re.compile(r"^[0-9.]+$"),
+        "MODEL_MAX_TOKENS":      _re.compile(r"^[0-9]+$"),
+    }
     data = request.get_json(silent=True) or {}
-    updates = {k: v for k, v in data.items() if k in ALLOWED_KEYS}
+    updates = {}
+    for k, v in data.items():
+        if k not in ALLOWED_KEYS:
+            continue
+        # Reject newlines, carriage returns, and null bytes (env injection)
+        sv = str(v).strip()
+        if any(c in sv for c in ("\n", "\r", "\0")):
+            return jsonify({"error": f"Invalid value for {k}: contains newline or null byte"}), 400
+        pattern = _VALUE_PATTERNS.get(k)
+        if pattern and not pattern.match(sv):
+            return jsonify({"error": f"Invalid value for {k}: must match {pattern.pattern}"}), 400
+        updates[k] = sv
     if not updates:
         return jsonify({"error": f"No valid keys. Allowed: {', '.join(sorted(ALLOWED_KEYS))}"}), 400
 
@@ -895,8 +918,13 @@ def index():
 
 @app.route("/api/health")
 def health():
-    """Enhanced health check — verifies DB, vector store, and LLM config."""
-    from config import CHROMA_DIR, _LLM_API_KEY, ACTIVE_MODEL, LLM_PROVIDER, VECTOR_BACKEND
+    """Enhanced health check — verifies DB, vector store, and LLM config.
+
+    Security: this endpoint is unauthenticated, so it returns only boolean
+    status flags — no model names, no release info, no dev_mode flag (which
+    would be a banner saying 'auth is disabled here').
+    """
+    from config import CHROMA_DIR, _LLM_API_KEY, VECTOR_BACKEND
 
     checks = {"status": "ok", "version": "1.2"}
 
@@ -911,53 +939,26 @@ def health():
         pass
     checks["db"] = db_ok
 
-    # Vector store check
-    checks["vector_backend"] = VECTOR_BACKEND
+    # Vector store check (boolean only — no backend name leak)
     if VECTOR_BACKEND == "pgvector":
-        # Check Supabase connectivity
         try:
             from config import SUPABASE_URL, SUPABASE_DB_URL
-            pg_ok = bool(SUPABASE_URL and SUPABASE_DB_URL)
-            checks["vector"] = pg_ok
+            checks["vector"] = bool(SUPABASE_URL and SUPABASE_DB_URL)
         except Exception:
             checks["vector"] = False
     else:
-        # ChromaDB directory check
-        chroma_ok = Path(str(CHROMA_DIR)).exists()
-        checks["vector"] = chroma_ok
+        checks["vector"] = Path(str(CHROMA_DIR)).exists()
 
-    # LLM config check
-    llm_ok = bool(_LLM_API_KEY)
-    checks["llm"] = llm_ok
-    checks["llm_provider"] = LLM_PROVIDER
-    checks["model"] = ACTIVE_MODEL
+    # LLM config check (boolean only — no model/provider name leak)
+    checks["llm"] = bool(_LLM_API_KEY)
 
-    # HDX check
-    hdx = get_hdx_client()
-    checks["hdx"] = hdx is not None
-
-    # News check
-    news = get_news_client()
-    checks["news"] = news is not None
-
-    # Release info (if available — written by deploy.sh)
-    release_info_path = Path(__file__).parent / "RELEASE_INFO"
-    if release_info_path.exists():
-        try:
-            for line in release_info_path.read_text().strip().splitlines():
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    checks[f"release_{k.lower()}"] = v
-        except Exception:
-            pass
+    # HDX/News checks (boolean only)
+    checks["hdx"] = get_hdx_client() is not None
+    checks["news"] = get_news_client() is not None
 
     # Overall status: ok only if all critical checks pass
-    all_ok = db_ok and checks.get("vector", False) and llm_ok
+    all_ok = db_ok and checks.get("vector", False) and checks["llm"]
     checks["status"] = "ok" if all_ok else "degraded"
-
-    # Dev mode flag — frontend uses this to auto-bypass auth overlay
-    from auth import _dev_mode
-    checks["dev_mode"] = _dev_mode()
 
     code = 200 if all_ok else 503
     return jsonify(checks), code
@@ -2091,7 +2092,19 @@ def api_ingest_daily():
     target_date = data.get("date", "")  # empty = yesterday
     purge_days = data.get("purge_days", 90)
     no_purge = data.get("no_purge", False)
-    
+
+    # Validate target_date format (if provided)
+    if target_date:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(target_date)):
+            return jsonify({"error": "Invalid date format (YYYY-MM-DD)"}), 400
+    # Validate purge_days is a positive int in a safe range (0-3650)
+    try:
+        purge_days = int(purge_days)
+        if not (0 <= purge_days <= 3650):
+            return jsonify({"error": "purge_days must be between 0 and 3650"}), 400
+    except (ValueError, TypeError):
+        return jsonify({"error": "purge_days must be an integer"}), 400
+
     # Build command
     cmd = [sys.executable, str(Path(__file__).parent / "scripts" / "daily_ingest.py")]
     if target_date:

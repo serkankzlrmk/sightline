@@ -81,7 +81,7 @@ function toast(message, type = 'info', duration = 4000) {
 function esc(s) {
   return String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function sanitizeHtml(html) {
@@ -390,7 +390,7 @@ async function sendMessage() {
         if (evt.type === 'token') {
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '';
           chatState.currentAiText += evt.text;
-          chatState.currentAiEl.innerHTML = md(chatState.currentAiText);
+          chatState.currentAiEl.innerHTML = sanitizeHtml(md(chatState.currentAiText));
           chatDiv.scrollTop = chatDiv.scrollHeight;
         } else if (evt.type === 'tool_start') {
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '';
@@ -513,7 +513,7 @@ async function loadChatList() {
             if (m.role === 'user') {
               addMsg('user', esc(m.content));
             } else {
-              addMsg('assistant', md(m.content));
+              addMsg('assistant', sanitizeHtml(md(m.content)));
             }
           }
           chatState.currentAiText = '';
@@ -662,7 +662,7 @@ async function executeDeleteChat(chatId, btn) {
       if (msgs.messages && msgs.messages.length > 0) {
         for (const m of msgs.messages) {
           if (m.role === 'user') addMsg('user', esc(m.content));
-          else addMsg('assistant', md(m.content));
+          else addMsg('assistant', sanitizeHtml(md(m.content)));
         }
       } else {
         chatDiv.innerHTML = getWelcomeHTML();
@@ -1664,7 +1664,7 @@ async function discussSitrepWithAgent() {
     if (msgs.messages && msgs.messages.length > 0) {
       for (const m of msgs.messages) {
         if (m.role === 'user') addMsg('user', esc(m.content));
-        else addMsg('assistant', md(m.content));
+        else addMsg('assistant', sanitizeHtml(md(m.content)));
       }
     }
     chatState.currentAiText = '';
@@ -2715,8 +2715,8 @@ function renderBulletin(b, container) {
 
   const keyFigures = (b.key_figures || []).map(f => `
     <div class="bulletin-kf-card">
-      <div class="bulletin-kf-value">${f.value}</div>
-      <div class="bulletin-kf-label">${f.label}</div>
+      <div class="bulletin-kf-value">${esc(f.value)}</div>
+      <div class="bulletin-kf-label">${esc(f.label)}</div>
     </div>
   `).join('');
 
@@ -2747,7 +2747,7 @@ function renderBulletin(b, container) {
   container.innerHTML = `
     <div class="bulletin-header">
       <div class="bulletin-title-row">
-        <h2 class="bulletin-title">${humanizeWeekLabel(b.week_label)}</h2>
+        <h2 class="bulletin-title">${esc(humanizeWeekLabel(b.week_label))}</h2>
       </div>
       ${fallbackNotice}
       <div class="bulletin-kf-row">${keyFigures}</div>
