@@ -31,6 +31,7 @@ API Key: https://newsapi.org/register
 import os
 import time
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
@@ -133,6 +134,7 @@ class NewsClient:
 
         self._sync_client: Optional[httpx.Client] = None
         self._request_timestamps: List[float] = []
+        self._rate_lock = threading.Lock()  # guards _request_timestamps
 
     @classmethod
     def from_env(cls) -> "NewsClient":
@@ -174,17 +176,20 @@ class NewsClient:
 
     def _check_rate_limit(self) -> None:
         now = time.time()
-        self._request_timestamps = [
-            t for t in self._request_timestamps
-            if now - t < self.rate_limit_period
-        ]
-        if len(self._request_timestamps) >= self.rate_limit_requests:
-            oldest = self._request_timestamps[0]
-            wait_time = self.rate_limit_period - (now - oldest)
-            if wait_time > 0:
-                logger.warning(f"News rate limit reached, waiting {wait_time:.1f}s")
-                time.sleep(wait_time)
-        self._request_timestamps.append(now)
+        with self._rate_lock:
+            self._request_timestamps = [
+                t for t in self._request_timestamps
+                if now - t < self.rate_limit_period
+            ]
+            if len(self._request_timestamps) >= self.rate_limit_requests:
+                oldest = self._request_timestamps[0]
+                wait_time = self.rate_limit_period - (now - oldest)
+            else:
+                wait_time = 0
+            self._request_timestamps.append(now)
+        if wait_time > 0:
+            logger.warning(f"News rate limit reached, waiting {wait_time:.1f}s")
+            time.sleep(wait_time)
 
     # =========================================================================
     # Core API Method

@@ -163,6 +163,7 @@ _user_active_chat = {}  # uid → chat_id
 _user_active_chat_lock = threading.Lock()
 _user_agent_busy = {}  # uid → bool  (per-user agent busy flag)
 _user_agent_busy_since = {}  # uid → timestamp
+_user_agent_busy_lock = threading.Lock()  # guards _user_agent_busy + _user_agent_busy_since
 _AGENT_BUSY_TIMEOUT = 600  # 10 min max — auto-unlock if stuck
 
 # Simple per-IP rate limiter for unauthenticated endpoints
@@ -225,6 +226,52 @@ def _check_rate_limit(uid: str, role: str = "free") -> dict:
         limit = DAILY_MESSAGE_LIMIT
     remaining = max(0, limit - used)
     return {"remaining": remaining, "limit": limit, "used": used}
+
+def _check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:
+    """Atomically check the daily rate limit AND increment the counter in a single
+    SQLite transaction. Returns {remaining, limit, used, allowed}.
+
+    This prevents the TOCTOU race where concurrent requests all pass the check
+    before any increment runs. Use this instead of _check_rate_limit + _increment_rate_limit
+    when you need to gate a single request.
+    """
+    from datetime import date
+    today = date.today().isoformat()
+    if role == "admin":
+        limit = 999
+    elif role == "premium":
+        limit = PREMIUM_MESSAGE_LIMIT
+    else:
+        limit = DAILY_MESSAGE_LIMIT
+    conn = _chats_db()
+    try:
+        conn.execute("PRAGMA busy_timeout=5000")
+        with conn:
+            row = conn.execute(
+                "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
+            ).fetchone()
+            if row and row["date"] == today:
+                used = row["count"]
+            else:
+                used = 0
+            allowed = used < limit
+            if allowed:
+                new_count = used + 1
+                if row:
+                    conn.execute(
+                        "UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid)
+                    )
+                else:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 1)",
+                        (uid, today),
+                    )
+            else:
+                new_count = used
+        remaining = max(0, limit - new_count)
+        return {"remaining": remaining, "limit": limit, "used": new_count, "allowed": allowed}
+    finally:
+        conn.close()
 
 def _increment_rate_limit(uid: str) -> int:
     """Atomically increment daily message count for a user. Returns new count."""
@@ -883,7 +930,8 @@ def api_agent_chats():
     """List all chats for the current user, newest first."""
     uid = current_uid()
     items = _db_get_chats_by_uid(uid)
-    active = _user_active_chat.get(uid, None)
+    with _user_active_chat_lock:
+        active = _user_active_chat.get(uid, None)
     return jsonify({"chats": items, "active": active})
 
 
@@ -894,7 +942,8 @@ def api_agent_chats_new():
     uid = current_uid()
     cid = _new_chat_id()
     _db_create_chat(cid, uid=uid)
-    _user_active_chat[uid] = cid
+    with _user_active_chat_lock:
+        _user_active_chat[uid] = cid
     return jsonify({"id": cid})
 
 
@@ -912,7 +961,8 @@ def api_agent_chats_new_with_context():
     _db_create_chat(cid, uid=uid)
     _db_rename_chat(cid, title)
     _db_add_message(cid, "assistant", context_text)
-    _user_active_chat[uid] = cid
+    with _user_active_chat_lock:
+        _user_active_chat[uid] = cid
     return jsonify({"id": cid, "active": cid})
 
 
@@ -923,7 +973,8 @@ def api_agent_chats_select(chat_id):
     uid = current_uid()
     if not _db_chat_belongs_to(chat_id, uid):
         return jsonify({"error": "Chat not found"}), 404
-    _user_active_chat[uid] = chat_id
+    with _user_active_chat_lock:
+        _user_active_chat[uid] = chat_id
     return jsonify({"ok": True, "id": chat_id})
 
 
@@ -960,10 +1011,13 @@ def api_agent_chats_delete(chat_id):
     if not _db_chat_belongs_to(chat_id, uid):
         return jsonify({"error": "Chat not found"}), 404
     _db_delete_chat(chat_id)
-    if _user_active_chat.get(uid) == chat_id:
-        _user_active_chat.pop(uid, None)
+    with _user_active_chat_lock:
+        if _user_active_chat.get(uid) == chat_id:
+            _user_active_chat.pop(uid, None)
     _ensure_active_chat(uid)
-    return jsonify({"ok": True, "active": _user_active_chat.get(uid)})
+    with _user_active_chat_lock:
+        active = _user_active_chat.get(uid)
+    return jsonify({"ok": True, "active": active})
 
 
 @app.route("/api/agent/chat", methods=["POST"])
@@ -978,29 +1032,33 @@ def api_agent_chat():
     if not user_message:
         return jsonify({"error": "empty message"}), 400
 
-    # Rate limit check (role-aware: admin=unlimited, premium=100, free=10)
-    if role != "admin":
-        rate = _check_rate_limit(uid, role)
-        if rate["remaining"] <= 0:
-            return jsonify({
-                "error": "Daily message limit reached",
-                "limit": rate["limit"],
-                "used": rate["used"],
-                "remaining": 0,
-            }), 429
+    # Rate limit check + busy flag check must be atomic to prevent TOCTOU races
+    # where two concurrent requests for the same user both pass the checks.
+    with _user_agent_busy_lock:
+        # Auto-unlock if stuck (client disconnected, finally didn't run)
+        if _user_agent_busy.get(uid, False):
+            if (_time.time() - _user_agent_busy_since.get(uid, 0)) > _AGENT_BUSY_TIMEOUT:
+                logger.warning("Agent busy flag stuck for uid=%s >%ds, auto-resetting", uid, _AGENT_BUSY_TIMEOUT)
+                _user_agent_busy[uid] = False
 
-    # Auto-unlock if stuck (client disconnected, finally didn't run)
-    if uid in _user_agent_busy and _user_agent_busy.get(uid, False):
-        if (_time.time() - _user_agent_busy_since.get(uid, 0)) > _AGENT_BUSY_TIMEOUT:
-            logger.warning("Agent busy flag stuck for uid=%s >%ds, auto-resetting", uid, _AGENT_BUSY_TIMEOUT)
-            _user_agent_busy[uid] = False
+        if _user_agent_busy.get(uid, False):
+            return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
 
-    if _user_agent_busy.get(uid, False):
-        return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
+        # Atomic rate-limit check + increment in a single DB transaction
+        if role != "admin":
+            rate = _check_and_increment_rate_limit(uid, role)
+            if not rate["allowed"]:
+                return jsonify({
+                    "error": "Daily message limit reached",
+                    "limit": rate["limit"],
+                    "used": rate["used"],
+                    "remaining": 0,
+                }), 429
+        # Mark busy NOW (under the lock) so a concurrent request sees it
+        _user_agent_busy[uid] = True
+        _user_agent_busy_since[uid] = _time.time()
 
     chat_id = _ensure_active_chat(uid)
-    if role != "admin":
-        _increment_rate_limit(uid)
 
     # Model selection for chat
     requested_model = data.get("model", "thinking")
@@ -1013,9 +1071,7 @@ def api_agent_chat():
     from langchain_core.messages import HumanMessage, AIMessage
 
     def generate():
-        _user_agent_busy[uid] = True
-        _user_agent_busy_since[uid] = _time.time()
-
+        # busy flag was already set under _user_agent_busy_lock before this generator starts
         try:
             # Save user message to DB and load full history
             _db_add_message(chat_id, "user", user_message)
@@ -1101,7 +1157,8 @@ def api_agent_chat():
             logger.exception("Agent chat error: %s", e)
             yield f"data: {json.dumps({'type': 'error', 'text': f'Error: {type(e).__name__}: {str(e)[:200]}'})}\n\n"
         finally:
-            _user_agent_busy[uid] = False
+            with _user_agent_busy_lock:
+                _user_agent_busy[uid] = False
 
     return Response(
         generate(),
@@ -1128,16 +1185,21 @@ def api_agent_chat_reset():
 @require_admin
 def api_agent_chat_unlock():
     """Force-unlock the agent busy flag for a specific user (emergency reset)."""
-    target_uid = request.json.get("uid") if request.is_json else None
-    if target_uid:
-        was_busy = _user_agent_busy.get(target_uid, False)
-        _user_agent_busy[target_uid] = False
-        return jsonify({"ok": True, "was_busy": was_busy, "uid": target_uid})
-    else:
-        # Unlock all users
-        busy_count = sum(1 for v in _user_agent_busy.values() if v)
-        _user_agent_busy.clear()
-        return jsonify({"ok": True, "unlocked_count": busy_count})
+    data = request.get_json(silent=True) or {}
+    target_uid = data.get("uid")
+    with _user_agent_busy_lock:
+        if target_uid:
+            was_busy = _user_agent_busy.get(target_uid, False)
+            _user_agent_busy[target_uid] = False
+            logger.info("Admin %s unlocked agent busy flag for uid=%s (was_busy=%s)", current_uid(), target_uid, was_busy)
+            return jsonify({"ok": True, "was_busy": was_busy, "uid": target_uid})
+        else:
+            # Unlock all users
+            busy_count = sum(1 for v in _user_agent_busy.values() if v)
+            _user_agent_busy.clear()
+            _user_agent_busy_since.clear()
+            logger.info("Admin %s unlocked ALL agent busy flags (count=%d)", current_uid(), busy_count)
+            return jsonify({"ok": True, "unlocked_count": busy_count})
 
 
 @app.route("/api/agent/chat/status")
@@ -1146,8 +1208,10 @@ def api_agent_chat_status():
     uid = current_uid()
     chat_id = _ensure_active_chat(uid)
     msg_count = len(_db_get_messages(chat_id))
+    with _user_agent_busy_lock:
+        busy = _user_agent_busy.get(uid, False)
     return jsonify({
-        "busy": _user_agent_busy.get(uid, False),
+        "busy": busy,
         "history_len": msg_count,
         "active_chat": chat_id,
     })
