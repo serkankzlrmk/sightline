@@ -6,12 +6,12 @@
 #   sudo bash deploy/deploy.sh [branch] [--skip-backup]
 #
 # Each deploy creates a timestamped release directory under
-# /opt/reliefagent/releases/ and atomically switches the
-# /opt/reliefagent/current symlink. If the health check fails,
+# /opt/sightline/releases/ and atomically switches the
+# /opt/sightline/current symlink. If the health check fails,
 # it automatically rolls back to the previous release.
 #
 # Directory structure:
-#   /opt/reliefagent/
+#   /opt/sightline/
 #   ├── current → releases/YYYYMMDD_HHMMSS   (symlink)
 #   ├── releases/
 #   │   ├── 20250615_143000/                   (active)
@@ -30,7 +30,7 @@
 set -euo pipefail
 
 # ── Configuration ───────────────────────────────────────────────
-APP_DIR="/opt/reliefagent"
+APP_DIR="/opt/sightline"
 DATA_DIR="$APP_DIR/data"
 RELEASES_DIR="$APP_DIR/releases"
 CURRENT_LINK="$APP_DIR/current"
@@ -39,9 +39,9 @@ HEALTH_URL="http://localhost:5001/api/health"
 HEALTH_RETRIES=10
 HEALTH_INTERVAL=3
 KEEP_RELEASES=3
-REPO_URL="/opt/reliefagent/repo"
-APP_USER="reliefagent"
-LOG_DIR="/var/log/reliefagent"
+REPO_URL="/opt/sightline/repo"
+APP_USER="sightline"
+LOG_DIR="/var/log/sightline"
 
 # ── Parse arguments ──────────────────────────────────────────────
 BRANCH="${1:-main}"
@@ -189,7 +189,7 @@ ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 echo "  ✓ Symlink switched: current → $TIMESTAMP"
 
 # Restart service
-systemctl restart reliefagent
+systemctl restart sightline
 echo "  ✓ Service restarted"
 
 # ── Health check ────────────────────────────────────────────────
@@ -215,7 +215,7 @@ if [ "$HEALTH_OK" = false ]; then
     if [ -n "$PREV_RELEASE" ] && [ -d "$PREV_RELEASE" ]; then
         echo "Rolling back to previous release: $(basename "$PREV_RELEASE")"
         ln -sfn "$PREV_RELEASE" "$CURRENT_LINK"
-        systemctl restart reliefagent
+        systemctl restart sightline
 
         # Wait for rollback to stabilize
         sleep 5
@@ -223,11 +223,11 @@ if [ "$HEALTH_OK" = false ]; then
             echo "✓ Rollback successful — previous version is live"
         else
             echo "✗ Rollback also failed! Manual intervention required!"
-            echo "  Check logs: journalctl -u reliefagent --no-pager -n 50"
+            echo "  Check logs: journalctl -u sightline --no-pager -n 50"
         fi
     else
         echo "✗ No previous release to roll back to!"
-        echo "  Check logs: journalctl -u reliefagent --no-pager -n 50"
+        echo "  Check logs: journalctl -u sightline --no-pager -n 50"
     fi
 
     echo ""
@@ -268,7 +268,7 @@ echo "  Git SHA:  ${GIT_SHA:0:8}"
 echo "  Directory: $RELEASE_DIR"
 echo ""
 echo "  Health:   $HEALTH_URL"
-echo "  Logs:     journalctl -u reliefagent -f"
+echo "  Logs:     journalctl -u sightline -f"
 echo ""
 echo "  Rollback: sudo bash $APP_DIR/deploy/rollback.sh"
 echo "============================================================"

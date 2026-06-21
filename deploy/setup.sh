@@ -57,7 +57,8 @@ if command -v dnf &>/dev/null; then
         python3 python3-pip \
         nginx certbot python3-certbot-nginx \
         git curl wget sqlite \
-        firewalld iptables-services
+        firewalld iptables-services \
+        fail2ban
 elif command -v apt-get &>/dev/null; then
     PKG_MGR="apt"
     apt-get update -qq
@@ -65,7 +66,8 @@ elif command -v apt-get &>/dev/null; then
         python3 python3-venv python3-pip \
         nginx certbot python3-certbot-nginx \
         git curl wget sqlite3 \
-        ufw iptables-persistent
+        ufw iptables-persistent \
+        fail2ban unattended-upgrades
 else
     echo "ERROR: Unsupported package manager. Use Oracle Linux 9 or Ubuntu 24.04."
     exit 1
@@ -116,6 +118,28 @@ if [ "$SKIP_IPTABLES" = false ]; then
     fi
 else
     echo "  Skipping iptables flush (--skip-iptables-flush)"
+fi
+
+# ── 2b. SSH hardening + intrusion detection ──────────────────────
+echo "[2b/10] Hardening SSH + enabling fail2ban..."
+
+# SSH hardening (key-only auth, no root password login, limit attempts)
+if [ -f /etc/ssh/sshd_config ]; then
+    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^#*MaxAuthTries.*/MaxAuthTries 3/' /etc/ssh/sshd_config
+    systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true
+    echo "  SSH hardened: key-only auth, no root password, max 3 attempts"
+fi
+
+# Enable fail2ban (SSH brute-force protection)
+systemctl enable --now fail2ban 2>/dev/null || true
+
+# Enable unattended-upgrades (automatic security updates) — Ubuntu only
+if [ "$PKG_MGR" = "apt" ]; then
+    echo 'APT::Periodic::Update-Package-Lists "1";' > /etc/apt/apt.conf.d/20auto-upgrades
+    echo 'APT::Periodic::Unattended-Upgrade "1";' >> /etc/apt/apt.conf.d/20auto-upgrades
+    echo "  Unattended-upgrades enabled"
 fi
 
 # ── 3. Create app user ──────────────────────────────────────────

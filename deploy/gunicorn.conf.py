@@ -19,8 +19,8 @@ max_requests = 1000  # Restart workers after N requests (prevents memory leaks)
 max_requests_jitter = 50
 
 # Logging
-accesslog = "/var/log/reliefagent/access.log"
-errorlog = "/var/log/reliefagent/error.log"
+accesslog = "/var/log/sightline/access.log"
+errorlog = "/var/log/sightline/error.log"
 loglevel = "info"
 capture_output = True
 

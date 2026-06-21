@@ -31,7 +31,7 @@ cat > /etc/cron.d/sightline-daily-ingest << 'EOF'
 SHELL=/bin/bash
 PATH=/opt/sightline/current/venv/bin:/usr/local/bin:/usr/bin:/bin
 
-0 6 * * * root cd /opt/sightline/current && /opt/sightline/current/venv/bin/python /opt/sightline/current/scripts/daily_ingest.py >> /var/log/sightline/daily-ingest.log 2>&1
+0 6 * * * sightline cd /opt/sightline/current && /opt/sightline/current/venv/bin/python /opt/sightline/current/scripts/daily_ingest.py >> /var/log/sightline/daily-ingest.log 2>&1
 EOF
 chmod 644 /etc/cron.d/sightline-daily-ingest
 echo "  ✓ Installed /etc/cron.d/sightline-daily-ingest"
@@ -46,7 +46,7 @@ cat > /etc/cron.d/sightline-bulletin << 'EOF'
 SHELL=/bin/bash
 PATH=/opt/sightline/current/venv/bin:/usr/local/bin:/usr/bin:/bin
 
-30 6 * * 1 root cd /opt/sightline/current && /opt/sightline/current/venv/bin/python /opt/sightline/current/scripts/generate_bulletin.py --last-week >> /var/log/sightline/bulletin.log 2>&1
+30 6 * * 1 sightline cd /opt/sightline/current && /opt/sightline/current/venv/bin/python /opt/sightline/current/scripts/generate_bulletin.py --last-week >> /var/log/sightline/bulletin.log 2>&1
 EOF
 chmod 644 /etc/cron.d/sightline-bulletin
 echo "  ✓ Installed /etc/cron.d/sightline-bulletin"
