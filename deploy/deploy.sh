@@ -175,6 +175,18 @@ echo "  ✓ Shared data linked"
 # ── Set permissions ─────────────────────────────────────────────
 chown -R "$APP_USER:$APP_USER" "$RELEASE_DIR"
 
+# ── Pre-deploy test gate ────────────────────────────────────────
+echo "[5.5/8] Running test suite (pre-deploy gate)..."
+TEST_OK=true
+su - "$APP_USER" -c "cd $RELEASE_DIR && venv/bin/python -m pytest tests/ -x -q --tb=short" 2>&1 | tail -20 || TEST_OK=false
+if [ "$TEST_OK" = false ]; then
+    echo "✗✗✗ TESTS FAILED — aborting deploy ✗✗✗"
+    echo "  Tests must pass before deploying to production."
+    echo "  Run locally: python -m pytest tests/ -x -v"
+    exit 1
+fi
+echo "  ✓ All tests passed"
+
 # ── Atomic switch ───────────────────────────────────────────────
 echo "[6/8] Switching to new release..."
 
