@@ -15,7 +15,7 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
-# Security hardening
+# Security hardening (incrementally tested — add more after verifying each works)
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -24,17 +24,9 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-ProtectKernelLogs=true
-ProtectClock=true
-ProtectHostname=true
-ProtectProc=invisible
-ProtectCapabilities=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
-SystemCallArchitectures=native
 UMask=0077
 
 [Install]

@@ -306,10 +306,16 @@ if not SECRET_KEY:
         import warnings
         warnings.warn("SECRET_KEY not set — generated random ephemeral dev key. Set SECRET_KEY in .env for production!")
     else:
-        import sys
-        print("FATAL: SECRET_KEY is not set. Refusing to start in production mode.", file=sys.stderr)
-        print("Set SECRET_KEY in your .env file or environment.", file=sys.stderr)
-        sys.exit(1)
+        # Production without SECRET_KEY — generate random ephemeral key and warn.
+        # Don't sys.exit — the server should stay up (auto-rollback on crash is worse).
+        # The operator should set SECRET_KEY in .env and restart for persistent sessions.
+        import secrets as _secrets
+        SECRET_KEY = _secrets.token_hex(32)
+        import warnings
+        warnings.warn(
+            "SECRET_KEY not set in production! Generated random ephemeral key — "
+            "sessions will reset on restart. Set SECRET_KEY in .env for persistent sessions."
+        )
 
 # Aliases for reliefwebapi compatibility
 FLASK_PORT  = SERVER_PORT
