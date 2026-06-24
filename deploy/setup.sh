@@ -9,7 +9,7 @@
 #   sudo bash deploy/setup.sh --skip-iptables-flush
 #
 # Creates the symlink-based release directory structure:
-#   /opt/sightline/
+#   /opt/reliefagent/
 #   ├── current → releases/YYYYMMDD_HHMMSS   (symlink)
 #   ├── releases/                             (timestamped deploys)
 #   ├── data/                                 (shared persistent data)
@@ -33,11 +33,11 @@ for arg in "$@"; do
     esac
 done
 
-APP_DIR="/opt/sightline"
-APP_USER="sightline"
+APP_DIR="/opt/reliefagent"
+APP_USER="reliefagent"
 DATA_DIR="$APP_DIR/data"
 RELEASES_DIR="$APP_DIR/releases"
-LOG_DIR="/var/log/sightline"
+LOG_DIR="/var/log/reliefagent"
 REPO_URL="https://github.com/serkankzlrmk/RedAgent.git"
 
 echo "============================================================"
@@ -265,7 +265,7 @@ echo "[9/10] Setting up current symlink and systemd service..."
 ln -sfn "$FIRST_RELEASE" "$APP_DIR/current"
 
 # Install systemd service
-cp "$FIRST_RELEASE/deploy/sightline.service" /etc/systemd/system/
+cp "$FIRST_RELEASE/deploy/reliefagent.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable sightline
 
@@ -373,11 +373,11 @@ echo "    sudo journalctl -u sightline -f   # live logs"
 echo "    sudo bash $APP_DIR/current/deploy/backup.sh  # manual backup"
 echo ""
 echo "  Add backup cron:"
-echo "    echo '0 3 * * * /opt/sightline/current/deploy/backup.sh' | sudo tee /etc/cron.d/sightline-backup"
+echo "    echo '0 3 * * * /opt/reliefagent/current/deploy/backup.sh' | sudo tee /etc/cron.d/reliefagent-backup"
 echo ""
 echo "  Add weekly bulletin cron (Monday 06:30 UTC):"
-echo "    sudo cp /opt/sightline/current/deploy/weekly-bulletin.cron /etc/cron.d/sightline-bulletin"
-echo "    sudo chmod 644 /etc/cron.d/sightline-bulletin"
+echo "    sudo cp /opt/reliefagent/current/deploy/weekly-bulletin.cron /etc/cron.d/reliefagent-bulletin"
+echo "    sudo chmod 644 /etc/cron.d/reliefagent-bulletin"
 echo "============================================================"
 echo "  tail -f $LOG_DIR/error.log          # gunicorn logs"
 echo "  sudo systemctl restart sightline  # restart app"

@@ -1,14 +1,14 @@
 #!/bin/bash
 # ============================================================
 # backup.sh — Daily SQLite backup for Sightline
-# Add to crontab: 0 3 * * * /opt/sightline/deploy/backup.sh
+# Add to crontab: 0 3 * * * /opt/reliefagent/deploy/backup.sh
 # ============================================================
 
 set -euo pipefail
 umask 077  # Restrictive permissions for backup files (contain user PII)
 
-APP_DIR="/opt/sightline"
-BACKUP_DIR="/opt/sightline/backups"
+APP_DIR="/opt/reliefagent"
+BACKUP_DIR="/opt/reliefagent/backups"
 DATE=$(date +%Y%m%d_%H%M)
 MAX_BACKUPS=14  # Keep 2 weeks of backups
 

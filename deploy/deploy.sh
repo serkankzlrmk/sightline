@@ -6,12 +6,12 @@
 #   sudo bash deploy/deploy.sh [branch] [--skip-backup]
 #
 # Each deploy creates a timestamped release directory under
-# /opt/sightline/releases/ and atomically switches the
-# /opt/sightline/current symlink. If the health check fails,
+# /opt/reliefagent/releases/ and atomically switches the
+# /opt/reliefagent/current symlink. If the health check fails,
 # it automatically rolls back to the previous release.
 #
 # Directory structure:
-#   /opt/sightline/
+#   /opt/reliefagent/
 #   ├── current → releases/YYYYMMDD_HHMMSS   (symlink)
 #   ├── releases/
 #   │   ├── 20250615_143000/                   (active)
@@ -30,7 +30,7 @@
 set -euo pipefail
 
 # ── Configuration ───────────────────────────────────────────────
-APP_DIR="/opt/sightline"
+APP_DIR="/opt/reliefagent"
 DATA_DIR="$APP_DIR/data"
 RELEASES_DIR="$APP_DIR/releases"
 CURRENT_LINK="$APP_DIR/current"
@@ -39,8 +39,8 @@ HEALTH_URL="http://localhost:5001/api/health"
 HEALTH_RETRIES=10
 HEALTH_INTERVAL=3
 KEEP_RELEASES=3
-REPO_URL="/opt/sightline/repo"
-APP_USER="sightline"
+REPO_URL="/opt/reliefagent/repo"
+APP_USER="reliefagent"
 LOG_DIR="/var/log/sightline"
 
 # ── Parse arguments ──────────────────────────────────────────────
@@ -178,7 +178,7 @@ chown -R "$APP_USER:$APP_USER" "$RELEASE_DIR"
 # ── Pre-deploy test gate ────────────────────────────────────────
 # Skip tests on production server (pytest + test deps may not be installed
 # in the production venv). Tests should run in CI/local before pushing.
-# To enable: set RUN_TESTS=true in /opt/sightline/data/.env
+# To enable: set RUN_TESTS=true in /opt/reliefagent/data/.env
 RUN_TESTS="${RUN_TESTS:-false}"
 if [ "$RUN_TESTS" = "true" ]; then
     echo "[5.5/8] Running test suite (pre-deploy gate)..."
@@ -209,7 +209,7 @@ ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 echo "  ✓ Symlink switched: current → $TIMESTAMP"
 
 # Restart service
-systemctl restart sightline
+systemctl restart reliefagent
 echo "  ✓ Service restarted"
 
 # ── Health check ────────────────────────────────────────────────
@@ -235,7 +235,7 @@ if [ "$HEALTH_OK" = false ]; then
     if [ -n "$PREV_RELEASE" ] && [ -d "$PREV_RELEASE" ]; then
         echo "Rolling back to previous release: $(basename "$PREV_RELEASE")"
         ln -sfn "$PREV_RELEASE" "$CURRENT_LINK"
-        systemctl restart sightline
+        systemctl restart reliefagent
 
         # Wait for rollback to stabilize
         sleep 5
@@ -243,11 +243,11 @@ if [ "$HEALTH_OK" = false ]; then
             echo "✓ Rollback successful — previous version is live"
         else
             echo "✗ Rollback also failed! Manual intervention required!"
-            echo "  Check logs: journalctl -u sightline --no-pager -n 50"
+            echo "  Check logs: journalctl -u reliefagent --no-pager -n 50"
         fi
     else
         echo "✗ No previous release to roll back to!"
-        echo "  Check logs: journalctl -u sightline --no-pager -n 50"
+        echo "  Check logs: journalctl -u reliefagent --no-pager -n 50"
     fi
 
     echo ""
@@ -288,7 +288,7 @@ echo "  Git SHA:  ${GIT_SHA:0:8}"
 echo "  Directory: $RELEASE_DIR"
 echo ""
 echo "  Health:   $HEALTH_URL"
-echo "  Logs:     journalctl -u sightline -f"
+echo "  Logs:     journalctl -u reliefagent -f"
 echo ""
 echo "  Rollback: sudo bash $APP_DIR/deploy/rollback.sh"
 echo "============================================================"
