@@ -190,32 +190,38 @@ def init_mcp_tools() -> bool:
 
     Called at startup (from relief_agent.py or server.py). Returns True if any
     MCP tools were loaded. Safe to call multiple times — only initializes once.
+
+    The actual MCP server connection happens in a background thread to avoid
+    blocking the agent startup (MCP subprocess startup can take 30-60s on
+    first run when npx/uvx downloads packages).
     """
     global _mcp_initialized, MCP_TOOLS
 
     with _mcp_lock:
         if _mcp_initialized:
             return len(MCP_TOOLS) > 0
+        _mcp_initialized = True  # mark as initialized immediately to prevent re-entry
 
+    # Run MCP init in background thread — non-blocking
+    def _bg_init():
+        global MCP_TOOLS
         try:
-            # Run the async tool loader in a fresh event loop
             mcp_tools_raw = asyncio.run(_load_mcp_tools_async_impl())
-
-            if not mcp_tools_raw:
+            if mcp_tools_raw:
+                MCP_TOOLS = [_wrap_mcp_tool_sync(t) for t in mcp_tools_raw]
+                logger.info("MCP: %d tools loaded and ready (background init complete)", len(MCP_TOOLS))
+            else:
                 logger.info("MCP: No tools loaded (servers may not be installed)")
-                _mcp_initialized = True
-                return False
-
-            # Wrap each async MCP tool in a sync callable
-            MCP_TOOLS = [_wrap_mcp_tool_sync(t) for t in mcp_tools_raw]
-            _mcp_initialized = True
-            logger.info("MCP: %d tools wrapped and ready for sync agent", len(MCP_TOOLS))
-            return True
-
         except Exception as e:
-            logger.warning("MCP: Failed to initialize (non-fatal): %s", e)
-            _mcp_initialized = True
-            return False
+            logger.warning("MCP: Background init failed (non-fatal): %s", e)
+
+    t = threading.Thread(target=_bg_init, daemon=True)
+    t.start()
+    logger.info("MCP: Background initialization started (non-blocking)")
+
+    # Return False — tools not ready yet, but will be added when ready
+    # The agent will work without MCP tools until they're loaded
+    return False
 
 
 async def _load_mcp_tools_async_impl() -> List:

@@ -179,6 +179,7 @@ else:
     logger.warning("World Bank client not initialized. Economic tools will return errors.")
 
 # Initialize MCP tools (arxiv, sequential-thinking, etc.) — non-fatal if unavailable
+# MCP init runs in a background thread (non-blocking) to avoid stalling agent startup
 _mcp_ok = mcp_integration.init_mcp_tools()
 if _mcp_ok and mcp_integration.MCP_TOOLS:
     mcp_tools = mcp_integration.MCP_TOOLS
@@ -186,7 +187,7 @@ if _mcp_ok and mcp_integration.MCP_TOOLS:
     _tool_groups.append(mcp_tools)
     _tool_labels.append(f"{len(mcp_tools)} MCP")
 else:
-    logger.warning("MCP tools not initialized (servers may not be installed). MCP tools unavailable.")
+    logger.warning("MCP tools initializing in background — will be available shortly.")
 
 # SQL query tool (always available — no external dependency)
 _tool_groups.append(SQL_TOOLS)
@@ -202,7 +203,32 @@ try:
     logger.info(f"✓ Model tools bound successfully ({len(all_tools)} tools: {' + '.join(_tool_labels)})")
 except Exception as e:
     logger.critical(f"Failed to bind tools to model: {e}")
-    sys.exit(1)
+
+# Background MCP tool loader — when MCP tools finish loading, add them to the agent
+def _register_mcp_tools_when_ready():
+    """Poll for MCP tools in background and register them when available."""
+    import time as _t
+    for _ in range(60):  # Wait up to 5 minutes (60 × 5s)
+        _t.sleep(5)
+        if mcp_integration.MCP_TOOLS:
+            for t in mcp_integration.MCP_TOOLS:
+                if t.name not in tools_by_name:
+                    tools_by_name[t.name] = t
+                    all_tools.append(t)
+                    logger.info("✓ MCP tool registered: %s", t.name)
+            # Rebind tools to model
+            try:
+                global model_with_tools
+                model_with_tools = model.bind_tools(all_tools)
+                logger.info("✓ Model re-bound with MCP tools (%d total tools)", len(all_tools))
+            except Exception as e:
+                logger.warning("Failed to rebind MCP tools: %s", e)
+            break
+    else:
+        logger.warning("MCP tools did not become ready within 5 minutes — giving up")
+
+import threading as _threading2
+_threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
 
 # ============================================================================
 # SYSTEM PROMPT
