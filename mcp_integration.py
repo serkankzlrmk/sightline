@@ -17,9 +17,12 @@ Usage in relief_agent.py:
     # MCP_TOOLS is a list of LangChain BaseTool objects (sync)
 """
 
+import os
 import asyncio
 import logging
 import threading
+import time
+from datetime import date
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -28,6 +31,26 @@ logger = logging.getLogger(__name__)
 MCP_TOOLS: List = []
 _mcp_initialized = False
 _mcp_lock = threading.Lock()
+
+# Brave Search daily rate limiting (protect the $5/month free credit)
+_BRAVE_DAILY_LIMIT = int(os.getenv("BRAVE_DAILY_LIMIT", "30"))  # max 30 Brave calls/day
+_brave_call_count = {"date": "", "count": 0}
+_brave_lock = threading.Lock()
+
+
+def _check_brave_rate_limit() -> tuple:
+    """Check if Brave Search daily limit is reached. Returns (allowed, remaining)."""
+    today = date.today().isoformat()
+    with _brave_lock:
+        if _brave_call_count["date"] != today:
+            _brave_call_count["date"] = today
+            _brave_call_count["count"] = 0
+        if _brave_call_count["count"] >= _BRAVE_DAILY_LIMIT:
+            return False, 0
+        _brave_call_count["count"] += 1
+        remaining = _BRAVE_DAILY_LIMIT - _brave_call_count["count"]
+        return True, remaining
+
 
 # MCP server configurations — populated from config/env at init time
 _MCP_SERVERS = {}
@@ -103,6 +126,9 @@ def _wrap_mcp_tool_sync(mcp_tool):
     MCP tools from langchain-mcp-adapters are async (they use asyncio internally).
     The Sightline agent is sync. This wrapper runs the async tool in a new event
     loop on a background thread, blocking until the result is available.
+
+    For Brave Search tools, a daily rate limit is enforced to protect the
+    free-tier credit budget (default 30 calls/day).
     """
     from langchain_core.tools import tool as tool_decorator
 
@@ -110,9 +136,21 @@ def _wrap_mcp_tool_sync(mcp_tool):
     tool_desc = mcp_tool.description or f"MCP tool: {tool_name}"
     tool_args_schema = getattr(mcp_tool, "args_schema", None)
 
+    # Check if this is a Brave Search tool (rate-limited)
+    _is_brave = "brave" in tool_name.lower()
+
     @tool_decorator(tool_name, description=tool_desc, args_schema=tool_args_schema)
     def sync_wrapper(**kwargs):
         """Sync wrapper for async MCP tool — runs in background event loop."""
+
+        # Brave Search daily rate limit check
+        if _is_brave:
+            allowed, remaining = _check_brave_rate_limit()
+            if not allowed:
+                logger.warning("Brave Search daily limit reached (%d/%d)", _BRAVE_DAILY_LIMIT, _BRAVE_DAILY_LIMIT)
+                return f"Brave Search daily limit reached ({_BRAVE_DAILY_LIMIT} calls/day). Try again tomorrow or use news_search instead."
+            logger.info("Brave Search call: %s (remaining today: %d/%d)", tool_name, remaining, _BRAVE_DAILY_LIMIT)
+
         def run_async():
             loop = asyncio.new_event_loop()
             try:

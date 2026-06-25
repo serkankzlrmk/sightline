@@ -151,6 +151,7 @@ MCP_SEQUENTIAL_THINKING_ENABLED: bool = os.getenv("MCP_SEQUENTIAL_THINKING_ENABL
 # brave-search: web/news/image search (needs Node.js + npx + BRAVE_API_KEY)
 MCP_BRAVE_ENABLED: bool = os.getenv("MCP_BRAVE_ENABLED", "false").lower() == "true"
 BRAVE_API_KEY: str = os.getenv("BRAVE_API_KEY", "")
+BRAVE_DAILY_LIMIT: int = int(os.getenv("BRAVE_DAILY_LIMIT", "30"))  # max 30 Brave calls/day to protect free credit
 
 # ============================================================================
 # LLM PROVIDER
