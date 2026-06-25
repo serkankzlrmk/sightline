@@ -76,6 +76,15 @@ from reliefweb_api.hdx_tools import HDX_TOOLS, init_hdx_tools, get_hdx_client
 # News tools — world news data from NewsAPI.org
 from reliefweb_api.news_tools import NEWS_TOOLS, init_news_tools, get_news_client
 
+# GDACS tools — real-time disaster alerts (free, keyless)
+from reliefweb_api.gdacs_tools import GDACS_TOOLS, init_gdacs_tools, get_gdacs_client
+
+# Weather tools — Open-Meteo forecast + geocoding + air quality (free, keyless)
+from reliefweb_api.weather_tools import WEATHER_TOOLS, init_weather_tools, get_weather_client
+
+# World Bank tools — economic & demographic indicators (free, keyless)
+from reliefweb_api.worldbank_tools import WORLDBANK_TOOLS, init_worldbank_tools, get_worldbank_client
+
 # ============================================================================
 # MODEL INITIALIZATION
 # ============================================================================
@@ -102,6 +111,29 @@ _news_initialized = init_news_tools(
     rate_limit_period=config.NEWS_RATE_LIMIT_PERIOD,
 )
 
+# Initialize GDACS client (always succeeds — free, keyless API)
+_gdacs_initialized = init_gdacs_tools(
+    base_url=getattr(config, 'GDACS_BASE_URL', 'https://www.gdacs.org/xml/rss.xml'),
+    timeout=getattr(config, 'GDACS_TIMEOUT', 30.0),
+    cache_ttl=getattr(config, 'GDACS_CACHE_TTL', 900),
+)
+
+# Initialize Open-Meteo weather client (always succeeds — free, keyless API)
+_weather_initialized = init_weather_tools(
+    base_url=getattr(config, 'OPEN_METEO_BASE_URL', 'https://api.open-meteo.com/v1/forecast'),
+    geo_url=getattr(config, 'OPEN_METEO_GEO_URL', 'https://geocoding-api.open-meteo.com/v1/search'),
+    aq_url=getattr(config, 'OPEN_METEO_AQ_URL', 'https://air-quality-api.open-meteo.com/v1/air-quality'),
+    timeout=getattr(config, 'OPEN_METEO_TIMEOUT', 15.0),
+    cache_ttl=getattr(config, 'OPEN_METEO_CACHE_TTL', 3600),
+)
+
+# Initialize World Bank client (always succeeds — free, keyless API)
+_worldbank_initialized = init_worldbank_tools(
+    base_url=getattr(config, 'WORLDBANK_BASE_URL', 'https://api.worldbank.org/v2'),
+    timeout=getattr(config, 'WORLDBANK_TIMEOUT', 15.0),
+    cache_ttl=getattr(config, 'WORLDBANK_CACHE_TTL', 86400),
+)
+
 _tool_groups = [mcp_langchain_tools]
 _tool_labels = [f"{len(mcp_langchain_tools)} ReliefWeb"]
 
@@ -118,6 +150,27 @@ if _news_initialized:
     _tool_labels.append(f"{len(NEWS_TOOLS)} News")
 else:
     logger.warning("News client not initialized (NEWS_API_KEY not set). News tools will return errors.")
+
+if _gdacs_initialized:
+    logger.info("✓ GDACS client initialized — real-time disaster alert tools available")
+    _tool_groups.append(GDACS_TOOLS)
+    _tool_labels.append(f"{len(GDACS_TOOLS)} GDACS")
+else:
+    logger.warning("GDACS client not initialized. Disaster alert tools will return errors.")
+
+if _weather_initialized:
+    logger.info("✓ Weather client initialized — forecast + geocoding tools available")
+    _tool_groups.append(WEATHER_TOOLS)
+    _tool_labels.append(f"{len(WEATHER_TOOLS)} Weather")
+else:
+    logger.warning("Weather client not initialized. Weather tools will return errors.")
+
+if _worldbank_initialized:
+    logger.info("✓ World Bank client initialized — economic indicator tools available")
+    _tool_groups.append(WORLDBANK_TOOLS)
+    _tool_labels.append(f"{len(WORLDBANK_TOOLS)} WorldBank")
+else:
+    logger.warning("World Bank client not initialized. Economic tools will return errors.")
 
 all_tools = []
 for group in _tool_groups:

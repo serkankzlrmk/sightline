@@ -117,6 +117,31 @@ NEWS_RATE_LIMIT_PERIOD: float = float(os.getenv("NEWS_RATE_LIMIT_PERIOD", "86400
 NEWS_CACHE_TTL: int = int(os.getenv("NEWS_CACHE_TTL", "3600"))
 
 # ============================================================================
+# GDACS — Global Disaster Alert and Coordination System (free, keyless)
+# ============================================================================
+GDACS_BASE_URL: str = os.getenv("GDACS_BASE_URL", "https://www.gdacs.org/xml/rss.xml")
+GDACS_TIMEOUT: float = float(os.getenv("GDACS_TIMEOUT", "30.0"))
+GDACS_CACHE_TTL: int = int(os.getenv("GDACS_CACHE_TTL", "900"))  # 15 min
+GDACS_RATE_LIMIT_REQUESTS: int = int(os.getenv("GDACS_RATE_LIMIT_REQUESTS", "30"))
+GDACS_RATE_LIMIT_PERIOD: float = float(os.getenv("GDACS_RATE_LIMIT_PERIOD", "60.0"))
+
+# ============================================================================
+# OPEN-METEO — Weather + Geocoding + Air Quality (free, keyless)
+# ============================================================================
+OPEN_METEO_BASE_URL: str = os.getenv("OPEN_METEO_BASE_URL", "https://api.open-meteo.com/v1/forecast")
+OPEN_METEO_GEO_URL: str = os.getenv("OPEN_METEO_GEO_URL", "https://geocoding-api.open-meteo.com/v1/search")
+OPEN_METEO_AQ_URL: str = os.getenv("OPEN_METEO_AQ_URL", "https://air-quality-api.open-meteo.com/v1/air-quality")
+OPEN_METEO_TIMEOUT: float = float(os.getenv("OPEN_METEO_TIMEOUT", "15.0"))
+OPEN_METEO_CACHE_TTL: int = int(os.getenv("OPEN_METEO_CACHE_TTL", "3600"))  # 1 hour
+
+# ============================================================================
+# WORLD BANK — Economic & demographic indicators (free, keyless)
+# ============================================================================
+WORLDBANK_BASE_URL: str = os.getenv("WORLDBANK_BASE_URL", "https://api.worldbank.org/v2")
+WORLDBANK_TIMEOUT: float = float(os.getenv("WORLDBANK_TIMEOUT", "15.0"))
+WORLDBANK_CACHE_TTL: int = int(os.getenv("WORLDBANK_CACHE_TTL", "86400"))  # 24 hours
+
+# ============================================================================
 # LLM PROVIDER
 # ============================================================================
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openrouter")

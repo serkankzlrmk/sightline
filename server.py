@@ -107,6 +107,36 @@ if _news_ok:
 else:
     logger.warning("News client not initialized (NEWS_API_KEY not set). News endpoints will return 503.")
 
+# ── Initialize GDACS client (free, keyless — always succeeds) ────────────────
+from config import GDACS_BASE_URL as _GDACS_URL, GDACS_TIMEOUT as _GDACS_T, GDACS_CACHE_TTL as _GDACS_C
+from reliefweb_api.gdacs_tools import init_gdacs_tools as _init_gdacs, get_gdacs_client as _get_gdacs
+_gdacs_ok = _init_gdacs(base_url=_GDACS_URL, timeout=_GDACS_T, cache_ttl=_GDACS_C)
+if _gdacs_ok:
+    logger.info("✓ GDACS client initialized — disaster alert tools available")
+else:
+    logger.warning("GDACS client not initialized. Disaster alert tools will return errors.")
+
+# ── Initialize Weather client (free, keyless — always succeeds) ─────────────
+from config import (
+    OPEN_METEO_BASE_URL as _OM_BASE, OPEN_METEO_GEO_URL as _OM_GEO,
+    OPEN_METEO_AQ_URL as _OM_AQ, OPEN_METEO_TIMEOUT as _OM_T, OPEN_METEO_CACHE_TTL as _OM_C,
+)
+from reliefweb_api.weather_tools import init_weather_tools as _init_weather, get_weather_client as _get_weather
+_weather_ok = _init_weather(base_url=_OM_BASE, geo_url=_OM_GEO, aq_url=_OM_AQ, timeout=_OM_T, cache_ttl=_OM_C)
+if _weather_ok:
+    logger.info("✓ Weather client initialized — forecast + geocoding tools available")
+else:
+    logger.warning("Weather client not initialized. Weather tools will return errors.")
+
+# ── Initialize World Bank client (free, keyless — always succeeds) ──────────
+from config import WORLDBANK_BASE_URL as _WB_URL, WORLDBANK_TIMEOUT as _WB_T, WORLDBANK_CACHE_TTL as _WB_C
+from reliefweb_api.worldbank_tools import init_worldbank_tools as _init_wb, get_worldbank_client as _get_wb
+_wb_ok = _init_wb(base_url=_WB_URL, timeout=_WB_T, cache_ttl=_WB_C)
+if _wb_ok:
+    logger.info("✓ World Bank client initialized — economic indicator tools available")
+else:
+    logger.warning("World Bank client not initialized. Economic tools will return errors.")
+
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 
