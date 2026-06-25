@@ -367,6 +367,25 @@ def _init_chats_db():
             date TEXT NOT NULL,
             count INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS events (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts        REAL NOT NULL,
+            uid       TEXT NOT NULL DEFAULT '',
+            event     TEXT NOT NULL,
+            props     TEXT NOT NULL DEFAULT '{}',
+            session   TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_events_ts    ON events(ts);
+        CREATE INDEX IF NOT EXISTS idx_events_uid   ON events(uid);
+        CREATE INDEX IF NOT EXISTS idx_events_event ON events(event);
+        CREATE TABLE IF NOT EXISTS users (
+            uid            TEXT PRIMARY KEY,
+            email          TEXT NOT NULL DEFAULT '',
+            role           TEXT NOT NULL DEFAULT 'free',
+            created_at     REAL NOT NULL,
+            last_seen      REAL NOT NULL,
+            signup_source  TEXT NOT NULL DEFAULT 'web'
+        );
     """)
     # Migration: add uid column if missing
     cols = [r[1] for r in conn.execute("PRAGMA table_info(chats)").fetchall()]
@@ -377,6 +396,53 @@ def _init_chats_db():
     conn.close()
 
 _init_chats_db()
+
+
+def _log_event(uid: str, event: str, props: dict = None, session: str = ""):
+    """Log a user/system event to the local events table.
+
+    Args:
+        uid:       Firebase UID (empty string for anonymous/system events)
+        event:     Event name (e.g. 'chat_message_sent', 'sitrep_run_started')
+        props:     Optional JSON-serializable dict with event details
+        session:   Optional session/correlation ID
+
+    This is non-blocking on errors — a failed event log should never break the request.
+    """
+    try:
+        conn = _chats_db()
+        conn.execute(
+            "INSERT INTO events (ts, uid, event, props, session) VALUES (?, ?, ?, ?, ?)",
+            (_time.time(), uid or "", event, json.dumps(props or {}), session),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("Failed to log event %s: %s", event, e)
+
+
+def _upsert_user(uid: str, email: str = "", role: str = "free", signup_source: str = "web"):
+    """Insert or update a user in the local users table.
+
+    Called on every /api/auth/me to track created_at (first seen) and last_seen.
+    """
+    if not uid:
+        return
+    try:
+        conn = _chats_db()
+        now = _time.time()
+        conn.execute("""
+            INSERT INTO users (uid, email, role, created_at, last_seen, signup_source)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(uid) DO UPDATE SET
+                email     = excluded.email,
+                role      = excluded.role,
+                last_seen = excluded.last_seen
+        """, (uid, email, role, now, now, signup_source))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("Failed to upsert user %s: %s", uid, e)
 
 def _new_chat_id():
     return uuid.uuid4().hex[:8]
@@ -719,6 +785,8 @@ def api_auth_me():
     if is_admin and role != "admin":
         role = "admin"
     logger.info(f"auth/me: uid={uid!r}, role={role}, is_admin={is_admin}")
+    # Track user (upsert) + log login event
+    _upsert_user(uid, user.get("email", ""), role)
     rate = _check_rate_limit(uid, role)
     return jsonify({
         "uid": uid,
@@ -788,6 +856,7 @@ def api_admin_set_role(uid):
     if not success:
         return jsonify({"error": "Failed to set role — Firebase Admin SDK not available or user not found"}), 500
     logger.info("api_admin_set_role: uid=%s → role=%s (by admin=%s)", uid, new_role, current_uid())
+    _log_event(current_uid(), "role_changed", {"target_uid": uid, "new_role": new_role})
     return jsonify({"ok": True, "uid": uid, "role": new_role})
 
 
@@ -1098,12 +1167,14 @@ def api_agent_chat():
                 _user_agent_busy[uid] = False
 
         if _user_agent_busy.get(uid, False):
+            _log_event(uid, "rate_limit_hit", {"reason": "agent_busy"})
             return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
 
         # Atomic rate-limit check + increment in a single DB transaction
         if role != "admin":
             rate = _check_and_increment_rate_limit(uid, role)
             if not rate["allowed"]:
+                _log_event(uid, "rate_limit_hit", {"reason": "daily_limit", "limit": rate["limit"]})
                 return jsonify({
                     "error": "Daily message limit reached",
                     "limit": rate["limit"],
@@ -1114,6 +1185,7 @@ def api_agent_chat():
         _user_agent_busy[uid] = True
         _user_agent_busy_since[uid] = _time.time()
 
+    _log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking")})
     chat_id = _ensure_active_chat(uid)
 
     # Model selection for chat
@@ -1417,6 +1489,9 @@ def api_db_reports():
         d["all_countries"]   = clist
         results.append(d)
 
+    _log_event(current_uid(), "db_search_performed", {
+        "country": country, "source": source, "result_count": len(results),
+    })
     return jsonify(results)
 
 
@@ -1590,6 +1665,10 @@ def api_sitrep_run():
     t = threading.Thread(target=_run_job, args=(job_id, cmd), daemon=True)
     t.start()
     nonce = _create_stream_nonce(current_uid(), job_id)
+    _log_event(current_uid(), "sitrep_run_started", {
+        "job_id": job_id, "country": country, "event": event,
+        "themes": themes, "role": current_role(),
+    })
     return jsonify({"job_id": job_id, "stream_nonce": nonce})
 
 
@@ -1743,6 +1822,7 @@ def api_bulletin_get(filename):
     bulletin = get_bulletin(filename)
     if bulletin is None:
         return jsonify({"error": "Bulletin not found"}), 404
+    _log_event(current_uid(), "bulletin_viewed", {"filename": filename})
     return jsonify(bulletin)
 
 
@@ -2158,7 +2238,12 @@ def api_ingest_daily():
         
         if result.returncode != 0:
             summary["warning"] = "Script exited with non-zero code (some errors occurred)"
-        
+
+        _log_event(current_uid(), "ingest_daily_completed", {
+            "fetched": summary["fetched"], "ingested": summary["ingested"],
+            "skipped": summary["skipped"], "errors": summary["errors"],
+            "purged_sql": summary["purged_sql"], "purged_chroma": summary["purged_chroma"],
+        })
         return jsonify(summary)
         
     except subprocess.TimeoutExpired:
