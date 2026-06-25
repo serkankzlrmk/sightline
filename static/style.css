@@ -1102,6 +1102,8 @@ body.sidebar-collapsed .main {
 .model-option-premium .model-option-desc { color: #a78bfa; }
 .model-option-premium.locked { opacity: .5; cursor: not-allowed; }
 .model-option-premium.locked:hover { background: none; }
+.model-option-deep { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 10px; }
+.model-option-deep .model-option-name { color: #8b5cf6; }
 .lock-icon { width: 12px; height: 12px; opacity: .7; }
 
 /* Scrollable messages area */

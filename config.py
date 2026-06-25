@@ -147,7 +147,10 @@ WORLDBANK_CACHE_TTL: int = int(os.getenv("WORLDBANK_CACHE_TTL", "86400"))  # 24 
 # arxiv-mcp-server: academic paper search (free, keyless — needs `uvx arxiv-mcp-server`)
 MCP_ARXIV_ENABLED: bool = os.getenv("MCP_ARXIV_ENABLED", "true").lower() == "true"
 # sequential-thinking: structured reasoning tool (needs Node.js + npx)
-MCP_SEQUENTIAL_THINKING_ENABLED: bool = os.getenv("MCP_SEQUENTIAL_THINKING_ENABLED", "false").lower() == "true"
+MCP_SEQUENTIAL_THINKING_ENABLED: bool = os.getenv("MCP_SEQUENTIAL_THINKING_ENABLED", "true").lower() == "true"
+# brave-search: web/news/image search (needs Node.js + npx + BRAVE_API_KEY)
+MCP_BRAVE_ENABLED: bool = os.getenv("MCP_BRAVE_ENABLED", "false").lower() == "true"
+BRAVE_API_KEY: str = os.getenv("BRAVE_API_KEY", "")
 
 # ============================================================================
 # LLM PROVIDER
@@ -199,6 +202,13 @@ CHAT_MODELS: dict = {
         "model": "google/gemini-2.5-pro",
         "desc": "Best quality",
         "premium": True,
+    },
+    "deep_think": {
+        "name": "Deep Think",
+        "model": "google/gemini-2.5-pro",
+        "desc": "Deep analysis with sequential reasoning",
+        "premium": True,
+        "sequential": True,
     },
 }
 

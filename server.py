@@ -1338,6 +1338,9 @@ def api_agent_chat():
     if model_config["premium"] and role not in ("premium", "admin"):
         return jsonify({"error": "Premium model requires a premium account", "premium_required": True}), 403
 
+    # Deep Think: sequential reasoning flag
+    use_sequential = model_config.get("sequential", False)
+
     from langchain_core.messages import HumanMessage, AIMessage
 
     def generate():
@@ -1366,7 +1369,7 @@ def api_agent_chat():
                     timeout=OLLAMA_TIMEOUT,
                 )
                 temp_llm_with_tools = temp_llm.bind_tools(all_tools)
-                _system_prompt_text = _build_system_prompt()
+                _system_prompt_text = _build_system_prompt(use_sequential=use_sequential)
 
                 def temp_llm_call(state: MessagesState):
                     messages = state["messages"]

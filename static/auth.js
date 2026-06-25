@@ -242,11 +242,10 @@ function updateVisibility() {
     el.style.display = isAdmin ? "" : "none";
   });
 
-  // Model selector: lock ultra model for non-premium
-  const ultraOpt = document.querySelector('[data-model="ultra"]');
-  if (ultraOpt) {
-    ultraOpt.classList.toggle("locked", !isPremium);
-  }
+  // Model selector: lock premium models for non-premium
+  document.querySelectorAll('.model-option-premium').forEach(opt => {
+    opt.classList.toggle("locked", !isPremium);
+  });
 
   // Database: show premium banner for free users
   const premiumBanner = document.getElementById("db-premium-banner");

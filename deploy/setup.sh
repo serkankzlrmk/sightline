@@ -58,7 +58,7 @@ if command -v dnf &>/dev/null; then
         nginx certbot python3-certbot-nginx \
         git curl wget sqlite \
         firewalld iptables-services \
-        fail2ban
+        fail2ban nodejs npm
 elif command -v apt-get &>/dev/null; then
     PKG_MGR="apt"
     apt-get update -qq
@@ -67,7 +67,8 @@ elif command -v apt-get &>/dev/null; then
         nginx certbot python3-certbot-nginx \
         git curl wget sqlite3 \
         ufw iptables-persistent \
-        fail2ban unattended-upgrades
+        fail2ban unattended-upgrades \
+        nodejs npm
 else
     echo "ERROR: Unsupported package manager. Use Oracle Linux 9 or Ubuntu 24.04."
     exit 1

@@ -14,6 +14,7 @@ const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
   thinking: { name: 'Thinking', desc: 'Balanced', premium: false },
   ultra: { name: 'Ultra', desc: 'Best quality — Premium', premium: true },
+  deep_think: { name: 'Deep Think', desc: 'Deep analysis — Premium', premium: true },
 };
 
 // ── Shared state ────────────────────────────────────────────────────────────
@@ -2343,7 +2344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!key) return;
         const cfg = CHAT_MODELS[key];
         if (cfg.premium && window.__userRole !== 'premium' && window.__userRole !== 'admin') {
-          toast('Ultra model requires a Premium account', 'warning');
+          toast(`${cfg.name} requires a Premium account`, 'warning');
           return;
         }
         chatState.selectedModel = key;
@@ -2354,10 +2355,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modelMenu.classList.remove('open');
       });
     });
-    // Lock premium model for non-premium users
-    const ultraOpt = modelMenu.querySelector('[data-model="ultra"]');
-    if (ultraOpt && window.__userRole !== 'premium' && window.__userRole !== 'admin') {
-      ultraOpt.classList.add('locked');
+    // Lock premium models for non-premium users (Ultra + Deep Think)
+    if (window.__userRole !== 'premium' && window.__userRole !== 'admin') {
+      modelMenu.querySelectorAll('.model-option-premium').forEach(opt => opt.classList.add('locked'));
     }
   }
 

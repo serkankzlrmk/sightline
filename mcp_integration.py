@@ -49,13 +49,27 @@ def _configure_servers():
         }
 
     # sequential-thinking (needs Node.js — only add if enabled)
-    seq_enabled = os.getenv("MCP_SEQUENTIAL_THINKING_ENABLED", "false").lower() == "true"
+    seq_enabled = os.getenv("MCP_SEQUENTIAL_THINKING_ENABLED", "true").lower() == "true"
     if seq_enabled:
         servers["sequential_thinking"] = {
             "command": "npx",
             "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
             "transport": "stdio",
         }
+
+    # brave-search (needs Node.js + BRAVE_API_KEY — only add if enabled + key present)
+    brave_enabled = os.getenv("MCP_BRAVE_ENABLED", "false").lower() == "true"
+    brave_key = os.getenv("BRAVE_API_KEY", "")
+    if brave_enabled and brave_key:
+        servers["brave_search"] = {
+            "command": "npx",
+            "args": ["-y", "@brave/brave-search-mcp-server"],
+            "env": {"BRAVE_API_KEY": brave_key},
+            "transport": "stdio",
+        }
+        logger.info("MCP: Brave Search enabled (API key present)")
+    elif brave_enabled and not brave_key:
+        logger.warning("MCP: Brave Search enabled but BRAVE_API_KEY not set — skipping")
 
     return servers
 
