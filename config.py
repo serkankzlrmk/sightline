@@ -142,6 +142,14 @@ WORLDBANK_TIMEOUT: float = float(os.getenv("WORLDBANK_TIMEOUT", "15.0"))
 WORLDBANK_CACHE_TTL: int = int(os.getenv("WORLDBANK_CACHE_TTL", "86400"))  # 24 hours
 
 # ============================================================================
+# MCP (Model Context Protocol) — external tool servers
+# ============================================================================
+# arxiv-mcp-server: academic paper search (free, keyless — needs `uvx arxiv-mcp-server`)
+MCP_ARXIV_ENABLED: bool = os.getenv("MCP_ARXIV_ENABLED", "true").lower() == "true"
+# sequential-thinking: structured reasoning tool (needs Node.js + npx)
+MCP_SEQUENTIAL_THINKING_ENABLED: bool = os.getenv("MCP_SEQUENTIAL_THINKING_ENABLED", "false").lower() == "true"
+
+# ============================================================================
 # LLM PROVIDER
 # ============================================================================
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openrouter")

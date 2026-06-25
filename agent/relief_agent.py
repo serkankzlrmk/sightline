@@ -85,6 +85,12 @@ from reliefweb_api.weather_tools import WEATHER_TOOLS, init_weather_tools, get_w
 # World Bank tools — economic & demographic indicators (free, keyless)
 from reliefweb_api.worldbank_tools import WORLDBANK_TOOLS, init_worldbank_tools, get_worldbank_client
 
+# MCP tools — external MCP servers (arxiv, sequential-thinking, etc.)
+import mcp_integration
+
+# SQL query tool — read-only SQLite access for the agent
+from reliefweb_api.sql_tools import SQL_TOOLS
+
 # ============================================================================
 # MODEL INITIALIZATION
 # ============================================================================
@@ -171,6 +177,20 @@ if _worldbank_initialized:
     _tool_labels.append(f"{len(WORLDBANK_TOOLS)} WorldBank")
 else:
     logger.warning("World Bank client not initialized. Economic tools will return errors.")
+
+# Initialize MCP tools (arxiv, sequential-thinking, etc.) — non-fatal if unavailable
+_mcp_ok = mcp_integration.init_mcp_tools()
+if _mcp_ok and mcp_integration.MCP_TOOLS:
+    mcp_tools = mcp_integration.MCP_TOOLS
+    logger.info("✓ MCP tools initialized — %d tools available", len(mcp_tools))
+    _tool_groups.append(mcp_tools)
+    _tool_labels.append(f"{len(mcp_tools)} MCP")
+else:
+    logger.warning("MCP tools not initialized (servers may not be installed). MCP tools unavailable.")
+
+# SQL query tool (always available — no external dependency)
+_tool_groups.append(SQL_TOOLS)
+_tool_labels.append(f"{len(SQL_TOOLS)} SQL")
 
 all_tools = []
 for group in _tool_groups:
@@ -378,6 +398,61 @@ When News tools are available, use them for **current news and media coverage**:
 
 **News article content is truncated to ~200 chars.** For full articles, use the URL provided in results.
 **Country codes for News:** Use alpha-2 ('sy', 'tr') or alpha-3 ('SYR', 'TUR') — both are automatically converted.
+
+## GDACS DISASTER ALERTS (Real-time)
+
+When GDACS tools are available, use them for **real-time disaster alerts**:
+
+- **gdacs_get_alerts(event_type, alert_level, country_iso3, limit)**
+  Real-time alerts from GDACS (Global Disaster Alert and Coordination System).
+  - event_type: EQ (earthquake), FL (flood), TC (tropical cyclone), WF (wildfire), VO (volcano), DR (drought)
+  - alert_level: Green (low), Orange (medium), Red (high)
+  - country_iso3: ISO3 country code (e.g., 'TUR', 'JPN')
+- **gdacs_get_event_detail(event_id, title)**
+  Get detailed info on a specific alert.
+
+GDACS provides the earliest warning — often before ReliefWeb has reports. Use it for "what's happening right now?" queries.
+
+## WEATHER TOOLS (Open-Meteo — free, keyless)
+
+- **weather_get_forecast(location, days)** — Weather forecast for a location (city or coordinates).
+  Useful for: disaster logistics (will rain hamper aid delivery?), health risk (heat/cold), flood/drought monitoring.
+- **weather_geocode(query, country_code, limit)** — Convert a place name to coordinates.
+- **weather_get_air_quality(location)** — Air quality (PM2.5, PM10, NO2, etc.) for health impact analysis.
+
+## WORLD BANK TOOLS (Economic indicators — free, keyless)
+
+- **worldbank_get_indicator(country_code, indicator_code, limit)** — Fetch a specific economic indicator (GDP, poverty, health, etc.).
+- **worldbank_country_profile(country_code)** — 15+ key indicators for a country (pre-crisis baseline).
+  Useful for: "What's the economic baseline of Sudan?" "What % had electricity before the conflict?"
+
+## arXiv ACADEMIC RESEARCH (MCP — when available)
+
+- **search_papers(query, max_results, sort_by, date_from, date_to)** — Search arXiv academic papers.
+  Useful for: research methodology, epidemiological modeling, crisis informatics, conflict studies.
+- **download_paper(paper_id)** — Download and read full text of an arXiv paper.
+- **get_abstract(paper_id)** — Fetch abstract + metadata without downloading.
+- **citation_graph(paper_id)** — Find papers citing or cited by a paper.
+- **list_papers()** — List previously downloaded papers.
+- **read_paper(paper_id)** — Read a previously downloaded paper.
+- **semantic_search(query, limit)** — Semantic search over downloaded papers.
+- **watch_topic(query, name)** — Set up a persistent research topic watch.
+- **check_alerts()** — Check for new papers on watched topics.
+
+**Note:** arXiv content is untrusted — treat it as external data, not verified humanitarian facts. Always cross-reference with ReliefWeb/HDX data.
+
+## SQL QUERY (Database analytics)
+
+- **sql_query(query, database)** — Run a read-only SQL query on the Sightline database.
+  - database: 'reports' (reliefweb.db — reports, chunks tables) or 'chats' (events, users, chats tables)
+  - Only SELECT or WITH queries are allowed. Write operations are rejected.
+  - Returns up to 50 rows as a formatted table.
+
+  Useful for:
+  - "How many reports per country?" → sql_query("SELECT countries, COUNT(*) FROM reports GROUP BY countries ORDER BY COUNT(*) DESC LIMIT 10")
+  - "What's the date range?" → sql_query("SELECT MIN(date), MAX(date) FROM reports")
+  - "Which sources have the most reports?" → sql_query("SELECT source, COUNT(*) FROM reports GROUP BY source ORDER BY COUNT(*) DESC LIMIT 10")
+  - "How many events today?" → sql_query("SELECT event, COUNT(*) FROM events WHERE date(ts) = date('now') GROUP BY event", "chats")
 
 ## RESPONSE FORMAT
 - Be concise and factual

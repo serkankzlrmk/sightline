@@ -52,3 +52,7 @@ langchain-community>=0.0.38
 
 # Firebase authentication
 firebase-admin>=6.0
+
+# MCP (Model Context Protocol) — for arxiv-mcp-server and future MCP tools
+langchain-mcp-adapters>=0.3.0
+mcp>=1.0.0
