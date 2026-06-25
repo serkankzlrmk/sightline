@@ -498,21 +498,67 @@
   <!-- ─── ADMIN PANEL ───────────────────────────── -->
   <div class="panel" id="panel-admin">
     <div class="admin-panel-content">
-      <h2>User Management</h2>
-      <p class="admin-hint">Assign roles to users. Changes take effect on next sign-in.</p>
-      <table class="admin-user-table" id="admin-user-table">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Name</th>
-            <th>Role</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="admin-user-tbody">
-          <tr><td colspan="4" class="admin-loading">Loading users...</td></tr>
-        </tbody>
-      </table>
+      <div class="admin-subtabs">
+        <button class="btn btn-xs admin-subtab active" data-admin-tab="users">Users</button>
+        <button class="btn btn-xs admin-subtab" data-admin-tab="analytics">Analytics</button>
+      </div>
+
+      <!-- Users sub-section -->
+      <div class="admin-section" id="admin-users">
+        <h2>User Management</h2>
+        <p class="admin-hint">Assign roles to users. Changes take effect on next sign-in.</p>
+        <table class="admin-user-table" id="admin-user-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-user-tbody">
+            <tr><td colspan="4" class="admin-loading">Loading users...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Analytics sub-section -->
+      <div class="admin-section" id="admin-analytics" style="display:none;">
+        <h2>Analytics Dashboard</h2>
+        <div class="analytics-grid">
+          <!-- KPI Cards -->
+          <div class="analytics-cards" id="analytics-kpi-cards"></div>
+
+          <!-- Charts -->
+          <div class="analytics-charts">
+            <div class="chart-container">
+              <h4>DAU Trend (14 days)</h4>
+              <canvas id="chart-dau" height="200"></canvas>
+            </div>
+            <div class="chart-container">
+              <h4>Event Timeline (7 days)</h4>
+              <canvas id="chart-events" height="200"></canvas>
+            </div>
+            <div class="chart-container">
+              <h4>Top Events (30 days)</h4>
+              <canvas id="chart-top-events" height="200"></canvas>
+            </div>
+            <div class="chart-container">
+              <h4>SITREP Runs by Country</h4>
+              <canvas id="chart-sitrep" height="200"></canvas>
+            </div>
+          </div>
+
+          <!-- Recent Users Table -->
+          <div class="analytics-table">
+            <h4>Recent Users</h4>
+            <table id="analytics-recent-users">
+              <thead><tr><th>Email</th><th>Role</th><th>Joined</th><th>Last Seen</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -715,6 +761,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <!-- TODO: Add SRI integrity hashes -->
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script src="/static/app.js?v={{ v }}"></script>
 </body>

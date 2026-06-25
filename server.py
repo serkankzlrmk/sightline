@@ -886,6 +886,118 @@ def api_admin_get_user(uid):
         return jsonify({"error": "User not found"}), 404
 
 
+@app.route("/api/admin/analytics")
+@require_admin
+def api_admin_analytics():
+    """Analytics dashboard data — admin only. Aggregates from events + users tables."""
+    conn = _chats_db()
+    try:
+        # 1. User metrics
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        # Daily Active Users (users with events in last 24h)
+        dau = conn.execute(
+            "SELECT COUNT(DISTINCT uid) FROM events WHERE ts > ? AND uid != ''",
+            (_time.time() - 86400,)
+        ).fetchone()[0]
+        # Weekly Active Users
+        wau = conn.execute(
+            "SELECT COUNT(DISTINCT uid) FROM events WHERE ts > ? AND uid != ''",
+            (_time.time() - 7*86400,)
+        ).fetchone()[0]
+        # New users this week
+        new_this_week = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE created_at > ?",
+            (_time.time() - 7*86400,)
+        ).fetchone()[0]
+        # Role breakdown
+        role_breakdown = conn.execute(
+            "SELECT role, COUNT(*) as cnt FROM users GROUP BY role"
+        ).fetchall()
+
+        # 2. Event counts (last 30 days, top events)
+        event_counts = conn.execute("""
+            SELECT event, COUNT(*) as cnt
+            FROM events
+            WHERE ts > ?
+            GROUP BY event
+            ORDER BY cnt DESC
+            LIMIT 20
+        """, (_time.time() - 30*86400,)).fetchall()
+
+        # 3. DAU trend (last 14 days)
+        dau_trend = conn.execute("""
+            SELECT date(ts, 'unixepoch') as day, COUNT(DISTINCT uid) as users
+            FROM events
+            WHERE ts > ? AND uid != ''
+            GROUP BY day
+            ORDER BY day DESC
+            LIMIT 14
+        """, (_time.time() - 14*86400,)).fetchall()
+
+        # 4. Top SITREP runs (by country)
+        sitrep_runs = conn.execute("""
+            SELECT json_extract(props, '$.country') as country, COUNT(*) as cnt
+            FROM events
+            WHERE event = 'sitrep_run_started' AND ts > ?
+            GROUP BY country
+            ORDER BY cnt DESC
+            LIMIT 10
+        """, (_time.time() - 30*86400,)).fetchall()
+
+        # 5. Recent users (last 10 signups)
+        recent_users = conn.execute("""
+            SELECT uid, email, role, created_at, last_seen
+            FROM users
+            ORDER BY created_at DESC
+            LIMIT 10
+        """).fetchall()
+
+        # 6. Event timeline (last 7 days, daily counts)
+        event_timeline = conn.execute("""
+            SELECT date(ts, 'unixepoch') as day, COUNT(*) as cnt
+            FROM events
+            WHERE ts > ?
+            GROUP BY day
+            ORDER BY day DESC
+            LIMIT 7
+        """, (_time.time() - 7*86400,)).fetchall()
+
+        # 7. Bulletin views (last 30 days)
+        bulletin_views = conn.execute("""
+            SELECT json_extract(props, '$.filename') as filename, COUNT(*) as cnt
+            FROM events
+            WHERE event = 'bulletin_viewed' AND ts > ?
+            GROUP BY filename
+            ORDER BY cnt DESC
+            LIMIT 10
+        """, (_time.time() - 30*86400,)).fetchall()
+
+        result = {
+            "users": {
+                "total": total_users,
+                "dau": dau,
+                "wau": wau,
+                "new_this_week": new_this_week,
+                "role_breakdown": {r["role"]: r["cnt"] for r in role_breakdown},
+            },
+            "events": {
+                "top_events": [{"event": r["event"], "count": r["cnt"]} for r in event_counts],
+                "timeline": [{"day": r["day"], "count": r["cnt"]} for r in event_timeline],
+            },
+            "dau_trend": [{"day": r["day"], "users": r["users"]} for r in dau_trend],
+            "sitrep_runs": [{"country": r["country"] or "Unknown", "count": r["cnt"]} for r in sitrep_runs],
+            "bulletin_views": [{"filename": r["filename"] or "Unknown", "count": r["cnt"]} for r in bulletin_views],
+            "recent_users": [{"uid": r["uid"], "email": r["email"], "role": r["role"],
+                              "created_at": r["created_at"], "last_seen": r["last_seen"]} for r in recent_users],
+        }
+        return jsonify(result)
+    except Exception as exc:
+        logger.error("api_admin_analytics error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load analytics"}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/admin/config", methods=["GET"])
 @require_admin
 def api_admin_config():

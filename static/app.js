@@ -215,7 +215,11 @@ function switchTab(name) {
     if (name === 'db') reloadReports();
     if (name === 'sitrep') { loadSitrepReportsList(); loadCountryDropdown(); }
     if (name === 'bulletin') loadBulletinList();
-    if (name === 'admin') loadAdminUsers();
+    if (name === 'admin') {
+      loadAdminUsers();
+      // Load analytics too (charts render lazily once section is shown)
+      loadAnalytics();
+    }
   }
 
   if (name === 'home') loadDashboard();
@@ -1827,6 +1831,115 @@ async function setUserRole(uid, role) {
 window.loadAdminUsers = loadAdminUsers;
 window.setUserRole = setUserRole;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadAnalytics() {
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!tok) return;
+  try {
+    const resp = await fetch('/api/admin/analytics', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Failed to load analytics');
+    const data = await resp.json();
+
+    // KPI Cards
+    const kpiContainer = document.getElementById('analytics-kpi-cards');
+    if (kpiContainer) {
+      kpiContainer.innerHTML = [
+        { label: 'Total Users', value: data.users.total, icon: '👥' },
+        { label: 'DAU (24h)', value: data.users.dau, icon: '🔥' },
+        { label: 'WAU (7d)', value: data.users.wau, icon: '📅' },
+        { label: 'New This Week', value: data.users.new_this_week, icon: '✨' },
+      ].map(k => `
+        <div class="kpi-card">
+          <div class="kpi-value">${k.value}</div>
+          <div class="kpi-label">${k.icon} ${k.label}</div>
+        </div>
+      `).join('');
+    }
+
+    // DAU Trend Chart
+    renderLineChart('chart-dau', data.dau_trend.map(d => d.day).reverse(),
+                    data.dau_trend.map(d => d.users).reverse(), 'DAU');
+
+    // Event Timeline Chart
+    renderBarChart('chart-events', data.events.timeline.map(d => d.day).reverse(),
+                   data.events.timeline.map(d => d.count).reverse(), 'Events');
+
+    // Top Events Chart
+    renderDoughnutChart('chart-top-events',
+                        data.events.top_events.map(e => e.event),
+                        data.events.top_events.map(e => e.count));
+
+    // SITREP Runs Chart
+    renderBarChart('chart-sitrep',
+                   data.sitrep_runs.map(s => s.country),
+                   data.sitrep_runs.map(s => s.count), 'Runs');
+
+    // Recent Users Table
+    const tbody = document.querySelector('#analytics-recent-users tbody');
+    if (tbody) {
+      tbody.innerHTML = data.recent_users.map(u => {
+        const roleClass = u.role === 'admin' ? 'role-admin' : u.role === 'premium' ? 'role-premium' : 'role-free';
+        return `<tr>
+          <td>${esc(u.email || '—')}</td>
+          <td><span class="admin-role-badge ${roleClass}">${u.role}</span></td>
+          <td>${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : '—'}</td>
+          <td>${u.last_seen ? new Date(u.last_seen * 1000).toLocaleDateString() : '—'}</td>
+        </tr>`;
+      }).join('');
+    }
+  } catch (e) {
+    console.error('Analytics load error:', e);
+  }
+}
+window.loadAnalytics = loadAnalytics;
+
+// Chart.js helpers
+function _getOrCreateChartCtx(canvasId) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return null;
+  if (!window._analyticsCharts) window._analyticsCharts = {};
+  if (window._analyticsCharts[canvasId]) window._analyticsCharts[canvasId].destroy();
+  return ctx;
+}
+
+function renderLineChart(canvasId, labels, data, label) {
+  const ctx = _getOrCreateChartCtx(canvasId);
+  if (!ctx) return;
+  window._analyticsCharts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{ label, data, borderColor: '#4f9eff', backgroundColor: 'rgba(79,158,255,0.1)', tension: 0.3 }] },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+}
+
+function renderBarChart(canvasId, labels, data, label) {
+  const ctx = _getOrCreateChartCtx(canvasId);
+  if (!ctx) return;
+  window._analyticsCharts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label, data, backgroundColor: '#4f9eff' }] },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+}
+
+function renderDoughnutChart(canvasId, labels, data) {
+  const ctx = _getOrCreateChartCtx(canvasId);
+  if (!ctx) return;
+  window._analyticsCharts[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: ['#4f9eff','#ff6b6b','#4ecdc4','#f7df1e','#a55eea','#fd7e14','#26de81','#fc5c65','#45aaf2','#fd9644'] }] },
+    options: { responsive: true }
+  });
+}
+window.renderLineChart = renderLineChart;
+window.renderBarChart = renderBarChart;
+window.renderDoughnutChart = renderDoughnutChart;
+
 // ═════════════════════════════════════════════════════════════════════════
 // DOM INIT
 // ═════════════════════════════════════════════════════════════════════════
@@ -2527,6 +2640,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handled by direct event listener above
         break;
     }
+  });
+
+  // Admin sub-tab switching (Users / Analytics)
+  document.querySelectorAll('.admin-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.adminTab;
+      document.querySelectorAll('.admin-subtab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const usersSec = document.getElementById('admin-users');
+      const analyticsSec = document.getElementById('admin-analytics');
+      if (tab === 'analytics') {
+        if (usersSec) usersSec.style.display = 'none';
+        if (analyticsSec) analyticsSec.style.display = '';
+        loadAnalytics();
+      } else {
+        if (analyticsSec) analyticsSec.style.display = 'none';
+        if (usersSec) usersSec.style.display = '';
+      }
+    });
   });
 
   // DB report row click delegation
