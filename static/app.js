@@ -2252,7 +2252,7 @@ function openCrisisPanel(crisis) {
 
     html += `<div class="preview-lock-msg">
       <div class="preview-lock-text">Register to view report sources and full SITREP analysis.</div>
-      <button class="preview-lock-btn" onclick="document.getElementById('auth-overlay').classList.remove('hidden');document.getElementById('auth-overlay').classList.add('slide-in');">Register</button>
+      <button class="preview-lock-btn" onclick="var el=document.getElementById('auth-overlay');el.classList.remove('hidden');el.classList.add('slide-in');el.style.display='';">Register</button>
     </div>`;
   }
 

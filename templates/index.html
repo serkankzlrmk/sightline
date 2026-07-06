@@ -82,7 +82,7 @@
   </div>
   <!-- Right: Login Card -->
   <div class="auth-card">
-    <button class="auth-panel-close" id="auth-panel-close" aria-label="Close" onclick="document.getElementById('auth-overlay').classList.add('hidden');document.getElementById('auth-overlay').classList.remove('slide-in');">&times;</button>
+    <button class="auth-panel-close" id="auth-panel-close" aria-label="Close" onclick="var el=document.getElementById('auth-overlay');el.classList.add('hidden');el.classList.remove('slide-in');el.style.display='none';">&times;</button>
     <div class="auth-card-inner">
       <img src="/static/logo.png" alt="Sightline" class="auth-logo">
       <h1>Sightline</h1>
