@@ -2081,6 +2081,37 @@ async function loadDashboard() {
     }
   } catch { /* ignore — bulletin data already loaded some markers */ }
 
+  // Load ALL countries (including those without summaries) for map markers
+  // Uses /api/sitrep/countries (authed) or /api/public/countries (public)
+  try {
+    const countriesUrl = isAuthed2 ? '/api/sitrep/countries' : '/api/public/countries';
+    const cr = await api(countriesUrl);
+    if (cr.ok) {
+      const allCountries = await cr.json();
+      if (Array.isArray(allCountries)) {
+        allCountries.forEach(c => {
+          const name = c.name || c.country || c;
+          if (name && !crisisMapData[name]) {
+            const count = c.count || c.chunk_count || 0;
+            const severity = count >= 10 ? 'medium' : 'low';
+            const coords = c.coords || {lat: 0, lng: 0};
+            crisisMapData[name] = {
+              country: name,
+              headline: '',
+              severity: severity,
+              report_count: count,
+              coords: coords,
+              has_sitrep: false,
+              iso3: '',
+            };
+          }
+        });
+        // Update markers with all countries
+        setTimeout(() => updateMapMarkers(), 200);
+      }
+    }
+  } catch { /* ignore */ }
+
   // Initialize map after a short delay to ensure container has height
   setTimeout(() => { initWorldMap(); }, 200);
 }
@@ -2305,11 +2336,19 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
   }
 
   if (data.worldbank_indicators && Object.keys(data.worldbank_indicators).length > 0) {
+    const wbLabels = {
+      gdp_per_capita: 'GDP per capita (USD)',
+      population: 'Population',
+      life_expectancy: 'Life expectancy (years)',
+      poverty_rate: 'Poverty rate (%)',
+      electricity_access: 'Electricity access (%)',
+    };
     html += `<div class="country-card-section"><div class="country-card-section-title">Country Profile</div>`;
     html += `<div class="country-card-figures">`;
     for (const [key, val] of Object.entries(data.worldbank_indicators)) {
       if (val && val.value) {
-        html += `<div class="country-card-figure"><span class="country-card-figure-value">${esc(String(val.value))}</span><span class="country-card-figure-label">${esc(val.year || '')}</span></div>`;
+        const label = wbLabels[key] || key.replace(/_/g, ' ');
+        html += `<div class="country-card-figure"><span class="country-card-figure-value">${esc(String(val.value))}</span><span class="country-card-figure-label">${esc(label)} · ${esc(val.year || '')}</span></div>`;
       }
     }
     html += `</div></div>`;
@@ -2322,10 +2361,6 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
     });
     html += `</div>`;
   }
-
-  html += `<div class="country-card-actions">`;
-  html += `<button class="country-card-action-btn" onclick="switchTab('agent');setTimeout(()=>{document.getElementById('chat-input').value='Tell me about ${esc(data.country)} humanitarian situation';document.getElementById('send-btn').click();},300);">Ask Agent</button>`;
-  html += `</div>`;
 
   bodyEl.innerHTML = html;
 }

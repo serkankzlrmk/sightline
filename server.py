@@ -1294,6 +1294,29 @@ def api_country_summaries():
     return jsonify(summaries)
 
 
+@app.route("/api/public/countries")
+def api_public_countries():
+    """Public: all countries with chunk counts + coordinates (for map markers)."""
+    try:
+        from sitrep.chroma_adapter import ChromaAdapter
+        from sitrep.weekly_bulletin import COUNTRY_COORDS
+        db = ChromaAdapter()
+        countries = db.list_countries_with_counts()
+        # Add coordinates where available
+        for c in countries:
+            name = c.get("name", "")
+            coords = COUNTRY_COORDS.get(name, {})
+            if not coords:
+                # Try common aliases
+                aliases = {"Syrian Arab Republic": "Syria", "Türkiye": "Turkey", "oPt": "occupied Palestinian territory"}
+                coords = COUNTRY_COORDS.get(aliases.get(name, ""), {})
+            c["coords"] = coords if coords else {"lat": 0, "lng": 0}
+        return jsonify(countries)
+    except Exception as exc:
+        logger.error("api_public_countries error: %s", exc, exc_info=True)
+        return jsonify([])
+
+
 @app.route("/api/country/<path:country>/summary")
 @require_auth
 def api_country_summary(country):
