@@ -2252,7 +2252,7 @@ function openCrisisPanel(crisis) {
 
     html += `<div class="preview-lock-msg">
       <div class="preview-lock-text">Register to view report sources and full SITREP analysis.</div>
-      <button class="preview-lock-btn" onclick="var el=document.getElementById('auth-overlay');el.classList.remove('hidden');el.classList.add('slide-in');el.style.display='';">Register</button>
+      <button class="preview-lock-btn">Register</button>
     </div>`;
   }
 
@@ -3018,3 +3018,36 @@ function viewBulletinSitrep(country) {
   // If not found, switch to SITREP and show a message
   alert(`No SITREP report found for ${country}. You can generate one using the SITREP pipeline.`);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FREEMIUM PREVIEW — login panel controls
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Close button (X) — hide login panel, stay on dashboard
+document.addEventListener('DOMContentLoaded', () => {
+  const closeBtn = document.getElementById('auth-panel-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      const el = document.getElementById('auth-overlay');
+      if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('slide-in');
+        el.style.display = 'none';
+      }
+    });
+  }
+});
+
+// Register buttons inside crisis panel (delegated — works for dynamically added elements)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.preview-lock-btn');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const el = document.getElementById('auth-overlay');
+  if (el) {
+    el.classList.remove('hidden');
+    el.classList.add('slide-in');
+    el.style.display = '';
+  }
+});
