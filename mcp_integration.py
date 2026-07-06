@@ -74,9 +74,9 @@ def _configure_servers():
     if arxiv_enabled:
         servers["arxiv"] = {
             "command": "uvx",
-            "args": ["arxiv-mcp-server"],
+            "args": ["--no-cache", "arxiv-mcp-server"],
             "env": {
-                "UV_CACHE_DIR": "/tmp/uv-cache",
+                "XDG_CACHE_HOME": "/tmp",
                 "HOME": "/tmp",
             },
             "transport": "stdio",
