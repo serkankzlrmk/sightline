@@ -1308,7 +1308,8 @@ def api_public_countries():
             coords = COUNTRY_COORDS.get(name, {})
             if not coords:
                 # Try common aliases
-                aliases = {"Syrian Arab Republic": "Syria", "Türkiye": "Turkey", "oPt": "occupied Palestinian territory"}
+                aliases = {"Syrian Arab Republic": "Syria", "Türkiye": "Turkey", "oPt": "occupied Palestinian territory",
+                       "DR Congo": "Democratic Republic of the Congo", "Iran (Islamic Republic of)": "Iran"}
                 coords = COUNTRY_COORDS.get(aliases.get(name, ""), {})
             c["coords"] = coords if coords else {"lat": 0, "lng": 0}
         return jsonify(countries)
