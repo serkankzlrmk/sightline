@@ -66,16 +66,20 @@ def _get_country_coords(country: str) -> Dict:
 
 def _country_to_iso3(country: str) -> str:
     """Convert country name to ISO3 code for HDX/GDACS."""
-    from reliefweb_api.country_codes import country_name_to_iso3
-    iso3 = country_name_to_iso3(country)
-    if iso3:
-        return iso3
+    try:
+        from reliefweb_api.country_codes import get_iso_code
+        iso3 = get_iso_code(country)
+        if iso3 and len(iso3) == 3:
+            return iso3.upper()
+    except Exception:
+        pass
     # Manual fallbacks for common humanitarian country names
     manual = {
         "Syrian Arab Republic": "SYR",
         "occupied Palestinian territory": "PSE",
         "oPt": "PSE",
         "Democratic Republic of the Congo": "COD",
+        "DR Congo": "COD",
         "Türkiye": "TUR",
         "Turkey": "TUR",
         "Iran": "IRN",
