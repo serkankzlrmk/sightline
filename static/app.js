@@ -2054,6 +2054,33 @@ async function loadDashboard() {
     }
   } catch { /* ignore */ }
 
+  // Load country summaries for map markers (all countries, not just bulletin)
+  try {
+    const tok2 = window.getIdToken ? window.getIdToken() : '';
+    const isAuthed2 = !!tok2;
+    const summariesUrl = isAuthed2 ? '/api/country/summaries' : '/api/public/country/summaries';
+    const sr = await api(summariesUrl);
+    if (sr.ok) {
+      const summaries = await sr.json();
+      if (Array.isArray(summaries) && summaries.length > 0) {
+        summaries.forEach(s => {
+          if (s.country) {
+            crisisMapData[s.country] = {
+              country: s.country,
+              headline: s.headline || '',
+              severity: s.severity || 'low',
+              report_count: s.report_count || 0,
+              coords: s.coords || {lat: 0, lng: 0},
+              has_sitrep: s.has_sitrep || false,
+              iso3: s.iso3 || '',
+            };
+          }
+        });
+        setTimeout(() => updateMapMarkers(), 300);
+      }
+    }
+  } catch { /* ignore — bulletin data already loaded some markers */ }
+
   // Initialize map after a short delay to ensure container has height
   setTimeout(() => { initWorldMap(); }, 200);
 }
@@ -2177,7 +2204,7 @@ function updateMapMarkers() {
 
     const marker = L.marker([lat, lng], { icon })
       .addTo(leafletMap)
-      .on('click', () => openCrisisPanel(c));
+      .on('click', () => openCountryCard(c));
 
     leafletMarkers.push(marker);
   });
@@ -2188,7 +2215,7 @@ function updateMapMarkers() {
   }
 }
 
-function openCrisisPanel(crisis) {
+function openCountryCard(crisis) {
   const panel = document.getElementById('dash-crisis-panel');
   const mapEl = document.getElementById('world-map');
   const countryEl = document.getElementById('dash-crisis-panel-country');
@@ -2197,73 +2224,129 @@ function openCrisisPanel(crisis) {
 
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
-
+  const country = crisis.country || '';
   const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
   const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
   const color = sevColors[crisis.severity] || '#007AFF';
 
-  countryEl.textContent = crisis.country || '';
+  countryEl.textContent = country;
 
-  let html = '';
-
-  html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[crisis.severity] || ''}</span>`;
-
-  if (crisis.headline) {
-    html += `<div class="crisis-headline">${esc(crisis.headline)}</div>`;
-  }
-
-  if (isAuthed) {
-    // Authenticated: show full crisis detail
-    if (crisis.summary) {
-      html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
-    }
-
-    html += `<div class="crisis-meta">`;
-    if (crisis.report_count) {
-      html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
-    }
-    if (crisis.sources && crisis.sources.length) {
-      html += `<span class="crisis-meta-item"><strong>${crisis.sources.length}</strong> sources</span>`;
-    }
-    html += `</div>`;
-
-    if (crisis.themes && crisis.themes.length) {
-      html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
-    }
-
-    if (crisis.has_sitrep) {
-      html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(crisis.country)}">View SITREP →</button>`;
-    }
-  } else {
-    // Preview mode: show summary + report count but prompt for sources
-    if (crisis.summary) {
-      html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
-    }
-
-    html += `<div class="crisis-meta">`;
-    if (crisis.report_count) {
-      html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
-    }
-    html += `</div>`;
-
-    if (crisis.themes && crisis.themes.length) {
-      html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
-    }
-
-    html += `<div class="preview-lock-msg">
-      <div class="preview-lock-text">Register to view report sources and full SITREP analysis.</div>
-      <button class="preview-lock-btn">Register</button>
-    </div>`;
-  }
-
-  bodyEl.innerHTML = html;
-
+  // Show loading state
+  bodyEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Loading country intelligence...</div>';
   panel.classList.add('open');
   if (mapEl) mapEl.classList.add('panel-open');
+  if (leafletMap) setTimeout(() => { leafletMap.invalidateSize(); }, 400);
 
-  if (leafletMap) {
-    setTimeout(() => { leafletMap.invalidateSize(); }, 400);
+  // If authed, fetch full country card
+  if (isAuthed) {
+    api('/api/country/' + encodeURIComponent(country) + '/summary')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) {
+          renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
+          return;
+        }
+        renderCountryCard(bodyEl, data, color, sevLabels);
+      })
+      .catch(() => {
+        renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
+      });
+  } else {
+    // Preview mode: show what we have from bulletin + register prompt
+    renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
   }
+}
+
+function renderCountryCard(bodyEl, data, color, sevLabels) {
+  let html = '';
+  const severity = data.severity || 'low';
+
+  html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[severity] || ''}</span>`;
+
+  if (data.headline) {
+    html += `<div class="crisis-headline">${esc(data.headline)}</div>`;
+  }
+
+  if (data.narrative) {
+    html += `<div class="crisis-summary">${esc(data.narrative)}</div>`;
+  }
+
+  if (data.hdx_key_figures && data.hdx_key_figures.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Key Figures</div>`;
+    html += `<div class="country-card-figures">`;
+    data.hdx_key_figures.forEach(f => {
+      html += `<div class="country-card-figure"><span class="country-card-figure-value">${esc(String(f.value || ''))}</span><span class="country-card-figure-label">${esc(f.label || '')}</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  if (data.gdacs_alerts && data.gdacs_alerts.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Active Alerts</div>`;
+    data.gdacs_alerts.forEach(a => {
+      const alertColor = a.alert_level === 'Red' ? '#ef4444' : a.alert_level === 'Orange' ? '#f59e0b' : '#22c55e';
+      html += `<div class="country-card-alert"><span class="country-card-alert-badge" style="background:${alertColor}1a;color:${alertColor};">${esc(a.alert_level || '')}</span> ${esc(a.event_type || '')} — ${esc(a.title || '')}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (data.top_themes && data.top_themes.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Themes</div>`;
+    html += `<div class="crisis-themes">${data.top_themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+    html += `</div>`;
+  }
+
+  if (data.recent_reports && data.recent_reports.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Recent Reports</div>`;
+    html += `<div class="country-card-reports">`;
+    data.recent_reports.slice(0, 5).forEach(r => {
+      html += `<div class="country-card-report"><a href="${esc(r.url || '#')}" target="_blank" rel="noopener">${esc(r.title || '')}</a><span class="country-card-report-meta">${esc(r.date || '')} · ${esc(r.source || '')}</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  if (data.worldbank_indicators && Object.keys(data.worldbank_indicators).length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Country Profile</div>`;
+    html += `<div class="country-card-figures">`;
+    for (const [key, val] of Object.entries(data.worldbank_indicators)) {
+      if (val && val.value) {
+        html += `<div class="country-card-figure"><span class="country-card-figure-value">${esc(String(val.value))}</span><span class="country-card-figure-label">${esc(val.year || '')}</span></div>`;
+      }
+    }
+    html += `</div></div>`;
+  }
+
+  if (data.sitrep_reports && data.sitrep_reports.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">SITREP Reports</div>`;
+    data.sitrep_reports.forEach(f => {
+      html += `<div class="country-card-report"><a href="#" onclick="switchTab('sitrep');setTimeout(()=>{document.querySelectorAll('#sitrep-reports-list .report-item').forEach(i=>{if(i.textContent.includes('${esc(data.country)}'))i.click()})},300);return false;">${esc(f)}</a></div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `<div class="country-card-actions">`;
+  html += `<button class="country-card-action-btn" onclick="switchTab('agent');setTimeout(()=>{document.getElementById('chat-input').value='Tell me about ${esc(data.country)} humanitarian situation';document.getElementById('send-btn').click();},300);">Ask Agent</button>`;
+  html += `</div>`;
+
+  bodyEl.innerHTML = html;
+}
+
+function renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels) {
+  let html = '';
+  html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[crisis.severity] || ''}</span>`;
+  if (crisis.headline) html += `<div class="crisis-headline">${esc(crisis.headline)}</div>`;
+  if (crisis.summary) html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
+  html += `<div class="crisis-meta">`;
+  if (crisis.report_count) html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
+  html += `</div>`;
+  if (crisis.themes && crisis.themes.length) {
+    html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+  }
+  if (!isAuthed) {
+    html += `<div class="preview-lock-msg"><div class="preview-lock-text">Register to view report sources and full SITREP analysis.</div><button class="preview-lock-btn">Register</button></div>`;
+  } else if (crisis.has_sitrep) {
+    html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(crisis.country)}">View SITREP →</button>`;
+  }
+  bodyEl.innerHTML = html;
 }
 
 function closeCrisisPanel() {
@@ -2359,6 +2442,29 @@ document.addEventListener('DOMContentLoaded', () => {
   // Crisis panel close button
   const crisisPanelClose = document.getElementById('dash-crisis-panel-close');
   if (crisisPanelClose) crisisPanelClose.addEventListener('click', closeCrisisPanel);
+
+  // Country search on map
+  const searchInput = document.getElementById('map-search-input');
+  if (searchInput) {
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const query = e.target.value.toLowerCase().trim();
+        if (!query || !leafletMap) return;
+        for (const [country, data] of Object.entries(crisisMapData)) {
+          if (country.toLowerCase().includes(query)) {
+            const coords = data.coords || {lat: 0, lng: 0};
+            if (coords.lat && coords.lng) {
+              leafletMap.setView([coords.lat, coords.lng], 5);
+              openCountryCard(data);
+              break;
+            }
+          }
+        }
+      }, 300);
+    });
+  }
 
   // Mobile bottom tab bar
   document.querySelectorAll('.mobile-tab[data-tab]').forEach(btn => {

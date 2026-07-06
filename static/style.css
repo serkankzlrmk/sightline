@@ -3069,6 +3069,42 @@ body:not(.preview-mode) .auth-panel-close { display: none; }
   background: #0062cc;
 }
 
+/* Country search bar */
+.map-search-container {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  z-index: 500; width: 240px;
+}
+.map-search-input {
+  width: 100%; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 20px;
+  font-size: 13px; background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  outline: none; transition: border-color 0.2s;
+}
+.map-search-input:focus { border-color: var(--primary); }
+.map-search-input::placeholder { color: var(--text-muted); }
+
+/* Country card sections */
+.country-card-section { margin: 14px 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.country-card-section-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.country-card-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.country-card-figure { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.country-card-figure-value { font-size: 16px; font-weight: 700; color: var(--text); }
+.country-card-figure-label { font-size: 11px; color: var(--text-muted); }
+
+.country-card-alert { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; color: var(--text-secondary); }
+.country-card-alert-badge { padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+
+.country-card-reports { display: flex; flex-direction: column; gap: 6px; }
+.country-card-report { display: flex; flex-direction: column; gap: 2px; }
+.country-card-report a { font-size: 12px; color: var(--primary); text-decoration: none; }
+.country-card-report a:hover { text-decoration: underline; }
+.country-card-report-meta { font-size: 11px; color: var(--text-muted); }
+
+.country-card-actions { margin-top: 16px; display: flex; gap: 8px; }
+.country-card-action-btn { padding: 8px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; font-weight: 500; color: var(--primary); background: var(--surface); cursor: pointer; transition: all 0.15s; }
+.country-card-action-btn:hover { border-color: var(--primary); background: rgba(37,99,235,.04); }
+
 /* Leaflet overrides */
 .dash-map-wrap .leaflet-container {
   background: #f0f0f2;

@@ -1283,6 +1283,47 @@ def api_public_sitrep_reports():
 
 
 # =============================================================================
+# ROUTES — Country Intelligence Cards
+# =============================================================================
+
+@app.route("/api/country/summaries")
+def api_country_summaries():
+    """Public: lightweight list of all country summaries for map markers."""
+    from sitrep.country_summary import list_country_summaries
+    summaries = list_country_summaries()
+    return jsonify(summaries)
+
+
+@app.route("/api/country/<path:country>/summary")
+@require_auth
+def api_country_summary(country):
+    """Auth-gated: full country intelligence card."""
+    from sitrep.country_summary import get_country_summary
+    # Sanitize country name
+    if ".." in country or "/" in country[:1]:
+        return jsonify({"error": "Invalid country name"}), 400
+    summary = get_country_summary(country)
+    if summary is None:
+        return jsonify({"error": "No summary available for " + country}), 404
+    _log_event(current_uid(), "country_card_viewed", {"country": country})
+    return jsonify(summary)
+
+
+@app.route("/api/country/<path:country>/refresh", methods=["POST"])
+@require_admin
+def api_country_refresh(country):
+    """Admin only: force regenerate a country summary."""
+    from sitrep.country_summary import generate_country_summary
+    if ".." in country or "/" in country[:1]:
+        return jsonify({"error": "Invalid country name"}), 400
+    result = generate_country_summary(country, force_hdx=True)
+    if result is None:
+        return jsonify({"error": "Insufficient data for " + country}), 404
+    _log_event(current_uid(), "country_card_refreshed", {"country": country})
+    return jsonify({"ok": True, "country": country})
+
+
+# =============================================================================
 # ROUTES — /api/agent/*    (multi-chat with LangGraph agent)
 # =============================================================================
 
