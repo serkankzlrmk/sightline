@@ -18,10 +18,18 @@ graceful_timeout = 30
 max_requests = 1000  # Restart workers after N requests (prevents memory leaks)
 max_requests_jitter = 50
 
-# Logging
-accesslog = "/var/log/reliefagent/access.log"
-errorlog = "/var/log/reliefagent/error.log"
-loglevel = "info"
+# Logging — stdout for Docker, file for bare metal
+import os as _os
+_use_container = _os.getenv("CONTAINER_MODE", "false").lower() == "true"
+if _use_container:
+    accesslog = "-"
+    errorlog = "-"
+    loglevel = "info"
+    capture_output = False
+else:
+    accesslog = "/var/log/reliefagent/access.log"
+    errorlog = "/var/log/reliefagent/error.log"
+    loglevel = "info"
 capture_output = True
 
 # Custom access log format — omits query string to prevent leaking

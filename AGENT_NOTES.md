@@ -41,6 +41,12 @@
 - `.env.example` oluşturuldu (tüm değişkenler placeholder ile)
 - `.gitignore` düzeltildi: `.env.*` yerine sadece `.env.local` ve `.env.production` ignore ediliyor
 
+### 5. UI/Tasarım Temizliği (Design Cleanup)
+- **DESIGN_DIRECTIVES.md**: Diğer ajanlar için Apple esintili görsel tasarım yönergesi kök dizine eklendi.
+- **index.html & app.js (SVG İkonlar)**: Arayüzdeki ham unicode semboller (`⬆`, `↻`, `Date ↓`, `▶ Run`, `✕`, `×`, `⚠`, `✓`, `⚠️`) tek renkli çizgi bazlı inline SVG ikonlar ile değiştirildi.
+- **style.css (Taktil Efektler)**: Tıklama esnasında buton ve tablar için `:active` basılma esneme durumu (`scale(0.97)`) eklendi. İkon-metin doğrusal hizalaması için CSS sınıfları entegre edildi.
+- **Backend Güvenliği**: Yapılan tüm tasarım güncellemeleri sonrasında 171 adet pytest testi çalıştırıldı ve tamamının başarılı geçtiği teyit edildi.
+
 ---
 
 ## Hâlâ Çözülmemiş / Dikkat Edilmesi Gereken Sorunlar

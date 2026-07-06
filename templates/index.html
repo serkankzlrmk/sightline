@@ -82,7 +82,7 @@
   </div>
   <!-- Right: Login Card -->
   <div class="auth-card">
-    <button class="auth-panel-close" id="auth-panel-close" aria-label="Close">&times;</button>
+    <button class="auth-panel-close" id="auth-panel-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <div class="auth-card-inner">
       <img src="/static/logo.png" alt="Sightline" class="auth-logo">
       <h1>Sightline</h1>
@@ -130,7 +130,7 @@
     <div class="modal legal-modal">
       <div class="modal-hdr">
         <div class="modal-title" id="legal-modal-title">Terms of Use</div>
-        <button class="modal-close" id="legal-modal-close" aria-label="Close dialog">&times;</button>
+        <button class="modal-close" id="legal-modal-close" aria-label="Close dialog"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-bdy" id="legal-modal-body"></div>
     </div>
@@ -239,7 +239,7 @@
         <div id="dash-crisis-panel" class="dash-crisis-panel">
           <div class="dash-crisis-panel-header">
             <h3 id="dash-crisis-panel-country" class="dash-crisis-panel-country"></h3>
-            <button id="dash-crisis-panel-close" class="dash-crisis-panel-close" aria-label="Close">&times;</button>
+            <button id="dash-crisis-panel-close" class="dash-crisis-panel-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
           <div id="dash-crisis-panel-body" class="dash-crisis-panel-body"></div>
         </div>
@@ -293,8 +293,8 @@
           <span class="stat-card-value" id="s-chunks">—</span>
         </div>
         <div class="stats-actions">
-          <button class="btn btn-secondary" id="btn-upload-pdf" style="display:none">⬆ Upload PDF</button>
-          <button class="refresh-btn" id="btn-refresh-reports">↻ Refresh</button>
+          <button class="btn btn-secondary btn-with-icon" id="btn-upload-pdf" style="display:none"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span>Upload PDF</span></button>
+          <button class="refresh-btn btn-with-icon" id="btn-refresh-reports"><svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button>
         </div>
       </div>
       <!-- Premium upgrade banner (hidden for premium/admin) -->
@@ -326,7 +326,7 @@
             <thead>
               <tr>
                 <th data-sort="report_id">ID</th>
-                <th data-sort="date" class="sorted">Date ↓</th>
+                <th data-sort="date" class="sorted">Date <svg class="icon-svg inline-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></th>
                 <th data-sort="primary_country">Country</th>
                 <th data-sort="source">Source</th>
                 <th data-sort="title">Title</th>
@@ -431,7 +431,7 @@
             <label for="inp-date-to">To</label>
             <input type="date" id="inp-date-to">
           </div>
-          <button id="btn-run" class="btn btn-primary">▶ Run</button>
+          <button id="btn-run" class="btn btn-primary btn-with-icon"><svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run</span></button>
           <label class="sitrep-skip-label">
             <input type="checkbox" id="chk-skip-cache">
             Skip cache
@@ -579,7 +579,7 @@
   <div class="modal">
     <div class="modal-hdr">
       <div class="modal-title" id="m-title"></div>
-      <button class="modal-close" id="db-modal-close-btn">✕</button>
+      <button class="modal-close" id="db-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-bdy">
       <div class="dg">
@@ -613,7 +613,7 @@
   <div class="sitrep-modal-box">
     <div class="sitrep-modal-head">
       <h3 id="sitrep-modal-heading">Source</h3>
-      <button class="sitrep-modal-close" id="sitrep-modal-close-btn">×</button>
+      <button class="sitrep-modal-close" id="sitrep-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="sitrep-modal-body">
       <div class="modal-source-link">
@@ -635,7 +635,7 @@
   <div class="modal">
     <div class="modal-hdr">
       <div class="modal-title">Upload PDF Report</div>
-      <button class="modal-close" id="upload-modal-close-btn">✕</button>
+      <button class="modal-close" id="upload-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-bdy">
       <form id="upload-form" enctype="multipart/form-data">

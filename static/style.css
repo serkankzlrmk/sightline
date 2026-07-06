@@ -733,6 +733,48 @@ body.sidebar-collapsed .main {
 }
 .btn:disabled, .btn-secondary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-with-icon .icon-svg {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+.inline-icon {
+  vertical-align: middle;
+  margin-left: 4px;
+  position: relative;
+  top: -1.5px;
+  display: inline-block;
+}
+
+/* Tactile feedback active states */
+.btn:active,
+button:active,
+.sidebar-tab:active,
+.mobile-tab:active,
+.quick-prompt-btn:active,
+.refresh-btn:active,
+.chat-item:active,
+.report-item:active,
+.theme-pill:active,
+.modal-close:active,
+.sitrep-modal-close:active,
+.dash-crisis-panel-close:active,
+.auth-panel-close:active {
+  transform: scale(0.97);
+}
+
+.sitrep-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TAB 2 — AGENT CHAT — Apple Messages-inspired Liquid Glass
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -3733,6 +3775,9 @@ body.auth-locked .mobile-tab-bar { display: none !important; }
   font-size: 13px;
   margin: 8px 0;
   border: 1px solid rgba(255,159,10,.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ── Key figures row ─────────────────────────────────────────────────────── */

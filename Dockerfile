@@ -63,7 +63,8 @@ ENV PYTHONUNBUFFERED=1 \
     ORT_TENSORRT_ENGINE_CACHE_ENABLE=0 \
     UV_CACHE_DIR=/tmp/uv-cache \
     npm_config_cache=/tmp/npm-cache \
-    HOME=/tmp
+    HOME=/tmp \
+    CONTAINER_MODE=true
 
 # Expose Flask port
 EXPOSE 5001
@@ -73,4 +74,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
     CMD curl -sf http://localhost:5001/api/health || exit 1
 
 # Run with gunicorn (same config as production)
-CMD ["gunicorn", "-c", "deploy/gunicorn.conf.py", "server:app"]
+CMD ["python", "-m", "gunicorn", "-c", "deploy/gunicorn.conf.py", "server:app"]

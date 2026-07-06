@@ -1553,15 +1553,15 @@ async function refreshChunkPreview() {
       const filterParts = [];
       if (dateFrom) filterParts.push(`from: ${dateFrom}`);
       if (dateTo)   filterParts.push(`to: ${dateTo}`);
-      el.innerHTML = `<div class="cp-count">⚠ No matching data found</div>` +
+      el.innerHTML = `<div class="cp-count"><svg class="inline-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-1.5px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>No matching data found</div>` +
         (filterParts.length ? `<div class="cp-themes">Filters: ${escHtml(filterParts.join(' · '))}. Try adjusting your selection.</div>` : '');
     } else if (data.count < 20) {
       el.classList.add('warn');
-      el.innerHTML = `<div class="cp-count">⚠ Only ${data.count} chunks match — results may be limited</div>` +
+      el.innerHTML = `<div class="cp-count"><svg class="inline-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-1.5px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Only ${data.count} chunks match — results may be limited</div>` +
         (data.themes_found.length ? `<div class="cp-themes">Topics: ${data.themes_found.map(escHtml).join(', ')}</div>` : '');
     } else {
       el.classList.add('ok');
-      el.innerHTML = `<div class="cp-count">✓ ${data.count} chunks available</div>` +
+      el.innerHTML = `<div class="cp-count"><svg class="inline-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-1.5px"><polyline points="20 6 9 17 4 12"/></svg>${data.count} chunks available</div>` +
         (data.themes_found.length ? `<div class="cp-themes">Top topics: ${data.themes_found.map(escHtml).join(', ')}</div>` : '');
     }
   } catch {
@@ -2972,7 +2972,7 @@ async function loadBulletinList() {
     }
     container.innerHTML = bulletins.map((b, i) => {
       const fallbackTag = b.data_date_range?.fallback
-        ? ' <span class="severity-warn-icon">⚠</span>'
+        ? ' <span class="severity-warn-icon" style="display:inline-flex;align-items:center;vertical-align:middle;margin-left:4px;color:var(--amber-dark)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>'
         : '';
       return `<button class="bulletin-tab-pill${i === 0 ? ' active' : ''}" data-action="open-bulletin" data-filename="${esc(b.filename)}">${esc(humanizeWeekLabel(b.week_label))}${fallbackTag}</button>`;
     }).join('');
@@ -3097,8 +3097,8 @@ function renderBulletin(b, container) {
   // Show fallback notice if data date range differs from requested range
   const fallbackNotice = b.data_date_range?.fallback
     ? `<div class="bulletin-fallback-notice">
-        ⚠️ No data available for ${b.data_date_range.requested_from} to ${b.data_date_range.requested_to}.
-        Showing data from ${b.data_date_range.actual_from} to ${b.data_date_range.actual_to} instead.
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>No data available for ${b.data_date_range.requested_from} to ${b.data_date_range.requested_to}. Showing data from ${b.data_date_range.actual_from} to ${b.data_date_range.actual_to} instead.</span>
       </div>`
     : '';
 
