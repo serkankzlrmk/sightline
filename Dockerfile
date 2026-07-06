@@ -16,11 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# Install Python deps to /root/.local (user-space, no torch/nvidia)
-# sentence-transformers pulls torch — we install CPU-only torch first to avoid
-# the 4.5 GB nvidia CUDA packages
-RUN pip install --user --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu || true
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install Python deps (system-wide, not user-space — simpler for Docker)
+# Install CPU-only torch first to avoid 4.5 GB nvidia CUDA packages
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu || true
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim
@@ -37,9 +36,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     ln -sf /root/.local/bin/uvx /usr/local/bin/uvx && \
     ln -sf /root/.local/bin/uv /usr/local/bin/uv
 
-# Copy Python packages from builder
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+# Copy Python packages from builder (system-wide)
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Set working directory
 WORKDIR /app
