@@ -60,6 +60,13 @@ def _configure_servers():
     """Build MCP server config dict from environment variables."""
     import os
 
+    # Set cache dirs to /tmp BEFORE any subprocess starts
+    # (systemd ProtectSystem=strict makes /opt read-only)
+    os.environ["UV_CACHE_DIR"] = "/tmp/uv-cache"
+    os.environ["npm_config_cache"] = "/tmp/npm-cache"
+    os.makedirs("/tmp/uv-cache", exist_ok=True)
+    os.makedirs("/tmp/npm-cache", exist_ok=True)
+
     servers = {}
 
     # arxiv-mcp-server (free, keyless — always add if available)
@@ -68,6 +75,10 @@ def _configure_servers():
         servers["arxiv"] = {
             "command": "uvx",
             "args": ["arxiv-mcp-server"],
+            "env": {
+                "UV_CACHE_DIR": "/tmp/uv-cache",
+                "HOME": "/tmp",
+            },
             "transport": "stdio",
         }
 
@@ -101,9 +112,6 @@ def _configure_servers():
         logger.info("MCP: Brave Search enabled (API key present)")
     elif brave_enabled and not brave_key:
         logger.warning("MCP: Brave Search enabled but BRAVE_API_KEY not set — skipping")
-
-    # Set uvx cache to /tmp (systemd ProtectSystem=strict makes /opt read-only)
-    os.environ.setdefault("UV_CACHE_DIR", "/tmp/uv-cache")
 
     return servers
 
