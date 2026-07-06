@@ -206,6 +206,7 @@ def init_mcp_tools() -> bool:
     def _bg_init():
         global MCP_TOOLS
         try:
+            logger.info("MCP: Background init starting — loading MCP tools...")
             mcp_tools_raw = asyncio.run(_load_mcp_tools_async_impl())
             if mcp_tools_raw:
                 MCP_TOOLS = [_wrap_mcp_tool_sync(t) for t in mcp_tools_raw]
@@ -214,10 +215,12 @@ def init_mcp_tools() -> bool:
                 logger.info("MCP: No tools loaded (servers may not be installed)")
         except Exception as e:
             logger.warning("MCP: Background init failed (non-fatal): %s", e)
+            import traceback
+            logger.debug("MCP: Background init traceback: %s", traceback.format_exc())
 
     t = threading.Thread(target=_bg_init, daemon=True)
     t.start()
-    logger.info("MCP: Background initialization started (non-blocking)")
+    logger.info("MCP: Background initialization thread started (non-blocking)")
 
     # Return False — tools not ready yet, but will be added when ready
     # The agent will work without MCP tools until they're loaded

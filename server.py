@@ -137,6 +137,13 @@ if _wb_ok:
 else:
     logger.warning("World Bank client not initialized. Economic tools will return errors.")
 
+# ── Initialize MCP tools (arxiv, sequential-thinking, brave) ────────────────
+# Non-blocking: starts background thread, returns immediately. Tools added
+# to agent when ready (~30-60s for npx/uvx subprocess startup).
+from mcp_integration import init_mcp_tools as _init_mcp
+_mcp_ok = _init_mcp()
+logger.info("MCP: Background init started — arxiv/sequential/brave tools will be available shortly")
+
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 
