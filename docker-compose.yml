@@ -1,0 +1,59 @@
+# =============================================================================
+# Sightline — Docker Compose (production + local dev)
+# =============================================================================
+# Usage:
+#   docker compose up -d          # Start app + Caddy
+#   docker compose up --build      # Rebuild image
+#   docker compose logs -f app    # Follow app logs
+#   docker compose exec app pytest tests/  # Run tests
+#   docker compose down            # Stop everything
+
+services:
+  app:
+    build: .
+    image: ghcr.io/serkankzlrmk/sightline:latest
+    container_name: sightline
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - reliefweb_db:/app/reliefweb.db
+      - chats_db:/app/chats.db
+      - chroma_data:/app/reliefweb_chroma
+      - output_data:/app/output
+      - mcp_cache:/tmp/uv-cache
+      - npm_cache:/tmp/npm-cache
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+    ports:
+      - "127.0.0.1:5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: sightline-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  reliefweb_db:
+  chats_db:
+  chroma_data:
+  output_data:
+  mcp_cache:
+  npm_cache:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,64 @@
+# Docker ignore — don't copy these into the image
+# Keeps image small and avoids sensitive data in layers
+
+# Data files (mounted as volumes, not baked into image)
+*.db
+*.db-shm
+*.db-wal
+reliefweb_chroma/
+output/
+reliefweb_downloads/
+
+# Secrets (passed via env_file / bind mount, not baked in)
+.env
+.env.local
+.env.production
+firebase-service-account.json
+service-account*.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.venv/
+venv/
+env/
+
+# Git
+.git/
+.gitignore
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Tooling artifacts
+.codegraph/
+.ruff_cache/
+.pytest_cache/
+.opencode/
+.cgcignore
+.hermes/
+.agents/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+stitch_output/
+
+# Documentation (not needed in image)
+*.md
+!ROADMAP.md
+
+# Large geojson
+static/ne_*_countries.geojson

@@ -1,0 +1,60 @@
+# =============================================================================
+# Sightline — Caddyfile (reverse proxy with automatic TLS)
+# =============================================================================
+# Caddy automatically obtains and renews Let's Encrypt certificates.
+# No certbot, no nginx config, no manual TLS management.
+
+# Production domains — Caddy gets TLS certs automatically
+YOUR_DOMAIN, YOUR_PROJECT_ID.com {
+    reverse_proxy app:5001 {
+        # SSE support — no buffering for streaming endpoints
+        @sse path /api/agent/chat /api/sitrep/stream/*
+        handle @sse {
+            flush_interval -1
+            timeout 300s
+        }
+
+        # Default — all other routes
+        handle {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Rate limiting (Caddy 2.7+)
+    # Flask already has per-IP rate limiting — this is defense-in-depth
+    request_body {
+        max_file_size 50MB
+    }
+
+    # Security headers
+    header {
+        X-Frame-Options DENY
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
+
+    # Static files — Caddy serves directly
+    @static path /static/*
+    handle @static {
+        root * /app
+        file_server
+        header Cache-Control "public, max-age=3600, must-revalidate"
+    }
+
+    # Access log
+    log {
+        output file /data/access.log {
+            roll_size 100mb
+            roll_keep 5
+        }
+    }
+}
+
+# Local dev (no TLS — just HTTP)
+localhost {
+    reverse_proxy app:5001
+}
