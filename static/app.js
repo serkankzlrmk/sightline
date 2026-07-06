@@ -1975,9 +1975,16 @@ async function loadDashboard() {
   if (dashboardLoaded) return;
   dashboardLoaded = true;
 
+  // Freemium preview: check if user is authenticated
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  const isAuthed = !!tok;
+  const statsUrl = isAuthed ? '/api/db/stats' : '/api/public/stats';
+  const bulletinsUrl = isAuthed ? '/api/sitrep/bulletins' : '/api/public/bulletins';
+  const bulletinDetailUrl = isAuthed ? '/api/sitrep/bulletin/' : '/api/public/bulletin/';
+
   // Load stats
   try {
-    const r = await api('/api/db/stats');
+    const r = await api(statsUrl);
     const d = await r.json();
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     el('dash-reports', d.report_count != null ? d.report_count.toLocaleString() : '—');
@@ -1986,7 +1993,7 @@ async function loadDashboard() {
 
   // Load bulletins + latest bulletin detail
   try {
-    const r = await api('/api/sitrep/bulletins');
+    const r = await api(bulletinsUrl);
     const d = await r.json();
     const bulletins = d.bulletins || d || [];
 
@@ -1998,7 +2005,7 @@ async function loadDashboard() {
 
       // Load bulletin detail for overview
       try {
-        const br = await api('/api/sitrep/bulletin/' + latest.filename);
+        const br = await api(bulletinDetailUrl + latest.filename);
         if (br.ok) {
           latestBulletinData = await br.json();
           renderDashOverview(latestBulletinData);
@@ -2008,6 +2015,8 @@ async function loadDashboard() {
               if (c.country) crisisMapData[c.country] = c;
             });
           }
+          // Update map markers after data is loaded
+          setTimeout(() => updateMapMarkers(), 300);
         }
       } catch { /* ignore */ }
 
@@ -2015,6 +2024,13 @@ async function loadDashboard() {
       if (linkBtn) {
         linkBtn.style.display = '';
         linkBtn.addEventListener('click', () => {
+           if (!isAuthed) {
+             // Preview mode: scroll to login panel
+             const overlay = document.getElementById('auth-overlay');
+             if (overlay) overlay.classList.add('slide-in', 'shake');
+             setTimeout(() => overlay && overlay.classList.remove('shake'), 500);
+             return;
+           }
            switchTab('bulletin');
            setTimeout(() => {
              const pills = document.querySelectorAll('.bulletin-tab-pill');
@@ -2168,6 +2184,9 @@ function openCrisisPanel(crisis) {
   const bodyEl = document.getElementById('dash-crisis-panel-body');
   if (!panel || !countryEl || !bodyEl) return;
 
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  const isAuthed = !!tok;
+
   const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
   const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
   const color = sevColors[crisis.severity] || '#007AFF';
@@ -2182,25 +2201,42 @@ function openCrisisPanel(crisis) {
     html += `<div class="crisis-headline">${esc(crisis.headline)}</div>`;
   }
 
-  if (crisis.summary) {
-    html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
-  }
+  if (isAuthed) {
+    // Authenticated: show full crisis detail
+    if (crisis.summary) {
+      html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
+    }
 
-  html += `<div class="crisis-meta">`;
-  if (crisis.report_count) {
-    html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
-  }
-  if (crisis.sources && crisis.sources.length) {
-    html += `<span class="crisis-meta-item"><strong>${crisis.sources.length}</strong> sources</span>`;
-  }
-  html += `</div>`;
+    html += `<div class="crisis-meta">`;
+    if (crisis.report_count) {
+      html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
+    }
+    if (crisis.sources && crisis.sources.length) {
+      html += `<span class="crisis-meta-item"><strong>${crisis.sources.length}</strong> sources</span>`;
+    }
+    html += `</div>`;
 
-  if (crisis.themes && crisis.themes.length) {
-    html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
-  }
+    if (crisis.themes && crisis.themes.length) {
+      html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+    }
 
-  if (crisis.has_sitrep) {
-    html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(crisis.country)}">View SITREP →</button>`;
+    if (crisis.has_sitrep) {
+      html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(crisis.country)}">View SITREP →</button>`;
+    }
+  } else {
+    // Preview mode: show limited info + sign-up prompt
+    html += `<div class="crisis-meta">`;
+    if (crisis.report_count) {
+      html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
+    }
+    html += `</div>`;
+
+    // Lock prompt
+    html += `<div class="preview-lock-msg">
+      <div class="preview-lock-icon">🔒</div>
+      <div class="preview-lock-text">Sign in to read full crisis analysis, sources, and themes.</div>
+      <button class="preview-lock-btn" onclick="document.getElementById('auth-overlay').classList.remove('hidden');document.getElementById('auth-overlay').classList.add('slide-in');">Sign In with Google</button>
+    </div>`;
   }
 
   bodyEl.innerHTML = html;
@@ -2689,6 +2725,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Wait for auth before making auth-required API calls
   let _appInited = false;
+  let _previewInited = false;
+
+  function initPreviewData() {
+    // Freemium preview: load public data without auth
+    if (_previewInited) return;
+    _previewInited = true;
+    console.log('[app] initPreviewData — loading public content for anonymous visitor');
+    switchTab('home');
+    // loadDashboard() will detect no token and use public endpoints
+    loadDashboard();
+  }
+
   function initAppData() {
     if (_appInited) return;
     _appInited = true;
@@ -2711,10 +2759,24 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUploadBtnVisibility();
   }
 
+  // Preview mode: load public data immediately (no auth needed)
   if (window.__authReady) {
     initAppData();
   } else {
-    window.addEventListener('auth-ready', initAppData, { once: true });
+    // Listen for preview-ready (anonymous visitor — show limited content)
+    window.addEventListener('preview-ready', () => {
+      console.log('[app] preview-ready event — loading preview data');
+      initPreviewData();
+    }, { once: true });
+    // Listen for auth-ready (user signed in — load full app)
+    window.addEventListener('auth-ready', () => {
+      console.log('[app] auth-ready event — loading full app');
+      // Reload dashboard with authed endpoints
+      _previewInited = true; // prevent double-load
+      initAppData();
+      // Reload dashboard now that we have a token
+      setTimeout(() => loadDashboard(), 100);
+    }, { once: true });
     setTimeout(() => {
       if (!_appInited && window.getIdToken && window.getIdToken()) {
         console.log('[app] auth-ready event missed, initializing with cached token');

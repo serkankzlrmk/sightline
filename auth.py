@@ -287,6 +287,48 @@ def require_auth(f):
     return decorated
 
 
+def optional_auth(f):
+    """
+    Optional authentication — authenticates if a valid token is present,
+    but proceeds as anonymous (g.current_user = None) if not.
+
+    Used for freemium preview: public endpoints show limited data to anonymous
+    users, full data to authenticated users. Route handlers check current_uid()
+    to determine which data to return.
+    """
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        # Dev mode bypass
+        if _dev_mode():
+            g.current_user = {
+                "uid": "dev-local",
+                "email": "dev@localhost",
+                "name": "Dev User",
+                "admin": True,
+                "role": "admin",
+            }
+            return f(*args, **kwargs)
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[len("Bearer "):].strip()
+            if token:
+                try:
+                    decoded = verify_firebase_token(token)
+                    decoded["role"] = _resolve_role(decoded)
+                    g.current_user = decoded
+                except ValueError:
+                    # Invalid token — proceed as anonymous (don't reject)
+                    g.current_user = None
+            else:
+                g.current_user = None
+        else:
+            g.current_user = None
+
+        return f(*args, **kwargs)
+    return decorated
+
+
 def require_admin(f):
     """
     Require admin access.

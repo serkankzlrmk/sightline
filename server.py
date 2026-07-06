@@ -52,7 +52,7 @@ import urllib3
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins
+from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins, optional_auth
 
 # ── HDX Client (Humanitarian Data Exchange) ──────────────────────────────────
 from reliefweb_api.hdx_tools import init_hdx_tools, get_hdx_client
@@ -1192,6 +1192,98 @@ def health():
 
     code = 200 if all_ok else 503
     return jsonify(checks), code
+
+
+# =============================================================================
+# ROUTES — Public / Preview (no auth required — freemium model)
+# =============================================================================
+def _trim_bulletin_for_preview(bulletin: dict) -> dict:
+    """Trim a full bulletin for public preview — removes detailed content,
+    keeps only headlines, severity, coordinates, and aggregate stats."""
+    trimmed = dict(bulletin)
+    # Remove detailed crisis content
+    if "crises" in trimmed:
+        trimmed["crises"] = [
+            {
+                "country": c.get("country", ""),
+                "headline": c.get("headline", ""),
+                "severity": c.get("severity", ""),
+                "coords": c.get("coords", {}),
+                "report_count": c.get("report_count", 0),
+                "has_sitrep": c.get("has_sitrep", False),
+            }
+            for c in trimmed["crises"]
+        ]
+    # Remove global overview detail (keep short version)
+    if "global_overview" in trimmed and trimmed["global_overview"]:
+        trimmed["global_overview"] = trimmed["global_overview"][:200] + "..." if len(trimmed["global_overview"]) > 200 else trimmed["global_overview"]
+    return trimmed
+
+
+@app.route("/api/public/stats")
+def api_public_stats():
+    """Public DB stats — aggregate counts only, no sensitive data."""
+    conn = _db_conn()
+    try:
+        report_count = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
+        chunk_count  = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        country_rows = conn.execute("SELECT countries FROM reports LIMIT 2000").fetchall()
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return jsonify({"report_count": 0, "chunk_count": 0, "top_countries": []})
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    country_counts: dict = {}
+    for r in country_rows:
+        for c in _parse_countries(r[0]):
+            country_counts[c] = country_counts.get(c, 0) + 1
+
+    return jsonify({
+        "report_count": report_count,
+        "chunk_count":  chunk_count,
+        "top_countries": sorted(country_counts.items(), key=lambda x: -x[1])[:15],
+    })
+
+
+@app.route("/api/public/bulletins")
+def api_public_bulletins():
+    """Public bulletin list — metadata only (titles, dates, counts)."""
+    from sitrep.weekly_bulletin import list_bulletins
+    bulletins = list_bulletins()
+    return jsonify(bulletins)
+
+
+@app.route("/api/public/bulletin/<filename>")
+def api_public_bulletin_get(filename):
+    """Public bulletin — trimmed version (headlines + severity + coords only)."""
+    from sitrep.weekly_bulletin import get_bulletin
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    bulletin = get_bulletin(filename)
+    if bulletin is None:
+        return jsonify({"error": "Bulletin not found"}), 404
+    return jsonify(_trim_bulletin_for_preview(bulletin))
+
+
+@app.route("/api/public/sitrep/reports")
+def api_public_sitrep_reports():
+    """Public SITREP report list — filenames only, no content."""
+    items = []
+    if OUTPUT_REPORTS_DIR.exists():
+        for f in sorted(
+            OUTPUT_REPORTS_DIR.glob("*report.json"),
+            key=lambda x: x.stat().st_mtime,
+            reverse=True,
+        ):
+            items.append({"filename": f.name})
+    return jsonify(items)
 
 
 # =============================================================================

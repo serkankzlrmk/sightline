@@ -70,14 +70,26 @@ window.refreshIdToken = refreshIdToken;
 // ═══════════════════════════════════════════════════════════
 
 function showOverlay() {
+  // Freemium preview: show slide-in login panel (not full-screen opaque overlay)
   const el = document.getElementById("auth-overlay");
-  if (el) el.classList.remove("hidden");
-  document.body.classList.add("auth-locked");
+  if (el) {
+    el.classList.remove("hidden");
+    el.classList.add("slide-in");
+  }
+  document.body.classList.add("preview-mode");
+  document.body.classList.remove("auth-locked");
+  // Dispatch preview-ready so app.js can load public data
+  window.__authReady = false;
+  window.dispatchEvent(new Event('preview-ready'));
 }
 
 function hideOverlay() {
   const el = document.getElementById("auth-overlay");
-  if (el) el.classList.add("hidden");
+  if (el) {
+    el.classList.add("hidden");
+    el.classList.remove("slide-in");
+  }
+  document.body.classList.remove("preview-mode");
   document.body.classList.remove("auth-locked");
 }
 
@@ -407,10 +419,11 @@ function _initFirebase() {
       window.__authReady = true;
       window.dispatchEvent(new Event('auth-ready'));
     } else {
-      console.log("[auth] onAuthStateChanged: no user (signed out or first load)");
+      console.log("[auth] onAuthStateChanged: no user (signed out or first load) — entering preview mode");
       clearToken();
       window.__isAdmin = false;
       window.__userRole = "free";
+      // Freemium preview: show slide-in login panel + preview content
       showOverlay();
       showUserBar(null);
     }
