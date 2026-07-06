@@ -77,6 +77,10 @@ def _configure_servers():
         servers["sequential_thinking"] = {
             "command": "npx",
             "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+            "env": {
+                "npm_config_cache": "/tmp/npm-cache",
+                "HOME": "/tmp",
+            },
             "transport": "stdio",
         }
 
@@ -87,12 +91,19 @@ def _configure_servers():
         servers["brave_search"] = {
             "command": "npx",
             "args": ["-y", "@brave/brave-search-mcp-server"],
-            "env": {"BRAVE_API_KEY": brave_key},
+            "env": {
+                "BRAVE_API_KEY": brave_key,
+                "npm_config_cache": "/tmp/npm-cache",
+                "HOME": "/tmp",
+            },
             "transport": "stdio",
         }
         logger.info("MCP: Brave Search enabled (API key present)")
     elif brave_enabled and not brave_key:
         logger.warning("MCP: Brave Search enabled but BRAVE_API_KEY not set — skipping")
+
+    # Set uvx cache to /tmp (systemd ProtectSystem=strict makes /opt read-only)
+    os.environ.setdefault("UV_CACHE_DIR", "/tmp/uv-cache")
 
     return servers
 
