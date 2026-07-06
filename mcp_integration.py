@@ -238,15 +238,23 @@ async def _load_mcp_tools_async_impl() -> List:
 
     logger.info("MCP: Connecting to %d server(s): %s", len(servers), list(servers.keys()))
 
-    client = MultiServerMCPClient(servers)
+    # Load tools from each server separately so one failure doesn't block others
+    all_tools = []
+    for name, conf in servers.items():
+        try:
+            logger.info("MCP: Connecting to %s...", name)
+            client = MultiServerMCPClient({name: conf})
+            tools = await client.get_tools()
+            logger.info("MCP: %s — %d tools loaded", name, len(tools))
+            all_tools.extend(tools)
+        except Exception as e:
+            logger.warning("MCP: %s failed (non-fatal, other servers continue): %s", name, e)
 
-    tools = await client.get_tools()
-
-    logger.info("MCP: Loaded %d tools from MCP servers", len(tools))
-    for t in tools:
+    logger.info("MCP: Total %d tools from %d server(s)", len(all_tools), len(servers))
+    for t in all_tools:
         logger.info("MCP:   - %s: %s", t.name, (t.description or "")[:80])
 
-    return tools
+    return all_tools
 
 
 def get_mcp_tools() -> List:
