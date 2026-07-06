@@ -1198,25 +1198,21 @@ def health():
 # ROUTES — Public / Preview (no auth required — freemium model)
 # =============================================================================
 def _trim_bulletin_for_preview(bulletin: dict) -> dict:
-    """Trim a full bulletin for public preview — removes detailed content,
-    keeps only headlines, severity, coordinates, and aggregate stats."""
+    """Trim a full bulletin for public preview — keeps all content visible
+    on the home/dashboard. Only removes crisis sources (external links) and
+    HDX key figures for anonymous users. Everything else is public."""
     trimmed = dict(bulletin)
-    # Remove detailed crisis content
+    # Keep global_overview, key_figures, top_themes fully visible
+    # For crises: keep headline, summary, severity, coords, report_count, themes
+    # but remove sources (external ReliefWeb links) and hdx_key_figures
     if "crises" in trimmed:
-        trimmed["crises"] = [
-            {
-                "country": c.get("country", ""),
-                "headline": c.get("headline", ""),
-                "severity": c.get("severity", ""),
-                "coords": c.get("coords", {}),
-                "report_count": c.get("report_count", 0),
-                "has_sitrep": c.get("has_sitrep", False),
-            }
-            for c in trimmed["crises"]
-        ]
-    # Remove global overview detail (keep short version)
-    if "global_overview" in trimmed and trimmed["global_overview"]:
-        trimmed["global_overview"] = trimmed["global_overview"][:200] + "..." if len(trimmed["global_overview"]) > 200 else trimmed["global_overview"]
+        trimmed_crises = []
+        for c in trimmed["crises"]:
+            tc = dict(c)
+            tc.pop("sources", None)
+            tc.pop("hdx_key_figures", None)
+            trimmed_crises.append(tc)
+        trimmed["crises"] = trimmed_crises
     return trimmed
 
 

@@ -2235,18 +2235,24 @@ function openCrisisPanel(crisis) {
       html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(crisis.country)}">View SITREP →</button>`;
     }
   } else {
-    // Preview mode: show limited info + sign-up prompt
+    // Preview mode: show summary + report count but prompt for sources
+    if (crisis.summary) {
+      html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
+    }
+
     html += `<div class="crisis-meta">`;
     if (crisis.report_count) {
       html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
     }
     html += `</div>`;
 
-    // Lock prompt
+    if (crisis.themes && crisis.themes.length) {
+      html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+    }
+
     html += `<div class="preview-lock-msg">
-      <div class="preview-lock-icon">🔒</div>
-      <div class="preview-lock-text">Sign in to read full crisis analysis, sources, and themes.</div>
-      <button class="preview-lock-btn" onclick="document.getElementById('auth-overlay').classList.remove('hidden');document.getElementById('auth-overlay').classList.add('slide-in');">Sign In with Google</button>
+      <div class="preview-lock-text">Register to view report sources and full SITREP analysis.</div>
+      <button class="preview-lock-btn" onclick="document.getElementById('auth-overlay').classList.remove('hidden');document.getElementById('auth-overlay').classList.add('slide-in');">Register</button>
     </div>`;
   }
 

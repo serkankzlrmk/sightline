@@ -1365,31 +1365,44 @@ body.preview-mode .auth-overlay .modal-overlay { z-index: 10002; }
 }
 .auth-overlay.shake .auth-card { animation: shake 0.4s ease-in-out; }
 
-/* Preview lock UI */
-.preview-lock-msg {
-  margin: 16px 0;
-  padding: 20px 16px;
-  background: linear-gradient(135deg, #f0f4ff, #faf5ff);
-  border: 1px solid #d4d8f0;
-  border-radius: 12px;
-  text-align: center;
+/* Login panel close button */
+.auth-panel-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none;
+  font-size: 22px; color: var(--text-muted);
+  cursor: pointer; border-radius: 8px;
+  z-index: 10;
+  transition: background 0.15s, color 0.15s;
 }
-.preview-lock-icon { font-size: 28px; margin-bottom: 8px; }
+.auth-panel-close:hover { background: var(--hover-bg); color: var(--text); }
+body:not(.preview-mode) .auth-panel-close { display: none; }
+
+/* Preview lock — minimal, professional, no emoji */
+.preview-lock-msg {
+  margin: 16px 0 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
 .preview-lock-text {
-  font-size: 14px; color: var(--text-secondary);
-  margin-bottom: 14px; line-height: 1.5;
+  font-size: 13px; color: var(--text-secondary);
+  line-height: 1.5; margin-bottom: 10px;
 }
 .preview-lock-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 10px 20px;
-  background: #fff; border: 1px solid #d4d8f0;
-  border-radius: 10px; font-size: 13px; font-weight: 600;
-  color: #2563eb; cursor: pointer;
-  transition: all 0.2s;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; font-size: 12px; font-weight: 500;
+  color: var(--primary); cursor: pointer;
+  transition: all 0.15s;
 }
 .preview-lock-btn:hover {
-  background: #2563eb; color: #fff; border-color: #2563eb;
-  box-shadow: 0 4px 12px rgba(37,99,235,.25);
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(37,99,235,.04);
 }
 
 .auth-overlay {
