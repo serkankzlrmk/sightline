@@ -1398,7 +1398,7 @@ body.preview-mode .auth-overlay .modal-overlay { z-index: 10002; }
   background: #FFFFFF;
   overflow: hidden;
 }
-.auth-overlay.hidden { display: none; }
+.auth-overlay.hidden { display: none !important; }
 
 /* Left hero panel — Premium white glass */
 .auth-hero {

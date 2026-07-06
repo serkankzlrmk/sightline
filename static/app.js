@@ -181,6 +181,19 @@ function toggleSidebarNav() {
 }
 
 function switchTab(name) {
+  // Freemium preview: gated tabs require auth
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  const isAuthed = !!tok;
+  const GATED_TABS = ['agent', 'sitrep', 'bulletin', 'db', 'admin'];
+  if (!isAuthed && GATED_TABS.includes(name)) {
+    // Show login panel instead of switching tab
+    if (window.showLoginPanel) {
+      window.showLoginPanel();
+    }
+    // Stay on home tab
+    return;
+  }
+
   currentTab = name;
   const allTabs = TAB_NAMES;
   const sidebar = document.getElementById('sidebar-nav');
@@ -2025,10 +2038,8 @@ async function loadDashboard() {
         linkBtn.style.display = '';
         linkBtn.addEventListener('click', () => {
            if (!isAuthed) {
-             // Preview mode: scroll to login panel
-             const overlay = document.getElementById('auth-overlay');
-             if (overlay) overlay.classList.add('slide-in', 'shake');
-             setTimeout(() => overlay && overlay.classList.remove('shake'), 500);
+             // Preview mode: show login panel
+             if (window.showLoginPanel) window.showLoginPanel();
              return;
            }
            switchTab('bulletin');
@@ -2770,12 +2781,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { once: true });
     // Listen for auth-ready (user signed in — load full app)
     window.addEventListener('auth-ready', () => {
-      console.log('[app] auth-ready event — loading full app');
-      // Reload dashboard with authed endpoints
+      console.log('[app] auth-ready event — loading full app after sign-in');
       _previewInited = true; // prevent double-load
+      // Reset dashboard loaded flag so it reloads with authed endpoints
+      dashboardLoaded = false;
       initAppData();
-      // Reload dashboard now that we have a token
-      setTimeout(() => loadDashboard(), 100);
+      // Reload dashboard now that we have a token — force reload
+      setTimeout(() => {
+        dashboardLoaded = false;
+        loadDashboard();
+        // Also load chat list and other authed data
+        loadChatList();
+      }, 100);
     }, { once: true });
     setTimeout(() => {
       if (!_appInited && window.getIdToken && window.getIdToken()) {

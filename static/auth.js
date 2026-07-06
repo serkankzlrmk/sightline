@@ -64,23 +64,36 @@ export function getIdToken() {
 }
 window.getIdToken = getIdToken;
 window.refreshIdToken = refreshIdToken;
+window.showLoginPanel = showLoginPanel;
 
 // ═══════════════════════════════════════════════════════════
 // UI helpers
 // ═══════════════════════════════════════════════════════════
 
 function showOverlay() {
-  // Freemium preview: show slide-in login panel (not full-screen opaque overlay)
+  // Freemium preview: set preview-mode but DON'T show login panel.
+  // Login panel only appears when user clicks a gated tab (bulletin/chat/sitrep/db)
+  document.body.classList.add("preview-mode");
+  document.body.classList.remove("auth-locked");
+  // Ensure overlay is hidden (no auto slide-in on page load)
+  const el = document.getElementById("auth-overlay");
+  if (el) {
+    el.classList.add("hidden");
+    el.classList.remove("slide-in");
+  }
+  // Dispatch preview-ready so app.js can load public data
+  window.__authReady = false;
+  window.dispatchEvent(new Event('preview-ready'));
+}
+
+function showLoginPanel() {
+  // Show the slide-in login panel (triggered by gated tab click)
   const el = document.getElementById("auth-overlay");
   if (el) {
     el.classList.remove("hidden");
     el.classList.add("slide-in");
+    el.style.display = "";
   }
-  document.body.classList.add("preview-mode");
-  document.body.classList.remove("auth-locked");
-  // Dispatch preview-ready so app.js can load public data
-  window.__authReady = false;
-  window.dispatchEvent(new Event('preview-ready'));
 }
 
 function hideOverlay() {
@@ -88,9 +101,12 @@ function hideOverlay() {
   if (el) {
     el.classList.add("hidden");
     el.classList.remove("slide-in");
+    el.style.display = "none";
   }
   document.body.classList.remove("preview-mode");
   document.body.classList.remove("auth-locked");
+  // Force reflow to ensure CSS changes take effect
+  document.body.offsetHeight;
 }
 
 function showUserBar(user) {
