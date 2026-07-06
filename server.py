@@ -423,6 +423,22 @@ def _init_chats_db():
             last_seen      REAL NOT NULL,
             signup_source  TEXT NOT NULL DEFAULT 'web'
         );
+        CREATE TABLE IF NOT EXISTS proposals (
+            id         TEXT PRIMARY KEY,
+            uid        TEXT NOT NULL,
+            title      TEXT NOT NULL,
+            country    TEXT NOT NULL,
+            event      TEXT NOT NULL,
+            themes     TEXT NOT NULL,
+            donor      TEXT NOT NULL,
+            date_from  TEXT NOT NULL DEFAULT '',
+            date_to    TEXT NOT NULL DEFAULT '',
+            toc        TEXT NOT NULL DEFAULT '[]',
+            logframe   TEXT NOT NULL DEFAULT '{}',
+            narrative  TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_proposals_uid ON proposals(uid);
     """)
     # Migration: add uid column if missing
     cols = [r[1] for r in conn.execute("PRAGMA table_info(chats)").fetchall()]
@@ -2667,6 +2683,653 @@ def api_ingest_upload():
             shutil.rmtree(tmp, ignore_errors=True)
         except Exception:
             pass
+
+
+# =============================================================================
+# Proposals API (Proje Tasarım Odası)
+# =============================================================================
+
+@app.route("/api/proposals", methods=["GET"])
+@require_auth
+def api_get_proposals():
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        rows = conn.execute(
+            "SELECT id, title, country, event, themes, donor, date_from, date_to, created_at FROM proposals WHERE uid = ? ORDER BY created_at DESC",
+            (uid,)
+        ).fetchall()
+        
+        proposals = []
+        for r in rows:
+            try:
+                themes_list = json.loads(r["themes"])
+            except Exception:
+                themes_list = [t.strip() for t in r["themes"].split(",") if t.strip()]
+                
+            proposals.append({
+                "id": r["id"],
+                "title": r["title"],
+                "country": r["country"],
+                "event": r["event"],
+                "themes": themes_list,
+                "donor": r["donor"],
+                "date_from": r["date_from"],
+                "date_to": r["date_to"],
+                "created_at": r["created_at"]
+            })
+        return jsonify(proposals)
+    except Exception as e:
+        logger.error(f"api_get_proposals error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/new", methods=["POST"])
+@require_auth
+def api_create_proposal():
+    uid = current_uid()
+    data = request.json or {}
+    
+    title = data.get("title", "New Proposal").strip()
+    country = data.get("country", "").strip()
+    event = data.get("event", "").strip()
+    themes = data.get("themes", [])
+    donor = data.get("donor", "ECHO").strip()
+    date_from = data.get("date_from", "").strip()
+    date_to = data.get("date_to", "").strip()
+    
+    if not country:
+        return jsonify({"error": "Country context is required"}), 400
+        
+    prop_id = "prop_" + str(uuid.uuid4().hex[:12])
+    
+    default_toc = [
+        {"level": "impact", "text": "Enhanced safety and reduced vulnerability of affected populations."},
+        {"level": "outcome", "text": "Access to vital emergency services and basic needs is restored."},
+        {"level": "output", "text": "Emergency relief kits and support materials distributed."},
+        {"level": "activity", "text": "Procure and deliver aid packages to targeted zones."}
+    ]
+    
+    default_logframe = {
+        "goal": f"G1. Reduced vulnerability to disaster shocks in {country}.",
+        "outcomes": "OC1. Targeted households report basic needs met.\nIndicator: % of target pop with satisfied needs.",
+        "outputs": "O1. Relief materials delivered to local centers.\nIndicator: Number of kits distributed.",
+        "activities": "A1. Deploy logistics team.\nA2. Complete safe distributions."
+    }
+    
+    default_narrative = f"## Project Summary\nEmergency humanitarian response targeting communities in {country} affected by recent crises.\n\n## Methodology\nInterventions will focus on key sectors: {', '.join(themes)}."
+
+    conn = _chats_db()
+    try:
+        conn.execute(
+            """INSERT INTO proposals 
+               (id, uid, title, country, event, themes, donor, date_from, date_to, toc, logframe, narrative, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                prop_id, uid, title, country, event, 
+                json.dumps(themes), donor, date_from, date_to, 
+                json.dumps(default_toc), json.dumps(default_logframe), default_narrative,
+                time.time()
+            )
+        )
+        conn.commit()
+        
+        return jsonify({
+            "id": prop_id,
+            "title": title,
+            "country": country,
+            "event": event,
+            "themes": themes,
+            "donor": donor,
+            "date_from": date_from,
+            "date_to": date_to,
+            "toc": default_toc,
+            "logframe": default_logframe,
+            "narrative": default_narrative
+        }), 201
+    except Exception as e:
+        logger.error(f"api_create_proposal error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>", methods=["GET"])
+@require_auth
+def api_get_proposal_detail(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        try:
+            themes_list = json.loads(row["themes"])
+        except Exception:
+            themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
+            
+        return jsonify({
+            "id": row["id"],
+            "title": row["title"],
+            "country": row["country"],
+            "event": row["event"],
+            "themes": themes_list,
+            "donor": row["donor"],
+            "date_from": row["date_from"],
+            "date_to": row["date_to"],
+            "toc": json.loads(row["toc"]),
+            "logframe": json.loads(row["logframe"]),
+            "narrative": row["narrative"],
+            "created_at": row["created_at"]
+        })
+    except Exception as e:
+        logger.error(f"api_get_proposal_detail error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>", methods=["PUT"])
+@require_auth
+def api_update_proposal(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        fields_to_update = {}
+        for k in ["title", "country", "event", "donor", "date_from", "date_to", "narrative"]:
+            if k in data:
+                fields_to_update[k] = data[k]
+                
+        if "themes" in data:
+            fields_to_update["themes"] = json.dumps(data["themes"])
+        if "toc" in data:
+            fields_to_update["toc"] = json.dumps(data["toc"])
+        if "logframe" in data:
+            fields_to_update["logframe"] = json.dumps(data["logframe"])
+            
+        if not fields_to_update:
+            return jsonify({"message": "No changes made"})
+            
+        set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
+        params = list(fields_to_update.values()) + [prop_id, uid]
+        
+        conn.execute(
+            f"UPDATE proposals SET {set_clause} WHERE id = ? AND uid = ?",
+            params
+        )
+        conn.commit()
+        return jsonify({"message": "Proposal updated successfully"})
+    except Exception as e:
+        logger.error(f"api_update_proposal error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>", methods=["DELETE"])
+@require_auth
+def api_delete_proposal(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        conn.execute(
+            "DELETE FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        )
+        conn.commit()
+        return jsonify({"message": "Proposal deleted successfully"})
+    except Exception as e:
+        logger.error(f"api_delete_proposal error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/generate-toc", methods=["POST"])
+@require_auth
+def api_proposal_generate_toc(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT country, event, themes FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        country = row["country"]
+        event = row["event"]
+        try:
+            themes = json.loads(row["themes"])
+        except Exception:
+            themes = [row["themes"]]
+            
+        context_chunks = []
+        try:
+            from reliefweb_api.vector_store import VectorStore
+            store = VectorStore()
+            query = f"{country} {event} {' '.join(themes)}"
+            results = store.search(query=query, limit=5, country=country)
+            for res in results.get("results", []):
+                context_chunks.append(res.get("text", ""))
+        except BaseException as vec_err:
+            logger.warning(f"Vector search failed in generate-toc: {vec_err}")
+
+        context_text = "\n\n".join(context_chunks)[:4000]
+        
+        system_prompt = (
+            "You are an expert humanitarian crisis proposal designer.\n"
+            "Your task is to draft a Theory of Change (ToC) for a relief project.\n"
+            "Analyze the provided crisis context and return a structured JSON array representing the ToC levels.\n"
+            "The JSON array MUST contain exactly 4 objects corresponding to the standard ToC levels in this order:\n"
+            "1. Goal / Impact (Ultimate long-term change)\n"
+            "2. Outcome (Specific change in behavior/status of target pop)\n"
+            "3. Output (Direct product of project activities)\n"
+            "4. Activity (Key action to produce outputs)\n\n"
+            "Each object must have two fields: 'level' ('impact', 'outcome', 'output', 'activity') and 'text'.\n"
+            "Ensure the logic flows sequentially (Activity -> Output -> Outcome -> Impact).\n"
+            "Return ONLY the JSON array, no explanation or markdown blocks."
+        )
+        
+        user_prompt = (
+            f"Country: {country}\n"
+            f"Crisis / Event: {event}\n"
+            f"Target Themes: {', '.join(themes)}\n\n"
+            f"Crisis Context Data:\n{context_text if context_text else 'No recent report details available.'}"
+        )
+        
+        from sitrep.llm_client import chat as llm_chat
+        response = llm_chat([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```")[1]
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+        
+        toc_nodes = json.loads(cleaned)
+        
+        conn.execute(
+            "UPDATE proposals SET toc = ? WHERE id = ? AND uid = ?",
+            (json.dumps(toc_nodes), prop_id, uid)
+        )
+        conn.commit()
+        
+        return jsonify(toc_nodes)
+    except Exception as e:
+        logger.error(f"api_proposal_generate_toc error: {prop_id}, {e}")
+        return jsonify({"error": f"LLM generation failed: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/generate-logframe", methods=["POST"])
+@require_auth
+def api_proposal_generate_logframe(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT country, event, themes, toc FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        country = row["country"]
+        event = row["event"]
+        toc = json.loads(row["toc"])
+        
+        system_prompt = (
+            "You are an expert humanitarian program officer.\n"
+            "Based on the Theory of Change (ToC) provided, draft a structured Logical Framework (Logframe) matrix.\n"
+            "Return a JSON object containing the primary logic sections:\n"
+            "- 'goal': Statement of impact + key indicator\n"
+            "- 'outcomes': Statement of outcome + key indicator\n"
+            "- 'outputs': Direct outputs + key indicators\n"
+            "- 'activities': Direct activities.\n"
+            "Make all indicators SMART (Specific, Measurable, Achievable, Relevant, Time-bound).\n"
+            "Return ONLY the JSON object, no explanation or markdown blocks."
+        )
+        
+        user_prompt = (
+            f"Country: {country}\n"
+            f"Crisis: {event}\n"
+            f"Theory of Change Hierarchy:\n" + 
+            "\n".join([f"- {node['level'].upper()}: {node['text']}" for node in toc])
+        )
+        
+        from sitrep.llm_client import chat as llm_chat
+        response = llm_chat([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        
+        cleaned = response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```")[1]
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+        
+        logframe_data = json.loads(cleaned)
+        
+        conn.execute(
+            "UPDATE proposals SET logframe = ? WHERE id = ? AND uid = ?",
+            (json.dumps(logframe_data), prop_id, uid)
+        )
+        conn.commit()
+        
+        return jsonify(logframe_data)
+    except Exception as e:
+        logger.error(f"api_proposal_generate_logframe error: {prop_id}, {e}")
+        return jsonify({"error": f"LLM generation failed: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/chunks", methods=["GET"])
+@require_auth
+def api_proposal_chunks(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT country, themes, date_from, date_to FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        country = row["country"]
+        try:
+            themes = json.loads(row["themes"])
+        except Exception:
+            themes = [t.strip() for t in row["themes"].split(",") if t.strip()]
+            
+        date_from = row["date_from"]
+        date_to = row["date_to"]
+        
+        chunks = []
+        try:
+            from sitrep.chroma_adapter import ChromaAdapter
+            db = ChromaAdapter()
+            chunks = db.get_chunks_by_country_and_themes(
+                country, themes or None, date_from=date_from or None, date_to=date_to or None,
+            )
+        except BaseException as adapter_err:
+            logger.warning(f"ChromaAdapter failed in api_proposal_chunks: {adapter_err}")
+        
+        results = []
+        for c in chunks[:15]:
+            results.append({
+                "text": c.get("text", ""),
+                "title": c.get("title", "Situation Report"),
+                "date": c.get("date", ""),
+                "themes": c.get("themes", "")
+            })
+            
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"api_proposal_chunks error: {prop_id}, {e}")
+        return jsonify([])
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/advisor/chat", methods=["POST"])
+@require_auth
+def api_proposal_advisor_chat(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    message = data.get("message", "").strip()
+    
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+        
+    conn = _chats_db()
+    try:
+        # Verify proposal ownership
+        row = conn.execute(
+            "SELECT country, event, donor, toc, logframe FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        chat_id = f"proposal_advisor_{prop_id}"
+        
+        # Ensure advisor chat session exists in chats table
+        chat_row = conn.execute("SELECT id FROM chats WHERE id = ?", (chat_id,)).fetchone()
+        if not chat_row:
+            conn.execute(
+                "INSERT INTO chats (id, uid, title, created) VALUES (?, ?, ?, ?)",
+                (chat_id, uid, f"Advisor: {row['country']} Proposal", _time.time())
+            )
+            conn.commit()
+            
+        # Get historical advisor messages
+        db_rows = conn.execute(
+            "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY ts ASC",
+            (chat_id,)
+        ).fetchall()
+        
+        from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+        messages = []
+        for r in db_rows:
+            if r["role"] == "user":
+                messages.append(HumanMessage(content=r["content"]))
+            elif r["role"] == "assistant":
+                messages.append(AIMessage(content=r["content"]))
+                
+        # Append the new user message
+        messages.append(HumanMessage(content=message))
+        
+        # Save user message to database
+        conn.execute(
+            "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'user', ?, ?)",
+            (chat_id, message, _time.time())
+        )
+        conn.commit()
+        
+        # Invoke agent
+        agent = _get_agent()
+        config = {
+            "recursion_limit": 25,
+            "configurable": {
+                "uid": uid,
+                "proposal_id": prop_id
+            }
+        }
+        
+        result = agent.invoke({"messages": messages}, config=config)
+        
+        # Save agent response to database
+        final_response = ""
+        for msg in reversed(result.get("messages", [])):
+            if isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
+                final_response = msg.content
+                break
+                
+        if not final_response:
+            final_response = "I have reviewed your proposal details."
+            
+        conn.execute(
+            "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'assistant', ?, ?)",
+            (chat_id, final_response, _time.time())
+        )
+        conn.commit()
+        
+        # Check if proposal tools were executed to trigger auto-refresh in frontend
+        proposal_edited = False
+        for msg in result.get("messages", []):
+            if isinstance(msg, ToolMessage) and msg.name in ("edit_proposal_toc", "edit_proposal_logframe", "edit_proposal_narrative"):
+                proposal_edited = True
+                break
+                
+        command_data = None
+        if proposal_edited:
+            command_data = {"action": "refresh"}
+            
+        # Legacy support for text command tags
+        cmd_match = re.search(r"<cmd>(.*?)</cmd>", final_response, re.DOTALL)
+        if cmd_match:
+            try:
+                command_data = json.loads(cmd_match.group(1).strip())
+                final_response = final_response.replace(cmd_match.group(0), "").strip()
+                
+                # Apply legacy command to database
+                if command_data.get("action") == "update_logframe":
+                    field = command_data.get("field")
+                    text_val = command_data.get("text")
+                    parsed_lf = json.loads(row["logframe"])
+                    if field in parsed_lf:
+                        parsed_lf[field] = text_val
+                        conn.execute(
+                            "UPDATE proposals SET logframe = ? WHERE id = ? AND uid = ?",
+                            (json.dumps(parsed_lf), prop_id, uid)
+                        )
+                        conn.commit()
+                elif command_data.get("action") == "update_toc":
+                    index = command_data.get("index")
+                    text_val = command_data.get("text")
+                    parsed_toc = json.loads(row["toc"])
+                    if 0 <= index < len(parsed_toc):
+                        parsed_toc[index]["text"] = text_val
+                        conn.execute(
+                            "UPDATE proposals SET toc = ? WHERE id = ? AND uid = ?",
+                            (json.dumps(parsed_toc), prop_id, uid)
+                        )
+                        conn.commit()
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse or apply advisor command JSON: {parse_err}")
+                
+        return jsonify({
+            "response": final_response,
+            "command": command_data
+        })
+    except Exception as e:
+        logger.error(f"api_proposal_advisor_chat error: {prop_id}, {e}")
+        return jsonify({"error": f"Agent Advisor failed: {str(e)}"}), 500
+    finally:
+        conn.close()
+@app.route("/api/proposals/<prop_id>/advisor/history", methods=["GET"])
+@require_auth
+def api_proposal_advisor_history(prop_id):
+    uid = current_uid()
+    chat_id = f"proposal_advisor_{prop_id}"
+    conn = _chats_db()
+    try:
+        # Check proposal ownership
+        row = conn.execute(
+            "SELECT id FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        db_rows = conn.execute(
+            "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY ts ASC",
+            (chat_id,)
+        ).fetchall()
+        
+        history = [{"role": r["role"], "content": r["content"]} for r in db_rows]
+        return jsonify(history)
+    except Exception as e:
+        logger.error(f"api_proposal_advisor_history error: {prop_id}, {e}")
+        return jsonify([])
+    finally:
+        conn.close()
+
+
+
+@app.route("/api/proposals/<prop_id>/generate-narrative", methods=["POST"])
+@require_auth
+def api_proposal_generate_narrative(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT country, event, donor, toc, logframe FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+            
+        country = row["country"]
+        event = row["event"]
+        donor = row["donor"]
+        toc = row["toc"]
+        logframe = row["logframe"]
+        
+        system_prompt = (
+            f"You are a professional grant proposal writer specialized in {donor} application guidelines.\n"
+            f"Draft the full project description narrative matching {donor} standard templates.\n"
+            "Use clear Markdown formatting with headers.\n"
+            "Structure it into: 1. Needs Assessment, 2. Project Description, 3. Logical Framework Alignment, 4. Sustainability & Risks.\n"
+            "Incorporate details from the Logical Framework and Theory of Change provided.\n"
+            "Maintain a formal, data-driven, and highly persuasive tone. Do not write placeholders."
+        )
+        
+        user_prompt = (
+            f"Crisis Context: {country} / {event}\n"
+            f"Theory of Change: {toc}\n"
+            f"Logical Framework Matrix: {logframe}"
+        )
+        
+        from sitrep.llm_client import chat as llm_chat
+        response = llm_chat([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        
+        conn.execute(
+            "UPDATE proposals SET narrative = ? WHERE id = ? AND uid = ?",
+            (response, prop_id, uid)
+        )
+        conn.commit()
+        
+        return jsonify({"narrative": response})
+    except Exception as e:
+        logger.error(f"api_proposal_generate_narrative error: {prop_id}, {e}")
+        return jsonify({"error": f"LLM Narrative generation failed: {str(e)}"}), 500
+    finally:
+        conn.close()
 
 
 # =============================================================================

@@ -47,6 +47,19 @@
 - **style.css (Taktil Efektler)**: Tıklama esnasında buton ve tablar için `:active` basılma esneme durumu (`scale(0.97)`) eklendi. İkon-metin doğrusal hizalaması için CSS sınıfları entegre edildi.
 - **Backend Güvenliği**: Yapılan tüm tasarım güncellemeleri sonrasında 171 adet pytest testi çalıştırıldı ve tamamının başarılı geçtiği teyit edildi.
 
+### 6. Proposals (Proje Tasarım Odası) Pipeline (Tamamlandı)
+- **Kapsam**: ReliefWeb kriz ve HDX sayısal verilerinden beslenerek insani yardım proje teklifi (Theory of Change, Logframe Matrisi ve Teklif Metni) tasarlayan uçtan uca interaktif bir pipeline yapısı kurgulandı.
+- **Arayüz (UI)**: Bölünmüş çalışma ekranı (Split Panel) tasarlandı. Sol tarafta proje adımları (Context, ToC, Logframe ve Narrative), sağ tarafta ise yapay zekâ eleştirmeni (AI Advisor) yer alıyor.
+- **Entegrasyon**:
+  - `templates/index.html` dosyasına `tab-proposal`, panel şablonları ve modern açılır proje oluşturma modalı eklendi.
+  - SITREP detay ekranındaki aksiyon çubuğuna **"Design Proposal"** butonu entegre edildi. Bu buton, mevcut krizin ülkesini, konusunu ve temalarını otomatik olarak yakalayıp Proje Odası'na aktarıyor.
+  - `static/style.css` dosyasına ToC düğüm akışları (arka plan bağlantı çizgili nodes), Logframe matris tablosu (kart tasarımlı) ve Apple tarzı sohbet balonları eklendi.
+  - `static/app.js` dosyasına durum yönetimi (`proposalState`), adım geçişleri, ToC/Logframe/Narrative API tetiklemeleri, dinamik ülke açılır listesi, RAG veri kaynağı listeleme, debounced auto-save ve AI Advisor diyalog altyapısı entegre edildi.
+  - `server.py` dosyasına SQLite `proposals` tablosu, CRUD API uç noktaları (`/api/proposals/*`), dynamic chunks API (`/api/proposals/<prop_id>/chunks`) ve RAG destekli LLM Generation / Advisor Chat route'ları eklendi.
+- **Test ve Şartname**:
+  - `tests/test_proposals.py` unit test suite'i yazılarak tüm API CRUD ve LLM generation akışları test edildi. 175 testin tamamı başarılı passed durumundadır.
+  - Kök dizindeki `PROPOSAL_PIPELINE_SPEC.md` spesifikasyon dokümanı tamamlandı.
+
 ---
 
 ## Hâlâ Çözülmemiş / Dikkat Edilmesi Gereken Sorunlar

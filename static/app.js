@@ -8,7 +8,7 @@
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const ADMIN_EMAIL = 'serkankizilirmak@gmail.com';
-const TAB_NAMES = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
+const TAB_NAMES = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
 const DEFAULT_MODEL = 'thinking';
 const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
@@ -184,7 +184,7 @@ function switchTab(name) {
   // Freemium preview: gated tabs require auth
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
-  const GATED_TABS = ['agent', 'sitrep', 'bulletin', 'db', 'admin'];
+  const GATED_TABS = ['agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
   if (!isAuthed && GATED_TABS.includes(name)) {
     // Show login panel instead of switching tab
     if (window.showLoginPanel) {
@@ -1159,7 +1159,14 @@ function renderSitrepReport(report, filename) {
         </div>
       </div>
       <div class="report-hero-actions">
-        <button class="btn-sm btn-discuss-agent" data-action="discuss-sitrep">💬 Discuss with Sightline</button>
+        <button class="btn-sm btn-discuss-agent btn-with-icon" data-action="discuss-sitrep">
+          <svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Discuss with Sightline</span>
+        </button>
+        <button class="btn-sm btn-discuss-agent btn-with-icon" data-action="proposal-from-sitrep" data-country="${esc(country)}" data-event="${esc(evt)}" data-themes="${esc(rThemes.join(','))}" data-date-from="${esc(rDateFrom)}" data-date-to="${esc(rDateTo)}">
+          <svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <span>Design Proposal</span>
+        </button>
       </div>
     </div>`;
 
@@ -2730,6 +2737,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  initProposalPipeline();
+
   // ── Event delegation for dynamic elements ──────────────────────────────
   document.addEventListener('click', e => {
     const target = e.target.closest('[data-action]');
@@ -2739,6 +2748,9 @@ document.addEventListener('DOMContentLoaded', () => {
     switch (action) {
       case 'quick-prompt':
         sendQuickPrompt(target.dataset.text);
+        break;
+      case 'select-proposal':
+        selectProposal(target.dataset.id);
         break;
       case 'open-chat-history':
         toggleChatSidebar();
@@ -2761,6 +2773,9 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'discuss-sitrep':
         discussSitrepWithAgent();
+        break;
+      case 'proposal-from-sitrep':
+        createProposalFromSitrep(target.dataset);
         break;
       case 'go-chat':
         switchTab('agent');
@@ -3192,3 +3207,832 @@ document.addEventListener('click', (e) => {
     el.style.display = '';
   }
 });
+
+// ── Proposal Pipeline Client Logic (SQLite & LLM Integrated) ──
+let proposalState = {
+  activeProposalId: null,
+  currentStep: 'context',
+  proposals: [],
+  activeProposal: null,
+  dbCountries: []
+};
+
+async function initProposalPipeline() {
+  const btnNew = document.getElementById('btn-new-proposal');
+  const btnCreateFirst = document.getElementById('btn-create-first-proposal');
+  const btnExport = document.getElementById('btn-proposal-export');
+  const btnSendCritique = document.getElementById('btn-send-critique');
+  const txtCritique = document.getElementById('critique-input');
+
+  if (btnNew) btnNew.addEventListener('click', createNewProposal);
+  if (btnCreateFirst) btnCreateFirst.addEventListener('click', createNewProposal);
+  if (btnExport) btnExport.addEventListener('click', exportProposalPDF);
+  
+  if (btnSendCritique) btnSendCritique.addEventListener('click', sendProposalCritique);
+  if (txtCritique) {
+    txtCritique.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendProposalCritique();
+      }
+    });
+  }
+
+  // Bind proposal create modal submit
+  const createModal = document.getElementById('proposal-create-modal');
+  const closeBtn = document.getElementById('proposal-create-modal-close-btn');
+  const createForm = document.getElementById('proposal-create-form');
+
+  if (closeBtn) closeBtn.addEventListener('click', () => createModal.classList.remove('open'));
+  if (createForm) {
+    createForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('prop-create-title').value.trim();
+      const country = document.getElementById('prop-create-country').value;
+      const donor = document.getElementById('prop-create-donor').value;
+      
+      const themeChecks = document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]:checked');
+      const themes = Array.from(themeChecks).map(cb => cb.value);
+      
+      createModal.classList.remove('open');
+      await executeCreateProposal({ title, country, donor, themes });
+    });
+  }
+
+  // Handle step tabs
+  document.querySelectorAll('.proposal-step-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (!proposalState.activeProposalId) return;
+      document.querySelectorAll('.proposal-step-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      switchProposalStep(tab.dataset.step);
+    });
+  });
+  
+  // Fetch initial data
+  await fetchDbCountries();
+  await fetchProposals();
+}
+
+async function fetchDbCountries() {
+  try {
+    const res = await api('/api/db/countries');
+    const data = await res.json();
+    proposalState.dbCountries = data || [];
+  } catch (err) {
+    console.error("fetchDbCountries error:", err);
+    proposalState.dbCountries = [];
+  }
+}
+
+async function fetchProposals() {
+  try {
+    const res = await api('/api/proposals');
+    const data = await res.json();
+    proposalState.proposals = data;
+    renderProposalList();
+  } catch (err) {
+    console.error("fetchProposals error:", err);
+  }
+}
+
+async function createProposalFromSitrep(dataset) {
+  const country = dataset.country || '';
+  const event = dataset.event || '';
+  const themes = dataset.themes ? dataset.themes.split(',') : [];
+  const dateFrom = dataset.dateFrom || '';
+  const dateTo = dataset.dateTo || '';
+
+  // Switch to proposal tab
+  switchTab('proposal');
+
+  try {
+    const res = await api('/api/proposals/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `${country} ${event ? '- ' + event : ''} Proposal`,
+        country: country,
+        event: event,
+        themes: themes,
+        donor: 'ECHO',
+        date_from: dateFrom,
+        date_to: dateTo
+      })
+    });
+    
+    const newProp = await res.json();
+    if (newProp.error) throw new Error(newProp.error);
+    
+    proposalState.proposals.unshift(newProp);
+    proposalState.activeProposalId = newProp.id;
+    proposalState.activeProposal = newProp;
+    proposalState.currentStep = 'context';
+
+    renderProposalList();
+    renderProposalWorkspace();
+    
+    // Set tab active
+    document.querySelectorAll('.proposal-step-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.step === 'context');
+    });
+
+    const msgs = document.getElementById('critique-messages');
+    if (msgs) {
+      msgs.innerHTML = `
+        <div class="critique-msg system">
+          <strong>Sightline Advisor</strong>
+          <p>I have preloaded the context from the <strong>${country}</strong> SITREP. Use step 2 and 3 to generate the Theory of Change and SMART Logframe matrix via LLM.</p>
+        </div>
+      `;
+    }
+  } catch (err) {
+    alert("Could not create proposal: " + err.message);
+  }
+}
+
+function createNewProposal() {
+  const createModal = document.getElementById('proposal-create-modal');
+  if (!createModal) return;
+  
+  // Populate country select
+  const select = document.getElementById('prop-create-country');
+  if (select && proposalState.dbCountries) {
+    select.innerHTML = '<option value="">— Select Country —</option>' + 
+      proposalState.dbCountries.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  }
+  
+  // Clear input fields
+  document.getElementById('prop-create-title').value = '';
+  document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]').forEach(cb => cb.checked = false);
+  
+  createModal.classList.add('open');
+}
+
+async function executeCreateProposal({ title, country, donor, themes }) {
+  try {
+    const res = await api('/api/proposals/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: title,
+        country: country,
+        event: 'Emergency Response',
+        themes: themes,
+        donor: donor
+      })
+    });
+    
+    const newProp = await res.json();
+    if (newProp.error) throw new Error(newProp.error);
+    
+    proposalState.proposals.unshift(newProp);
+    proposalState.activeProposalId = newProp.id;
+    proposalState.activeProposal = newProp;
+    proposalState.currentStep = 'context';
+
+    renderProposalList();
+    renderProposalWorkspace();
+    await loadAndRenderAdvisorHistory(newProp.id, newProp.title);
+  } catch (err) {
+    alert("Could not create proposal: " + err.message);
+  }
+}
+
+async function selectProposal(id) {
+  try {
+    const res = await api(`/api/proposals/${id}`);
+    const prop = await res.json();
+    if (prop.error) throw new Error(prop.error);
+    
+    proposalState.activeProposalId = id;
+    proposalState.activeProposal = prop;
+    proposalState.currentStep = 'context';
+    
+    renderProposalList();
+    renderProposalWorkspace();
+    
+    document.querySelectorAll('.proposal-step-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.step === 'context');
+    });
+
+    // Load and render Advisor chat history
+    await loadAndRenderAdvisorHistory(id, prop.title);
+  } catch (err) {
+    alert("Could not load proposal detail: " + err.message);
+  }
+}
+
+function renderProposalList() {
+  const list = document.getElementById('proposal-list');
+  if (!list) return;
+  
+  if (proposalState.proposals.length === 0) {
+    list.innerHTML = `<div class="empty-state">No proposals drafted yet</div>`;
+    return;
+  }
+  
+  list.innerHTML = proposalState.proposals.map(p => {
+    const activeClass = p.id === proposalState.activeProposalId ? 'active' : '';
+    return `
+      <div class="report-item ${activeClass}" data-action="select-proposal" data-id="${p.id}" style="cursor:pointer; padding: 10px; border-bottom: 1px solid var(--border-light)">
+        <div class="report-item-title" style="font-weight:600; font-size:13px">${escHtml(p.title)}</div>
+        <div class="report-item-meta" style="font-size:11px; color:var(--text-muted)">📍 ${escHtml(p.country)} | ${escHtml(p.donor)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderProposalWorkspace() {
+  const container = document.getElementById('proposal-step-content');
+  if (!container) return;
+  
+  const prop = proposalState.activeProposal;
+  if (!prop) {
+    container.innerHTML = `
+      <div class="proposal-welcome-placeholder">
+        <div class="welcome-icon">📋</div>
+        <h3>Humanitarian Proposal Design Studio</h3>
+        <p>Analyze crisis data, establish change logic, generate structured Logframes, and draft donor proposals in one unified, AI-assisted workspace.</p>
+        <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal" onclick="createNewProposal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Create New Proposal</span>
+        </button>
+      </div>
+    `;
+    document.getElementById('proposal-project-title').textContent = "Select or create a proposal";
+    document.getElementById('proposal-project-context').textContent = "Analyze crisis data, establish change logic, generate structured Logframes.";
+    document.getElementById('btn-proposal-export').disabled = true;
+    return;
+  }
+
+  document.getElementById('proposal-project-title').textContent = prop.title;
+  document.getElementById('proposal-project-context').textContent = `Country: ${prop.country} | Donor Template: ${prop.donor} | Focus: ${prop.event || 'Emergency Response'}`;
+  document.getElementById('btn-proposal-export').disabled = false;
+
+  switchProposalStep(proposalState.currentStep);
+}
+
+function switchProposalStep(step) {
+  proposalState.currentStep = step;
+  const container = document.getElementById('proposal-step-content');
+  if (!container || !proposalState.activeProposal) return;
+
+  const prop = proposalState.activeProposal;
+
+  if (step === 'context') {
+    container.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:16px; max-width:600px">
+        <div class="form-group">
+          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Project Title</label>
+          <input type="text" class="form-control" value="${escHtml(prop.title)}" oninput="updatePropField('title', this.value)" style="width:100%">
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Country Context</label>
+          <select class="form-control" onchange="updatePropField('country', this.value)" style="width:100%">
+            <option value="">— Select Country —</option>
+            ${(proposalState.dbCountries || []).map(c => `
+              <option value="${escHtml(c)}" ${prop.country === c ? 'selected' : ''}>${escHtml(c)}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Donor Framework</label>
+          <select class="form-control" onchange="updatePropField('donor', this.value)" style="width:100%">
+            <option value="ECHO" ${prop.donor === 'ECHO' ? 'selected' : ''}>ECHO (European Commission)</option>
+            <option value="USAID" ${prop.donor === 'USAID' ? 'selected' : ''}>USAID / BHA</option>
+            <option value="OCHA" ${prop.donor === 'OCHA' ? 'selected' : ''}>UN OCHA (CBPF)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Target Sectors / Themes</label>
+          <div style="display:flex; gap:8px">
+            ${(prop.themes || []).map(t => `<span class="report-hero-theme" style="margin:0">${escHtml(t)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:16px;">
+          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Database Evidence Chunks (RAG Sources)</label>
+          <div id="proposal-context-chunks-list" style="max-height: 250px; overflow-y: auto; padding-right: 4px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--bg-card);">
+            <!-- loaded dynamically -->
+          </div>
+        </div>
+      </div>
+    `;
+    loadAndRenderContextChunks(prop);
+  } else if (step === 'toc') {
+    const isToCDefault = prop.toc.length === 4 && prop.toc[0].text.includes("Enhanced safety");
+    container.innerHTML = `
+      <div class="toc-graph-container">
+        <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:10px">
+          <span class="text-muted" style="font-size:12px">Theory of Change Logic Flow. Click any node to edit.</span>
+          <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalToC()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>${isToCDefault ? 'Generate with AI' : 'Regenerate'}</span>
+          </button>
+        </div>
+        
+        <div class="toc-level">
+          <div class="toc-node impact" onclick="editTocNode(0)">
+            <span class="toc-node-label impact">Goal / Impact</span>
+            <span>${escHtml(prop.toc[0]?.text || '—')}</span>
+          </div>
+        </div>
+        <div style="font-size:20px; color:var(--text-muted)">↓</div>
+        <div class="toc-level">
+          <div class="toc-node outcome" onclick="editTocNode(1)">
+            <span class="toc-node-label outcome">Outcome</span>
+            <span>${escHtml(prop.toc[1]?.text || '—')}</span>
+          </div>
+        </div>
+        <div style="font-size:20px; color:var(--text-muted)">↓</div>
+        <div class="toc-level">
+          <div class="toc-node output" onclick="editTocNode(2)">
+            <span class="toc-node-label output">Output</span>
+            <span>${escHtml(prop.toc[2]?.text || '—')}</span>
+          </div>
+        </div>
+        <div style="font-size:20px; color:var(--text-muted)">↓</div>
+        <div class="toc-level">
+          <div class="toc-node activity" onclick="editTocNode(3)">
+            <span class="toc-node-label activity">Activity</span>
+            <span>${escHtml(prop.toc[3]?.text || '—')}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (step === 'logframe') {
+    const isLogframeDefault = prop.logframe.goal && prop.logframe.goal.includes("Reduced vulnerability");
+    container.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+        <span class="text-muted" style="font-size:12px">Logframe Matrix cells autosave when updated.</span>
+        <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalLogframe()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span>${isLogframeDefault ? 'Generate with AI' : 'Regenerate'}</span>
+        </button>
+      </div>
+      <table class="logframe-table">
+        <thead>
+          <tr>
+            <th style="width:25%">Project Logic</th>
+            <th style="width:25%">Indicators</th>
+            <th style="width:25%">Sources of Verification</th>
+            <th style="width:25%">Assumptions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <span class="logframe-row-level">Goal</span>
+              <textarea class="logframe-cell-edit" onchange="updateLogframeField('goal', this.value)">${escHtml(prop.logframe.goal || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('goal_indicator', this.value)">${escHtml(prop.logframe.goal_indicator || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Verification sources..." onchange="updateLogframeField('goal_sources', this.value)">${escHtml(prop.logframe.goal_sources || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Critical assumptions..." onchange="updateLogframeField('goal_assumptions', this.value)">${escHtml(prop.logframe.goal_assumptions || '')}</textarea>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="logframe-row-level">Outcomes</span>
+              <textarea class="logframe-cell-edit" onchange="updateLogframeField('outcomes', this.value)">${escHtml(prop.logframe.outcomes || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('outcomes_indicator', this.value)">${escHtml(prop.logframe.outcomes_indicator || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Verification sources..." onchange="updateLogframeField('outcomes_sources', this.value)">${escHtml(prop.logframe.outcomes_sources || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Critical assumptions..." onchange="updateLogframeField('outcomes_assumptions', this.value)">${escHtml(prop.logframe.outcomes_assumptions || '')}</textarea>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="logframe-row-level">Outputs</span>
+              <textarea class="logframe-cell-edit" onchange="updateLogframeField('outputs', this.value)">${escHtml(prop.logframe.outputs || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('outputs_indicator', this.value)">${escHtml(prop.logframe.outputs_indicator || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Verification sources..." onchange="updateLogframeField('outputs_sources', this.value)">${escHtml(prop.logframe.outputs_sources || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Critical assumptions..." onchange="updateLogframeField('outputs_assumptions', this.value)">${escHtml(prop.logframe.outputs_assumptions || '')}</textarea>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <span class="logframe-row-level">Activities</span>
+              <textarea class="logframe-cell-edit" onchange="updateLogframeField('activities', this.value)">${escHtml(prop.logframe.activities || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Inputs..." onchange="updateLogframeField('activities_inputs', this.value)">${escHtml(prop.logframe.activities_inputs || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Budget Reference..." onchange="updateLogframeField('activities_budget', this.value)">${escHtml(prop.logframe.activities_budget || '')}</textarea>
+            </td>
+            <td>
+              <textarea class="logframe-cell-edit" placeholder="Preconditions..." onchange="updateLogframeField('activities_preconditions', this.value)">${escHtml(prop.logframe.activities_preconditions || '')}</textarea>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+  } else if (step === 'narrative') {
+    const isNarrativeEmpty = !prop.narrative || prop.narrative.includes("Emergency humanitarian response");
+    container.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+        <span class="text-muted" style="font-size:12px">Full Project Proposal Text. Markdown editor.</span>
+        <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalNarrative()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span>${isNarrativeEmpty ? 'Write with AI' : 'Regenerate'}</span>
+        </button>
+      </div>
+      <div class="proposal-narrative-editor" style="height:100%; display:flex; flex-direction:column; gap:16px">
+        <textarea class="form-control" style="flex:1; font-family:monospace; font-size:13.5px; min-height:450px; padding:16px; line-height:1.5" oninput="updatePropField('narrative', this.value)">${escHtml(prop.narrative || '')}</textarea>
+      </div>
+    `;
+  }
+}
+
+async function loadAndRenderContextChunks(prop) {
+  const listEl = document.getElementById('proposal-context-chunks-list');
+  if (!listEl) return;
+  
+  listEl.innerHTML = '<div class="text-muted" style="font-size:12px; padding: 10px;">Loading matching evidence chunks from database...</div>';
+  
+  try {
+    const res = await api(`/api/proposals/${prop.id}/chunks`);
+    const chunks = await res.json();
+    
+    if (!chunks || chunks.length === 0) {
+      listEl.innerHTML = '<div class="text-muted" style="font-size:12px; padding: 10px;">No matching report chunks found in the database. Try selecting a different country or themes.</div>';
+      return;
+    }
+    
+    listEl.innerHTML = chunks.map((c, i) => `
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; font-size:11px; color:var(--text-secondary); margin-bottom:6px;">
+          <span>📄 ${escHtml(c.title)}</span>
+          <span>📅 ${escHtml(c.date)}</span>
+        </div>
+        <p style="font-size:12.5px; line-height:1.4; margin:0; color:var(--text); text-align:left;">${escHtml(c.text)}</p>
+        <div style="margin-top:6px; font-size:10px; color:var(--primary); font-weight:600; text-align:left;">Themes: ${escHtml(c.themes)}</div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error("loadAndRenderContextChunks error:", err);
+    listEl.innerHTML = '<div class="text-muted" style="font-size:12px; padding: 10px; color: var(--red);">Failed to load database chunks.</div>';
+  }
+}
+
+// AI generation operations
+async function generateProposalToC() {
+  const prop = proposalState.activeProposal;
+  if (!prop) return;
+
+  const container = document.getElementById('proposal-step-content');
+  container.innerHTML = `
+    <div class="center-loading">
+      <div class="loading-placeholder">
+        ⏳ Analyzing ReliefWeb contexts & generating Theory of Change...
+      </div>
+    </div>
+  `;
+
+  try {
+    const res = await api(`/api/proposals/${prop.id}/generate-toc`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    prop.toc = data;
+    switchProposalStep('toc');
+    addAdvisorMessage("Sightline Advisor", "I have drafted the Theory of Change using vector-retrieved data from the crisis zone. Look at the flow nodes.");
+  } catch (err) {
+    alert("ToC Generation failed: " + err.message);
+    switchProposalStep('toc');
+  }
+}
+
+async function generateProposalLogframe() {
+  const prop = proposalState.activeProposal;
+  if (!prop) return;
+
+  const container = document.getElementById('proposal-step-content');
+  container.innerHTML = `
+    <div class="center-loading">
+      <div class="loading-placeholder">
+        ⏳ Drafting Logical Framework Matrix with SMART indicators...
+      </div>
+    </div>
+  `;
+
+  try {
+    const res = await api(`/api/proposals/${prop.id}/generate-logframe`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    prop.logframe = data;
+    switchProposalStep('logframe');
+    addAdvisorMessage("Sightline Advisor", "I have structured the Logframe Matrix based on our ToC hierarchy, proposing SMART indicators for your donor template.");
+  } catch (err) {
+    alert("Logframe Generation failed: " + err.message);
+    switchProposalStep('logframe');
+  }
+}
+
+async function generateProposalNarrative() {
+  const prop = proposalState.activeProposal;
+  if (!prop) return;
+
+  const container = document.getElementById('proposal-step-content');
+  container.innerHTML = `
+    <div class="center-loading">
+      <div class="loading-placeholder">
+        ⏳ Writing project narrative according to donor guidelines...
+      </div>
+    </div>
+  `;
+
+  try {
+    const res = await api(`/api/proposals/${prop.id}/generate-narrative`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    prop.narrative = data.narrative;
+    switchProposalStep('narrative');
+    addAdvisorMessage("Sightline Advisor", "The complete narrative proposal has been drafted. You can export it or edit it.");
+  } catch (err) {
+    alert("Narrative Generation failed: " + err.message);
+    switchProposalStep('narrative');
+  }
+}
+
+let proposalSaveTimeout = null;
+function saveActiveProposal() {
+  clearTimeout(proposalSaveTimeout);
+  proposalSaveTimeout = setTimeout(async () => {
+    const prop = proposalState.activeProposal;
+    if (!prop) return;
+    try {
+      await api(`/api/proposals/${prop.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: prop.title,
+          country: prop.country,
+          event: prop.event,
+          themes: prop.themes,
+          donor: prop.donor,
+          date_from: prop.date_from,
+          date_to: prop.date_to,
+          toc: prop.toc,
+          logframe: prop.logframe,
+          narrative: prop.narrative
+        })
+      });
+      console.log("Proposal auto-saved to database");
+    } catch (err) {
+      console.error("Auto-save failed:", err);
+    }
+  }, 1000);
+}
+
+function updatePropField(field, val) {
+  if (proposalState.activeProposal) {
+    proposalState.activeProposal[field] = val;
+    if (field === 'title' || field === 'donor' || field === 'country') {
+      renderProposalList();
+      document.getElementById('proposal-project-title').textContent = proposalState.activeProposal.title;
+      document.getElementById('proposal-project-context').textContent = `Country: ${proposalState.activeProposal.country} | Donor Template: ${proposalState.activeProposal.donor} | Focus: ${proposalState.activeProposal.event || 'Emergency Response'}`;
+      
+      // Reload matching chunks if country changed
+      if (field === 'country' && proposalState.currentStep === 'context') {
+        loadAndRenderContextChunks(proposalState.activeProposal);
+      }
+    }
+    saveActiveProposal();
+  }
+}
+
+function updateLogframeField(field, val) {
+  if (proposalState.activeProposal) {
+    proposalState.activeProposal.logframe[field] = val;
+    saveActiveProposal();
+  }
+}
+
+function editTocNode(index) {
+  const node = proposalState.activeProposal.toc[index];
+  if (!node) return;
+  const newVal = prompt("Edit text:", node.text);
+  if (newVal) {
+    node.text = newVal;
+    switchProposalStep('toc');
+    saveActiveProposal();
+    addAdvisorMessage("System", `You manually edited the ${node.level.toUpperCase()} node.`);
+  }
+}
+
+async function sendProposalCritique() {
+  const inp = document.getElementById('critique-input');
+  if (!inp || !inp.value.trim() || !proposalState.activeProposalId) return;
+
+  const msgs = document.getElementById('critique-messages');
+  if (!msgs) return;
+
+  const text = inp.value.trim();
+  inp.value = '';
+
+  // Append user message
+  const userBubble = document.createElement('div');
+  userBubble.className = 'critique-msg user';
+  userBubble.innerHTML = `
+    <strong>You</strong>
+    <p>${escHtml(text)}</p>
+  `;
+  msgs.appendChild(userBubble);
+
+  // Append thinking indicator
+  const thinkingBubble = document.createElement('div');
+  thinkingBubble.className = 'critique-msg system';
+  thinkingBubble.innerHTML = `
+    <strong>Sightline Advisor</strong>
+    <p class="msg-placeholder">Reviewing project logic & guidelines...</p>
+  `;
+  msgs.appendChild(thinkingBubble);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/advisor/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
+    
+    const data = await res.json();
+    thinkingBubble.remove();
+    
+    if (data.error) throw new Error(data.error);
+    
+    const replyBubble = document.createElement('div');
+    replyBubble.className = 'critique-msg system';
+    replyBubble.innerHTML = `
+      <strong>Sightline Advisor</strong>
+      <p>${escHtml(data.response)}</p>
+    `;
+    msgs.appendChild(replyBubble);
+    
+    if (data.command) {
+      const infoMsg = document.createElement('div');
+      infoMsg.className = 'critique-msg system';
+      infoMsg.style.borderColor = 'var(--green)';
+      infoMsg.innerHTML = `<strong>System</strong><p>Auto-updated proposal layout based on AI Advisor recommendation.</p>`;
+      msgs.appendChild(infoMsg);
+      
+      const pRes = await api(`/api/proposals/${proposalState.activeProposalId}`);
+      const prop = await pRes.json();
+      proposalState.activeProposal = prop;
+      switchProposalStep(proposalState.currentStep);
+    }
+    
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch (err) {
+    thinkingBubble.remove();
+    alert("Advisor request failed: " + err.message);
+  }
+}
+
+function addAdvisorMessage(sender, text) {
+  const msgs = document.getElementById('critique-messages');
+  if (!msgs) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'critique-msg system';
+  bubble.innerHTML = `
+    <strong>${escHtml(sender)}</strong>
+    <p>${escHtml(text)}</p>
+  `;
+  msgs.appendChild(bubble);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function loadAndRenderAdvisorHistory(propId, propTitle) {
+  const msgs = document.getElementById('critique-messages');
+  if (!msgs) return;
+  
+  try {
+    const res = await api(`/api/proposals/${propId}/advisor/history`);
+    const history = await res.json();
+    
+    let html = `
+      <div class="critique-msg system">
+        <strong>Sightline Advisor</strong>
+        <p>Welcome back! Ask me to review your Theory of Change or Logframe matrix for <strong>${escHtml(propTitle)}</strong>.</p>
+      </div>
+    `;
+    
+    if (history && history.length > 0) {
+      html += history.map(m => {
+        const isUser = m.role === 'user';
+        const sender = isUser ? 'You' : 'Sightline Advisor';
+        const className = isUser ? 'critique-msg user' : 'critique-msg system';
+        return `
+          <div class="${className}">
+            <strong>${escHtml(sender)}</strong>
+            <p>${escHtml(m.content)}</p>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    msgs.innerHTML = html;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch (err) {
+    console.error("loadAndRenderAdvisorHistory error:", err);
+  }
+}
+
+function exportProposalPDF() {
+  const prop = proposalState.activeProposal;
+  if (!prop) return;
+  
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>${prop.title} - Proposal Export</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #111; line-height: 1.6; }
+          h1 { border-bottom: 2px solid #0056b3; padding-bottom: 10px; color: #0056b3; }
+          h2 { color: #333; margin-top: 30px; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; page-break-inside: avoid; }
+          th, td { border: 1px solid #aaa; padding: 10px; text-align: left; vertical-align: top; font-size: 13px; }
+          th { background-color: #f2f2f2; }
+          .meta { font-style: italic; color: #555; margin-bottom: 20px; }
+          .toc-node { border-left: 3px solid #0056b3; background: #f9f9f9; padding: 8px 12px; margin: 6px 0; font-size: 14px; }
+          .page-break { page-break-before: always; }
+        </style>
+      </head>
+      <body>
+        <h1>${prop.title}</h1>
+        <div class="meta">Country Context: ${prop.country} | Donor template: ${prop.donor} | Created via Sightline</div>
+        
+        <h2>1. Theory of Change</h2>
+        <div class="toc-node"><strong>Impact:</strong> ${prop.toc[0]?.text || '—'}</div>
+        <div class="toc-node"><strong>Outcome:</strong> ${prop.toc[1]?.text || '—'}</div>
+        <div class="toc-node"><strong>Output:</strong> ${prop.toc[2]?.text || '—'}</div>
+        <div class="toc-node"><strong>Activity:</strong> ${prop.toc[3]?.text || '—'}</div>
+
+        <div class="page-break"></div>
+        <h2>2. Logical Framework Matrix</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Project Logic</th>
+              <th>Indicators</th>
+              <th>Verification Sources</th>
+              <th>Assumptions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Goal:</strong><br>${prop.logframe.goal || ''}</td>
+              <td>${prop.logframe.goal_indicator || ''}</td>
+              <td>${prop.logframe.goal_sources || ''}</td>
+              <td>${prop.logframe.goal_assumptions || ''}</td>
+            </tr>
+            <tr>
+              <td><strong>Outcomes:</strong><br>${prop.logframe.outcomes || ''}</td>
+              <td>${prop.logframe.outcomes_indicator || ''}</td>
+              <td>${prop.logframe.outcomes_sources || ''}</td>
+              <td>${prop.logframe.outcomes_assumptions || ''}</td>
+            </tr>
+            <tr>
+              <td><strong>Outputs:</strong><br>${prop.logframe.outputs || ''}</td>
+              <td>${prop.logframe.outputs_indicator || ''}</td>
+              <td>${prop.logframe.outputs_sources || ''}</td>
+              <td>${prop.logframe.outputs_assumptions || ''}</td>
+            </tr>
+            <tr>
+              <td><strong>Activities:</strong><br>${prop.logframe.activities || ''}</td>
+              <td>${prop.logframe.activities_inputs || ''}</td>
+              <td>${prop.logframe.activities_budget || ''}</td>
+              <td>${prop.logframe.activities_preconditions || ''}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="page-break"></div>
+        <h2>3. Detailed Project Narrative</h2>
+        <div>${prop.narrative.replace(/\n/g, '<br>')}</div>
+
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}

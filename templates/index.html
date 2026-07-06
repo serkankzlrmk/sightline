@@ -169,6 +169,10 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
       <span class="sidebar-tab-label">Database</span>
     </button>
+    <button class="sidebar-tab" id="tab-proposal" data-tab="proposal" aria-label="Proposals">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span class="sidebar-tab-label">Proposals</span>
+    </button>
     <button class="sidebar-tab" id="tab-admin" data-tab="admin" style="display:none" aria-label="Admin">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span class="sidebar-tab-label">Admin</span>
@@ -503,6 +507,75 @@
     </div>
   </div>
 
+  <!-- ─── TAB: PROPOSAL DESIGN PIPELINE ────────── -->
+  <div class="panel" id="panel-proposal">
+    <div class="proposal-page">
+      <div class="proposal-sidebar">
+        <div class="proposal-sidebar-head">
+          <span class="proposal-sidebar-title">My Proposals</span>
+          <button class="btn btn-xs btn-primary btn-with-icon" id="btn-new-proposal">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>New</span>
+          </button>
+        </div>
+        <div class="proposal-list" id="proposal-list">
+          <div class="empty-state">No proposals drafted yet</div>
+        </div>
+      </div>
+      <div class="proposal-workspace" id="proposal-workspace">
+        <div class="proposal-main-editor">
+          <div class="proposal-workspace-header">
+            <div class="proposal-meta-info">
+              <h2 id="proposal-project-title">Select or create a proposal</h2>
+              <p id="proposal-project-context" class="text-muted">Analyze crisis data, establish change logic, generate structured Logframes.</p>
+            </div>
+            <div class="proposal-actions">
+              <button class="btn btn-secondary btn-sm btn-with-icon" id="btn-proposal-export" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export PDF</span>
+              </button>
+            </div>
+          </div>
+          <div class="proposal-steps-tabs">
+            <button class="proposal-step-tab active" data-step="context">1. Context</button>
+            <button class="proposal-step-tab" data-step="toc">2. Theory of Change</button>
+            <button class="proposal-step-tab" data-step="logframe">3. Logframe Matrix</button>
+            <button class="proposal-step-tab" data-step="narrative">4. Proposal Text</button>
+          </div>
+          <div class="proposal-step-content" id="proposal-step-content">
+            <div class="proposal-welcome-placeholder">
+              <div class="welcome-icon">📋</div>
+              <h3>Humanitarian Proposal Design Studio</h3>
+              <p>Analyze crisis data, establish change logic, generate structured Logframes, and draft donor proposals in one unified, AI-assisted workspace.</p>
+              <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Create New Proposal</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="proposal-critique-panel">
+          <div class="critique-header">
+            <span>AI Proposal Advisor</span>
+            <span class="status-indicator-green">Active</span>
+          </div>
+          <div class="critique-messages" id="critique-messages">
+            <div class="critique-msg system">
+              <strong>Sightline Advisor</strong>
+              <p>Welcome! Once you select a crisis context, I will critically review your Theory of Change and Logical Framework, checking for SMART indicators and donor alignment.</p>
+            </div>
+          </div>
+          <div class="critique-input-wrap">
+            <textarea class="critique-textarea" id="critique-input" placeholder="Ask for critique or give instructions..." rows="1"></textarea>
+            <button class="send-btn" id="btn-send-critique">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── ADMIN PANEL ───────────────────────────── -->
   <div class="panel" id="panel-admin">
     <div class="admin-panel-content">
@@ -727,6 +800,54 @@
         <div class="up-submit-row">
           <button type="submit" class="btn btn-primary" id="up-submit-btn">Upload &amp; Ingest</button>
           <button type="button" class="btn btn-secondary" id="btn-clear-upload">Clear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PROPOSAL CREATE MODAL
+     ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="proposal-create-modal">
+  <div class="modal" style="max-width: 480px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Create New Proposal</div>
+      <button class="modal-close" id="proposal-create-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-bdy">
+      <form id="proposal-create-form" style="display:flex; flex-direction:column; gap:16px;">
+        <div class="form-group">
+          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Project Title *</label>
+          <input class="fi" id="prop-create-title" type="text" required placeholder="e.g. Emergency Health Response Sudan" style="width:100%;">
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Country Context *</label>
+          <select class="fi" id="prop-create-country" required style="width:100%;">
+            <option value="">— Select Country —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Donor Framework</label>
+          <select class="fi" id="prop-create-donor" style="width:100%;">
+            <option value="ECHO">ECHO (European Commission)</option>
+            <option value="USAID">USAID / BHA</option>
+            <option value="OCHA">UN OCHA (CBPF)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Target Sectors / Themes</label>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;" id="prop-create-themes-check">
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Protection"> Protection</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Health"> Health</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Water Sanitation Hygiene"> WASH</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Food and Nutrition"> Food & Nutrition</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Shelter and Non-Food Items"> Shelter / NFI</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Education"> Education</label>
+          </div>
+        </div>
+        <div class="up-submit-row" style="margin-top:10px;">
+          <button type="submit" class="btn btn-primary">Create Proposal</button>
         </div>
       </form>
     </div>

@@ -4,7 +4,9 @@
 import os
 
 # Server socket
-bind = "127.0.0.1:5001"
+import os as _os
+_container = _os.getenv("CONTAINER_MODE", "false").lower() == "true"
+bind = "0.0.0.0:5001" if _container else "127.0.0.1:5001"
 backlog = 2048
 
 # Worker processes

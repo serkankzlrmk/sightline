@@ -189,6 +189,11 @@ if _mcp_ok and mcp_integration.MCP_TOOLS:
 else:
     logger.warning("MCP tools initializing in background — will be available shortly.")
 
+# Proposals tools (always available)
+from agent.proposal_tools import PROPOSAL_TOOLS
+_tool_groups.append(PROPOSAL_TOOLS)
+_tool_labels.append(f"{len(PROPOSAL_TOOLS)} Proposals")
+
 # SQL query tool (always available — no external dependency)
 _tool_groups.append(SQL_TOOLS)
 _tool_labels.append(f"{len(SQL_TOOLS)} SQL")
@@ -523,6 +528,13 @@ When Brave Search tools are available, use them for **broader web research** bey
   - "What's the date range?" → sql_query("SELECT MIN(date), MAX(date) FROM reports")
   - "Which sources have the most reports?" → sql_query("SELECT source, COUNT(*) FROM reports GROUP BY source ORDER BY COUNT(*) DESC LIMIT 10")
   - "How many events today?" → sql_query("SELECT event, COUNT(*) FROM events WHERE date(ts) = date('now') GROUP BY event", "chats")
+
+## PROPOSAL DESIGN PIPELINE (Active Proposal Workspace)
+
+- **get_proposal_details()** — Retrieve the active proposal's current state (title, country, themes, donor, ToC, Logframe, narrative). Always call this at the start of a critique/edit session.
+- **edit_proposal_toc(goal_impact, outcome, output, activity)** — Edit all 4 levels of the Theory of Change logic flow in the database.
+- **edit_proposal_logframe(field, text)** — Edit a specific Logical Framework cell (e.g. 'goal_indicator', 'outputs_sources', 'outcomes_assumptions').
+- **edit_proposal_narrative(narrative)** — Edit the full markdown narrative text of the proposal.
 
 ## RESPONSE FORMAT
 - Be concise and factual

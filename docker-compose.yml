@@ -16,6 +16,12 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # Override paths for container (volumes mounted at /app/)
+      DB_PATH: /app/reliefweb.db
+      CHATS_DB_PATH: /app/chats.db
+      CHROMA_DIR: /app/reliefweb_chroma
+      DOWNLOADS_DIR: /app/reliefweb_downloads
     volumes:
       - reliefweb_db:/app/reliefweb.db
       - chats_db:/app/chats.db
