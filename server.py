@@ -3166,6 +3166,45 @@ def api_proposal_advisor_chat(prop_id):
         )
         conn.commit()
         
+        # Fetch context chunks
+        chunks_text = ""
+        try:
+            from sitrep.chroma_adapter import ChromaAdapter
+            db = ChromaAdapter()
+            try:
+                themes_list = json.loads(row["themes"])
+            except Exception:
+                themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
+            
+            # Use row data from proposal (country, themes) to get chunks
+            chunks = db.get_chunks_by_country_and_themes(row["country"], themes_list or None)
+            if chunks:
+                chunks_text = "\n\n".join([f"- {c.get('title', 'Report')}: {c.get('text', '')}" for c in chunks[:10]])
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunks for advisor: {e}")
+
+        # Inject a SystemMessage with Proposal Context
+        from langchain_core.messages import SystemMessage
+        advisor_context = f"""
+You are the Proposal Design Advisor. The user is actively working on a proposal.
+Here is the current state of the proposal:
+Country: {row['country']}
+Event: {row['event']}
+Donor: {row['donor']}
+
+Theory of Change:
+{row['toc']}
+
+Logframe:
+{row['logframe']}
+
+Here is recent relevant background data (RAG context):
+{chunks_text}
+
+Provide specific, constructive feedback and suggestions. Use your tools (edit_proposal_toc, edit_proposal_logframe, edit_proposal_narrative) to apply changes directly when asked.
+"""
+        messages.insert(0, SystemMessage(content=advisor_context))
+
         # Invoke agent
         agent = _get_agent()
         config = {
