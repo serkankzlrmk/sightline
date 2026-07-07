@@ -185,3 +185,23 @@ PROPOSAL_TOOLS = [
     edit_proposal_logframe,
     edit_proposal_narrative
 ]
+
+@tool
+def propose_edits(toc: str = None, logframe: str = None, narrative: str = None) -> str:
+    """Propose edits to the active proposal without modifying the database directly.
+    
+    Args:
+        toc: The proposed Theory of Change JSON string, if editing ToC.
+        logframe: The proposed Logframe JSON string, if editing Logframe.
+        narrative: The proposed markdown narrative text, if editing Narrative.
+    """
+    # This tool is intercepted by the background review API route to extract drafts.
+    return "Success: Edits proposed as drafts."
+
+PROPOSAL_TOOLS = [
+    get_proposal_details,
+    edit_proposal_toc,
+    edit_proposal_logframe,
+    edit_proposal_narrative,
+    propose_edits
+]

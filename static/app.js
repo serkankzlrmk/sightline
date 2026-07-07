@@ -3223,7 +3223,8 @@ let proposalState = {
   currentStep: 'context',
   proposals: [],
   activeProposal: null,
-  dbCountries: []
+  dbCountries: [],
+  drafts: null
 };
 
 async function initProposalPipeline() {
@@ -3887,6 +3888,8 @@ function saveActiveProposal() {
         })
       });
       console.log("Proposal auto-saved to database");
+      // Trigger real-time AI background review
+      triggerBackgroundReview(prop.id);
     } catch (err) {
       console.error("Auto-save failed:", err);
     }
@@ -4366,3 +4369,119 @@ function openSmartScorecard(level, badgeElement) {
     }
   });
 }
+
+// ── Real-time Background AI Advisor & Diff Modal ──
+
+let bgReviewTimeout = null;
+async function triggerBackgroundReview(propId) {
+  clearTimeout(bgReviewTimeout);
+  bgReviewTimeout = setTimeout(async () => {
+    try {
+      const res = await api(`/api/proposals/${propId}/advisor/background-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      
+      if (data.drafts) {
+        proposalState.drafts = data.drafts;
+        addAdvisorMessageHtml("Sightline Advisor", `${escHtml(data.message)}<br><button class="btn btn-primary btn-xs" style="margin-top:8px;" onclick="openDiffModal()">Review AI Edits</button>`);
+      } else if (data.message && data.message !== "Background review complete.") {
+        addAdvisorMessage("Sightline Advisor", data.message);
+      }
+    } catch(e) {
+      console.warn("Background review failed", e);
+    }
+  }, 2000); // Wait 2 seconds after the auto-save before hitting the AI
+}
+
+function addAdvisorMessageHtml(sender, htmlContent) {
+  const msgs = document.getElementById('critique-messages');
+  if (!msgs) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'critique-msg system';
+  bubble.innerHTML = `
+    <strong>${escHtml(sender)}</strong>
+    <p>${htmlContent}</p>
+  `;
+  msgs.appendChild(bubble);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function openDiffModal() {
+  const modal = document.getElementById('proposal-diff-modal');
+  const content = document.getElementById('proposal-diff-content');
+  if (!modal || !content || !proposalState.drafts) return;
+  
+  content.innerHTML = '';
+  
+  const drafts = proposalState.drafts;
+  const current = proposalState.activeProposal;
+  
+  if (drafts.toc) {
+    content.innerHTML += buildDiffSection("Theory of Change", JSON.stringify(current.toc, null, 2), drafts.toc);
+  }
+  if (drafts.logframe) {
+    content.innerHTML += buildDiffSection("Logframe Matrix", JSON.stringify(current.logframe, null, 2), drafts.logframe);
+  }
+  if (drafts.narrative) {
+    content.innerHTML += buildDiffSection("Narrative Text", current.narrative, drafts.narrative);
+  }
+  
+  modal.classList.add('active');
+}
+
+function buildDiffSection(title, oldText, newText) {
+  return `
+    <div style="border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;">
+      <div style="background: var(--bg-hover); padding: 8px 12px; font-weight: 600; border-bottom: 1px solid var(--border);">${title}</div>
+      <div style="display: flex; flex-direction: column; gap: 0;">
+        <div style="padding: 12px; background: rgba(239, 68, 68, 0.05); border-bottom: 1px dashed var(--border);">
+          <strong style="color: var(--red); font-size: 11px; text-transform: uppercase;">Current:</strong>
+          <pre style="white-space: pre-wrap; font-size: 12px; margin-top: 6px; color: var(--text-muted);">${escHtml(oldText)}</pre>
+        </div>
+        <div style="padding: 12px; background: rgba(16, 185, 129, 0.05);">
+          <strong style="color: var(--green); font-size: 11px; text-transform: uppercase;">Proposed:</strong>
+          <pre style="white-space: pre-wrap; font-size: 12px; margin-top: 6px; color: var(--text);">${escHtml(newText)}</pre>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const diffModal = document.getElementById('proposal-diff-modal');
+  const btnClose = document.getElementById('proposal-diff-modal-close-btn');
+  const btnReject = document.getElementById('proposal-diff-reject-btn');
+  const btnApprove = document.getElementById('proposal-diff-approve-btn');
+  
+  if (btnClose) btnClose.addEventListener('click', () => diffModal.classList.remove('active'));
+  if (btnReject) btnReject.addEventListener('click', () => {
+    proposalState.drafts = null;
+    diffModal.classList.remove('active');
+    addAdvisorMessage("System", "Drafts rejected by user.");
+  });
+  
+  if (btnApprove) btnApprove.addEventListener('click', () => {
+    if (!proposalState.drafts || !proposalState.activeProposal) return;
+    const drafts = proposalState.drafts;
+    const current = proposalState.activeProposal;
+    
+    if (drafts.toc) {
+      try { current.toc = JSON.parse(drafts.toc); } catch(e) { }
+    }
+    if (drafts.logframe) {
+      try { current.logframe = JSON.parse(drafts.logframe); } catch(e) { }
+    }
+    if (drafts.narrative) {
+      current.narrative = drafts.narrative;
+    }
+    
+    proposalState.drafts = null;
+    saveActiveProposal(); 
+    switchProposalStep(proposalState.currentStep);
+    diffModal.classList.remove('active');
+    
+    addAdvisorMessageHtml("System", \`<span style="color:var(--green)">✓ Drafts approved and applied to proposal.</span>\`);
+  });
+});

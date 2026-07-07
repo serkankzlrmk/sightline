@@ -3286,6 +3286,121 @@ Provide specific, constructive feedback and suggestions. Use your tools (edit_pr
         return jsonify({"error": f"Agent Advisor failed: {str(e)}"}), 500
     finally:
         conn.close()
+
+@app.route("/api/proposals/<prop_id>/advisor/background-review", methods=["POST"])
+@require_auth
+def api_proposal_advisor_background_review(prop_id):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT country, event, donor, toc, logframe, narrative, themes FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+        
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        # Fetch context chunks
+        chunks_text = ""
+        try:
+            from sitrep.chroma_adapter import ChromaAdapter
+            db = ChromaAdapter()
+            try:
+                themes_list = json.loads(row["themes"])
+            except Exception:
+                themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
+            
+            chunks = db.get_chunks_by_country_and_themes(row["country"], themes_list or None)
+            if chunks:
+                chunks_text = "\n\n".join([f"- {c.get('title', 'Report')}: {c.get('text', '')}" for c in chunks[:10]])
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunks for background review: {e}")
+
+        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+        advisor_context = f"""
+You are the Proposal Background AI Advisor. The user just saved a field update to their proposal.
+Your task is to review the current proposal state in the background and suggest improvements.
+
+Current Proposal:
+Country: {row['country']}
+Event: {row['event']}
+Donor: {row['donor']}
+
+Theory of Change:
+{row['toc']}
+
+Logframe:
+{row['logframe']}
+
+Narrative text:
+{row['narrative']}
+
+Here is recent relevant background data (RAG context):
+{chunks_text}
+
+CRITICAL: Do NOT use tools that directly edit the database (e.g., edit_proposal_toc, edit_proposal_logframe, edit_proposal_narrative).
+Instead, MUST ONLY use the `propose_edits` tool if you want to suggest concrete changes to the ToC, Logframe, or Narrative. 
+If everything looks perfect and no edits are needed, just reply with an encouraging message and do not call `propose_edits`.
+"""
+        messages = [
+            SystemMessage(content=advisor_context),
+            HumanMessage(content="Please review my recent updates and propose edits if necessary.")
+        ]
+
+        from agent.relief_agent import _get_agent
+        agent = _get_agent()
+        config = {
+            "recursion_limit": 25,
+            "configurable": {
+                "uid": uid,
+                "proposal_id": prop_id
+            }
+        }
+        
+        result = agent.invoke({"messages": messages}, config=config)
+        
+        final_message = "Background review complete."
+        drafts = {}
+        
+        for msg in result.get("messages", []):
+            if isinstance(msg, AIMessage) and getattr(msg, "content", "") and not getattr(msg, "tool_calls", None):
+                final_message = msg.content
+            if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+                for call in msg.tool_calls:
+                    if call["name"] == "propose_edits":
+                        args = call["args"]
+                        if args.get("toc"):
+                            drafts["toc"] = args["toc"]
+                        if args.get("logframe"):
+                            drafts["logframe"] = args["logframe"]
+                        if args.get("narrative"):
+                            drafts["narrative"] = args["narrative"]
+                            
+        # Log to chat history to show background action in Advisor
+        chat_id = f"proposal_advisor_{prop_id}"
+        chat_row = conn.execute("SELECT id FROM chats WHERE id = ?", (chat_id,)).fetchone()
+        if chat_row:
+            msg_to_save = final_message
+            if drafts:
+                msg_to_save = final_message + "\n\n*(I have prepared proposed drafts for your review. Click the Review button to see them.)*"
+                
+            conn.execute(
+                "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'assistant', ?, ?)",
+                (chat_id, msg_to_save, _time.time())
+            )
+            conn.commit()
+
+        return jsonify({
+            "message": final_message,
+            "drafts": drafts if drafts else None
+        })
+    except Exception as e:
+        logger.error(f"api_proposal_advisor_background_review error: {prop_id}, {e}")
+        return jsonify({"error": f"Background review failed: {str(e)}"}), 500
+    finally:
+        conn.close()
+
 @app.route("/api/proposals/<prop_id>/advisor/history", methods=["GET"])
 @require_auth
 def api_proposal_advisor_history(prop_id):

@@ -869,6 +869,27 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     PROPOSAL DIFF MODAL
+     ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="proposal-diff-modal">
+  <div class="modal" style="max-width: 800px; width: 90%;">
+    <div class="modal-hdr">
+      <div class="modal-title">Review Proposed AI Edits</div>
+      <button class="modal-close" id="proposal-diff-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-bdy" style="max-height: 60vh; overflow-y: auto;">
+      <div id="proposal-diff-content" style="display:flex; flex-direction:column; gap:20px;">
+        <!-- Diff items will be injected here -->
+      </div>
+    </div>
+    <div class="modal-hdr" style="border-top: 1px solid var(--border); border-bottom: none; justify-content: flex-end; gap: 12px; padding-top: 12px;">
+      <button type="button" class="btn btn-secondary" id="proposal-diff-reject-btn">Reject All</button>
+      <button type="button" class="btn btn-primary" id="proposal-diff-approve-btn">Approve Changes</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ═══════════════════════════════════════════════
