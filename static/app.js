@@ -2126,18 +2126,43 @@ async function loadDashboard() {
 function renderDashOverview(b) {
   if (!b) return;
 
-  // Key figures
-  const statsEl = document.getElementById('dash-overview-stats');
-  if (statsEl && b.key_figures) {
-    statsEl.innerHTML = b.key_figures.map(f => `
-      <div class="dash-kf-card">
-        <div class="dash-kf-value">${esc(f.value)}</div>
-        <div class="dash-kf-label">${esc(f.label)}</div>
-      </div>
-    `).join('');
+  // Key figures for Floating Hero Stats (First 3)
+  const heroStatsEl = document.getElementById('dash-hero-stats');
+  const bentoStatsEl = document.getElementById('dash-overview-stats');
+  
+  if (b.key_figures && b.key_figures.length > 0) {
+    // 3 Floating glass panels over map
+    if (heroStatsEl) {
+      const heroStats = b.key_figures.slice(0, 3);
+      heroStatsEl.innerHTML = heroStats.map((f, i) => `
+        <div class="glass-panel p-6 rounded-3xl flex flex-col justify-end min-h-[140px] transform hover:-translate-y-1 transition-all duration-300 ${i === 2 ? 'hidden md:flex' : ''}">
+          <span class="text-4xl lg:text-5xl font-semibold tracking-tighter text-white mb-1 drop-shadow">${esc(f.value)}</span>
+          <span class="text-sm font-medium text-gray-400 uppercase tracking-wider">${esc(f.label)}</span>
+        </div>
+      `).join('');
+    }
+
+    // Remaining stats into Bento Grid
+    if (bentoStatsEl) {
+      const bentoStats = b.key_figures.slice(3);
+      if (bentoStats.length > 0) {
+        bentoStatsEl.innerHTML = bentoStats.map((f, i) => {
+          // Add some variance to bento cell sizes (every 3rd item is col-span-2 if available)
+          const isLarge = i % 3 === 0 && bentoStats.length > i+1 ? 'col-span-2' : '';
+          return `
+          <div class="bg-panel-dark border border-white/5 p-6 rounded-2xl flex flex-col justify-center ${isLarge}">
+            <span class="text-2xl font-semibold text-gray-200">${esc(f.value)}</span>
+            <span class="text-xs font-medium text-gray-500 uppercase tracking-wider mt-1">${esc(f.label)}</span>
+          </div>
+          `;
+        }).join('');
+      } else {
+        bentoStatsEl.innerHTML = '';
+      }
+    }
   }
 
-  // Weekly overview text (global_overview)
+  // Weekly overview text
   const textEl = document.getElementById('dash-weekly-text');
   if (textEl) {
     const overview = b.global_overview || '';
@@ -2145,7 +2170,7 @@ function renderDashOverview(b) {
       const rendered = typeof marked !== 'undefined' ? marked.parse(overview) : `<p>${esc(overview)}</p>`;
       textEl.innerHTML = sanitizeHtml(rendered);
     } else {
-      textEl.innerHTML = '<p class="dash-weekly-loading">No overview available for this week.</p>';
+      textEl.innerHTML = '<p class="text-gray-500 animate-pulse">No overview available for this week.</p>';
     }
   }
 }

@@ -259,15 +259,12 @@ _API_RATE_EXEMPT_PATHS = {"/api/health", "/api/sitrep/stream"}  # stream is long
 
 @app.before_request
 def _apply_api_rate_limit():
-    """Apply per-IP rate limit to all /api/* endpoints (except exempt long-lived ones)."""
+    """Apply per-IP rate limit to all /api/* endpoints (except exempt)."""
     path = request.path
-    # Only rate-limit API endpoints
     if not path.startswith("/api/"):
         return None
-    # Exempt long-lived or unauthenticated health endpoints
-    # Stream path has its own nonce auth; health is a quick unauth check but
-    # we still want to limit abuse, so we DO rate-limit health.
-    if path.startswith("/api/sitrep/stream"):
+    # Exempt: health (Docker healthcheck), stream (long-lived SSE), public endpoints
+    if path == "/api/health" or path.startswith("/api/sitrep/stream") or path.startswith("/api/public/"):
         return None
     ok, remaining = _check_api_rate_limit()
     if not ok:
