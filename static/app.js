@@ -4482,6 +4482,6 @@ document.addEventListener('DOMContentLoaded', () => {
     switchProposalStep(proposalState.currentStep);
     diffModal.classList.remove('active');
     
-    addAdvisorMessageHtml("System", \`<span style="color:var(--green)">✓ Drafts approved and applied to proposal.</span>\`);
+    addAdvisorMessageHtml("System", `<span style="color:var(--green)">✓ Drafts approved and applied to proposal.</span>`);
   });
 });
