@@ -55,9 +55,19 @@ services:
 
 volumes:
   reliefweb_db:
+    external: true
+    name: reliefweb_db
   chroma_data:
+    external: true
+    name: chroma_data
   output_data:
+    external: true
+    name: output_data
   mcp_cache:
   npm_cache:
   caddy_data:
+    external: true
+    name: caddy_data
   caddy_config:
+    external: true
+    name: caddy_config
