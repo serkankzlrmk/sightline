@@ -303,6 +303,10 @@ _API_DAILY_LIMIT = int(os.getenv("API_DAILY_LIMIT", "100"))
 def _check_api_rate_limit():
     """Per-IP rate limit for API endpoints. Returns (ok, remaining)."""
     from datetime import date
+    # Dev mode: bypass IP rate limiting entirely for loopback
+    from auth import _dev_mode
+    if _dev_mode():
+        return True, 9999
     today = date.today().isoformat()
     ip = request.remote_addr or "0.0.0.0"
     with _api_rate_lock:
@@ -3403,7 +3407,6 @@ If everything looks perfect and no edits are needed, just reply with an encourag
             HumanMessage(content="Please review my recent updates and propose edits if necessary.")
         ]
 
-        from agent.relief_agent import _get_agent
         agent = _get_agent()
         config = {
             "recursion_limit": 25,
