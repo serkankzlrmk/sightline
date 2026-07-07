@@ -1,33 +1,9 @@
 # =============================================================================
 # Sightline — Caddyfile (reverse proxy with automatic TLS)
 # =============================================================================
-# Caddy automatically obtains and renews Let's Encrypt certificates.
-# No certbot, no nginx config, no manual TLS management.
 
 # Production domains — Caddy gets TLS certs automatically
 YOUR_DOMAIN, YOUR_PROJECT_ID.com {
-    reverse_proxy app:5001 {
-        # SSE support — no buffering for streaming endpoints
-        @sse path /api/agent/chat /api/sitrep/stream/*
-        handle @sse {
-            flush_interval -1
-            timeout 300s
-        }
-
-        # Default — all other routes
-        handle {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    # Rate limiting (Caddy 2.7+)
-    # Flask already has per-IP rate limiting — this is defense-in-depth
-    request_body {
-        max_file_size 50MB
-    }
-
     # Security headers
     header {
         X-Frame-Options DENY
@@ -37,12 +13,38 @@ YOUR_DOMAIN, YOUR_PROJECT_ID.com {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    # Static files — Caddy serves directly
-    @static path /static/*
-    handle @static {
-        root * /app
-        file_server
-        header Cache-Control "public, max-age=3600, must-revalidate"
+    # SSE endpoints — no buffering
+    @sse {
+        path /api/agent/chat /api/sitrep/stream/*
+    }
+    handle @sse {
+        reverse_proxy app:5001 {
+            flush_interval -1
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+            }
+        }
+    }
+
+    # Upload endpoint — larger body
+    @upload {
+        path /api/ingest/upload
+    }
+    handle @upload {
+        request_body {
+            max_size 50MB
+        }
+        reverse_proxy app:5001
+    }
+
+    # Everything else
+    handle {
+        reverse_proxy app:5001 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # Access log
@@ -54,7 +56,7 @@ YOUR_DOMAIN, YOUR_PROJECT_ID.com {
     }
 }
 
-# Local dev (no TLS — just HTTP)
-localhost {
+# Local dev (HTTP only — no TLS)
+:80 {
     reverse_proxy app:5001
 }

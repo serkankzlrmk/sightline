@@ -2752,6 +2752,15 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'select-proposal':
         selectProposal(target.dataset.id);
         break;
+      case 'open-rag-drawer':
+        openRagDrawer(parseInt(target.dataset.index));
+        break;
+      case 'edit-toc-node':
+        editTocNode(parseInt(target.dataset.index));
+        break;
+      case 'open-smart-scorecard':
+        openSmartScorecard(target.dataset.level, target);
+        break;
       case 'open-chat-history':
         toggleChatSidebar();
         break;
@@ -3218,6 +3227,45 @@ let proposalState = {
 };
 
 async function initProposalPipeline() {
+  // Initialize resizable split panels
+  const workspace = document.getElementById('proposal-workspace');
+  const editor = document.querySelector('.proposal-editor-panel');
+  const gutter = document.getElementById('proposal-split-gutter');
+  
+  if (workspace && editor && gutter) {
+    let isDragging = false;
+    
+    gutter.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      gutter.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const workspaceRect = workspace.getBoundingClientRect();
+      const leftWidth = e.clientX - workspaceRect.left;
+      const percentage = (leftWidth / workspaceRect.width) * 100;
+      
+      if (percentage >= 35 && percentage <= 75) {
+        editor.style.flex = `0 0 ${percentage}%`;
+        if (proposalState.currentStep === 'toc') {
+          drawTocFlowLines();
+        }
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        gutter.classList.remove('dragging');
+        document.body.style.cursor = '';
+      }
+    });
+  }
+
   const btnNew = document.getElementById('btn-new-proposal');
   const btnCreateFirst = document.getElementById('btn-create-first-proposal');
   const btnExport = document.getElementById('btn-proposal-export');
@@ -3242,6 +3290,9 @@ async function initProposalPipeline() {
   const createModal = document.getElementById('proposal-create-modal');
   const closeBtn = document.getElementById('proposal-create-modal-close-btn');
   const createForm = document.getElementById('proposal-create-form');
+
+  const btnCloseDrawer = document.getElementById('btn-close-rag-drawer');
+  if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', closeRagDrawer);
 
   if (closeBtn) closeBtn.addEventListener('click', () => createModal.classList.remove('open'));
   if (createForm) {
@@ -3522,49 +3573,72 @@ function switchProposalStep(step) {
   } else if (step === 'toc') {
     const isToCDefault = prop.toc.length === 4 && prop.toc[0].text.includes("Enhanced safety");
     container.innerHTML = `
-      <div class="toc-graph-container">
-        <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:10px">
-          <span class="text-muted" style="font-size:12px">Theory of Change Logic Flow. Click any node to edit.</span>
-          <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalToC()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            <span>${isToCDefault ? 'Generate with AI' : 'Regenerate'}</span>
-          </button>
+      <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:10px">
+        <span class="text-muted" style="font-size:12px">Theory of Change Logic Flow. Click any node to edit.</span>
+        <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalToC()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span>${isToCDefault ? 'Generate with AI' : 'Regenerate'}</span>
+        </button>
+      </div>
+      
+      <div class="toc-flow-container" id="toc-flow-container">
+        <svg class="toc-flow-svg" id="toc-flow-svg">
+          <defs>
+            <linearGradient id="flow-grad-0" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.6" />
+              <stop offset="100%" stop-color="var(--blue)" stop-opacity="0.6" />
+            </linearGradient>
+            <linearGradient id="flow-grad-1" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.6" />
+              <stop offset="100%" stop-color="var(--green)" stop-opacity="0.6" />
+            </linearGradient>
+            <linearGradient id="flow-grad-2" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="var(--green)" stop-opacity="0.6" />
+              <stop offset="100%" stop-color="var(--amber)" stop-opacity="0.6" />
+            </linearGradient>
+            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 2 L 10 5 L 0 8 z" fill="var(--text-muted)" />
+            </marker>
+          </defs>
+        </svg>
+        
+        <div class="toc-node impact" id="toc-node-0" data-action="edit-toc-node" data-index="0">
+          <span class="toc-node-label impact">Goal / Impact</span>
+          <span class="toc-node-text">${escHtml(prop.toc[0]?.text || '—')}</span>
         </div>
         
-        <div class="toc-level">
-          <div class="toc-node impact" onclick="editTocNode(0)">
-            <span class="toc-node-label impact">Goal / Impact</span>
-            <span>${escHtml(prop.toc[0]?.text || '—')}</span>
-          </div>
+        <div class="toc-node outcome" id="toc-node-1" data-action="edit-toc-node" data-index="1">
+          <span class="toc-node-label outcome">Outcome</span>
+          <span class="toc-node-text">${escHtml(prop.toc[1]?.text || '—')}</span>
         </div>
-        <div style="font-size:20px; color:var(--text-muted)">↓</div>
-        <div class="toc-level">
-          <div class="toc-node outcome" onclick="editTocNode(1)">
-            <span class="toc-node-label outcome">Outcome</span>
-            <span>${escHtml(prop.toc[1]?.text || '—')}</span>
-          </div>
+        
+        <div class="toc-node output" id="toc-node-2" data-action="edit-toc-node" data-index="2">
+          <span class="toc-node-label output">Output</span>
+          <span class="toc-node-text">${escHtml(prop.toc[2]?.text || '—')}</span>
         </div>
-        <div style="font-size:20px; color:var(--text-muted)">↓</div>
-        <div class="toc-level">
-          <div class="toc-node output" onclick="editTocNode(2)">
-            <span class="toc-node-label output">Output</span>
-            <span>${escHtml(prop.toc[2]?.text || '—')}</span>
-          </div>
-        </div>
-        <div style="font-size:20px; color:var(--text-muted)">↓</div>
-        <div class="toc-level">
-          <div class="toc-node activity" onclick="editTocNode(3)">
-            <span class="toc-node-label activity">Activity</span>
-            <span>${escHtml(prop.toc[3]?.text || '—')}</span>
-          </div>
+        
+        <div class="toc-node activity" id="toc-node-3" data-action="edit-toc-node" data-index="3">
+          <span class="toc-node-label activity">Activity</span>
+          <span class="toc-node-text">${escHtml(prop.toc[3]?.text || '—')}</span>
         </div>
       </div>
     `;
+    setTimeout(drawTocFlowLines, 100);
   } else if (step === 'logframe') {
     const isLogframeDefault = prop.logframe.goal && prop.logframe.goal.includes("Reduced vulnerability");
+    
+    const getBadgeHTML = (level, text) => {
+      const isSpecific = text.length > 20;
+      const isMeasurable = /([0-9]+|%|count|number|rate)/i.test(text);
+      const isTimebound = /(202\d|year|month|day|week|end|duration|deadline|quarter)/i.test(text);
+      const score = [isSpecific, isMeasurable, isTimebound].filter(Boolean).length + 2;
+      const badgeClass = score >= 4 ? 'validated' : 'warning';
+      return `<span class="smart-badge ${badgeClass}" data-action="open-smart-scorecard" data-level="${level}">SMART (${score}/5)</span>`;
+    };
+
     container.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-        <span class="text-muted" style="font-size:12px">Logframe Matrix cells autosave when updated.</span>
+        <span class="text-muted" style="font-size:12px">Logframe Matrix cells autosave. Click SMART badges to review indicator quality.</span>
         <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalLogframe()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
           <span>${isLogframeDefault ? 'Generate with AI' : 'Regenerate'}</span>
@@ -3586,6 +3660,10 @@ function switchProposalStep(step) {
               <textarea class="logframe-cell-edit" onchange="updateLogframeField('goal', this.value)">${escHtml(prop.logframe.goal || '')}</textarea>
             </td>
             <td>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="text-muted" style="font-size:10px; font-weight:600;">Indicators</span>
+                ${getBadgeHTML('goal', prop.logframe.goal_indicator || '')}
+              </div>
               <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('goal_indicator', this.value)">${escHtml(prop.logframe.goal_indicator || '')}</textarea>
             </td>
             <td>
@@ -3601,6 +3679,10 @@ function switchProposalStep(step) {
               <textarea class="logframe-cell-edit" onchange="updateLogframeField('outcomes', this.value)">${escHtml(prop.logframe.outcomes || '')}</textarea>
             </td>
             <td>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="text-muted" style="font-size:10px; font-weight:600;">Indicators</span>
+                ${getBadgeHTML('outcomes', prop.logframe.outcomes_indicator || '')}
+              </div>
               <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('outcomes_indicator', this.value)">${escHtml(prop.logframe.outcomes_indicator || '')}</textarea>
             </td>
             <td>
@@ -3616,6 +3698,10 @@ function switchProposalStep(step) {
               <textarea class="logframe-cell-edit" onchange="updateLogframeField('outputs', this.value)">${escHtml(prop.logframe.outputs || '')}</textarea>
             </td>
             <td>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="text-muted" style="font-size:10px; font-weight:600;">Indicators</span>
+                ${getBadgeHTML('outputs', prop.logframe.outputs_indicator || '')}
+              </div>
               <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('outputs_indicator', this.value)">${escHtml(prop.logframe.outputs_indicator || '')}</textarea>
             </td>
             <td>
@@ -3631,6 +3717,10 @@ function switchProposalStep(step) {
               <textarea class="logframe-cell-edit" onchange="updateLogframeField('activities', this.value)">${escHtml(prop.logframe.activities || '')}</textarea>
             </td>
             <td>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="text-muted" style="font-size:10px; font-weight:600;">Inputs / Resources</span>
+                ${getBadgeHTML('activities', prop.logframe.activities_inputs || '')}
+              </div>
               <textarea class="logframe-cell-edit" placeholder="Inputs..." onchange="updateLogframeField('activities_inputs', this.value)">${escHtml(prop.logframe.activities_inputs || '')}</textarea>
             </td>
             <td>
@@ -3675,14 +3765,17 @@ async function loadAndRenderContextChunks(prop) {
       return;
     }
     
+    // Cache the active chunks
+    proposalState.activeChunks = chunks;
+    
     listEl.innerHTML = chunks.map((c, i) => `
-      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px;">
-        <div style="display:flex; justify-content:space-between; font-weight:700; font-size:11px; color:var(--text-secondary); margin-bottom:6px;">
+      <div class="report-item-rag" data-action="open-rag-drawer" data-index="${i}" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; font-size:11px; color:var(--text-secondary); margin-bottom:6px; pointer-events: none;">
           <span>📄 ${escHtml(c.title)}</span>
           <span>📅 ${escHtml(c.date)}</span>
         </div>
-        <p style="font-size:12.5px; line-height:1.4; margin:0; color:var(--text); text-align:left;">${escHtml(c.text)}</p>
-        <div style="margin-top:6px; font-size:10px; color:var(--primary); font-weight:600; text-align:left;">Themes: ${escHtml(c.themes)}</div>
+        <p style="font-size:12.5px; line-height:1.4; margin:0; color:var(--text); text-align:left; pointer-events: none;">${escHtml(c.text)}</p>
+        <div style="margin-top:6px; font-size:10px; color:var(--primary); font-weight:600; text-align:left; pointer-events: none;">Themes: ${escHtml(c.themes)}</div>
       </div>
     `).join('');
   } catch (err) {
@@ -4035,4 +4128,241 @@ function exportProposalPDF() {
     </html>
   `);
   printWindow.document.close();
+}
+
+function openRagDrawer(index) {
+  const drawer = document.getElementById('proposal-rag-drawer');
+  const body = document.getElementById('rag-drawer-body');
+  if (!drawer || !body || !proposalState.activeChunks || !proposalState.activeProposal) return;
+  
+  const chunk = proposalState.activeChunks[index];
+  if (!chunk) return;
+  
+  let highlightedText = escHtml(chunk.text);
+  const termsToHighlight = [
+    proposalState.activeProposal.country,
+    proposalState.activeProposal.event,
+    ...(proposalState.activeProposal.themes || [])
+  ];
+  
+  termsToHighlight.forEach(term => {
+    if (!term) return;
+    const regex = new RegExp(`(${term})`, 'gi');
+    highlightedText = highlightedText.replace(regex, '<mark class="drawer-highlight">$1</mark>');
+  });
+  
+  body.innerHTML = `
+    <div class="drawer-meta-item">
+      <span>📍</span>
+      <strong>Country:</strong> ${escHtml(proposalState.activeProposal.country)}
+    </div>
+    <div class="drawer-meta-item">
+      <span>📅</span>
+      <strong>Report Date:</strong> ${escHtml(chunk.date)}
+    </div>
+    <div class="drawer-meta-item">
+      <span>🏷️</span>
+      <strong>Themes:</strong> ${escHtml(chunk.themes)}
+    </div>
+    <div class="drawer-meta-item" style="margin-bottom: 20px;">
+      <span>🔗</span>
+      <strong>Source Report:</strong> 
+      <a href="https://reliefweb.int/report/${chunk.id || ''}" target="_blank" style="color: var(--blue); text-decoration: underline;">
+        ${escHtml(chunk.title)}
+      </a>
+    </div>
+    <div style="font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">Full Excerpt:</div>
+    <p style="background: rgba(0,0,0,0.02); border-left: 3px solid var(--primary); padding: 12px; border-radius: var(--radius-sm); font-size: 13.5px; line-height: 1.5; color: var(--text); text-align: left;">
+      ${highlightedText}
+    </p>
+  `;
+  
+  drawer.classList.add('open');
+}
+
+function closeRagDrawer() {
+  const drawer = document.getElementById('proposal-rag-drawer');
+  if (drawer) drawer.classList.remove('open');
+}
+
+function drawTocFlowLines() {
+  const svg = document.getElementById('toc-flow-svg');
+  const container = document.getElementById('toc-flow-container');
+  if (!svg || !container) return;
+  
+  svg.querySelectorAll('path.flow-line').forEach(p => p.remove());
+  
+  const containerRect = container.getBoundingClientRect();
+  
+  for (let i = 0; i < 3; i++) {
+    const nodeA = document.getElementById(`toc-node-${i}`);
+    const nodeB = document.getElementById(`toc-node-${i+1}`);
+    if (!nodeA || !nodeB) continue;
+    
+    const rectA = nodeA.getBoundingClientRect();
+    const rectB = nodeB.getBoundingClientRect();
+    
+    const xA = (rectA.left + rectA.right) / 2 - containerRect.left;
+    const yA = rectA.bottom - containerRect.top;
+    
+    const xB = (rectB.left + rectB.right) / 2 - containerRect.left;
+    const yB = rectB.top - containerRect.top;
+    
+    const controlY = (yA + yB) / 2;
+    const pathD = `M ${xA} ${yA} C ${xA} ${controlY}, ${xB} ${controlY}, ${xB} ${yB}`;
+    
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', pathD);
+    path.setAttribute('class', 'flow-line');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', `url(#flow-grad-${i})`);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('marker-end', 'url(#arrow)');
+    svg.appendChild(path);
+  }
+}
+
+function editTocNode(index) {
+  document.querySelectorAll('.apple-popover').forEach(p => p.remove());
+  
+  const node = document.getElementById(`toc-node-${index}`);
+  if (!node || !proposalState.activeProposal) return;
+  
+  const rect = node.getBoundingClientRect();
+  const container = document.getElementById('toc-flow-container');
+  const containerRect = container.getBoundingClientRect();
+  
+  const popover = document.createElement('div');
+  popover.className = 'apple-popover';
+  popover.style.left = `${(rect.left + rect.right)/2 - containerRect.left - 160}px`;
+  popover.style.top = `${rect.bottom - containerRect.top + 10}px`;
+  
+  const nodeTitle = ['Goal / Impact', 'Outcome', 'Output', 'Activity'][index];
+  const currentText = proposalState.activeProposal.toc[index]?.text || '';
+  
+  popover.innerHTML = `
+    <div class="popover-header">Edit ${nodeTitle}</div>
+    <div class="popover-body">
+      <textarea id="popover-toc-textarea">${escHtml(currentText)}</textarea>
+    </div>
+    <div class="popover-actions">
+      <button class="btn btn-xs btn-secondary" id="btn-popover-cancel">Cancel</button>
+      <button class="btn btn-xs btn-primary" id="btn-popover-save">Save Changes</button>
+    </div>
+  `;
+  
+  container.appendChild(popover);
+  
+  const textarea = document.getElementById('popover-toc-textarea');
+  if (textarea) textarea.focus();
+  
+  document.getElementById('btn-popover-cancel').addEventListener('click', () => popover.remove());
+  
+  document.getElementById('btn-popover-save').addEventListener('click', async () => {
+    const newText = textarea.value.trim();
+    if (!newText) return;
+    
+    proposalState.activeProposal.toc[index].text = newText;
+    
+    const prop = proposalState.activeProposal;
+    try {
+      const res = await api(`/api/proposals/${prop.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prop)
+      });
+      const updated = await res.json();
+      if (updated.error) throw new Error(updated.error);
+      
+      node.querySelector('.toc-node-text').textContent = newText;
+      popover.remove();
+      drawTocFlowLines();
+      
+      addAdvisorMessage("System", `Theory of Change level '${nodeTitle}' updated successfully.`);
+    } catch (err) {
+      alert("Failed to save changes: " + err.message);
+    }
+  });
+}
+
+window.addEventListener('resize', () => {
+  if (proposalState.currentStep === 'toc') {
+    drawTocFlowLines();
+  }
+});
+
+function openSmartScorecard(level, badgeElement) {
+  document.querySelectorAll('.apple-popover').forEach(p => p.remove());
+  
+  const prop = proposalState.activeProposal;
+  if (!prop) return;
+  
+  let indicatorText = '';
+  if (level === 'goal') indicatorText = prop.logframe.goal_indicator || '';
+  else if (level === 'outcomes') indicatorText = prop.logframe.outcomes_indicator || '';
+  else if (level === 'outputs') indicatorText = prop.logframe.outputs_indicator || '';
+  else if (level === 'activities') indicatorText = prop.logframe.activities_inputs || '';
+  
+  const isSpecific = indicatorText.length > 20;
+  const isMeasurable = /([0-9]+|%|count|number|rate)/i.test(indicatorText);
+  const isAchievable = indicatorText.length > 10;
+  const isRelevant = indicatorText.length > 10;
+  const isTimebound = /(202\d|year|month|day|week|end|duration|deadline|quarter)/i.test(indicatorText);
+  
+  const score = [isSpecific, isMeasurable, isAchievable, isRelevant, isTimebound].filter(Boolean).length;
+  
+  const rect = badgeElement.getBoundingClientRect();
+  const container = document.getElementById('proposal-step-content');
+  const containerRect = container.getBoundingClientRect();
+  
+  const popover = document.createElement('div');
+  popover.className = 'apple-popover';
+  popover.style.left = `${rect.left - containerRect.left - 100}px`;
+  popover.style.top = `${rect.bottom - containerRect.top + 8}px`;
+  
+  popover.innerHTML = `
+    <div class="popover-header">SMART Validation: ${level.toUpperCase()}</div>
+    <div class="popover-body">
+      <ul class="scorecard-criteria-list">
+        <li class="scorecard-criteria-item ${isSpecific ? 'pass' : 'fail'}">
+          <span class="check-icon">${isSpecific ? '✓' : '✗'}</span>
+          <span><strong>Specific:</strong> ${isSpecific ? 'Well specified.' : 'Too brief, add context.'}</span>
+        </li>
+        <li class="scorecard-criteria-item ${isMeasurable ? 'pass' : 'fail'}">
+          <span class="check-icon">${isMeasurable ? '✓' : '✗'}</span>
+          <span><strong>Measurable:</strong> ${isMeasurable ? 'Contains numbers/rates.' : 'No numbers or metric unit.'}</span>
+        </li>
+        <li class="scorecard-criteria-item ${isAchievable ? 'pass' : 'fail'}">
+          <span class="check-icon">${isAchievable ? '✓' : '✗'}</span>
+          <span><strong>Achievable:</strong> Clear target defined.</span>
+        </li>
+        <li class="scorecard-criteria-item ${isRelevant ? 'pass' : 'fail'}">
+          <span class="check-icon">${isRelevant ? '✓' : '✗'}</span>
+          <span><strong>Relevant:</strong> Aligned to crisis needs.</span>
+        </li>
+        <li class="scorecard-criteria-item ${isTimebound ? 'pass' : 'fail'}">
+          <span class="check-icon">${isTimebound ? '✓' : '✗'}</span>
+          <span><strong>Time-bound:</strong> ${isTimebound ? 'Mentions timeframe.' : 'No timeline/dates specified.'}</span>
+        </li>
+      </ul>
+      <div style="font-size:12px; font-weight:700; color:var(--text); margin-bottom:8px;">Overall Score: ${score}/5</div>
+    </div>
+    <div class="popover-actions">
+      <button class="btn btn-xs btn-secondary" id="btn-scorecard-close">Close</button>
+      <button class="btn btn-xs btn-primary" id="btn-scorecard-improve">Improve with AI</button>
+    </div>
+  `;
+  
+  container.appendChild(popover);
+  
+  document.getElementById('btn-scorecard-close').addEventListener('click', () => popover.remove());
+  
+  document.getElementById('btn-scorecard-improve').addEventListener('click', () => {
+    popover.remove();
+    const txtCritique = document.getElementById('critique-input');
+    if (txtCritique) {
+      txtCritique.value = `Improve the indicators for the ${level} layer in my logical framework to make them fully SMART and optimized for donors.`;
+      sendProposalCritique();
+    }
+  });
 }

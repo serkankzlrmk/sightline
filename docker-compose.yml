@@ -17,14 +17,13 @@ services:
     env_file:
       - .env
     environment:
-      # Override paths for container (volumes mounted at /app/)
-      DB_PATH: /app/reliefweb.db
-      CHATS_DB_PATH: /app/chats.db
+      # Override paths for container (volumes are directories, not single files)
+      DB_PATH: /app/data/reliefweb.db
+      CHATS_DB_PATH: /app/data/chats.db
       CHROMA_DIR: /app/reliefweb_chroma
       DOWNLOADS_DIR: /app/reliefweb_downloads
     volumes:
-      - reliefweb_db:/app/reliefweb.db
-      - chats_db:/app/chats.db
+      - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma
       - output_data:/app/output
       - mcp_cache:/tmp/uv-cache
@@ -56,7 +55,6 @@ services:
 
 volumes:
   reliefweb_db:
-  chats_db:
   chroma_data:
   output_data:
   mcp_cache:
