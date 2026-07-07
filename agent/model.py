@@ -4,11 +4,11 @@ Handles LLM provider setup (OpenRouter or Ollama) with proper error handling.
 """
 
 import logging
-from typing import Optional
 import time
-import requests
 
+import requests
 from langchain_openai import ChatOpenAI
+
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -32,12 +32,12 @@ def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
         True if the provider is accessible, False otherwise
     """
     provider = config.LLM_PROVIDER
-    
+
     if provider == "openrouter":
         # OpenRouter: check /models endpoint with auth
         url = f"{config._LLM_BASE_URL.rstrip('/')}/models"
         headers = {"Authorization": f"Bearer {config._LLM_API_KEY}"}
-        
+
         for attempt in range(max_retries):
             try:
                 logger.info(f"Checking OpenRouter connectivity (attempt {attempt + 1}/{max_retries})...")
@@ -64,7 +64,7 @@ def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
         # Ollama: check /api/tags endpoint
         base_url = config.OLLAMA_BASE_URL.rstrip('/v1')
         health_url = f"{base_url}/api/tags"
-        
+
         for attempt in range(max_retries):
             try:
                 logger.info(f"Checking Ollama connectivity (attempt {attempt + 1}/{max_retries})...")
@@ -98,22 +98,22 @@ def check_model_available(model_name: str) -> bool:
         # OpenRouter serves models on-demand, no need to check availability
         logger.info(f"✓ OpenRouter model '{model_name}' will be served on-demand")
         return True
-    
+
     # Ollama: check local model list
     base_url = config.OLLAMA_BASE_URL.rstrip('/v1')
     tags_url = f"{base_url}/api/tags"
-    
+
     try:
         response = requests.get(tags_url, timeout=5)
         if response.status_code == 200:
             data = response.json()
             models = [m.get('name', '') for m in data.get('models', [])]
-            
+
             for available_model in models:
                 if model_name in available_model or available_model in model_name:
                     logger.info(f"✓ Model '{model_name}' found")
                     return True
-            
+
             logger.warning(f"Model '{model_name}' not found. Available models: {models}")
             return False
     except Exception as e:
@@ -138,7 +138,7 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
     provider = config.LLM_PROVIDER
     model_name = config.OLLAMA_MODEL
     logger.info(f"Initializing model: {model_name} (provider: {provider})")
-    
+
     if not skip_checks:
         if not check_llm_connectivity():
             if provider == "openrouter":
@@ -151,12 +151,12 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
                     f"Cannot connect to Ollama at {config.OLLAMA_BASE_URL}. "
                     "Make sure Ollama is running: `ollama serve`"
                 )
-        
+
         if not check_model_available(model_name):
             if provider == "ollama":
                 pull_cmd = f"ollama pull {model_name}"
                 logger.warning(f"Model '{model_name}' not found locally. Pull it with: `{pull_cmd}`")
-    
+
     try:
         model = ChatOpenAI(
             model=model_name,
@@ -174,7 +174,7 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
         raise ModelInitializationError(error_msg) from e
 
 
-def get_model(skip_checks: bool = False) -> Optional[ChatOpenAI]:
+def get_model(skip_checks: bool = False) -> ChatOpenAI | None:
     """
     Get or initialize the model singleton.
     

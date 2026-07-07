@@ -28,12 +28,12 @@ Business plan: 250K istek/ay, 5 yil geriye donuk arama
 API Key: https://newsapi.org/register
 """
 
-import os
-import time
 import logging
+import os
 import threading
-from typing import Any, Dict, List, Optional
+import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -48,13 +48,13 @@ logger = logging.getLogger(__name__)
 class NewsResult:
     success: bool
     tool: str = ""
-    data: List[Dict[str, Any]] = field(default_factory=list)
-    error: Optional[str] = None
+    data: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
     count: int = 0
     total_results: int = 0
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "tool": self.tool,
@@ -65,7 +65,7 @@ class NewsResult:
             "params": self.params,
         }
 
-    def to_sitrep_context(self) -> Dict[str, Any]:
+    def to_sitrep_context(self) -> dict[str, Any]:
         if not self.success:
             return {"source": "NewsAPI", "error": self.error, "tool": self.tool}
 
@@ -86,9 +86,9 @@ class SimpleCache:
     def __init__(self, ttl: int = 3600, max_size: int = 200):
         self.ttl = ttl
         self.max_size = max_size
-        self._cache: Dict[str, tuple] = {}
+        self._cache: dict[str, tuple] = {}
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         if key in self._cache:
             value, ts = self._cache[key]
             if time.time() - ts < self.ttl:
@@ -105,7 +105,7 @@ class SimpleCache:
     def clear(self) -> None:
         self._cache.clear()
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {"size": len(self._cache), "max_size": self.max_size, "ttl": self.ttl}
 
 
@@ -132,8 +132,8 @@ class NewsClient:
         self.rate_limit_period = rate_limit_period
         self.cache = SimpleCache(ttl=cache_ttl)
 
-        self._sync_client: Optional[httpx.Client] = None
-        self._request_timestamps: List[float] = []
+        self._sync_client: httpx.Client | None = None
+        self._request_timestamps: list[float] = []
         self._rate_lock = threading.Lock()  # guards _request_timestamps
 
     @classmethod
@@ -195,7 +195,7 @@ class NewsClient:
     # Core API Method
     # =========================================================================
 
-    def _get(self, endpoint: str, params: Dict[str, Any] = None) -> NewsResult:
+    def _get(self, endpoint: str, params: dict[str, Any] = None) -> NewsResult:
         params = params or {}
         params["apiKey"] = self.api_key
         params = {k: v for k, v in params.items() if v is not None}
@@ -266,7 +266,7 @@ class NewsClient:
                 params={k: v for k, v in params.items() if k != "apiKey"},
             )
 
-    def _get_sources(self, endpoint: str, params: Dict[str, Any] = None) -> NewsResult:
+    def _get_sources(self, endpoint: str, params: dict[str, Any] = None) -> NewsResult:
         params = params or {}
         params["apiKey"] = self.api_key
         params = {k: v for k, v in params.items() if v is not None}
@@ -343,17 +343,17 @@ class NewsClient:
     def search_everything_sync(
         self,
         query: str,
-        country: Optional[str] = None,
-        language: Optional[str] = None,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
+        country: str | None = None,
+        language: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
         sort_by: str = "relevancy",
         page_size: int = 10,
         page: int = 1,
-        sources: Optional[str] = None,
-        domains: Optional[str] = None,
+        sources: str | None = None,
+        domains: str | None = None,
     ) -> NewsResult:
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "q": query,
             "sortBy": sort_by,
             "pageSize": min(page_size, 50),
@@ -379,14 +379,14 @@ class NewsClient:
 
     def get_top_headlines_sync(
         self,
-        country: Optional[str] = None,
-        category: Optional[str] = None,
-        language: Optional[str] = None,
-        query: Optional[str] = None,
+        country: str | None = None,
+        category: str | None = None,
+        language: str | None = None,
+        query: str | None = None,
         page_size: int = 10,
         page: int = 1,
     ) -> NewsResult:
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "pageSize": min(page_size, 50),
             "page": page,
         }
@@ -403,11 +403,11 @@ class NewsClient:
 
     def get_sources_sync(
         self,
-        category: Optional[str] = None,
-        language: Optional[str] = None,
-        country: Optional[str] = None,
+        category: str | None = None,
+        language: str | None = None,
+        country: str | None = None,
     ) -> NewsResult:
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if category:
             params["category"] = category
         if language:
@@ -421,7 +421,7 @@ class NewsClient:
     # Country Code Mapping
     # =========================================================================
 
-    COUNTRY_CODE_MAP: Dict[str, str] = {
+    COUNTRY_CODE_MAP: dict[str, str] = {
         "af": "afghanistan", "al": "albania", "dz": "algeria", "ad": "andorra",
         "ao": "angola", "ag": "antigua-and-barbuda", "ar": "argentina", "am": "armenia",
         "au": "australia", "at": "austria", "az": "azerbaijan", "bs": "bahamas",
@@ -474,7 +474,7 @@ class NewsClient:
         "zw": "zimbabwe",
     }
 
-    HUMANITARIAN_COUNTRY_MAP: Dict[str, List[str]] = {
+    HUMANITARIAN_COUNTRY_MAP: dict[str, list[str]] = {
         "SYR": ["syria", "lebanon", "jordan", "turkey", "iraq"],
         "AFG": ["afghanistan", "pakistan", "iran"],
         "SDN": ["sudan", "chad", "ethiopia", "south-sudan", "central-african-republic"],
@@ -503,7 +503,7 @@ class NewsClient:
         "IDN": ["indonesia"],
     }
 
-    def _country_to_sources(self, country_code: str) -> Optional[str]:
+    def _country_to_sources(self, country_code: str) -> str | None:
         alpha3_to_alpha2 = {
             "SYR": "sy", "AFG": "af", "SDN": "sd", "SSD": "ss", "UKR": "ua",
             "ETH": "et", "YEM": "ye", "SOM": "so", "MLI": "ml", "NER": "ne",

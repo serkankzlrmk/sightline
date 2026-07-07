@@ -16,11 +16,11 @@ Usage:
   python scripts/backfill_ingest.py --from 2026-04-01 --to 2026-05-28  # custom range
 """
 
-import sys
-import os
-import logging
 import argparse
-from datetime import datetime, timedelta, timezone
+import logging
+import os
+import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -32,10 +32,11 @@ os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 
-from config import config
-
 # Import ReliefWeb config directly (avoid __init__.py which imports heavy deps)
 import importlib.util
+
+from config import config
+
 _spec = importlib.util.spec_from_file_location(
     "reliefweb_config",
     str(PROJECT_ROOT / "reliefweb_api" / "reliefweb_config.py"),
@@ -135,7 +136,7 @@ def ingest_reports(report_ids: list, dry_run: bool = False) -> dict:
 
     Returns: {ingested: int, skipped: int, errors: int, error_details: list}
     """
-    from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
+    from reliefweb_api.ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
 
     ingested = 0
     skipped = 0
@@ -222,7 +223,7 @@ def main():
     args = parser.parse_args()
 
     # Determine date range
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     if args.date_from and args.date_to:
         start_date = datetime.strptime(args.date_from, "%Y-%m-%d").date()
         end_date = datetime.strptime(args.date_to, "%Y-%m-%d").date()

@@ -28,11 +28,11 @@ API dokumantasyonu: https://datahelpdesk.worldbank.org/knowledgebase/articles/88
 Gosterge arama: https://data.worldbank.org/indicator
 """
 
-import os
-import time
 import logging
+import os
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+import time
+from typing import Any
 
 import httpx
 
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 # World Bank API uses ISO 3166-1 alpha-2 codes.
 # We accept alpha-3 codes too and convert them.
-_ISO3_TO_ISO2: Dict[str, str] = {
+_ISO3_TO_ISO2: dict[str, str] = {
     "AFG": "AF", "ALB": "AL", "DZA": "DZ", "AND": "AD", "AGO": "AO",
     "ARG": "AR", "ARM": "AM", "AUS": "AU", "AUT": "AT", "AZE": "AZ",
     "BGD": "BD", "BLR": "BY", "BEL": "BE", "BEN": "BJ", "BFA": "BF",
@@ -108,9 +108,9 @@ class SimpleCache:
     def __init__(self, ttl: int = 86400, max_size: int = 200):
         self.ttl = ttl
         self.max_size = max_size
-        self._cache: Dict[str, tuple] = {}
+        self._cache: dict[str, tuple] = {}
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         if key in self._cache:
             value, ts = self._cache[key]
             if time.time() - ts < self.ttl:
@@ -127,7 +127,7 @@ class SimpleCache:
     def clear(self) -> None:
         self._cache.clear()
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {"size": len(self._cache), "max_size": self.max_size, "ttl": self.ttl}
 
 
@@ -136,7 +136,7 @@ class SimpleCache:
 # ============================================================================
 
 # (indicator_code, human-readable label)
-KEY_INDICATORS: List[Tuple[str, str]] = [
+KEY_INDICATORS: list[tuple[str, str]] = [
     ("NY.GDP.PCAP.CD", "GDP per capita (current US$)"),
     ("SI.POV.NAHC", "Poverty headcount at national poverty lines (% of population)"),
     ("SP.POP.TOTL", "Total population"),
@@ -182,8 +182,8 @@ class WorldBankClient:
         self.rate_limit_period = rate_limit_period
         self.cache = SimpleCache(ttl=cache_ttl)
 
-        self._sync_client: Optional[httpx.Client] = None
-        self._request_timestamps: List[float] = []
+        self._sync_client: httpx.Client | None = None
+        self._request_timestamps: list[float] = []
         self._rate_lock = threading.Lock()
 
     @classmethod
@@ -238,9 +238,9 @@ class WorldBankClient:
     def _fetch(
         self,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        cache_key: Optional[str] = None,
-    ) -> Tuple[Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]], Optional[str]]:
+        params: dict[str, Any] | None = None,
+        cache_key: str | None = None,
+    ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None, str | None]:
         """Low-level GET that returns (data_list, metadata, error_msg)."""
         params = params or {}
         params = {k: v for k, v in params.items() if v is not None}
@@ -297,9 +297,9 @@ class WorldBankClient:
         self,
         country_code: str,
         indicator_code: str,
-        date_range: Optional[str] = None,
+        date_range: str | None = None,
         limit: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch a single indicator time series for a country.
 
         Args:
@@ -318,7 +318,7 @@ class WorldBankClient:
         if not cc or not indicator_code:
             return []
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "format": "json",
             "per_page": max(1, min(int(limit), 1000)),
         }
@@ -332,7 +332,7 @@ class WorldBankClient:
             return []
         return records or []
 
-    def get_country_profile(self, country_code: str) -> Dict[str, Dict[str, Any]]:
+    def get_country_profile(self, country_code: str) -> dict[str, dict[str, Any]]:
         """Fetch a curated bundle of ~15 key indicators for a country.
 
         Fetches each indicator (most recent value) and returns a dict:
@@ -344,7 +344,7 @@ class WorldBankClient:
         if not cc:
             return {}
 
-        profile: Dict[str, Dict[str, Any]] = {}
+        profile: dict[str, dict[str, Any]] = {}
         for code, label in KEY_INDICATORS:
             records = self.get_indicator(cc, code, limit=5)
             if not records:

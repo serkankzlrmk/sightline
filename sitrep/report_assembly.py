@@ -9,12 +9,11 @@ Original Stage 6 (6-Report Generation.ipynb) logic:
 - Produces a JSON schema compatible with viewer_v2.html
 """
 
-import re
 import json
 import logging
+import re
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from config import OUTPUT_REPORTS_DIR
 
@@ -29,14 +28,14 @@ MIN_SUBSTRING_LENGTH: int = 50
 # ---------------------------------------------------------------------------
 
 def _build_metadata_lookup(
-    postprocessed_answers: List[Dict],
-) -> List[Dict]:
+    postprocessed_answers: list[dict],
+) -> list[dict]:
     """
     Builds a metadata lookup table from retrieved_contexts_meta data.
     Each entry: {text: str, title: str, url: str}
     """
     seen: set = set()
-    metadata: List[Dict] = []
+    metadata: list[dict] = []
     for answer in postprocessed_answers:
         for meta in answer.get("retrieved_contexts_meta", []):
             text = answer.get("retrieved_contexts", [])
@@ -59,8 +58,8 @@ def _build_metadata_lookup(
 
 def _find_metadata_for_context(
     context_text: str,
-    metadata_list: List[Dict],
-) -> Tuple[str, str]:
+    metadata_list: list[dict],
+) -> tuple[str, str]:
     """
     Returns the best matching title and URL for a context text.
     First exact match, then substring, then fuzzy SequenceMatcher.
@@ -100,13 +99,13 @@ def _find_metadata_for_context(
 
 
 def _enrich_contexts(
-    citation_map: Dict,
-    metadata_list: List[Dict],
-) -> Dict:
+    citation_map: dict,
+    metadata_list: list[dict],
+) -> dict:
     """
     {citation_num: context_text} → {citation_num: {context, title, url}}
     """
-    enriched: Dict = {}
+    enriched: dict = {}
     for num, text in citation_map.items():
         title, url = _find_metadata_for_context(text, metadata_list)
         enriched[str(num)] = {
@@ -139,17 +138,17 @@ def _is_valid_answer(answer_text: str) -> bool:
 def assemble_report(
     country: str,
     event: str,
-    clusters: Dict,
-    filtered_questions: Dict,
-    postprocessed_answers: List[Dict],
-    cluster_summaries: Dict,
-    exec_summary: Dict,
-    narrative: Optional[Dict] = None,
-    themes: Optional[List[str]] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    hdx_context: Optional[Dict] = None,
-) -> Dict:
+    clusters: dict,
+    filtered_questions: dict,
+    postprocessed_answers: list[dict],
+    cluster_summaries: dict,
+    exec_summary: dict,
+    narrative: dict | None = None,
+    themes: list[str] | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    hdx_context: dict | None = None,
+) -> dict:
     """
     Produces the final report JSON from all pipeline outputs.
 
@@ -187,7 +186,7 @@ def assemble_report(
 
     # Summary contexts: citation num → {context, title, url}
     summary_citation_nums = [int(m) for m in re.findall(r"\[(\d+)\]", summary_text)]
-    summary_contexts: Dict = {}
+    summary_contexts: dict = {}
     for num in set(summary_citation_nums):
         key = str(num)
         text = cited_paragraphs.get(key, "")
@@ -201,7 +200,7 @@ def assemble_report(
             summary_contexts[key] = {"context": text, "title": title, "url": url}
 
     # ---- Group QA data by cluster ----
-    qa_by_cluster: Dict[str, List[Dict]] = {}
+    qa_by_cluster: dict[str, list[dict]] = {}
     for answer in postprocessed_answers:
         cid = str(answer["cluster_id"])
         answer_text = answer.get("updated_retrieved_answer", answer.get("retrieved_answer", ""))
@@ -210,19 +209,19 @@ def assemble_report(
             continue
 
         # Context map: {citation_num (int): text}
-        new_citations: List[int] = answer.get("new_citations", [])
-        new_contexts: List[str] = answer.get("new_used_contexts", [])
-        new_metas: List[Dict] = answer.get("new_used_contexts_meta", [])
-        retrieved_contexts: List[str] = answer.get("retrieved_contexts", [])
-        retrieved_metas: List[Dict] = answer.get("retrieved_contexts_meta", [])
+        new_citations: list[int] = answer.get("new_citations", [])
+        new_contexts: list[str] = answer.get("new_used_contexts", [])
+        new_metas: list[dict] = answer.get("new_used_contexts_meta", [])
+        retrieved_contexts: list[str] = answer.get("retrieved_contexts", [])
+        retrieved_metas: list[dict] = answer.get("retrieved_contexts_meta", [])
 
-        context_map: Dict[int, str] = {
+        context_map: dict[int, str] = {
             num: text
             for num, text in zip(new_citations, new_contexts)
             if text
         }
         # Metadata map directly from post-process (fuzzy match not needed)
-        meta_map: Dict[int, Dict] = {
+        meta_map: dict[int, dict] = {
             num: m
             for num, m in zip(new_citations, new_metas)
         }
@@ -236,7 +235,7 @@ def assemble_report(
                 meta_map[num] = retrieved_metas[num - 1]
 
         # used_contexts: citation_num → {context, title, url}
-        enriched: Dict = {}
+        enriched: dict = {}
         for num, text in context_map.items():
             m = meta_map.get(num, {})
             title = m.get("title", "")
@@ -255,7 +254,7 @@ def assemble_report(
         })
 
     # ---- Cluster listesi ----
-    output_clusters: List[Dict] = []
+    output_clusters: list[dict] = []
     for cluster_id, cluster_data in clusters.items():
         qa_items = qa_by_cluster.get(cluster_id, [])
         if not qa_items:
@@ -310,10 +309,10 @@ def assemble_report(
 
 
 def save_report(
-    report: Dict,
+    report: dict,
     country: str,
     event: str,
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     suffix: str = "",
 ) -> Path:
     """
@@ -335,7 +334,7 @@ def save_report(
     return out_path
 
 
-def generate_markdown(report: Dict) -> str:
+def generate_markdown(report: dict) -> str:
     """
     Generates Markdown text from a report dict.
     """

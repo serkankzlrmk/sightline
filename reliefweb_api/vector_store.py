@@ -15,10 +15,9 @@ Usage:
     results = vs.search("Sudan flooding health", n_results=5, country="Sudan")
 """
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import List, Dict, Optional
 
 from config import VECTOR_BACKEND
 
@@ -90,8 +89,8 @@ class VectorStore:
     def add_report(
         self,
         report_id: int,
-        chunks: List[Dict],
-        report_meta: Dict,
+        chunks: list[dict],
+        report_meta: dict,
     ) -> int:
         """
         Embed and add all chunks for one report.
@@ -163,9 +162,9 @@ class VectorStore:
         self,
         query: str,
         n_results: int = 5,
-        country: Optional[str] = None,
-        source: Optional[str] = None,
-    ) -> List[Dict]:
+        country: str | None = None,
+        source: str | None = None,
+    ) -> list[dict]:
         """
         Semantic search over all ingested chunks.
 
@@ -232,7 +231,7 @@ class VectorStore:
     # STATS
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         if self.backend == "pgvector":
             return self._pgvector.get_stats()
         return {
@@ -241,7 +240,7 @@ class VectorStore:
             "persist_dir": str(Path(self.persist_dir).resolve()) if hasattr(self, 'persist_dir') and self.persist_dir else "N/A",
         }
 
-    def purge_by_report_ids(self, report_ids: List[int]) -> int:
+    def purge_by_report_ids(self, report_ids: list[int]) -> int:
         """Remove all chunks belonging to the given report_ids.
         
         Returns the number of chunk IDs removed.
@@ -269,13 +268,13 @@ class VectorStore:
                 # Fallback: try common chunk indices
                 for i in range(200):  # reasonable upper bound
                     chunk_ids_to_remove.append(f"{rid}_{i}")
-        
+
         if not chunk_ids_to_remove:
             return 0
-        
+
         # Deduplicate
         chunk_ids_to_remove = list(set(chunk_ids_to_remove))
-        
+
         # Delete in batches (ChromaDB has limits)
         batch_size = 500
         total_removed = 0
@@ -286,7 +285,7 @@ class VectorStore:
                 total_removed += len(batch)
             except Exception as e:
                 logger.warning(f"ChromaDB purge batch delete failed: {e}")
-        
+
         return total_removed
 
 

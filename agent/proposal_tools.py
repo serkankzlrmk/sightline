@@ -8,7 +8,6 @@ and narrative text in the SQLite database dynamically.
 import json
 import logging
 import sqlite3
-from typing import List, Dict, Any
 
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
@@ -33,20 +32,20 @@ def get_proposal_details(config: RunnableConfig) -> str:
     configurable = config.get("configurable", {})
     uid = configurable.get("uid", "")
     prop_id = configurable.get("proposal_id", "")
-    
+
     if not uid or not prop_id:
         return "Error: No active proposal or user ID configured in the session."
-        
+
     conn = _get_db()
     try:
         row = conn.execute(
             "SELECT title, country, event, themes, donor, date_from, date_to, toc, logframe, narrative FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return "Error: Proposal not found in the database."
-            
+
         data = {
             "title": row["title"],
             "country": row["country"],
@@ -80,17 +79,17 @@ def edit_proposal_toc(goal_impact: str, outcome: str, output: str, activity: str
     configurable = config.get("configurable", {})
     uid = configurable.get("uid", "")
     prop_id = configurable.get("proposal_id", "")
-    
+
     if not uid or not prop_id:
         return "Error: No active proposal or user ID configured in the session."
-        
+
     toc_nodes = [
         {"level": "impact", "text": goal_impact},
         {"level": "outcome", "text": outcome},
         {"level": "output", "text": output},
         {"level": "activity", "text": activity}
     ]
-    
+
     conn = _get_db()
     try:
         conn.execute(
@@ -121,23 +120,23 @@ def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str
     configurable = config.get("configurable", {})
     uid = configurable.get("uid", "")
     prop_id = configurable.get("proposal_id", "")
-    
+
     if not uid or not prop_id:
         return "Error: No active proposal or user ID configured in the session."
-        
+
     conn = _get_db()
     try:
         row = conn.execute(
             "SELECT logframe FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return "Error: Proposal not found."
-            
+
         lf = json.loads(row["logframe"])
         lf[field] = text
-        
+
         conn.execute(
             "UPDATE proposals SET logframe = ? WHERE id = ? AND uid = ?",
             (json.dumps(lf), prop_id, uid)
@@ -161,10 +160,10 @@ def edit_proposal_narrative(narrative: str, config: RunnableConfig) -> str:
     configurable = config.get("configurable", {})
     uid = configurable.get("uid", "")
     prop_id = configurable.get("proposal_id", "")
-    
+
     if not uid or not prop_id:
         return "Error: No active proposal or user ID configured in the session."
-        
+
     conn = _get_db()
     try:
         conn.execute(

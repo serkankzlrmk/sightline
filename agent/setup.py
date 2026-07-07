@@ -13,8 +13,9 @@ for _p in (_AGENT_DIR, _ROOT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from model import check_model_available, check_ollama_connectivity
+
 from config import config
-from model import check_ollama_connectivity, check_model_available
 
 logger = logging.getLogger(__name__)
 
@@ -30,21 +31,21 @@ def verify_dependencies():
         'requests',
         'python-dotenv',
     ]
-    
+
     missing = []
     for package in required_packages:
         try:
             __import__(package.replace('-', '_'))
         except ImportError:
             missing.append(package)
-    
+
     if missing:
         logger.error(f"Missing required packages: {', '.join(missing)}")
         logger.info(
             f"Install with: pip install {' '.join(missing)}"
         )
         return False
-    
+
     logger.info("✓ All required packages are installed")
     return True
 
@@ -55,10 +56,10 @@ def verify_directories():
         config.DOWNLOADS_DIR,
         config.CHROMA_DIR,
     ]
-    
+
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
-        
+
         # Test write permission
         test_file = directory / ".write_test"
         try:
@@ -68,7 +69,7 @@ def verify_directories():
         except Exception as e:
             logger.error(f"✗ Cannot write to {directory}: {e}")
             return False
-    
+
     return True
 
 
@@ -78,14 +79,14 @@ def verify_ollama():
         logger.error("✗ Ollama is not running")
         logger.info("Start Ollama with: ollama serve")
         return False
-    
+
     logger.info("✓ Ollama is running")
-    
+
     if not check_model_available(config.OLLAMA_MODEL):
         logger.warning(f"✗ Model {config.OLLAMA_MODEL} is not available")
         logger.info(f"Pull it with: ollama pull {config.OLLAMA_MODEL}")
         return False
-    
+
     logger.info(f"✓ Model {config.OLLAMA_MODEL} is available")
     return True
 
@@ -95,13 +96,13 @@ def run_setup():
     logger.info("="*60)
     logger.info("ReliefWeb Agent - System Setup Verification")
     logger.info("="*60)
-    
+
     checks = [
         ("Dependencies", verify_dependencies),
         ("Directories", verify_directories),
         ("Ollama", verify_ollama),
     ]
-    
+
     results = {}
     for name, check_fn in checks:
         logger.info(f"\n[{name}]")
@@ -110,17 +111,17 @@ def run_setup():
         except Exception as e:
             logger.error(f"Error during {name} check: {e}")
             results[name] = False
-    
+
     logger.info("\n" + "="*60)
     logger.info("SETUP SUMMARY")
     logger.info("="*60)
-    
+
     for name, passed in results.items():
         status = "✓ PASS" if passed else "✗ FAIL"
         logger.info(f"{name}: {status}")
-    
+
     all_passed = all(results.values())
-    
+
     if all_passed:
         logger.info("\n✓ System is ready to use!")
         return True
@@ -134,6 +135,6 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='%(levelname)s: %(message)s'
     )
-    
+
     success = run_setup()
     sys.exit(0 if success else 1)

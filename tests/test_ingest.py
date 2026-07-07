@@ -6,14 +6,9 @@ extract_pdf_text, is_ingested, and purge_old_reports.
 Uses a temporary SQLite DB for isolation.
 """
 
-import json
-import os
-import tempfile
-import pytest
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime, timedelta
 
+import pytest
 
 # ── chunk_text ──────────────────────────────────────────────────────────────────
 
@@ -204,7 +199,7 @@ class TestDatabaseManager:
         assert db.delete_report(999999) is False
 
     def test_purge_old_reports(self, db):
-        old_date = (datetime.now(timezone.utc) - timedelta(days=120)).strftime("%Y-%m-%d")
+        old_date = (datetime.now(UTC) - timedelta(days=120)).strftime("%Y-%m-%d")
         metadata_old = {
             "id": 11111,
             "title": "Old Report",
@@ -216,7 +211,7 @@ class TestDatabaseManager:
             "format": [],
             "language": [],
         }
-        recent_date = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%d")
+        recent_date = (datetime.now(UTC) - timedelta(days=10)).strftime("%Y-%m-%d")
         metadata_new = {
             "id": 22222,
             "title": "Recent Report",
@@ -240,8 +235,8 @@ class TestDatabaseManager:
 
 class TestIsIngested:
     def test_is_ingested_true(self, tmp_path):
-        from reliefweb_api.ingest_pipeline import is_ingested
         from reliefweb_api.db_manager import DatabaseManager
+        from reliefweb_api.ingest_pipeline import is_ingested
         db_path = str(tmp_path / "test_ingest.db")
         db = DatabaseManager(db_path)
         metadata = {
@@ -265,8 +260,8 @@ class TestIsIngested:
         assert is_ingested(999999, db_path) is False
 
     def test_is_ingested_with_pdf_true(self, tmp_path):
-        from reliefweb_api.ingest_pipeline import is_ingested_with_pdf
         from reliefweb_api.db_manager import DatabaseManager
+        from reliefweb_api.ingest_pipeline import is_ingested_with_pdf
         db_path = str(tmp_path / "test_ingest3.db")
         db = DatabaseManager(db_path)
         metadata = {
@@ -285,8 +280,8 @@ class TestIsIngested:
         assert is_ingested_with_pdf(55555, db_path) is True
 
     def test_is_ingested_with_pdf_false_when_html_only(self, tmp_path):
-        from reliefweb_api.ingest_pipeline import is_ingested_with_pdf
         from reliefweb_api.db_manager import DatabaseManager
+        from reliefweb_api.ingest_pipeline import is_ingested_with_pdf
         db_path = str(tmp_path / "test_ingest4.db")
         db = DatabaseManager(db_path)
         metadata = {

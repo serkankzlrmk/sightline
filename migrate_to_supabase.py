@@ -30,17 +30,15 @@ import argparse
 import json
 import os
 import sys
-import time
 from pathlib import Path
-from typing import List, Dict, Optional
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import DB_PATH, CHROMA_DIR, CHROMA_COLLECTION
+from config import CHROMA_COLLECTION, CHROMA_DIR, DB_PATH
 
 
-def get_sqlite_reports(db_path: str) -> List[Dict]:
+def get_sqlite_reports(db_path: str) -> list[dict]:
     """Read all reports from SQLite."""
     import sqlite3
     conn = sqlite3.connect(db_path)
@@ -50,7 +48,7 @@ def get_sqlite_reports(db_path: str) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_sqlite_chunks(db_path: str) -> List[Dict]:
+def get_sqlite_chunks(db_path: str) -> list[dict]:
     """Read all chunks from SQLite."""
     import sqlite3
     conn = sqlite3.connect(db_path)
@@ -60,7 +58,7 @@ def get_sqlite_chunks(db_path: str) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_chromadb_chunks_with_embeddings(chroma_dir: str, collection_name: str) -> List[Dict]:
+def get_chromadb_chunks_with_embeddings(chroma_dir: str, collection_name: str) -> list[dict]:
     """Read all chunks with embeddings from ChromaDB."""
     import chromadb
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
@@ -174,9 +172,9 @@ def create_supabase_schema(db_url: str):
     print("Schema created successfully!")
 
 
-def migrate_reports(reports: List[Dict], supabase_url: str, supabase_key: str, dry_run: bool = False) -> int:
+def migrate_reports(reports: list[dict], supabase_url: str, supabase_key: str, dry_run: bool = False) -> int:
     """Migrate reports to Supabase using REST API."""
-    from supabase import create_client, Client
+    from supabase import Client, create_client
 
     client: Client = create_client(supabase_url, supabase_key)
 
@@ -237,7 +235,7 @@ def migrate_reports(reports: List[Dict], supabase_url: str, supabase_key: str, d
 
 
 def migrate_chunks_with_embeddings(
-    chroma_chunks: List[Dict],
+    chroma_chunks: list[dict],
     db_url: str,
     dry_run: bool = False,
 ) -> int:
@@ -303,9 +301,10 @@ def migrate_chunks_with_embeddings(
 
 def verify_migration(db_url: str, sqlite_path: str, chroma_dir: str, collection_name: str):
     """Verify migration by comparing counts."""
-    import psycopg2
     import sqlite3
+
     import chromadb
+    import psycopg2
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
     # PostgreSQL counts

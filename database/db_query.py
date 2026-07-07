@@ -1,7 +1,7 @@
-import sys
+import json
 import os
 import sqlite3
-import json
+import sys
 from pathlib import Path
 
 # Ensure project root is on sys.path (for reliefweb_api, config, etc.)
@@ -14,6 +14,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 # Use config for DB path (respects .env overrides)
 from config import DB_PATH as _DEFAULT_DB_PATH
+
 DB_PATH = str(_DEFAULT_DB_PATH)
 
 
@@ -170,11 +171,11 @@ def show_stats():
         except Exception:
             pass
 
-    print(f"\n=== Veritabani Istatistikleri ===")
+    print("\n=== Veritabani Istatistikleri ===")
     print(f"Toplam rapor : {report_count}")
     print(f"Toplam chunk : {chunk_count}")
     if country_counts:
-        print(f"\nUlkeye gore:")
+        print("\nUlkeye gore:")
         for c, cnt in sorted(country_counts.items(), key=lambda x: -x[1]):
             print(f"  {c:<30} {cnt} rapor")
 

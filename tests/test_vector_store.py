@@ -5,10 +5,7 @@ Uses a temporary directory for ChromaDB persistence to avoid
 touching the production vector store.
 """
 
-import json
-import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestVectorStoreInit:

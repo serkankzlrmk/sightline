@@ -14,14 +14,14 @@ Usage:
         path = generate_weekly_bulletin("2026-06-01", "2026-06-07")
 """
 
-import sys
+import argparse
 import json
 import logging
-import argparse
-from pathlib import Path
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+import sys
 from collections import Counter
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 # Ensure sitrep/ and project root are on sys.path
 _SITREP_DIR = str(Path(__file__).parent.resolve())
@@ -31,11 +31,9 @@ for _p in (_SITREP_DIR, _ROOT_DIR):
         sys.path.insert(0, _p)
 
 from config import (
-    OUTPUT_DIR,
-    OUTPUT_BULLETINS_DIR,
-    LLM_MODEL,
-    BULLETIN_MAX_COUNTRIES,
     BULLETIN_CHUNK_LIMIT,
+    BULLETIN_MAX_COUNTRIES,
+    OUTPUT_BULLETINS_DIR,
 )
 
 logging.basicConfig(
@@ -53,7 +51,7 @@ BULLETINS_DIR = OUTPUT_BULLETINS_DIR
 # ---------------------------------------------------------------------------
 # Country coordinates (approximate center lat/lng for map dots)
 # ---------------------------------------------------------------------------
-COUNTRY_COORDS: Dict[str, Dict] = {
+COUNTRY_COORDS: dict[str, dict] = {
     "Sudan": {"lat": 15.5, "lng": 32.5},
     "South Sudan": {"lat": 7.0, "lng": 30.0},
     "Ukraine": {"lat": 48.5, "lng": 31.2},
@@ -159,7 +157,7 @@ def _get_db():
     return ChromaAdapter()
 
 
-def _get_available_date_range(db) -> Optional[Dict]:
+def _get_available_date_range(db) -> dict | None:
     """
     Query the vector store for the actual date range of available data.
     Returns {'date_from': 'YYYY-MM-DD', 'date_to': 'YYYY-MM-DD'} or None.
@@ -192,7 +190,7 @@ def _get_available_date_range(db) -> Optional[Dict]:
 def fetch_reports_by_date_range(
     date_from: str,
     date_to: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Fetch reports from the vector store for a date range,
     grouped by primary_country.
@@ -212,7 +210,7 @@ def fetch_reports_by_date_range(
     # Get all countries with data
     countries_with_counts = db.list_countries_with_counts()
 
-    grouped: Dict[str, List[Dict]] = {}
+    grouped: dict[str, list[dict]] = {}
     used_fallback = False
     actual_from = date_from
     actual_to = date_to
@@ -313,7 +311,7 @@ def fetch_reports_by_date_range(
     }
 
 
-def _determine_severity(report_count: int, themes: List[str]) -> str:
+def _determine_severity(report_count: int, themes: list[str]) -> str:
     """Determine crisis severity based on report count and themes."""
     conflict_themes = {"Conflict", "Protection", "Displacement"}
     if report_count >= SEVERITY_HIGH_THRESHOLD:
@@ -332,11 +330,11 @@ def _determine_severity(report_count: int, themes: List[str]) -> str:
 
 def generate_crisis_summary(
     country: str,
-    reports: List[Dict],
+    reports: list[dict],
     date_from: str,
     date_to: str,
     hdx_context_text: str = "",
-) -> Optional[Dict]:
+) -> dict | None:
     """Generate a crisis summary for a single country using LLM."""
     from llm_client import chat_simple
 
@@ -399,7 +397,7 @@ def generate_crisis_summary(
 
 
 def generate_global_overview(
-    crises: List[Dict],
+    crises: list[dict],
     date_from: str,
     date_to: str,
     total_reports: int,
@@ -477,7 +475,7 @@ def generate_weekly_bulletin(
             "week_start": date_from,
             "week_end": date_to,
             "week_label": f"{date_from} to {date_to}",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "total_reports": 0,
             "total_chunks": 0,
             "countries_affected": 0,
@@ -662,7 +660,7 @@ def generate_weekly_bulletin(
         "week_start": bulletin_week_start,
         "week_end": bulletin_week_end,
         "week_label": bulletin_week_label,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "total_reports": total_reports,
         "total_chunks": sum(len(r) for r in grouped.values()),
         "countries_affected": len(crises),
@@ -685,7 +683,7 @@ def generate_weekly_bulletin(
     return _save_bulletin(bulletin, date_from, date_to)
 
 
-def _save_bulletin(bulletin: Dict, date_from: str, date_to: str) -> Path:
+def _save_bulletin(bulletin: dict, date_from: str, date_to: str) -> Path:
     """Save bulletin JSON to output/bulletins/ directory."""
     # Use ISO week format for filename
     try:
@@ -709,7 +707,7 @@ def _save_bulletin(bulletin: Dict, date_from: str, date_to: str) -> Path:
 # List bulletins
 # ---------------------------------------------------------------------------
 
-def list_bulletins() -> List[Dict]:
+def list_bulletins() -> list[dict]:
     """List available bulletins, sorted by date descending."""
     if not BULLETINS_DIR.exists():
         return []
@@ -717,7 +715,7 @@ def list_bulletins() -> List[Dict]:
     bulletins = []
     for f in sorted(BULLETINS_DIR.glob("*_bulletin.json"), reverse=True):
         try:
-            with open(f, "r", encoding="utf-8") as fh:
+            with open(f, encoding="utf-8") as fh:
                 data = json.load(fh)
             bulletins.append({
                 "filename": f.name,
@@ -736,7 +734,7 @@ def list_bulletins() -> List[Dict]:
     return bulletins
 
 
-def get_bulletin(filename: str) -> Optional[Dict]:
+def get_bulletin(filename: str) -> dict | None:
     """Load a specific bulletin by filename."""
     base = BULLETINS_DIR.resolve()
     path = (BULLETINS_DIR / filename).resolve()
@@ -746,7 +744,7 @@ def get_bulletin(filename: str) -> Optional[Dict]:
     if not path.exists():
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as exc:
         logger.warning("Failed to read bulletin %s: %s", filename, exc)

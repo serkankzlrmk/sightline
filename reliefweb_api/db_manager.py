@@ -7,13 +7,12 @@ Schema:
   chunks   → text chunks for vector embedding later (source: pdf or html)
 """
 
-import sqlite3
 import json
-import re
 import logging
+import re
+import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +128,8 @@ class DatabaseManager:
 
     def insert_report(
         self,
-        metadata: Dict,
-        chunks: List[Dict],
+        metadata: dict,
+        chunks: list[dict],
         has_pdf: bool = False,
         has_content: bool = False,
         pdf_pages: int = 0,
@@ -173,7 +172,7 @@ class DatabaseManager:
         language = languages[0].get("code", "") if languages else ""
 
         from datetime import datetime as _dt
-        now = _dt.now(timezone.utc).isoformat()
+        now = _dt.now(UTC).isoformat()
 
         conn = self._connect()
         try:
@@ -228,7 +227,7 @@ class DatabaseManager:
     # STATS
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         conn = self._connect()
         try:
             row = conn.execute(
@@ -288,7 +287,7 @@ class DatabaseManager:
         Returns the number of reports purged.
         """
         from datetime import timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
         conn = self._connect()
         try:
             # Get report_ids to purge (needed for ChromaDB cleanup)
@@ -314,10 +313,10 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def get_old_report_ids(self, days: int = 90) -> List[int]:
+    def get_old_report_ids(self, days: int = 90) -> list[int]:
         """Return list of report_ids older than `days` days (for ChromaDB purge)."""
         from datetime import timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
         conn = self._connect()
         try:
             return [row[0] for row in conn.execute(
@@ -331,7 +330,7 @@ class DatabaseManager:
 # TEXT CHUNKING
 # ============================================================================
 
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
     """
     Split text into overlapping chunks for RAG embedding.
     Tries to break at sentence/paragraph boundaries when possible.
@@ -365,7 +364,7 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return chunks
 
 
-def build_chunk_with_header(raw_chunk: str, metadata: Dict, source_type: str) -> str:
+def build_chunk_with_header(raw_chunk: str, metadata: dict, source_type: str) -> str:
     """
     Prepend a compact metadata header to each chunk so the LLM has context
     when retrieving it in RAG.
@@ -400,7 +399,7 @@ def build_chunk_with_header(raw_chunk: str, metadata: Dict, source_type: str) ->
 # PDF TEXT EXTRACTION
 # ============================================================================
 
-def extract_pdf_text(pdf_path: str) -> Tuple[str, int]:
+def extract_pdf_text(pdf_path: str) -> tuple[str, int]:
     """
     Extract text from a PDF file using PyPDF2.
     Returns (text, page_count).

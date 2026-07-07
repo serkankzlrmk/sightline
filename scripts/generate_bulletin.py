@@ -12,8 +12,8 @@ Usage:
     python scripts/generate_bulletin.py --skip-llm --last-week
 """
 
-import sys
 import argparse
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 

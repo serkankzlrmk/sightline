@@ -16,18 +16,17 @@ Usage:
 """
 
 import logging
-from typing import Optional
 
 from langchain.tools import tool
 
+from reliefweb_api.reliefweb_utils import format_error, format_response
 from reliefweb_api.worldbank_client import WorldBankClient, to_iso2
-from reliefweb_api.reliefweb_utils import format_response, format_error
 
 logger = logging.getLogger(__name__)
 
 # ── Global World Bank client singleton ───────────────────────────────────────
 # Initialized in server.py after config is loaded.
-_worldbank_client: Optional[WorldBankClient] = None
+_worldbank_client: WorldBankClient | None = None
 
 
 def init_worldbank_tools(base_url: str = "", timeout: float = 15.0,
@@ -52,7 +51,7 @@ def init_worldbank_tools(base_url: str = "", timeout: float = 15.0,
         return False
 
 
-def get_worldbank_client() -> Optional[WorldBankClient]:
+def get_worldbank_client() -> WorldBankClient | None:
     """Get the global World Bank client singleton."""
     return _worldbank_client
 

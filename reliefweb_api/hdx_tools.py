@@ -18,20 +18,18 @@ Usage:
   conflict statistics). ReliefWeb tools are used for qualitative reports.
 """
 
-import json
 import logging
-from typing import Optional
 
 from langchain.tools import tool
 
 from reliefweb_api.hdx_client import HDXClient
-from reliefweb_api.reliefweb_utils import format_response, format_error
+from reliefweb_api.reliefweb_utils import format_error, format_response
 
 logger = logging.getLogger(__name__)
 
 # ── Global HDX client singleton ──────────────────────────────────────────────
 # Initialized in server.py after config is loaded.
-_hdx_client: Optional[HDXClient] = None
+_hdx_client: HDXClient | None = None
 
 
 def init_hdx_tools(app_identifier: str = "", base_url: str = "",
@@ -60,7 +58,7 @@ def init_hdx_tools(app_identifier: str = "", base_url: str = "",
         return False
 
 
-def get_hdx_client() -> Optional[HDXClient]:
+def get_hdx_client() -> HDXClient | None:
     """Get the global HDX client singleton."""
     return _hdx_client
 

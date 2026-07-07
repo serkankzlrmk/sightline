@@ -14,56 +14,48 @@ Usage:
 """
 
 import json
+import os
 import re
 import sqlite3
-import requests
 import tempfile
-import os
-from typing import Optional
-from PyPDF2 import PdfReader
+
+import requests
 from langchain.tools import tool
-
-from .reliefweb_config import (
-    RELIEFWEB_APPNAME,
-    RELIEFWEB_REPORTS_API,
-    RELIEFWEB_DISASTERS_API,
-    RELIEFWEB_SOURCES_API,
-    API_TIMEOUT_SHORT,
-    API_TIMEOUT_LONG,
-    PDF_DOWNLOAD_TIMEOUT,
-    REPORT_LIMIT_MAX,
-    REPORT_LIMIT_DEFAULT,
-    DISASTER_LIMIT_MAX,
-    DISASTER_LIMIT_DEFAULT,
-    HEADLINE_LIMIT_DEFAULT,
-    BLOG_LIMIT_DEFAULT,
-    SUMMARY_DAYS_DEFAULT,
-    SUMMARY_CHAR_LIMIT,
-    PDF_SIZE_LIMIT,
-    PDF_SIZE_LIMIT_MB,
-    LOCAL_DB_PATH,
-    _ssl_verify,
-)
-
-from .reliefweb_utils import (
-    normalize_country_name,
-    clean_html_body,
-    truncate_text,
-    format_response,
-    format_error,
-    validate_country,
-    validate_limit,
-    validate_date,
-    retry_request,
-)
+from PyPDF2 import PdfReader
 
 from .pdf_converter import ReportFormatConverter
+from .reliefweb_config import (
+    API_TIMEOUT_SHORT,
+    DISASTER_LIMIT_MAX,
+    LOCAL_DB_PATH,
+    PDF_DOWNLOAD_TIMEOUT,
+    PDF_SIZE_LIMIT,
+    PDF_SIZE_LIMIT_MB,
+    RELIEFWEB_APPNAME,
+    RELIEFWEB_DISASTERS_API,
+    RELIEFWEB_REPORTS_API,
+    RELIEFWEB_SOURCES_API,
+    REPORT_LIMIT_MAX,
+    SUMMARY_CHAR_LIMIT,
+    _ssl_verify,
+)
+from .reliefweb_utils import (
+    clean_html_body,
+    format_error,
+    format_response,
+    normalize_country_name,
+    retry_request,
+    truncate_text,
+    validate_country,
+    validate_date,
+    validate_limit,
+)
 
 # ========================================================================
 # LOCAL DB HELPERS — read from SQLite before hitting the external API
 # ========================================================================
 
-def _local_report_meta(report_id: int) -> Optional[dict]:
+def _local_report_meta(report_id: int) -> dict | None:
     """Return the reports row as a dict, or None if not found."""
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
@@ -96,20 +88,20 @@ def _local_report_chunks(report_id: int) -> list:
 
 @tool
 def search_sitreps(
-    country: Optional[str] = None,
-    query: Optional[str] = None,
+    country: str | None = None,
+    query: str | None = None,
     limit: int = 25,
-    theme: Optional[str] = None,
-    source_org: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    format_type: Optional[str] = None,
-    language: Optional[str] = None,
-    primary_country: Optional[str] = None,
-    disaster: Optional[str] = None,
-    disaster_type: Optional[str] = None,
-    source_fullname: Optional[str] = None,
-    organization_type: Optional[str] = None,
+    theme: str | None = None,
+    source_org: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    format_type: str | None = None,
+    language: str | None = None,
+    primary_country: str | None = None,
+    disaster: str | None = None,
+    disaster_type: str | None = None,
+    source_fullname: str | None = None,
+    organization_type: str | None = None,
 ) -> str:
     """
     Search for humanitarian reports from ReliefWeb with advanced filters.
@@ -263,7 +255,7 @@ def search_sitreps(
 # ========================================================================
 
 @tool
-def get_sitrep_summary(report_id: Optional[int] = None, ids: Optional[list] = None) -> str:
+def get_sitrep_summary(report_id: int | None = None, ids: list | None = None) -> str:
     """
     Get a summary of a specific report.
     
@@ -287,7 +279,7 @@ def get_sitrep_summary(report_id: Optional[int] = None, ids: Optional[list] = No
             # If ids is provided as a list, use the first one
             if isinstance(ids, list) and len(ids) > 0:
                 actual_report_id = ids[0]
-        
+
         # Validate input
         if actual_report_id is None:
             return format_error("InvalidInput", "Either report_id or ids must be provided")
@@ -359,7 +351,7 @@ def get_sitrep_summary(report_id: Optional[int] = None, ids: Optional[list] = No
 # ========================================================================
 
 @tool
-def get_report_full_content(report_id: Optional[int] = None, ids: Optional[list] = None) -> str:
+def get_report_full_content(report_id: int | None = None, ids: list | None = None) -> str:
     """
     Get FULL content of a report.
     
@@ -383,7 +375,7 @@ def get_report_full_content(report_id: Optional[int] = None, ids: Optional[list]
             # If ids is provided as a list, use the first one
             if isinstance(ids, list) and len(ids) > 0:
                 actual_report_id = ids[0]
-        
+
         # Validate input
         if actual_report_id is None:
             return format_error("InvalidInput", "Either report_id or ids must be provided")
@@ -479,7 +471,7 @@ def get_report_full_content(report_id: Optional[int] = None, ids: Optional[list]
 # ========================================================================
 
 @tool
-def search_disasters(country: Optional[str] = None, status: str = "current", limit: int = 20) -> str:
+def search_disasters(country: str | None = None, status: str = "current", limit: int = 20) -> str:
     """
     Search for disasters and emergencies from ReliefWeb.
     
@@ -502,11 +494,11 @@ def search_disasters(country: Optional[str] = None, status: str = "current", lim
         # Validate inputs
         if status not in ["current", "past", "all"]:
             return format_error("InvalidInput", "Status must be 'current', 'past', or 'all'")
-        
+
         is_valid, error_msg = validate_limit(limit, DISASTER_LIMIT_MAX)
         if not is_valid:
             return format_error("InvalidInput", error_msg)
-        
+
         # Build API request
         body = {
             "limit": min(limit, DISASTER_LIMIT_MAX),
@@ -514,46 +506,46 @@ def search_disasters(country: Optional[str] = None, status: str = "current", lim
                 "include": ["id", "name", "type", "status", "date", "country", "url", "glide"]
             }
         }
-        
+
         # Add filters
         conditions = []
-        
+
         if country:
             normalized_country = normalize_country_name(country)
             conditions.append({
                 "field": "country.name",
                 "value": normalized_country
             })
-        
+
         if status != "all":
             status_value = "ongoing" if status == "current" else "past"
             conditions.append({
                 "field": "status",
                 "value": status_value
             })
-        
+
         if conditions:
             if len(conditions) == 1:
                 body["filter"] = conditions[0]
             else:
                 body["filter"] = {"conditions": conditions, "operator": "AND"}
-        
+
         # Make API request
         url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
         response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
-        
+
         # Extract disasters
         disasters_data = data.get("data", [])
         if not disasters_data:
             return format_response([])
-        
+
         disasters = []
         for item in disasters_data:
             fields = item.get("fields", {})
             country_list = [c.get("name", "") for c in fields.get("country", [])]
-            
+
             disasters.append({
                 "id": item.get("id"),
                 "name": fields.get("name", ""),
@@ -564,9 +556,9 @@ def search_disasters(country: Optional[str] = None, status: str = "current", lim
                 "glide": fields.get("glide", ""),
                 "url": fields.get("url", "")
             })
-        
+
         return format_response(disasters)
-    
+
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to fetch disasters: {str(e)}")
     except Exception as e:
@@ -580,8 +572,8 @@ def search_disasters(country: Optional[str] = None, status: str = "current", lim
 @tool
 def search_disasters_by_date(
     start_date: str,
-    country: Optional[str] = None,
-    end_date: Optional[str] = None,
+    country: str | None = None,
+    end_date: str | None = None,
     limit: int = 20
 ) -> str:
     """
@@ -607,16 +599,16 @@ def search_disasters_by_date(
         is_valid, error_msg = validate_limit(limit, DISASTER_LIMIT_MAX)
         if not is_valid:
             return format_error("InvalidInput", error_msg)
-        
+
         is_valid, error_msg = validate_date(start_date)
         if not is_valid:
             return format_error("InvalidInput", f"start_date: {error_msg}")
-        
+
         if end_date:
             is_valid, error_msg = validate_date(end_date)
             if not is_valid:
                 return format_error("InvalidInput", f"end_date: {error_msg}")
-        
+
         # Build API request
         body = {
             "limit": min(limit, DISASTER_LIMIT_MAX),
@@ -625,10 +617,10 @@ def search_disasters_by_date(
                 "include": ["id", "name", "type", "status", "date", "country", "url"]
             }
         }
-        
+
         # Build filters
         conditions = []
-        
+
         # Date range filter
         date_filter = {"field": "date"}
         if end_date:
@@ -639,7 +631,7 @@ def search_disasters_by_date(
         else:
             date_filter["value"] = {"from": f"{start_date}T00:00:00+00:00"}
         conditions.append(date_filter)
-        
+
         # Country filter
         if country:
             normalized_country = normalize_country_name(country)
@@ -647,29 +639,29 @@ def search_disasters_by_date(
                 "field": "country.name",
                 "value": normalized_country
             })
-        
+
         # Apply filters
         if len(conditions) == 1:
             body["filter"] = conditions[0]
         else:
             body["filter"] = {"conditions": conditions, "operator": "AND"}
-        
+
         # Make API request
         url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
         response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
-        
+
         # Extract disasters
         disasters_data = data.get("data", [])
         if not disasters_data:
             return format_response([])
-        
+
         disasters = []
         for item in disasters_data:
             fields = item.get("fields", {})
             country_list = [c.get("name", "") for c in fields.get("country", [])]
-            
+
             disasters.append({
                 "id": item.get("id"),
                 "name": fields.get("name", ""),
@@ -679,9 +671,9 @@ def search_disasters_by_date(
                 "countries": country_list,
                 "url": fields.get("url", "")
             })
-        
+
         return format_response(disasters)
-    
+
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to fetch disasters: {str(e)}")
     except Exception as e:
@@ -714,7 +706,7 @@ def get_latest_headlines(limit: int = 15) -> str:
         is_valid, error_msg = validate_limit(limit, 50)
         if not is_valid:
             return format_error("InvalidInput", error_msg)
-        
+
         # Build API request
         body = {
             "preset": "latest",
@@ -724,27 +716,27 @@ def get_latest_headlines(limit: int = 15) -> str:
                 "include": ["id", "title", "date", "source", "url", "country", "theme"]
             }
         }
-        
+
         # Make API request
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
         response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
-        
+
         # Extract headlines
         headlines_data = data.get("data", [])
         if not headlines_data:
             return format_response([])
-        
+
         headlines = []
         for item in headlines_data:
             fields = item.get("fields", {})
             source_info = fields.get("source", [])
             source_name = source_info[0].get("shortname", "Unknown") if source_info else "Unknown"
-            
+
             countries = [c.get("name", "") for c in fields.get("country", [])]
             themes = [t.get("name", "") for t in fields.get("theme", [])]
-            
+
             headlines.append({
                 "id": item.get("id"),
                 "title": fields.get("title", ""),
@@ -754,9 +746,9 @@ def get_latest_headlines(limit: int = 15) -> str:
                 "themes": themes,
                 "url": fields.get("url", "")
             })
-        
+
         return format_response(headlines)
-    
+
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to fetch headlines: {str(e)}")
     except Exception as e:
@@ -789,7 +781,7 @@ def get_latest_blog_posts(limit: int = 10) -> str:
         is_valid, error_msg = validate_limit(limit, 30)
         if not is_valid:
             return format_error("InvalidInput", error_msg)
-        
+
         # Build API request - use latest reports as blog source
         body = {
             "preset": "latest",
@@ -799,25 +791,25 @@ def get_latest_blog_posts(limit: int = 10) -> str:
                 "include": ["id", "title", "date", "source", "url", "source.type"]
             }
         }
-        
+
         # Make API request
         url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
         response = retry_request("post", url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
-        
+
         # Extract posts
         posts_data = data.get("data", [])
         if not posts_data:
             return format_response([])
-        
+
         posts = []
         for item in posts_data:
             fields = item.get("fields", {})
             source_info = fields.get("source", [])
             source_name = source_info[0].get("shortname", "Unknown") if source_info else "Unknown"
             source_type = source_info[0].get("type", "") if source_info else ""
-            
+
             posts.append({
                 "id": item.get("id"),
                 "title": fields.get("title", ""),
@@ -826,9 +818,9 @@ def get_latest_blog_posts(limit: int = 10) -> str:
                 "source_type": source_type,
                 "url": fields.get("url", "")
             })
-        
+
         return format_response(posts)
-    
+
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to fetch blog posts: {str(e)}")
     except Exception as e:
@@ -860,10 +852,10 @@ def get_recent_updates_summary(days: int = 7) -> str:
         # Validate input
         if not isinstance(days, int) or days < 1:
             return format_error("InvalidInput", "Days must be a positive integer")
-        
+
         if days > 365:
             return format_error("InvalidInput", "Days must be 365 or less")
-        
+
         # Get recent disasters
         disasters_body = {
             "limit": 10,
@@ -872,12 +864,12 @@ def get_recent_updates_summary(days: int = 7) -> str:
                 "include": ["id", "name", "type", "status", "date", "country"]
             }
         }
-        
+
         disasters_url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
         disasters_response = retry_request("post", disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         disasters_response.raise_for_status()
         disasters_data = disasters_response.json().get("data", [])
-        
+
         # Get recent headlines
         headlines_body = {
             "preset": "latest",
@@ -887,12 +879,12 @@ def get_recent_updates_summary(days: int = 7) -> str:
                 "include": ["id", "title", "date", "source", "country"]
             }
         }
-        
+
         headlines_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
         headlines_response = retry_request("post", headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         headlines_response.raise_for_status()
         headlines_data = headlines_response.json().get("data", [])
-        
+
         # Format results
         result = {
             "period": f"Last {days} days",
@@ -916,9 +908,9 @@ def get_recent_updates_summary(days: int = 7) -> str:
                 for item in headlines_data
             ]
         }
-        
+
         return format_response(result)
-    
+
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to fetch updates: {str(e)}")
     except Exception as e:
@@ -930,7 +922,7 @@ def get_recent_updates_summary(days: int = 7) -> str:
 # ========================================================================
 
 @tool
-def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[list] = None) -> str:
+def download_and_read_full_pdf(report_id: int | None = None, ids: list | None = None) -> str:
     """
     Download and read PDF attachment from a report.
     
@@ -954,22 +946,22 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
             # If ids is provided as a list, use the first one
             if isinstance(ids, list) and len(ids) > 0:
                 actual_report_id = ids[0]
-        
+
         # Validate input
         if actual_report_id is None:
             return format_error("InvalidInput", "Either report_id or ids must be provided")
-        
+
         if not isinstance(actual_report_id, int) or actual_report_id < 1:
             return format_error("InvalidInput", "Report ID must be a positive integer")
-        
+
         # Get report to find PDF attachment
         url = f"{RELIEFWEB_REPORTS_API}/{actual_report_id}?appname={RELIEFWEB_APPNAME}"
         response = retry_request("get", url, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
         response.raise_for_status()
         data = response.json()
-        
+
         fields = data["data"][0]["fields"]
-        
+
         # Find PDF file in attachments
         files = fields.get("file", [])
         pdf_file = None
@@ -977,15 +969,15 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
             if file_item.get("mimetype", "").lower() == "application/pdf":
                 pdf_file = file_item
                 break
-        
+
         if not pdf_file:
             return format_response({"message": "No PDF attachment found in this report"})
-        
+
         # Get PDF URL and metadata
         pdf_url = pdf_file.get("url", "")
         pdf_filename = pdf_file.get("filename", "report.pdf")
         pdf_size = int(pdf_file.get("filesize", 0))
-        
+
         # Check file size
         if pdf_size > PDF_SIZE_LIMIT:
             return format_response({
@@ -997,25 +989,25 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
                 "pdf_url": pdf_url,
                 "suggestion": f"PDF exceeds {PDF_SIZE_LIMIT_MB}MB limit. Use get_report_full_content for summary."
             })
-        
+
         # Download PDF
         pdf_response = retry_request("get", pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
         pdf_response.raise_for_status()
-        
+
         # Write to temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
             tmp_file.write(pdf_response.content)
             tmp_path = tmp_file.name
-        
+
         try:
             # Extract text from PDF
             reader = PdfReader(tmp_path)
             full_text = ""
-            
+
             for page_num, page in enumerate(reader.pages, 1):
                 page_text = page.extract_text()
                 full_text += f"\n\n--- PAGE {page_num} ---\n\n{page_text}"
-            
+
             # Prepare result
             result = {
                 "report_id": actual_report_id,
@@ -1032,14 +1024,14 @@ def download_and_read_full_pdf(report_id: Optional[int] = None, ids: Optional[li
                 "full_pdf_content": full_text.strip(),
                 "content_length_chars": len(full_text)
             }
-            
+
             return format_response(result)
-        
+
         finally:
             # Clean up temporary file
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-    
+
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to download PDF: {str(e)}")
     except Exception as e:
@@ -1074,7 +1066,7 @@ def ingest_report_from_api(report_id: int) -> str:
             return format_error("InvalidInput", "Report ID must be a positive integer")
 
         # --- dedup check (allow re-ingest if PDF missing) ---
-        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
+        from .ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
         if is_ingested(report_id) and is_ingested_with_pdf(report_id):
             return format_response({
                 "status": "already_ingested",
@@ -1132,7 +1124,7 @@ def ingest_reports_batch(report_ids: list) -> str:
             if rid < 1:
                 return format_error("InvalidInput", f"Invalid report ID: {rid}")
 
-        from .ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
+        from .ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
 
         results = {"ingested": [], "skipped": [], "errors": []}
 
@@ -1205,16 +1197,16 @@ def convert_report_to_markdown(report_id: int, output_dir: str = "output") -> st
     try:
         if not isinstance(report_id, int) or report_id < 1:
             return format_error("InvalidInput", "Report ID must be a positive integer")
-        
+
         converter = ReportFormatConverter()
         result = converter.download_and_convert_report(
             report_id,
             output_dir,
             formats=['markdown']
         )
-        
+
         return format_response(result)
-    
+
     except Exception as e:
         return format_error("ConversionError", str(e))
 
@@ -1244,16 +1236,16 @@ def convert_report_to_json(report_id: int, output_dir: str = "output") -> str:
     try:
         if not isinstance(report_id, int) or report_id < 1:
             return format_error("InvalidInput", "Report ID must be a positive integer")
-        
+
         converter = ReportFormatConverter()
         result = converter.download_and_convert_report(
             report_id,
             output_dir,
             formats=['json']
         )
-        
+
         return format_response(result)
-    
+
     except Exception as e:
         return format_error("ConversionError", str(e))
 
@@ -1285,31 +1277,31 @@ def convert_reports_batch(report_ids: list, output_dir: str = "output", format_t
     try:
         if not isinstance(report_ids, list) or len(report_ids) == 0:
             return format_error("InvalidInput", "report_ids must be a non-empty list")
-        
+
         # Validate format
         if format_type not in ['markdown', 'json', 'both']:
             return format_error("InvalidInput", "format_type must be 'markdown', 'json', or 'both'")
-        
+
         # Validate IDs
         for rid in report_ids:
             if not isinstance(rid, int) or rid < 1:
                 return format_error("InvalidInput", f"Invalid report ID: {rid}")
-        
+
         formats = {
             'markdown': ['markdown'],
             'json': ['json'],
             'both': ['markdown', 'json']
         }[format_type]
-        
+
         converter = ReportFormatConverter()
         summary = converter.batch_convert_reports(
             report_ids,
             output_dir,
             formats
         )
-        
+
         return format_response(summary)
-    
+
     except Exception as e:
         return format_error("ConversionError", str(e))
 
@@ -1323,8 +1315,8 @@ def convert_reports_batch(report_ids: list, output_dir: str = "output", format_t
 def search_knowledge_base(
     query: str,
     n_results: int = 5,
-    country: Optional[str] = None,
-    source_org: Optional[str] = None,
+    country: str | None = None,
+    source_org: str | None = None,
 ) -> str:
     """
     Search the local vector knowledge base (ChromaDB) for relevant content
@@ -1350,7 +1342,7 @@ def search_knowledge_base(
         search_knowledge_base.invoke({"query": "food insecurity", "source_org": "WFP"})
     """
     try:
-        from .vector_store import VectorStore, CHROMA_DIR
+        from .vector_store import CHROMA_DIR, VectorStore
         vs = VectorStore(CHROMA_DIR)
         stats = vs.get_stats()
 
@@ -1479,8 +1471,8 @@ def parse_reliefweb_url(url: str) -> str:
 @tool
 def search_sources(
     query: str,
-    country: Optional[str] = None,
-    org_type: Optional[str] = None,
+    country: str | None = None,
+    org_type: str | None = None,
     limit: int = 10,
 ) -> str:
     """

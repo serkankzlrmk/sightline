@@ -12,16 +12,15 @@ Usage:
     results = vs.search("Sudan flooding health", n_results=5, country="Sudan")
 """
 
-import os
 import json
 import logging
-from typing import List, Dict, Optional
+import os
 
 logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
-    from psycopg2 import sql, extras
+    from psycopg2 import extras, sql
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
@@ -38,14 +37,12 @@ except ImportError:
     np = None
 
 from config import (
-    SUPABASE_DB_URL,
-    SUPABASE_URL,
-    SUPABASE_SERVICE_KEY,
     EMBEDDING_DIM,
     RETRIEVAL_TOP_K,
-    RETRIEVAL_TOP_K_SUMMARY,
+    SUPABASE_DB_URL,
+    SUPABASE_SERVICE_KEY,
+    SUPABASE_URL,
 )
-
 
 # ============================================================================
 # CONFIGURATION
@@ -315,8 +312,8 @@ class PgVectorStore:
     def add_report(
         self,
         report_id: int,
-        chunks: List[Dict],
-        report_meta: Dict,
+        chunks: list[dict],
+        report_meta: dict,
     ) -> int:
         """
         Embed and add all chunks for one report.
@@ -440,9 +437,9 @@ class PgVectorStore:
         self,
         query: str,
         n_results: int = RETRIEVAL_TOP_K,
-        country: Optional[str] = None,
-        source: Optional[str] = None,
-    ) -> List[Dict]:
+        country: str | None = None,
+        source: str | None = None,
+    ) -> list[dict]:
         """
         Semantic search over all ingested chunks using pgvector.
 
@@ -466,12 +463,12 @@ class PgVectorStore:
         param_idx = 3
 
         if country:
-            conditions.append(f"primary_country = %s")
+            conditions.append("primary_country = %s")
             params.append(country)
             param_idx += 1
 
         if source:
-            conditions.append(f"source = %s")
+            conditions.append("source = %s")
             params.append(source)
             param_idx += 1
 
@@ -532,7 +529,7 @@ class PgVectorStore:
     # STATS
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Return database statistics."""
         if self._use_rest:
             headers = self._rest_headers()
@@ -589,7 +586,7 @@ class PgVectorStore:
     # PURGE
     # -------------------------------------------------------------------------
 
-    def purge_by_report_ids(self, report_ids: List[int]) -> int:
+    def purge_by_report_ids(self, report_ids: list[int]) -> int:
         """Remove all chunks belonging to the given report_ids.
         Reports are also deleted via CASCADE.
 
@@ -624,7 +621,7 @@ class PgVectorStore:
     # LIST COUNTRIES / THEMES (for SITREP)
     # -------------------------------------------------------------------------
 
-    def list_countries(self) -> List[str]:
+    def list_countries(self) -> list[str]:
         """Get unique primary_country values from chunks."""
         if self._use_rest:
             result = self._rest_rpc("list_countries")
@@ -640,7 +637,7 @@ class PgVectorStore:
         finally:
             cur.close()
 
-    def list_countries_with_counts(self) -> List[Dict]:
+    def list_countries_with_counts(self) -> list[dict]:
         """Get countries with chunk counts, ordered by count descending."""
         if self._use_rest:
             result = self._rest_rpc("list_countries_with_counts")
@@ -658,7 +655,7 @@ class PgVectorStore:
         finally:
             cur.close()
 
-    def list_themes(self) -> List[str]:
+    def list_themes(self) -> list[str]:
         """Get unique themes from chunks (comma-separated field)."""
         if self._use_rest:
             result = self._rest_rpc("list_themes")
@@ -680,7 +677,7 @@ class PgVectorStore:
         finally:
             cur.close()
 
-    def get_date_range(self, country: str) -> Dict:
+    def get_date_range(self, country: str) -> dict:
         """Get min/max date for chunks matching a country."""
         if self._use_rest:
             result = self._rest_rpc("get_date_range", {"country_name": country})
@@ -705,7 +702,7 @@ class PgVectorStore:
         self,
         country: str,
         limit: int = 2000,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Get all chunks for a given country."""
         cur = self._get_cursor()
         try:
@@ -739,11 +736,11 @@ class PgVectorStore:
     def get_chunks_by_country_and_themes(
         self,
         country: str,
-        themes: Optional[List[str]] = None,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
+        themes: list[str] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
         limit: int = 2000,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Country filter is required; themes and date range are optional.
         Uses SQL for efficient filtering.
@@ -811,10 +808,10 @@ class PgVectorStore:
     def retrieve(
         self,
         query: str,
-        country: Optional[str] = None,
+        country: str | None = None,
         k: int = RETRIEVAL_TOP_K,
-        candidate_pool: Optional[List[Dict]] = None,
-    ) -> List[Dict]:
+        candidate_pool: list[dict] | None = None,
+    ) -> list[dict]:
         """
         Returns the k closest chunks to the query.
 
@@ -878,11 +875,11 @@ class PgVectorStore:
 
     def retrieve_bulk(
         self,
-        queries: List[str],
-        country: Optional[str] = None,
+        queries: list[str],
+        country: str | None = None,
         k: int = RETRIEVAL_TOP_K,
-        candidate_pool: Optional[List[Dict]] = None,
-    ) -> List[List[Dict]]:
+        candidate_pool: list[dict] | None = None,
+    ) -> list[list[dict]]:
         """Bulk retrieval for multiple queries."""
         return [
             self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool)
@@ -890,8 +887,8 @@ class PgVectorStore:
         ]
 
     def _retrieve_from_pool(
-        self, query: str, pool: List[Dict], k: int
-    ) -> List[Dict]:
+        self, query: str, pool: list[dict], k: int
+    ) -> list[dict]:
         """
         Compares chunks in the pool against the query and returns top-k.
         Uses numpy for cosine similarity computation.

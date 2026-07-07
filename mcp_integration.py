@@ -17,18 +17,16 @@ Usage in relief_agent.py:
     # MCP_TOOLS is a list of LangChain BaseTool objects (sync)
 """
 
-import os
 import asyncio
 import logging
+import os
 import threading
-import time
 from datetime import date
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
 # MCP tools loaded at startup (sync-wrapped LangChain BaseTool list)
-MCP_TOOLS: List = []
+MCP_TOOLS: list = []
 _mcp_initialized = False
 _mcp_lock = threading.Lock()
 
@@ -116,7 +114,7 @@ def _configure_servers():
     return servers
 
 
-def _load_mcp_tools_async() -> List:
+def _load_mcp_tools_async() -> list:
     """Async: connect to MCP servers and load tools. Returns list of LangChain BaseTool."""
     from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -246,7 +244,7 @@ def init_mcp_tools() -> bool:
     return False
 
 
-async def _load_mcp_tools_async_impl() -> List:
+async def _load_mcp_tools_async_impl() -> list:
     """Async implementation: connect to MCP servers and load tools."""
     from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -276,6 +274,6 @@ async def _load_mcp_tools_async_impl() -> List:
     return all_tools
 
 
-def get_mcp_tools() -> List:
+def get_mcp_tools() -> list:
     """Return the list of sync-wrapped MCP tools. Empty if not initialized."""
     return MCP_TOOLS

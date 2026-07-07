@@ -11,13 +11,12 @@ Usage:
         report_path = run_pipeline("Sudan", "Sudan conflict")
 """
 
-import sys
-import os
+import argparse
 import json
 import logging
-import argparse
+import os
+import sys
 from pathlib import Path
-from typing import Optional
 
 # Ensure sitrep/ (for chroma_adapter, clustering, etc.) and project root
 # (for config.py) are on sys.path — needed when run as a subprocess.
@@ -28,11 +27,11 @@ for _p in (_SITREP_DIR, _ROOT_DIR):
         sys.path.insert(0, _p)
 
 from config import (
+    OUTPUT_ANSWERS_DIR,
     OUTPUT_CLUSTERS_DIR,
     OUTPUT_QUESTIONS_DIR,
-    OUTPUT_ANSWERS_DIR,
-    OUTPUT_SUMMARIES_DIR,
     OUTPUT_REPORTS_DIR,
+    OUTPUT_SUMMARIES_DIR,
 )
 
 logging.basicConfig(
@@ -52,7 +51,7 @@ def _safe_name(country: str, event: str) -> str:
     return f"{country}_{event}".replace(" ", "_").replace("/", "-")
 
 
-def _filter_hash(themes: Optional[list], date_from: Optional[str], date_to: Optional[str]) -> str:
+def _filter_hash(themes: list | None, date_from: str | None, date_to: str | None) -> str:
     """Generates a short hash based on theme/date filters (for checkpoint differentiation)."""
     import hashlib
     parts = []
@@ -87,7 +86,7 @@ def _load_checkpoint(step_name: str, country: str, event: str, suffix: str = "")
     path = _checkpoint_path(step_name, country, event, suffix)
     if path.exists():
         logger.info("  [CHECKPOINT] '%s' loaded: %s", step_name, path)
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -107,9 +106,9 @@ def _save_checkpoint(data, step_name: str, country: str, event: str, suffix: str
 def run_pipeline(
     country: str,
     event: str,
-    themes: Optional[list] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
+    themes: list | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     skip_cache: bool = False,
 ) -> Path:
     """
@@ -314,7 +313,7 @@ def run_pipeline(
                 for fname in os.listdir(answers_ckpt_dir):
                     if fname.startswith("answers_") and fname.endswith(".json") and fname != "answers_progress.json":
                         try:
-                            with open(os.path.join(answers_ckpt_dir, fname), "r", encoding="utf-8") as pf:
+                            with open(os.path.join(answers_ckpt_dir, fname), encoding="utf-8") as pf:
                                 partial.extend(json.load(pf))
                         except Exception:
                             pass
@@ -403,7 +402,7 @@ def run_pipeline(
 
     # ---- Step 9: Report assembly ----
     logger.info("[9] Assembling final report...")
-    from report_assembly import assemble_report, save_report, generate_markdown
+    from report_assembly import assemble_report, generate_markdown, save_report
 
     report = assemble_report(
         country=country,

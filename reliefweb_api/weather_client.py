@@ -26,11 +26,11 @@ Entegrasyon:
 Open-Meteo API: https://open-meteo.com/en/docs
 """
 
-import os
-import time
 import logging
+import os
 import threading
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any
 
 import httpx
 
@@ -45,9 +45,9 @@ class SimpleCache:
     def __init__(self, ttl: int = 3600, max_size: int = 200):
         self.ttl = ttl
         self.max_size = max_size
-        self._cache: Dict[str, tuple] = {}
+        self._cache: dict[str, tuple] = {}
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         if key in self._cache:
             value, ts = self._cache[key]
             if time.time() - ts < self.ttl:
@@ -64,7 +64,7 @@ class SimpleCache:
     def clear(self) -> None:
         self._cache.clear()
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {"size": len(self._cache), "max_size": self.max_size, "ttl": self.ttl}
 
 
@@ -72,7 +72,7 @@ class SimpleCache:
 # WMO Weather Code Mapping
 # ============================================================================
 
-WMO_WEATHER_CODES: Dict[int, str] = {
+WMO_WEATHER_CODES: dict[int, str] = {
     0: "Clear sky",
     1: "Mainly clear",
     2: "Partly cloudy",
@@ -143,8 +143,8 @@ class WeatherClient:
         self.rate_limit_requests = rate_limit_requests
         self.rate_limit_period = rate_limit_period
 
-        self._sync_client: Optional[httpx.Client] = None
-        self._request_timestamps: List[float] = []
+        self._sync_client: httpx.Client | None = None
+        self._request_timestamps: list[float] = []
         self._rate_lock = threading.Lock()
 
     @classmethod
@@ -201,8 +201,8 @@ class WeatherClient:
     # Internal HTTP helper
     # =========================================================================
 
-    def _request(self, base: str, params: Dict[str, Any],
-                 cache: Optional[SimpleCache] = None) -> Optional[Dict[str, Any]]:
+    def _request(self, base: str, params: dict[str, Any],
+                 cache: SimpleCache | None = None) -> dict[str, Any] | None:
         """Perform a GET request and return parsed JSON, or None on error.
 
         Results are cached in `cache` when provided, keyed by base+params.
@@ -239,14 +239,14 @@ class WeatherClient:
     # Public API — Geocoding
     # =========================================================================
 
-    def geocode(self, location_name: str, country_code: Optional[str] = None,
-                limit: int = 5) -> List[Dict[str, Any]]:
+    def geocode(self, location_name: str, country_code: str | None = None,
+                limit: int = 5) -> list[dict[str, Any]]:
         """Geocode a place name to coordinates via Open-Meteo Geocoding API.
 
         Returns a list of dicts with keys:
           name, latitude, longitude, country, country_code, admin1, population
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "name": location_name,
             "count": min(max(limit, 1), 10),
             "language": "en",
@@ -260,7 +260,7 @@ class WeatherClient:
             return []
 
         results = data.get("results") or []
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for r in results:
             out.append({
                 "name": r.get("name", ""),
@@ -278,7 +278,7 @@ class WeatherClient:
     # =========================================================================
 
     def get_forecast(self, latitude: float, longitude: float,
-                     days: int = 7) -> Dict[str, Any]:
+                     days: int = 7) -> dict[str, Any]:
         """Get current conditions + daily forecast for a coordinate.
 
         Returns dict:
@@ -291,7 +291,7 @@ class WeatherClient:
           location: {latitude, longitude}
         """
         days = min(max(days, 1), 16)
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "latitude": round(float(latitude), 4),
             "longitude": round(float(longitude), 4),
             "timezone": "auto",
@@ -371,12 +371,12 @@ class WeatherClient:
         "co": 4.0,         # mg/m³ 24-hour mean
     }
 
-    def get_air_quality(self, latitude: float, longitude: float) -> Dict[str, Any]:
+    def get_air_quality(self, latitude: float, longitude: float) -> dict[str, Any]:
         """Get current air quality readings (PM2.5, PM10, NO2, SO2, O3, CO).
 
         Returns dict with current readings and WHO guideline comparison.
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "latitude": round(float(latitude), 4),
             "longitude": round(float(longitude), 4),
             "timezone": "auto",
@@ -408,7 +408,7 @@ class WeatherClient:
         o3 = cur_raw.get("ozone")
         co = cur_raw.get("carbon_monoxide")
 
-        def _who_ratio(value: Optional[float], key: str) -> Optional[float]:
+        def _who_ratio(value: float | None, key: str) -> float | None:
             if value is None:
                 return None
             guideline = self.WHO_GUIDELINES.get(key)

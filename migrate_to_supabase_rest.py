@@ -27,14 +27,12 @@ import argparse
 import json
 import os
 import sys
-import time
 from pathlib import Path
-from typing import List, Dict, Optional
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import DB_PATH, CHROMA_DIR, CHROMA_COLLECTION
+from config import CHROMA_COLLECTION, CHROMA_DIR, DB_PATH
 
 # Supabase config from env
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -66,7 +64,7 @@ def get_sql_headers() -> dict:
 # READ FROM SQLITE
 # ============================================================================
 
-def get_sqlite_reports(db_path: str) -> List[Dict]:
+def get_sqlite_reports(db_path: str) -> list[dict]:
     """Read all reports from SQLite."""
     import sqlite3
     conn = sqlite3.connect(db_path)
@@ -89,7 +87,7 @@ def get_sqlite_report_count(db_path: str) -> int:
 # READ FROM CHROMADB
 # ============================================================================
 
-def get_chromadb_chunks_with_embeddings(chroma_dir: str, collection_name: str) -> List[Dict]:
+def get_chromadb_chunks_with_embeddings(chroma_dir: str, collection_name: str) -> list[dict]:
     """Read all chunks with embeddings from ChromaDB."""
     import chromadb
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
@@ -136,7 +134,7 @@ def get_chromadb_chunks_with_embeddings(chroma_dir: str, collection_name: str) -
 # MIGRATE VIA REST API
 # ============================================================================
 
-def migrate_reports_via_api(reports: List[Dict], dry_run: bool = False) -> int:
+def migrate_reports_via_api(reports: list[dict], dry_run: bool = False) -> int:
     """Migrate reports to Supabase using REST API."""
     import requests
 
@@ -211,7 +209,7 @@ def migrate_reports_via_api(reports: List[Dict], dry_run: bool = False) -> int:
     return migrated
 
 
-def migrate_chunks_via_api(chroma_chunks: List[Dict], dry_run: bool = False) -> int:
+def migrate_chunks_via_api(chroma_chunks: list[dict], dry_run: bool = False) -> int:
     """
     Migrate chunks with embeddings to Supabase using SQL RPC.
 
@@ -291,9 +289,8 @@ def migrate_chunks_via_api(chroma_chunks: List[Dict], dry_run: bool = False) -> 
     return migrated
 
 
-def update_embeddings_via_sql(chroma_chunks: List[Dict], dry_run: bool = False) -> int:
+def update_embeddings_via_sql(chroma_chunks: list[dict], dry_run: bool = False) -> int:
     """Update embeddings for chunks using Supabase SQL RPC."""
-    import requests
 
     # First, create the update function via SQL RPC
     # We'll use the exec_sql RPC if available, or create a custom one
@@ -340,8 +337,8 @@ def update_embeddings_via_sql(chroma_chunks: List[Dict], dry_run: bool = False) 
     if dry_run:
         print(f"  [DRY RUN] Would update {updated} embeddings")
     else:
-        print(f"  Note: Embeddings need to be updated via SQL Editor or direct DB connection")
-        print(f"  Chunks are inserted without embeddings. Use the SQL below to update embeddings.")
+        print("  Note: Embeddings need to be updated via SQL Editor or direct DB connection")
+        print("  Chunks are inserted without embeddings. Use the SQL below to update embeddings.")
 
     return updated
 
@@ -399,7 +396,7 @@ def verify_via_api() -> None:
     print("\n=== Migration Verification ===")
     print(f"  Reports:  SQLite={sqlite_reports}, Supabase={pg_reports}, Match={'✅' if sqlite_reports == pg_reports else '❌'}")
     print(f"  Chunks:   SQLite={sqlite_chunks}, ChromaDB={chroma_count}, Supabase={pg_chunks}")
-    print(f"  Embeddings: Need direct DB connection to verify (use SQL Editor)")
+    print("  Embeddings: Need direct DB connection to verify (use SQL Editor)")
 
 
 # ============================================================================

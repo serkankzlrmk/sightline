@@ -12,19 +12,15 @@ Schema mirrors the SQLite schema but uses native PostgreSQL types:
 """
 
 import os
-import json
-import re
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Tuple
+from datetime import UTC, datetime
 
 try:
-    from supabase import create_client, Client
+    from supabase import Client, create_client
 except ImportError:
     raise ImportError(
         "supabase is required. Install it with: pip install supabase"
     )
 
-from config import DB_PATH, CHUNK_SIZE, CHUNK_OVERLAP
 
 
 # ============================================================================
@@ -93,8 +89,8 @@ class SupabaseDB:
 
     def insert_report(
         self,
-        metadata: Dict,
-        chunks: List[Dict],
+        metadata: dict,
+        chunks: list[dict],
         has_pdf: bool = False,
         has_content: bool = False,
         pdf_pages: int = 0,
@@ -136,7 +132,7 @@ class SupabaseDB:
         languages = metadata.get("language", [])
         language = languages[0].get("code", "") if languages else ""
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # Insert report
         report_row = {
@@ -178,7 +174,7 @@ class SupabaseDB:
     # STATS
     # -------------------------------------------------------------------------
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Return database statistics."""
         # Supabase doesn't have a direct COUNT(*) REST endpoint,
         # so we use RPC or approximate
@@ -253,7 +249,7 @@ class SupabaseDB:
     def purge_old_reports(self, days: int = 90) -> int:
         """Delete reports (and their chunks) older than `days` days."""
         from datetime import timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
 
         # Get old report IDs
         result = (
@@ -272,10 +268,10 @@ class SupabaseDB:
         self.client.table("reports").in_("report_id", old_ids).execute()
         return len(old_ids)
 
-    def get_old_report_ids(self, days: int = 90) -> List[int]:
+    def get_old_report_ids(self, days: int = 90) -> list[int]:
         """Return list of report_ids older than `days` days."""
         from datetime import timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
         result = (
             self.client.table("reports")
             .select("report_id")
@@ -288,7 +284,7 @@ class SupabaseDB:
     # QUERIES (for SITREP fallback)
     # -------------------------------------------------------------------------
 
-    def list_countries(self) -> List[str]:
+    def list_countries(self) -> list[str]:
         """Get unique countries from reports table."""
         result = (
             self.client.table("reports")
@@ -304,7 +300,7 @@ class SupabaseDB:
                         countries_set.add(c.strip())
         return sorted(countries_set)
 
-    def list_themes(self) -> List[str]:
+    def list_themes(self) -> list[str]:
         """Get unique themes from reports table."""
         result = (
             self.client.table("reports")
@@ -320,7 +316,7 @@ class SupabaseDB:
                         themes_set.add(t.strip())
         return sorted(themes_set)
 
-    def get_date_range(self, country: str) -> Dict:
+    def get_date_range(self, country: str) -> dict:
         """Get min/max date for reports matching a country."""
         # Supabase doesn't support JSONB contains in REST API easily,
         # so we fetch all and filter in Python
@@ -340,7 +336,7 @@ class SupabaseDB:
             return {"min": min(dates), "max": max(dates), "count": len(dates)}
         return {"min": None, "max": None, "count": 0}
 
-    def get_chunks_by_report_id(self, report_id: int) -> List[Dict]:
+    def get_chunks_by_report_id(self, report_id: int) -> list[dict]:
         """Get all chunks for a specific report."""
         result = (
             self.client.table("chunks")
@@ -351,7 +347,7 @@ class SupabaseDB:
         )
         return result.data
 
-    def get_report_metadata(self, report_id: int) -> Optional[Dict]:
+    def get_report_metadata(self, report_id: int) -> dict | None:
         """Get metadata for a specific report."""
         result = (
             self.client.table("reports")

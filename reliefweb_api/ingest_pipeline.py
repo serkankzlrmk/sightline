@@ -8,33 +8,32 @@ Used by:
   - server.py /api/ingest/download route (in-memory ingest, no disk writes)
 """
 
-import json
 import io
+import json
 import logging
-import requests
 from pathlib import Path
-from typing import Dict, Optional
+
+from config import VECTOR_BACKEND
 
 from .db_manager import (
-    DatabaseManager,
-    extract_pdf_text,
-    chunk_text,
-    build_chunk_with_header,
-    CHUNK_SIZE,
     CHUNK_OVERLAP,
+    CHUNK_SIZE,
     DEFAULT_DB_PATH,
+    DatabaseManager,
+    build_chunk_with_header,
+    chunk_text,
+    extract_pdf_text,
 )
-from .vector_store import VectorStore, CHROMA_DIR
-from config import VECTOR_BACKEND
 from .reliefweb_config import (
-    RELIEFWEB_REPORTS_API,
-    RELIEFWEB_APPNAME,
     API_TIMEOUT_LONG,
     PDF_DOWNLOAD_TIMEOUT,
     PDF_SIZE_LIMIT,
+    RELIEFWEB_APPNAME,
+    RELIEFWEB_REPORTS_API,
     _ssl_verify,
 )
 from .reliefweb_utils import clean_html_body, retry_request
+from .vector_store import CHROMA_DIR, VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ def auto_ingest(
     downloads_root: str = "reliefweb_downloads",
     db_path: str = DEFAULT_DB_PATH,
     chroma_dir: str = CHROMA_DIR,
-) -> Dict:
+) -> dict:
     """
     Read a downloaded report from disk and ingest into SQLite + ChromaDB.
 
@@ -191,7 +190,7 @@ def ingest_from_api(
     report_id: int,
     db_path: str = DEFAULT_DB_PATH,
     chroma_dir: str = CHROMA_DIR,
-) -> Dict:
+) -> dict:
     """
     Fetch a report from ReliefWeb API, process it entirely in memory,
     and insert into SQLite + ChromaDB — **no files written to disk**.

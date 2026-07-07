@@ -10,17 +10,15 @@ Controlled by VECTOR_BACKEND env var (default: 'chromadb').
 """
 
 import os
-from typing import List, Dict, Optional
 
 os.environ["ORT_LOGGING_LEVEL"] = "3"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 from config import (
-    CHROMA_DIR,
     CHROMA_COLLECTION,
-    VECTOR_BACKEND,
+    CHROMA_DIR,
     RETRIEVAL_TOP_K,
-    RETRIEVAL_TOP_K_SUMMARY,
+    VECTOR_BACKEND,
 )
 
 
@@ -83,7 +81,7 @@ class ChromaAdapter:
             return self._get_pgvector().count()
         return self.collection.count()
 
-    def list_countries(self) -> List[str]:
+    def list_countries(self) -> list[str]:
         """Returns unique primary_country values — cached after first call."""
         if self._countries_cache is not None:
             return self._countries_cache
@@ -91,7 +89,7 @@ class ChromaAdapter:
         self._countries_cache = result
         return result
 
-    def _list_countries_uncached(self) -> List[str]:
+    def _list_countries_uncached(self) -> list[str]:
         """Internal: fetches unique primary_country values from backend."""
         # Try pgvector first
         if self.backend == "pgvector":
@@ -117,7 +115,7 @@ class ChromaAdapter:
         # SQLite fallback
         return self._sqlite_list_countries()
 
-    def list_themes(self) -> List[str]:
+    def list_themes(self) -> list[str]:
         """Returns unique theme values — pgvector or ChromaDB, then SQLite fallback."""
         # Try pgvector first
         if self.backend == "pgvector":
@@ -149,7 +147,7 @@ class ChromaAdapter:
         # SQLite fallback
         return self._sqlite_list_themes()
 
-    def get_date_range(self, country: str) -> Dict:
+    def get_date_range(self, country: str) -> dict:
         """Returns the available date range for a given country.
         Uses metadata-only query (no embeddings) for performance."""
         normalized = self._normalize_country(country)
@@ -262,7 +260,7 @@ class ChromaAdapter:
         # No match found — return original (will likely return 0 results)
         return country
 
-    def list_countries_with_counts(self) -> List[Dict]:
+    def list_countries_with_counts(self) -> list[dict]:
         """Returns countries with chunk counts, sorted by count descending.
         Useful for UI dropdowns to show data availability."""
         if self._countries_with_counts_cache is not None:
@@ -280,7 +278,7 @@ class ChromaAdapter:
         try:
             if self.collection.count() > 0:
                 results = self.collection.get(include=["metadatas"])
-                counts: Dict[str, int] = {}
+                counts: dict[str, int] = {}
                 for m in results["metadatas"]:
                     c = m.get("primary_country", "")
                     if c:
@@ -306,7 +304,7 @@ class ChromaAdapter:
         self,
         country: str,
         limit: int = 2000,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Returns all chunks belonging to a given country.
         Normalizes country name for better matching.
@@ -330,11 +328,11 @@ class ChromaAdapter:
     def get_chunks_by_country_and_themes(
         self,
         country: str,
-        themes: Optional[List[str]] = None,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
+        themes: list[str] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
         limit: int = 2000,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Country filter is required; themes and date range are optional.
         themes: Filters with OR logic. If empty, fetches by country filter only.
@@ -390,10 +388,10 @@ class ChromaAdapter:
     def retrieve(
         self,
         query: str,
-        country: Optional[str] = None,
+        country: str | None = None,
         k: int = RETRIEVAL_TOP_K,
-        candidate_pool: Optional[List[Dict]] = None,
-    ) -> List[Dict]:
+        candidate_pool: list[dict] | None = None,
+    ) -> list[dict]:
         """
         Returns the k closest chunks to the query.
 
@@ -429,11 +427,11 @@ class ChromaAdapter:
 
     def retrieve_bulk(
         self,
-        queries: List[str],
-        country: Optional[str] = None,
+        queries: list[str],
+        country: str | None = None,
         k: int = RETRIEVAL_TOP_K,
-        candidate_pool: Optional[List[Dict]] = None,
-    ) -> List[List[Dict]]:
+        candidate_pool: list[dict] | None = None,
+    ) -> list[list[dict]]:
         """
         Bulk retrieval for multiple queries (used before RRF).
         Returns a separate result list for each query.
@@ -452,8 +450,8 @@ class ChromaAdapter:
     # ------------------------------------------------------------------
 
     def _retrieve_from_pool(
-        self, query: str, pool: List[Dict], k: int
-    ) -> List[Dict]:
+        self, query: str, pool: list[dict], k: int
+    ) -> list[dict]:
         """
         Compares chunks in the pool against the query and returns top-k.
         Uses DefaultEmbeddingFunction for embedding computation.
@@ -507,7 +505,7 @@ class ChromaAdapter:
             })
         return results
 
-    def _format_results(self, results: Dict) -> List[Dict]:
+    def _format_results(self, results: dict) -> list[dict]:
         """Converts get() results to a standard dict list."""
         ids = results.get("ids", [])
         docs = results.get("documents")
@@ -548,7 +546,7 @@ class ChromaAdapter:
             output.append(entry)
         return output
 
-    def _format_query_results(self, results: Dict) -> List[Dict]:
+    def _format_query_results(self, results: dict) -> list[dict]:
         """Converts query() results to a standard dict list."""
         docs = results["documents"][0]
         metas = results["metadatas"][0]
@@ -575,12 +573,13 @@ class ChromaAdapter:
     # SQLite fallback methods (used when vector store is unavailable)
     # ------------------------------------------------------------------
 
-    def _sqlite_list_countries(self) -> List[str]:
+    def _sqlite_list_countries(self) -> list[str]:
         """SQLite fallback for list_countries."""
         try:
             import json as _json
-            from config import DB_PATH
             import sqlite3
+
+            from config import DB_PATH
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
             conn.close()
@@ -596,12 +595,13 @@ class ChromaAdapter:
         except Exception:
             return []
 
-    def _sqlite_list_themes(self) -> List[str]:
+    def _sqlite_list_themes(self) -> list[str]:
         """SQLite fallback for list_themes."""
         try:
             import json as _json
-            from config import DB_PATH
             import sqlite3
+
+            from config import DB_PATH
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
             conn.close()
@@ -617,12 +617,13 @@ class ChromaAdapter:
         except Exception:
             return []
 
-    def _sqlite_get_date_range(self, normalized: str, country: str) -> Dict:
+    def _sqlite_get_date_range(self, normalized: str, country: str) -> dict:
         """SQLite fallback for get_date_range."""
         try:
             import json as _json
-            from config import DB_PATH
             import sqlite3
+
+            from config import DB_PATH
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
                 "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
@@ -643,21 +644,22 @@ class ChromaAdapter:
             pass
         return {"min": None, "max": None, "count": 0}
 
-    def _sqlite_list_countries_with_counts(self) -> List[Dict]:
+    def _sqlite_list_countries_with_counts(self) -> list[dict]:
         """SQLite fallback for list_countries_with_counts.
         Parses the `countries` JSON array column (each report may list multiple countries).
         """
         try:
             import json as _json
-            from config import DB_PATH
             import sqlite3
+
+            from config import DB_PATH
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
                 "SELECT countries FROM reports "
                 "WHERE countries IS NOT NULL AND countries != '[]'"
             ).fetchall()
             conn.close()
-            counts: Dict[str, int] = {}
+            counts: dict[str, int] = {}
             for row in rows:
                 try:
                     for c in _json.loads(row[0]):

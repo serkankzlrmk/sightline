@@ -14,9 +14,8 @@ Used by:
 - narrative_report.py (key figures in narrative)
 """
 
-import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("hdx_enrichment")
 
@@ -27,12 +26,11 @@ logger = logging.getLogger("hdx_enrichment")
 
 from reliefweb_api.country_codes import get_iso_code
 
-
 # ---------------------------------------------------------------------------
 # HDX data fetching
 # ---------------------------------------------------------------------------
 
-def fetch_hdx_context(country: str) -> Optional[Dict[str, Any]]:
+def fetch_hdx_context(country: str) -> dict[str, Any] | None:
     """
     Fetch HDX context data for a country.
 
@@ -89,7 +87,7 @@ def fetch_hdx_context(country: str) -> Optional[Dict[str, Any]]:
 # HDX data formatting for LLM prompts
 # ---------------------------------------------------------------------------
 
-def format_hdx_summary_for_prompt(hdx_context: Optional[Dict[str, Any]]) -> str:
+def format_hdx_summary_for_prompt(hdx_context: dict[str, Any] | None) -> str:
     """
     Format HDX summary data for injection into an LLM prompt.
 
@@ -147,7 +145,7 @@ def format_hdx_summary_for_prompt(hdx_context: Optional[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def format_hdx_for_rag_context(hdx_context: Optional[Dict[str, Any]]) -> str:
+def format_hdx_for_rag_context(hdx_context: dict[str, Any] | None) -> str:
     """
     Format HDX data as a numbered source for RAG answer context.
 
@@ -242,7 +240,7 @@ def format_hdx_for_rag_context(hdx_context: Optional[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def format_hdx_for_bulletin(hdx_context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def format_hdx_for_bulletin(hdx_context: dict[str, Any] | None) -> dict[str, Any]:
     """
     Format HDX data for inclusion in a weekly bulletin crisis entry.
 
@@ -327,7 +325,7 @@ def format_hdx_for_bulletin(hdx_context: Optional[Dict[str, Any]]) -> Dict[str, 
     }
 
 
-def format_hdx_for_narrative(hdx_context: Optional[Dict[str, Any]]) -> str:
+def format_hdx_for_narrative(hdx_context: dict[str, Any] | None) -> str:
     """
     Format HDX data for injection into the narrative report prompt.
 

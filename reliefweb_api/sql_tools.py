@@ -8,8 +8,8 @@ This is a custom alternative to mcp-server-sqlite — simpler, safer, no subproc
 """
 
 import logging
-import sqlite3
 import re
+import sqlite3
 import time
 from pathlib import Path
 

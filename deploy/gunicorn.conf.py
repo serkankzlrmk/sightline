@@ -1,10 +1,10 @@
 # Gunicorn configuration for Sightline
 # Usage: gunicorn -c deploy/gunicorn.conf.py server:app
 
-import os
 
 # Server socket
 import os as _os
+
 _container = _os.getenv("CONTAINER_MODE", "false").lower() == "true"
 bind = "0.0.0.0:5001" if _container else "127.0.0.1:5001"
 backlog = 2048
@@ -22,6 +22,7 @@ max_requests_jitter = 50
 
 # Logging — stdout for Docker, file for bare metal
 import os as _os
+
 _use_container = _os.getenv("CONTAINER_MODE", "false").lower() == "true"
 if _use_container:
     accesslog = "-"

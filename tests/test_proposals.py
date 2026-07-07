@@ -1,8 +1,11 @@
 import json
-import pytest
 from unittest.mock import patch
+
+import pytest
+
 import auth
 import server
+
 
 @pytest.fixture
 def app():
@@ -29,7 +32,7 @@ class TestProposalsAPI:
         fake_token = {"uid": "test-user-123", "role": "free"}
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token):
-            
+
             # 1. Create a proposal
             create_resp = client.post(
                 "/api/proposals/new",
@@ -47,7 +50,7 @@ class TestProposalsAPI:
             prop_id = data["id"]
             assert data["title"] == "WASH South Sudan"
             assert data["country"] == "Sudan"
-            
+
             # 2. Get the proposal details
             get_resp = client.get(
                 f"/api/proposals/{prop_id}",
@@ -68,7 +71,7 @@ class TestProposalsAPI:
                 }
             )
             assert update_resp.status_code == 200
-            
+
             # Verify update
             get_resp2 = client.get(
                 f"/api/proposals/{prop_id}",
@@ -77,7 +80,7 @@ class TestProposalsAPI:
             get_data2 = json.loads(get_resp2.data)
             assert get_data2["title"] == "WASH South Sudan v2"
             assert get_data2["donor"] == "USAID"
-            
+
             # 4. List proposals
             list_resp = client.get(
                 "/api/proposals",
@@ -87,14 +90,14 @@ class TestProposalsAPI:
             list_data = json.loads(list_resp.data)
             assert len(list_data) >= 1
             assert any(p["id"] == prop_id for p in list_data)
-            
+
             # 5. Delete proposal
             delete_resp = client.delete(
                 f"/api/proposals/{prop_id}",
                 headers={"Authorization": "Bearer token"}
             )
             assert delete_resp.status_code == 200
-            
+
             # Verify deleted
             get_resp_deleted = client.get(
                 f"/api/proposals/{prop_id}",
@@ -107,7 +110,7 @@ class TestProposalsAPI:
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token), \
              patch("reliefweb_api.vector_store.VectorStore") as mock_vector_store:
-             
+
             # Create a test proposal
             create_resp = client.post(
                 "/api/proposals/new",
@@ -148,11 +151,12 @@ class TestProposalsAPI:
 
             # Mock Advisor Chat critique and command execution
             from unittest.mock import MagicMock
+
             from langchain_core.messages import AIMessage
             mock_advisor_response = 'I suggest updating the output node. <cmd>{"action": "update_toc", "index": 2, "text": "10 modern wells drilled"}</cmd>'
             mock_agent = MagicMock()
             mock_agent.invoke.return_value = {"messages": [AIMessage(content=mock_advisor_response)]}
-            
+
             with patch("server._get_agent", return_value=mock_agent):
                 adv_resp = client.post(
                     f"/api/proposals/{prop_id}/advisor/chat",
@@ -187,7 +191,7 @@ class TestProposalsAPI:
         fake_token = {"uid": "test-user-123", "role": "free"}
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token):
-             
+
             # 1. Create proposal
             create_resp = client.post(
                 "/api/proposals/new",
@@ -219,12 +223,13 @@ class TestProposalsAPI:
 
     def test_proposal_advisor_agent_chat(self, client):
         from unittest.mock import MagicMock
+
         from langchain_core.messages import AIMessage
-        
+
         fake_token = {"uid": "test-user-123", "role": "admin"}
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token):
-             
+
             # 1. Create proposal
             create_resp = client.post(
                 "/api/proposals/new",
@@ -246,7 +251,7 @@ class TestProposalsAPI:
             )
             mock_agent = MagicMock()
             mock_agent.invoke.return_value = {"messages": [mock_response_message]}
-            
+
             with patch("server._get_agent", return_value=mock_agent):
                 chat_resp = client.post(
                     f"/api/proposals/{prop_id}/advisor/chat",
@@ -257,7 +262,7 @@ class TestProposalsAPI:
                 chat_data = json.loads(chat_resp.data)
                 assert "Critique processed." in chat_data["response"]
                 assert chat_data["command"]["action"] == "update_toc"
-                
+
                 # Check DB updated index 0
                 get_resp = client.get(
                     f"/api/proposals/{prop_id}",

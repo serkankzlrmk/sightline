@@ -8,12 +8,12 @@ Original Stage 4 (4-Summary for each cluster.ipynb) logic:
 3. Generate SITREP headline for each cluster
 """
 
-import re
 import logging
-from typing import List, Dict
+import re
 
-from config import LLM_MAX_TOKENS_SUMMARY, LLM_MAX_TOKENS_HEADLINE, LLM_MODEL_ANSWERS, LLM_TEMPERATURE_ANSWERS
 import llm_client
+
+from config import LLM_MAX_TOKENS_HEADLINE, LLM_MAX_TOKENS_SUMMARY, LLM_MODEL_ANSWERS, LLM_TEMPERATURE_ANSWERS
 
 logger = logging.getLogger(__name__)
 
@@ -37,37 +37,37 @@ def _apply_citation_offset(answer_text: str, offset: int) -> str:
     for old_num in sorted_citations:
         new_num = old_num + offset
         modified = re.sub(
-            r"\[{}\]".format(re.escape(str(old_num))),
-            "[{}]".format(new_num),
+            rf"\[{re.escape(str(old_num))}\]",
+            f"[{new_num}]",
             modified,
         )
     return modified
 
 
 def _offset_contexts(
-    new_citations: List[int],
-    new_used_contexts: List[str],
+    new_citations: list[int],
+    new_used_contexts: list[str],
     offset: int,
-) -> Dict[int, str]:
+) -> dict[int, str]:
     """
     {old_citation_num: context_text} → {old_citation_num + offset: context_text}
     """
-    result: Dict[int, str] = {}
+    result: dict[int, str] = {}
     for old_num, ctx in zip(new_citations, new_used_contexts):
         result[old_num + offset] = ctx
     return result
 
 
 def _offset_contexts_meta(
-    new_citations: List[int],
-    new_used_contexts_meta: List[Dict],
+    new_citations: list[int],
+    new_used_contexts_meta: list[dict],
     offset: int,
-) -> Dict[int, Dict]:
+) -> dict[int, dict]:
     """
     {old_citation_num: meta_dict} → {old_citation_num + offset: meta_dict}
     meta_dict = {title: str, url: str, ...}
     """
-    result: Dict[int, Dict] = {}
+    result: dict[int, dict] = {}
     for old_num, meta in zip(new_citations, new_used_contexts_meta):
         result[old_num + offset] = meta or {}
     return result
@@ -119,9 +119,9 @@ Return only the title, nothing else.
 # ---------------------------------------------------------------------------
 
 def generate_cluster_summaries(
-    postprocessed_answers: List[Dict],
-    clusters: Dict,
-) -> Dict:
+    postprocessed_answers: list[dict],
+    clusters: dict,
+) -> dict:
     """
     Combines answers for each cluster and generates a narrative summary and headline.
 
@@ -139,12 +139,12 @@ def generate_cluster_summaries(
         }
     """
     # Group answers by cluster_id
-    cluster_groups: Dict[str, List[Dict]] = {}
+    cluster_groups: dict[str, list[dict]] = {}
     for answer in postprocessed_answers:
         cid = str(answer["cluster_id"])
         cluster_groups.setdefault(cid, []).append(answer)
 
-    final_output: Dict = {}
+    final_output: dict = {}
 
     for cluster_id, answers in cluster_groups.items():
         logger.info(
@@ -152,9 +152,9 @@ def generate_cluster_summaries(
         )
 
         # 1. Apply citation offset
-        modified_texts: List[str] = []
-        merged_contexts: Dict[int, str] = {}
-        merged_meta: Dict[int, Dict] = {}  # citation_num → {title, url}
+        modified_texts: list[str] = []
+        merged_contexts: dict[int, str] = {}
+        merged_meta: dict[int, dict] = {}  # citation_num → {title, url}
 
         for i, answer in enumerate(answers):
             offset = i * CITATION_OFFSET_STEP

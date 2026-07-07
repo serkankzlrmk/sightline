@@ -7,11 +7,11 @@ verify_firebase_token (mocked), set_user_role / get_user_role (mocked).
 """
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 import auth
-
 
 # ── Role hierarchy ─────────────────────────────────────────────────────────────
 
@@ -136,7 +136,7 @@ class TestHelpers:
             assert auth.current_uid() == "test-uid"
 
     def test_current_uid_no_user(self):
-        from flask import Flask, g
+        from flask import Flask
         app = Flask(__name__)
         with app.app_context():
             assert auth.current_uid() == ""
@@ -149,7 +149,7 @@ class TestHelpers:
             assert auth.current_role() == "premium"
 
     def test_current_role_no_user(self):
-        from flask import Flask, g
+        from flask import Flask
         app = Flask(__name__)
         with app.app_context():
             assert auth.current_role() == "free"

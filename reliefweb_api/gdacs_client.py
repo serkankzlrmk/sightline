@@ -32,13 +32,13 @@ Alert seviyeleri:
   Green (low), Orange (medium), Red (high)
 """
 
-import os
-import time
 import logging
+import os
 import threading
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
+import time
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -53,13 +53,13 @@ logger = logging.getLogger(__name__)
 class GDACSResult:
     success: bool
     tool: str = ""
-    data: List[Dict[str, Any]] = field(default_factory=list)
-    error: Optional[str] = None
+    data: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
     count: int = 0
     total_results: int = 0
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "tool": self.tool,
@@ -70,7 +70,7 @@ class GDACSResult:
             "params": self.params,
         }
 
-    def to_sitrep_context(self) -> Dict[str, Any]:
+    def to_sitrep_context(self) -> dict[str, Any]:
         if not self.success:
             return {"source": "GDACS", "error": self.error, "tool": self.tool}
         return {
@@ -90,9 +90,9 @@ class SimpleCache:
     def __init__(self, ttl: int = 900, max_size: int = 200):
         self.ttl = ttl
         self.max_size = max_size
-        self._cache: Dict[str, tuple] = {}
+        self._cache: dict[str, tuple] = {}
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         if key in self._cache:
             value, ts = self._cache[key]
             if time.time() - ts < self.ttl:
@@ -109,7 +109,7 @@ class SimpleCache:
     def clear(self) -> None:
         self._cache.clear()
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {"size": len(self._cache), "max_size": self.max_size, "ttl": self.ttl}
 
 
@@ -127,7 +127,7 @@ _NS = {
 }
 
 # Event type kodlari -> insan-okur etiketler
-EVENT_TYPES: Dict[str, str] = {
+EVENT_TYPES: dict[str, str] = {
     "EQ": "earthquake",
     "FL": "flood",
     "TC": "tropical cyclone",
@@ -160,11 +160,11 @@ class GDACSClient:
         self.rate_limit_period = rate_limit_period
         self.cache = SimpleCache(ttl=cache_ttl)
 
-        self._sync_client: Optional[httpx.Client] = None
-        self._request_timestamps: List[float] = []
+        self._sync_client: httpx.Client | None = None
+        self._request_timestamps: list[float] = []
         self._rate_lock = threading.Lock()
         # Son basarili fetch'ten elde edilen tum alert'ler (cache'lenmis)
-        self._last_alerts: List[Dict[str, Any]] = []
+        self._last_alerts: list[dict[str, Any]] = []
         self._last_fetch_ts: float = 0.0
 
     @classmethod
@@ -218,7 +218,7 @@ class GDACSClient:
     # XML Parsing
     # =========================================================================
 
-    def _parse_rss(self, xml_text: str) -> List[Dict[str, Any]]:
+    def _parse_rss(self, xml_text: str) -> list[dict[str, Any]]:
         """GDACS RSS XML'ini parse edip alert dict listesi dondurur.
 
         Namespace'ler (gdacs:, geo:, georss:) duzgun handle edilir.
@@ -239,7 +239,7 @@ class GDACSClient:
             return []
 
         items = channel.findall("item")
-        alerts: List[Dict[str, Any]] = []
+        alerts: list[dict[str, Any]] = []
 
         for item in items:
             alert = self._parse_item(item)
@@ -248,7 +248,7 @@ class GDACSClient:
 
         return alerts
 
-    def _parse_item(self, item: ET.Element) -> Optional[Dict[str, Any]]:
+    def _parse_item(self, item: ET.Element) -> dict[str, Any] | None:
         """Tek bir <item> elementini parse eder.
 
         Not: ElementTree namespace-qualified tag formati
@@ -276,8 +276,8 @@ class GDACSClient:
         geo_lat = text("lat", "geo")
         geo_long = text("long", "geo")
 
-        lat: Optional[float] = None
-        lon: Optional[float] = None
+        lat: float | None = None
+        lon: float | None = None
         if georss_point:
             parts = georss_point.split()
             if len(parts) == 2:
@@ -330,7 +330,7 @@ class GDACSClient:
     # Core Fetch
     # =========================================================================
 
-    def _fetch_alerts(self) -> List[Dict[str, Any]]:
+    def _fetch_alerts(self) -> list[dict[str, Any]]:
         """GDACS RSS feed'ini cekip parse eder. Cache'ler.
 
         Network/XML hatasinda bos liste doner ve warning loglar.
@@ -376,11 +376,11 @@ class GDACSClient:
 
     def get_alerts(
         self,
-        event_type: Optional[str] = None,
-        alert_level: Optional[str] = None,
-        country_iso3: Optional[str] = None,
+        event_type: str | None = None,
+        alert_level: str | None = None,
+        country_iso3: str | None = None,
         limit: int = 20,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Filtreli afet uyari listesi dondurur.
 
         Args:
@@ -403,7 +403,7 @@ class GDACSClient:
         al = (alert_level or "").capitalize().strip()
         cc = (country_iso3 or "").upper().strip()
 
-        filtered: List[Dict[str, Any]] = []
+        filtered: list[dict[str, Any]] = []
         for a in all_alerts:
             if et and a.get("event_type", "").upper() != et:
                 continue
@@ -417,7 +417,7 @@ class GDACSClient:
 
         return filtered
 
-    def get_event_detail(self, event_id: str) -> Optional[Dict[str, Any]]:
+    def get_event_detail(self, event_id: str) -> dict[str, Any] | None:
         """Belirli bir event_id'ye gore detay dondurur.
 
         GDACS RSS feed'i tum aktif uyarilari icerir, bu yuzden once
@@ -442,7 +442,7 @@ class GDACSClient:
 
         return None
 
-    def get_event_detail_by_title(self, title: str) -> Optional[Dict[str, Any]]:
+    def get_event_detail_by_title(self, title: str) -> dict[str, Any] | None:
         """Title ile event detayi bulur (kismi eslesme)."""
         if not title:
             return None
@@ -462,7 +462,7 @@ class GDACSClient:
         return None
 
 
-def _to_float(value: str) -> Optional[float]:
+def _to_float(value: str) -> float | None:
     """String'i float'a cevir, basarisizsa None doner."""
     if not value:
         return None

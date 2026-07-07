@@ -8,22 +8,21 @@ Original Stage 3 (3-RAG-GeneratedQuestions.ipynb) logic:
 - Answer synthesis prompt preserved verbatim (inline [n] citation)
 """
 
-import re
+import json as _json
 import logging
-from typing import List, Dict, Optional, Tuple
+import os as _os
+
+import llm_client
 
 from config import (
-    RETRIEVAL_TOP_K,
-    RRF_K,
-    RRF_NUM_SUBQUERIES,
     LLM_MAX_TOKENS_ANSWER,
     LLM_MODEL_ANSWERS,
     LLM_TEMPERATURE_ANSWERS,
     MAX_TOTAL_QUESTIONS,
+    RETRIEVAL_TOP_K,
+    RRF_K,
+    RRF_NUM_SUBQUERIES,
 )
-import llm_client
-import json as _json
-import os as _os
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,7 @@ _SUBQUERY_USER_TEMPLATE = (
 )
 
 
-def _generate_subqueries(question: str, n: int = RRF_NUM_SUBQUERIES) -> List[str]:
+def _generate_subqueries(question: str, n: int = RRF_NUM_SUBQUERIES) -> list[str]:
     """
     Generates n sub-queries from different angles based on the main question (for RAG Fusion).
     """
@@ -69,9 +68,9 @@ def _generate_subqueries(question: str, n: int = RRF_NUM_SUBQUERIES) -> List[str
 # ---------------------------------------------------------------------------
 
 def _reciprocal_rank_fusion(
-    ranked_lists: List[List[Dict]],
+    ranked_lists: list[list[dict]],
     k: int = RRF_K,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Merges multiple ranked result lists using RRF.
 
@@ -82,8 +81,8 @@ def _reciprocal_rank_fusion(
     Returns:
         Chunk list sorted by RRF score.
     """
-    scores: Dict[str, float] = {}
-    chunk_map: Dict[str, Dict] = {}
+    scores: dict[str, float] = {}
+    chunk_map: dict[str, dict] = {}
 
     for result_list in ranked_lists:
         for rank, chunk in enumerate(result_list, start=1):
@@ -133,7 +132,7 @@ _ANSWER_TEMPLATE = """\
 """
 
 
-def _format_context(chunks: List[Dict]) -> str:
+def _format_context(chunks: list[dict]) -> str:
     """Converts a chunk list to numbered source format."""
     lines = []
     for i, chunk in enumerate(chunks, start=1):
@@ -147,13 +146,13 @@ def _format_context(chunks: List[Dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def answer_questions(
-    filtered_questions: Dict,
-    clusters: Dict,
+    filtered_questions: dict,
+    clusters: dict,
     chroma_adapter,
     country: str,
-    hdx_context: Optional[Dict] = None,
-    checkpoint_dir: Optional[str] = None,
-) -> List[Dict]:
+    hdx_context: dict | None = None,
+    checkpoint_dir: str | None = None,
+) -> list[dict]:
     """
     Answers filtered questions using Chroma RAG Fusion.
 
@@ -178,7 +177,7 @@ def answer_questions(
           ...
         ]
     """
-    all_answers: List[Dict] = []
+    all_answers: list[dict] = []
 
     # Work on a copy so the caller's filtered_questions dict is not mutated in place.
     # Mutating in place causes checkpoint/resume corruption: on restart the already-truncated
@@ -232,14 +231,14 @@ def answer_questions(
         cp_file = _os.path.join(checkpoint_dir, "answers_progress.json")
         if _os.path.exists(cp_file):
             try:
-                with open(cp_file, "r", encoding="utf-8") as f:
+                with open(cp_file, encoding="utf-8") as f:
                     progress = _json.load(f)
                 completed_clusters = set(progress.get("completed_clusters", []))
                 # Load previously saved answers
                 for cid in completed_clusters:
                     cluster_cp = _os.path.join(checkpoint_dir, f"answers_{cid}.json")
                     if _os.path.exists(cluster_cp):
-                        with open(cluster_cp, "r", encoding="utf-8") as f:
+                        with open(cluster_cp, encoding="utf-8") as f:
                             all_answers.extend(_json.load(f))
                 logger.info(
                     "Resumed from checkpoint: %d clusters already done, %d answers loaded.",
@@ -264,7 +263,7 @@ def answer_questions(
             cluster_id, len(questions), len(cluster_chunks),
         )
 
-        cluster_answers: List[Dict] = []
+        cluster_answers: list[dict] = []
 
         for question in questions:
             logger.debug("  Question: %s", question[:80])
@@ -278,7 +277,7 @@ def answer_questions(
             pool_has_embeddings = bool(
                 cluster_chunks and cluster_chunks[0].get("embedding") is not None
             )
-            ranked_lists: List[List[Dict]] = []
+            ranked_lists: list[list[dict]] = []
             for sq in subqueries:
                 if pool_has_embeddings:
                     results = chroma_adapter.retrieve(

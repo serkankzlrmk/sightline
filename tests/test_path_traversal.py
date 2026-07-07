@@ -1,9 +1,8 @@
 """
 Tests for path traversal protection on SITREP report/bulletin endpoints.
 """
-import os
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+
 
 # We test the containment logic directly (no Flask app needed for the core check)
 class TestPathTraversal:

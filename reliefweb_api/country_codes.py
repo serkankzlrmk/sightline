@@ -14,7 +14,6 @@ This module provides:
 """
 
 from difflib import get_close_matches
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # ISO 3166-1 alpha-3 code mapping
@@ -172,7 +171,7 @@ COUNTRY_TO_ISO: dict[str, str] = {
 ISO_TO_COUNTRY: dict[str, str] = {v: k for k, v in COUNTRY_TO_ISO.items()}
 
 
-def get_iso_code(country_name: str) -> Optional[str]:
+def get_iso_code(country_name: str) -> str | None:
     """
     Convert a country name to ISO 3166-1 alpha-3 code.
 
@@ -205,7 +204,7 @@ def get_iso_code(country_name: str) -> Optional[str]:
     return None
 
 
-def get_country_name(iso_code: str) -> Optional[str]:
+def get_country_name(iso_code: str) -> str | None:
     """
     Convert an ISO 3166-1 alpha-3 code to a country name.
 

@@ -19,15 +19,13 @@ import logging
 import os
 import time
 from collections import Counter
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, List, Optional
+from datetime import UTC, datetime
 
 logger = logging.getLogger("country_summary")
 
 # Reuse from weekly_bulletin
-from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
 from config import OUTPUT_DIR
+from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
 
 COUNTRY_SUMMARY_DIR = OUTPUT_DIR / "country_summaries"
 COUNTRY_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
@@ -45,7 +43,7 @@ def _get_db():
     return ChromaAdapter()
 
 
-def _get_country_coords(country: str) -> Dict:
+def _get_country_coords(country: str) -> dict:
     """Get coordinates for a country, falling back to geocoding."""
     coords = COUNTRY_COORDS.get(country)
     if coords:
@@ -96,7 +94,7 @@ def _country_to_iso3(country: str) -> str:
     return manual.get(country, "")
 
 
-def _fetch_hdx_data(country: str, iso3: str) -> Dict:
+def _fetch_hdx_data(country: str, iso3: str) -> dict:
     """Fetch HDX data for a country (refugees, IDPs, funding, conflict)."""
     if not iso3:
         return {}
@@ -110,7 +108,7 @@ def _fetch_hdx_data(country: str, iso3: str) -> Dict:
     return {}
 
 
-def _fetch_gdacs_alerts(iso3: str) -> List[Dict]:
+def _fetch_gdacs_alerts(iso3: str) -> list[dict]:
     """Fetch active GDACS alerts for a country."""
     if not iso3:
         return []
@@ -134,7 +132,7 @@ def _fetch_gdacs_alerts(iso3: str) -> List[Dict]:
     return []
 
 
-def _fetch_worldbank_profile(iso3: str) -> Dict:
+def _fetch_worldbank_profile(iso3: str) -> dict:
     """Fetch World Bank key indicators for a country."""
     if not iso3:
         return {}
@@ -160,9 +158,9 @@ def _fetch_worldbank_profile(iso3: str) -> Dict:
     return {}
 
 
-def _generate_narrative(country: str, report_count: int, themes: List[str],
-                        sources: List[str], hdx_data: Dict, gdacs_alerts: List[Dict],
-                        date_range: str) -> Dict:
+def _generate_narrative(country: str, report_count: int, themes: list[str],
+                        sources: list[str], hdx_data: dict, gdacs_alerts: list[dict],
+                        date_range: str) -> dict:
     """Use LLM to generate a 2-3 paragraph narrative summary for the country."""
     try:
         from sitrep.llm_client import llm_complete
@@ -216,7 +214,7 @@ Respond with this exact JSON format:
     return {"headline": f"{country} humanitarian situation", "narrative": ""}
 
 
-def generate_country_summary(country: str, force_hdx: bool = False) -> Optional[Dict]:
+def generate_country_summary(country: str, force_hdx: bool = False) -> dict | None:
     """Generate a full intelligence summary for a single country.
 
     Args:
@@ -327,7 +325,7 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> Optional[
         "worldbank_indicators": worldbank,
         "sitrep_reports": sitrep_reports,
         "has_sitrep": len(sitrep_reports) > 0,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "generated_ts": time.time(),
     }
 
@@ -340,7 +338,7 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> Optional[
     return summary
 
 
-def generate_all_country_summaries(max_countries: int = 80) -> Dict:
+def generate_all_country_summaries(max_countries: int = 80) -> dict:
     """Generate summaries for all countries with sufficient data.
 
     Only regenerates countries where report_count has changed since last summary.
@@ -405,7 +403,7 @@ def generate_all_country_summaries(max_countries: int = 80) -> Dict:
     return {"generated": generated, "skipped": skipped, "errors": errors, "total": len(countries)}
 
 
-def list_country_summaries() -> List[Dict]:
+def list_country_summaries() -> list[dict]:
     """Return lightweight metadata for all country summaries (for map markers)."""
     results = []
     if not COUNTRY_SUMMARY_DIR.exists():
@@ -430,7 +428,7 @@ def list_country_summaries() -> List[Dict]:
     return results
 
 
-def get_country_summary(country: str) -> Optional[Dict]:
+def get_country_summary(country: str) -> dict | None:
     """Load a country summary from JSON file."""
     safe_name = country.replace(" ", "_").replace("/", "_").replace("\\", "_")
     path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"

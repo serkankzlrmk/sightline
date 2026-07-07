@@ -5,8 +5,6 @@ This catches broken imports, missing dependencies, and syntax errors
 that would otherwise only surface at runtime.
 """
 
-import sys
-import pytest
 
 
 def test_import_config():
@@ -25,7 +23,7 @@ def test_import_server():
 
 
 def test_import_db_manager():
-    from reliefweb_api.db_manager import DatabaseManager, chunk_text, build_chunk_with_header
+    from reliefweb_api.db_manager import DatabaseManager
     assert DatabaseManager is not None
 
 
@@ -35,18 +33,18 @@ def test_import_vector_store():
 
 
 def test_import_ingest_pipeline():
-    from reliefweb_api.ingest_pipeline import is_ingested, auto_ingest, ingest_from_api
+    from reliefweb_api.ingest_pipeline import ingest_from_api
     assert callable(ingest_from_api)
 
 
 def test_import_reliefweb():
-    from reliefweb_api.reliefweb import search_sitreps, search_knowledge_base
+    from reliefweb_api.reliefweb import search_knowledge_base, search_sitreps
     assert search_sitreps is not None
     assert search_knowledge_base is not None
 
 
 def test_import_agent_model():
-    from agent.model import ModelInitializationError, check_llm_connectivity
+    from agent.model import ModelInitializationError
     assert ModelInitializationError is not None
 
 

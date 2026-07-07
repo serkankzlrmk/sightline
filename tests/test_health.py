@@ -5,7 +5,6 @@ Uses Flask test client so no running server is needed.
 """
 
 import json
-import pytest
 
 
 def test_health_endpoint_structure():

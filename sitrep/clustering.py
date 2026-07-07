@@ -8,29 +8,27 @@ Based on original Stage 1 (1-clean-clustering.ipynb) logic but:
 - LLM calls are made via OpenRouter
 """
 
-import json
+import logging
 import random
 import re
-import logging
-from typing import List, Dict, Tuple, Optional
 
+import llm_client
 import numpy as np
 
 from config import (
-    UMAP_N_COMPONENTS,
+    HDBSCAN_CLUSTER_SELECTION_METHOD,
+    HDBSCAN_METRIC,
+    HP_EPSILON_OPTIONS,
+    HP_MIN_CLUSTER_SIZE_RANGE,
+    HP_MIN_CLUSTERS,
+    HP_MIN_SAMPLES_RANGE,
+    HP_N_NEIGHBORS_RANGE,
+    HP_SEARCH_ITERATIONS,
+    LLM_MAX_TOKENS_HEADLINE,
     UMAP_METRIC,
     UMAP_MIN_DIST,
-    HDBSCAN_METRIC,
-    HDBSCAN_CLUSTER_SELECTION_METHOD,
-    HP_N_NEIGHBORS_RANGE,
-    HP_MIN_CLUSTER_SIZE_RANGE,
-    HP_MIN_SAMPLES_RANGE,
-    HP_EPSILON_OPTIONS,
-    HP_SEARCH_ITERATIONS,
-    HP_MIN_CLUSTERS,
-    LLM_MAX_TOKENS_HEADLINE,
+    UMAP_N_COMPONENTS,
 )
-import llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +71,7 @@ def _hdbscan_fit(
     return clusterer
 
 
-def _dbcv_score(clusterer, prob_threshold: float = 0.05) -> Tuple[int, float]:
+def _dbcv_score(clusterer, prob_threshold: float = 0.05) -> tuple[int, float]:
     """
     Returns (label_count, dbcv_score).
     Noise (-1) labels are not counted.
@@ -114,7 +112,7 @@ Example response:
 """
 
 
-def _llm_coherence_score(paragraphs: List[str]) -> float:
+def _llm_coherence_score(paragraphs: list[str]) -> float:
     """
     Returns average LLM coherence + homogeneity score for given paragraphs.
     Returns 0.5 if parsing fails.
@@ -142,7 +140,7 @@ def _llm_coherence_score(paragraphs: List[str]) -> float:
 
 
 def _evaluate_all_clusters_llm(
-    chunks: List[Dict], labels: np.ndarray
+    chunks: list[dict], labels: np.ndarray
 ) -> float:
     """
     Average LLM coherence score for all clusters.
@@ -184,11 +182,11 @@ def _adaptive_ranges(n_chunks: int):
 
 
 def _random_search(
-    chunks: List[Dict],
+    chunks: list[dict],
     embeddings: np.ndarray,
     n_iterations: int = HP_SEARCH_ITERATIONS,
     min_clusters: int = HP_MIN_CLUSTERS,
-) -> Dict:
+) -> dict:
     """
     Random hyperparameter search.
     1) Find candidates by collecting DBCV scores via UMAP+HDBSCAN
@@ -282,7 +280,7 @@ def _random_search(
     return best_result
 
 
-def _kmeans_fallback(chunks: List[Dict], embeddings: np.ndarray, k: Optional[int] = None) -> Dict:
+def _kmeans_fallback(chunks: list[dict], embeddings: np.ndarray, k: int | None = None) -> dict:
     """
     Simple clustering with sklearn KMeans when HDBSCAN fails completely.
     If k is not provided, it is auto-selected based on data size: sqrt(n/10), min 2, max 12.
@@ -336,7 +334,7 @@ Passages:
 """
 
 
-def _generate_cluster_headline(paragraphs: List[str]) -> str:
+def _generate_cluster_headline(paragraphs: list[str]) -> str:
     """Generate cluster headline."""
     sample = paragraphs[:5]
     passages_str = "\n---\n".join(f"[{i+1}] {p[:250]}" for i, p in enumerate(sample))
@@ -360,10 +358,10 @@ def _generate_cluster_headline(paragraphs: List[str]) -> str:
 # ---------------------------------------------------------------------------
 
 def run_clustering(
-    chunks: List[Dict],
-    n_iterations: Optional[int] = None,
+    chunks: list[dict],
+    n_iterations: int | None = None,
     min_clusters: int = HP_MIN_CLUSTERS,
-) -> Dict:
+) -> dict:
     """
     Generates clusters from a chunk list.
 
@@ -440,7 +438,7 @@ def run_clustering(
 
     # 3. Build cluster dictionary
     unique_labels = sorted([l for l in set(labels) if l != -1])
-    result: Dict = {}
+    result: dict = {}
 
     for label in unique_labels:
         indices = [i for i, lbl in enumerate(labels) if lbl == label]

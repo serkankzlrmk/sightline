@@ -3,22 +3,22 @@ ReliefWeb API Utility Functions
 Shared utilities for API operations
 """
 
-import re
 import json
-import time
 import logging
-from typing import Dict, Any, Optional
+import re
+import time
 from datetime import datetime
+from typing import Any
 
 import requests
 
 from .reliefweb_config import (
     COUNTRY_NAME_MAP,
-    MIN_COUNTRY_LENGTH,
-    MAX_COUNTRY_LENGTH,
     DATE_FORMAT,
     ENABLE_RETRY,
+    MAX_COUNTRY_LENGTH,
     MAX_RETRIES,
+    MIN_COUNTRY_LENGTH,
     RETRY_DELAY,
 )
 
@@ -45,12 +45,12 @@ def normalize_country_name(country: str) -> str:
     """
     if not country:
         return ""
-    
+
     country_lower = country.lower().strip()
-    
+
     if country_lower in COUNTRY_NAME_MAP:
         return COUNTRY_NAME_MAP[country_lower]
-    
+
     return country.strip()
 
 
@@ -67,10 +67,10 @@ def clean_html_body(body_html: str) -> str:
     """
     if not body_html:
         return "No content available"
-    
+
     # Remove HTML tags
     cleaned = re.sub('<[^<]+?>', ' ', body_html)
-    
+
     # Decode HTML entities
     entity_map = {
         '&nbsp;': ' ',
@@ -80,13 +80,13 @@ def clean_html_body(body_html: str) -> str:
         '&lt;': '<',
         '&gt;': '>'
     }
-    
+
     for entity, char in entity_map.items():
         cleaned = cleaned.replace(entity, char)
-    
+
     # Normalize whitespace
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    
+
     return cleaned
 
 
@@ -104,7 +104,7 @@ def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
     """
     if len(text) <= max_length:
         return text
-    
+
     return text[:max_length - len(suffix)] + suffix
 
 
@@ -112,7 +112,7 @@ def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
 # INPUT VALIDATION UTILITIES
 # ========================================================================
 
-def validate_country(country: str) -> tuple[bool, Optional[str]]:
+def validate_country(country: str) -> tuple[bool, str | None]:
     """
     Validate country name input.
     
@@ -124,23 +124,23 @@ def validate_country(country: str) -> tuple[bool, Optional[str]]:
     """
     if not country:
         return False, "Country name is required"
-    
+
     country_str = str(country).strip()
-    
+
     if len(country_str) < MIN_COUNTRY_LENGTH:
         return False, f"Country name too short (minimum {MIN_COUNTRY_LENGTH} characters)"
-    
+
     if len(country_str) > MAX_COUNTRY_LENGTH:
         return False, f"Country name too long (maximum {MAX_COUNTRY_LENGTH} characters)"
-    
+
     # Check for valid characters (letters, spaces, hyphens, apostrophes)
     if not re.match(r"^[a-zA-Z\s\-']+$", country_str):
         return False, "Country name contains invalid characters"
-    
+
     return True, None
 
 
-def validate_limit(limit: int, max_limit: int) -> tuple[bool, Optional[str]]:
+def validate_limit(limit: int, max_limit: int) -> tuple[bool, str | None]:
     """
     Validate limit parameter.
     
@@ -155,17 +155,17 @@ def validate_limit(limit: int, max_limit: int) -> tuple[bool, Optional[str]]:
         limit_int = int(limit)
     except (ValueError, TypeError):
         return False, "Limit must be a valid number"
-    
+
     if limit_int < 1:
         return False, "Limit must be at least 1"
-    
+
     if limit_int > max_limit:
         return False, f"Limit exceeds maximum ({max_limit})"
-    
+
     return True, None
 
 
-def validate_date(date_str: str) -> tuple[bool, Optional[str]]:
+def validate_date(date_str: str) -> tuple[bool, str | None]:
     """
     Validate date format (YYYY-MM-DD).
     
@@ -216,17 +216,17 @@ def retry_request(method: str, url: str, max_retries: int = None,
         # Retry disabled — single shot
         fn = getattr(requests, method.lower())
         return fn(url, **kwargs)
-    
+
     _max_retries = max_retries if max_retries is not None else MAX_RETRIES
     _retry_delay = retry_delay if retry_delay is not None else RETRY_DELAY
-    
+
     fn = getattr(requests, method.lower())
-    last_error: Optional[Exception] = None
-    
+    last_error: Exception | None = None
+
     for attempt in range(1, _max_retries + 1):
         try:
             response = fn(url, **kwargs)
-            
+
             # Rate limit — exponential backoff
             if response.status_code == 429:
                 wait = _retry_delay * (2 ** (attempt - 1))
@@ -236,7 +236,7 @@ def retry_request(method: str, url: str, max_retries: int = None,
                 )
                 time.sleep(wait)
                 continue
-            
+
             # Server error — retry
             if response.status_code >= 500:
                 wait = _retry_delay * attempt
@@ -246,10 +246,10 @@ def retry_request(method: str, url: str, max_retries: int = None,
                 )
                 time.sleep(wait)
                 continue
-            
+
             # Success or client error (4xx except 429) — return immediately
             return response
-            
+
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
             last_error = exc
             wait = _retry_delay * attempt
@@ -258,7 +258,7 @@ def retry_request(method: str, url: str, max_retries: int = None,
                 method.upper(), url, attempt, _max_retries, wait, exc,
             )
             time.sleep(wait)
-    
+
     # All retries exhausted
     if last_error:
         raise last_error
@@ -284,11 +284,11 @@ def format_response(data: Any, as_json: bool = True) -> str:
     """
     if as_json:
         return json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     return str(data)
 
 
-def format_error(error_type: str, message: str, details: Optional[Dict] = None) -> str:
+def format_error(error_type: str, message: str, details: dict | None = None) -> str:
     """
     Format error response.
     
@@ -306,10 +306,10 @@ def format_error(error_type: str, message: str, details: Optional[Dict] = None) 
         "message": message,
         "timestamp": datetime.now().isoformat()
     }
-    
+
     if details:
         error_obj["details"] = details
-    
+
     return json.dumps(error_obj, indent=2, ensure_ascii=False)
 
 
@@ -331,13 +331,13 @@ def format_success(data: Any, message: str = None) -> str:
             return data
         except json.JSONDecodeError:
             pass
-    
+
     if isinstance(data, list):
         return json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     if isinstance(data, dict):
         return json.dumps(data, indent=2, ensure_ascii=False)
-    
+
     return json.dumps({"data": data, "message": message}, indent=2, ensure_ascii=False)
 
 
@@ -347,13 +347,13 @@ def format_success(data: Any, message: str = None) -> str:
 
 def build_api_request_body(
     limit: int = 25,
-    filter_field: Optional[str] = None,
-    filter_value: Optional[str] = None,
-    query: Optional[str] = None,
-    fields: Optional[list] = None,
-    sort: Optional[list] = None,
+    filter_field: str | None = None,
+    filter_value: str | None = None,
+    query: str | None = None,
+    fields: list | None = None,
+    sort: list | None = None,
     preset: str = "latest"
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Build ReliefWeb API request body.
     
@@ -373,22 +373,22 @@ def build_api_request_body(
         "preset": preset,
         "limit": limit
     }
-    
+
     if filter_field and filter_value:
         body["filter"] = {
             "field": filter_field,
             "value": filter_value
         }
-    
+
     if query:
         body["query"] = {"value": query}
-    
+
     if fields:
         body["fields"] = {"include": fields}
-    
+
     if sort:
         body["sort"] = sort
-    
+
     return body
 
 
@@ -396,7 +396,7 @@ def build_api_request_body(
 # DATA EXTRACTION UTILITIES
 # ========================================================================
 
-def extract_field(obj: Dict, path: str, default: Any = None) -> Any:
+def extract_field(obj: dict, path: str, default: Any = None) -> Any:
     """
     Extract nested field from dict using dot notation.
     
@@ -413,7 +413,7 @@ def extract_field(obj: Dict, path: str, default: Any = None) -> Any:
     """
     keys = path.split(".")
     current = obj
-    
+
     for key in keys:
         if isinstance(current, dict):
             current = current.get(key)
@@ -426,11 +426,11 @@ def extract_field(obj: Dict, path: str, default: Any = None) -> Any:
                 return default
         else:
             return default
-    
+
     return current
 
 
-def extract_items(data: Dict, item_key: str = "data") -> list:
+def extract_items(data: dict, item_key: str = "data") -> list:
     """
     Extract items list from API response.
     
@@ -443,7 +443,7 @@ def extract_items(data: Dict, item_key: str = "data") -> list:
     """
     if not isinstance(data, dict):
         return []
-    
+
     items = data.get(item_key, [])
     return items if isinstance(items, list) else []
 

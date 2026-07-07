@@ -11,9 +11,8 @@ Note: DefaultEmbeddingFunction is used for cosine computation
      (instead of modernbert — compatible with Chroma)
 """
 
-import re
 import logging
-from typing import List, Dict, Set, Tuple
+import re
 
 import numpy as np
 
@@ -44,7 +43,7 @@ def _jaccard_similarity(text1: str, text2: str) -> float:
     return len(intersection) / len(union) if union else 0.0
 
 
-def _get_embeddings(texts: List[str]) -> np.ndarray:
+def _get_embeddings(texts: list[str]) -> np.ndarray:
     """Compute embeddings using DefaultEmbeddingFunction."""
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
     ef = DefaultEmbeddingFunction()
@@ -61,7 +60,7 @@ def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
 # Main processing
 # ---------------------------------------------------------------------------
 
-def _update_single_answer(answer: Dict) -> Dict:
+def _update_single_answer(answer: dict) -> dict:
     """
     Updates citations for a single question-answer pair.
 
@@ -86,8 +85,8 @@ def _update_single_answer(answer: Dict) -> Dict:
     answer = dict(answer)  # copy
     question = answer.get("question", "")
     response = answer.get("retrieved_answer", "")
-    retrieved_docs: List[str] = answer.get("retrieved_contexts", [])
-    retrieved_metas: List[Dict] = answer.get("retrieved_contexts_meta", [])
+    retrieved_docs: list[str] = answer.get("retrieved_contexts", [])
+    retrieved_metas: list[dict] = answer.get("retrieved_contexts_meta", [])
 
     # If no citations, skip
     if "[" not in response or not retrieved_docs:
@@ -134,7 +133,7 @@ def _update_single_answer(answer: Dict) -> Dict:
     # Find each "text_piece [n][m]..." pattern and re-evaluate
     pattern = re.compile(r"(.*?)((?:\[\d+\])+)", re.DOTALL)
     updated_response = response
-    all_new_citation_indices: Set[int] = set()
+    all_new_citation_indices: set[int] = set()
     current_offset = 0
 
     for match in pattern.finditer(response):
@@ -145,10 +144,10 @@ def _update_single_answer(answer: Dict) -> Dict:
         k = len(orig_indices)
 
         new_markers = ""
-        new_valid_indices: List[int] = []
+        new_valid_indices: list[int] = []
 
         if k > 0 and cosine_scores.size > 0:
-            piece_scores: List[Tuple[float, int]] = []
+            piece_scores: list[tuple[float, int]] = []
             for j, doc_text in enumerate(retrieved_docs):
                 jac = _jaccard_similarity(text_piece, doc_text)
                 cos = float(cosine_scores[j])
@@ -206,7 +205,7 @@ def _update_single_answer(answer: Dict) -> Dict:
     return answer
 
 
-def postprocess_citations(answers: List[Dict]) -> List[Dict]:
+def postprocess_citations(answers: list[dict]) -> list[dict]:
     """
     Applies citation post-processing to all answers.
 
@@ -217,7 +216,7 @@ def postprocess_citations(answers: List[Dict]) -> List[Dict]:
         Each item has updated_retrieved_answer, new_citations,
         new_used_contexts, old_citations, old_used_contexts added.
     """
-    updated: List[Dict] = []
+    updated: list[dict] = []
     changed = 0
 
     for i, answer in enumerate(answers):

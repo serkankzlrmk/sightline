@@ -72,12 +72,12 @@ API Key Nasıl Alınır?
        = "aGR4LW1jcC1hZ2VudDp5b3VyLWVtYWlsQGV4YW1wbGUuY29t=="
 """
 
-import os
-import time
 import logging
+import os
 import threading
-from typing import Any, Dict, List, Optional
+import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -105,12 +105,12 @@ class HDXResult:
     """
     success: bool
     tool: str = ""
-    data: List[Dict[str, Any]] = field(default_factory=list)
-    error: Optional[str] = None
+    data: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
     count: int = 0
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """JSON serialization için dict'e çevir."""
         return {
             "success": self.success,
@@ -121,7 +121,7 @@ class HDXResult:
             "params": self.params,
         }
 
-    def to_sitrep_context(self) -> Dict[str, Any]:
+    def to_sitrep_context(self) -> dict[str, Any]:
         """SITREP prompt'una inject edilecek condensed format.
 
         LLM prompt'una doğrudan verilebilecek özet format.
@@ -157,9 +157,9 @@ class SimpleCache:
     def __init__(self, ttl: int = 86400, max_size: int = 500):
         self.ttl = ttl
         self.max_size = max_size
-        self._cache: Dict[str, tuple] = {}  # key -> (value, timestamp)
+        self._cache: dict[str, tuple] = {}  # key -> (value, timestamp)
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Önbellekten değer al. Süresi dolmuşsa sil."""
         if key in self._cache:
             value, ts = self._cache[key]
@@ -179,7 +179,7 @@ class SimpleCache:
         """Tüm önbelleği temizle."""
         self._cache.clear()
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         """Önbellek istatistikleri."""
         return {"size": len(self._cache), "max_size": self.max_size, "ttl": self.ttl}
 
@@ -287,9 +287,9 @@ class HDXClient:
         self.rate_limit_period = rate_limit_period
         self.cache = SimpleCache(ttl=cache_ttl)
 
-        self._client: Optional[httpx.AsyncClient] = None
-        self._sync_client: Optional[httpx.Client] = None
-        self._request_timestamps: List[float] = []
+        self._client: httpx.AsyncClient | None = None
+        self._sync_client: httpx.Client | None = None
+        self._request_timestamps: list[float] = []
         self._rate_lock = threading.Lock()  # guards _request_timestamps
 
     @classmethod
@@ -377,7 +377,7 @@ class HDXClient:
     # Core API Methods (Internal)
     # =========================================================================
 
-    async def _aget(self, endpoint: str, params: Dict[str, Any] = None) -> HDXResult:
+    async def _aget(self, endpoint: str, params: dict[str, Any] = None) -> HDXResult:
         """Async GET isteği — HDX HAPI API'ye.
 
         Args:
@@ -441,7 +441,7 @@ class HDXClient:
                 params={k: v for k, v in params.items() if k != "app_identifier"},
             )
 
-    def _get(self, endpoint: str, params: Dict[str, Any] = None) -> HDXResult:
+    def _get(self, endpoint: str, params: dict[str, Any] = None) -> HDXResult:
         """Sync GET isteği — HDX HAPI API'ye (Flask route'ları için).
 
         Async versiyonun sync karşılığı. Flask route'larında kullanılır.
@@ -696,7 +696,7 @@ class HDXClient:
     # High-Level Methods (Sightline SITREP Integration)
     # =========================================================================
 
-    async def get_country_overview(self, location_code: str) -> Dict[str, HDXResult]:
+    async def get_country_overview(self, location_code: str) -> dict[str, HDXResult]:
         """Bir ülke için kapsamlı insani durum özeti getir.
 
         Birden fazla veri kategorisini PARALEL olarak çeker.
@@ -745,7 +745,7 @@ class HDXClient:
 
         return output
 
-    async def get_sitrep_context(self, location_code: str) -> Dict[str, Any]:
+    async def get_sitrep_context(self, location_code: str) -> dict[str, Any]:
         """SITREP-ready context oluştur.
 
         Bir ülke için kapsamlı insani durum özetini LLM prompt'una
@@ -903,7 +903,7 @@ class HDXClient:
         """Sync: API versiyon bilgisini getir."""
         return self._get("/util/version", kwargs)
 
-    def get_country_overview_sync(self, location_code: str) -> Dict[str, HDXResult]:
+    def get_country_overview_sync(self, location_code: str) -> dict[str, HDXResult]:
         """Sync: Ülke kapsamlı insani durum özeti.
 
         Flask route'larında kullanılır. Async event loop sorununu
@@ -922,7 +922,7 @@ class HDXClient:
         except RuntimeError:
             return asyncio.run(self.get_country_overview(location_code))
 
-    def get_sitrep_context_sync(self, location_code: str) -> Dict[str, Any]:
+    def get_sitrep_context_sync(self, location_code: str) -> dict[str, Any]:
         """Sync: SITREP-ready context oluştur.
 
         Flask route'larında kullanılır. get_country_overview_sync()

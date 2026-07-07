@@ -3,12 +3,11 @@ ReliefWeb AI Agent - LangGraph based agentic system.
 Uses Ollama for local LLM inference with ReliefWeb API tools.
 """
 
-import sys
-import os
-import json
 import logging
-from typing import Literal
+import os
+import sys
 from datetime import date as _date
+from typing import Literal
 
 # ============================================================================
 # ENVIRONMENT SETUP
@@ -23,10 +22,12 @@ os.environ["ONNXRUNTIME_PROVIDERS"] = "CUDAExecutionProvider,CPUExecutionProvide
 
 # Suppress SSL warnings (corporate proxy SSL inspection)
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Ensure agent/ and project root are on sys.path so imports resolve
 from pathlib import Path as _Path
+
 _AGENT_DIR = str(_Path(__file__).parent.resolve())
 _ROOT_DIR  = str(_Path(__file__).parent.parent.resolve())
 for _p in (_AGENT_DIR, _ROOT_DIR):
@@ -34,8 +35,9 @@ for _p in (_AGENT_DIR, _ROOT_DIR):
         sys.path.insert(0, _p)
 
 # Load configuration
+from model import get_model
+
 from config import config
-from model import get_model, ModelInitializationError
 
 # ============================================================================
 # LOGGING SETUP
@@ -49,47 +51,32 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # LANGCHAIN IMPORTS
 # ============================================================================
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
-from langgraph.graph import StateGraph, MessagesState, START, END
-
-from reliefweb_api import (
-    search_sitreps,
-    get_sitrep_summary,
-    get_report_full_content,
-    search_disasters,
-    search_disasters_by_date,
-    get_latest_headlines,
-    get_recent_updates_summary,
-    download_and_read_full_pdf,
-    ingest_report_from_api,
-    ingest_reports_batch,
-    convert_report_to_markdown,
-    convert_report_to_json,
-    parse_reliefweb_url,
-    search_sources,
-    mcp_langchain_tools,
-)
-
-# HDX tools — humanitarian data from HDX (Humanitarian Data Exchange)
-from reliefweb_api.hdx_tools import HDX_TOOLS, init_hdx_tools, get_hdx_client
-
-# News tools — world news data from NewsAPI.org
-from reliefweb_api.news_tools import NEWS_TOOLS, init_news_tools, get_news_client
-
-# GDACS tools — real-time disaster alerts (free, keyless)
-from reliefweb_api.gdacs_tools import GDACS_TOOLS, init_gdacs_tools, get_gdacs_client
-
-# Weather tools — Open-Meteo forecast + geocoding + air quality (free, keyless)
-from reliefweb_api.weather_tools import WEATHER_TOOLS, init_weather_tools, get_weather_client
-
-# World Bank tools — economic & demographic indicators (free, keyless)
-from reliefweb_api.worldbank_tools import WORLDBANK_TOOLS, init_worldbank_tools, get_worldbank_client
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langgraph.graph import START, MessagesState, StateGraph
 
 # MCP tools — external MCP servers (arxiv, sequential-thinking, etc.)
 import mcp_integration
+from reliefweb_api import (
+    mcp_langchain_tools,
+)
+
+# GDACS tools — real-time disaster alerts (free, keyless)
+from reliefweb_api.gdacs_tools import GDACS_TOOLS, init_gdacs_tools
+
+# HDX tools — humanitarian data from HDX (Humanitarian Data Exchange)
+from reliefweb_api.hdx_tools import HDX_TOOLS, init_hdx_tools
+
+# News tools — world news data from NewsAPI.org
+from reliefweb_api.news_tools import NEWS_TOOLS, init_news_tools
 
 # SQL query tool — read-only SQLite access for the agent
 from reliefweb_api.sql_tools import SQL_TOOLS
+
+# Weather tools — Open-Meteo forecast + geocoding + air quality (free, keyless)
+from reliefweb_api.weather_tools import WEATHER_TOOLS, init_weather_tools
+
+# World Bank tools — economic & demographic indicators (free, keyless)
+from reliefweb_api.worldbank_tools import WORLDBANK_TOOLS, init_worldbank_tools
 
 # ============================================================================
 # MODEL INITIALIZATION
@@ -191,6 +178,7 @@ else:
 
 # Proposals tools (always available)
 from agent.proposal_tools import PROPOSAL_TOOLS
+
 _tool_groups.append(PROPOSAL_TOOLS)
 _tool_labels.append(f"{len(PROPOSAL_TOOLS)} Proposals")
 
@@ -233,6 +221,7 @@ def _register_mcp_tools_when_ready():
         logger.warning("MCP tools did not become ready within 5 minutes — giving up")
 
 import threading as _threading2
+
 _threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
 
 # ============================================================================
@@ -584,7 +573,6 @@ def llm_call(state: MessagesState):
 
 def tool_node(state: MessagesState):
     """Tool execution node: runs all requested tools and returns results."""
-    import re as _re
     results = []
     for tool_call in state["messages"][-1].tool_calls:
         tool_name = tool_call["name"]

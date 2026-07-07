@@ -17,12 +17,11 @@ Usage:
 """
 
 import logging
-from typing import Optional
 
 from langchain.tools import tool
 
+from reliefweb_api.reliefweb_utils import format_error, format_response
 from reliefweb_api.weather_client import WeatherClient
-from reliefweb_api.reliefweb_utils import format_response, format_error
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Initialized in server.py at startup. Open-Meteo is keyless, so the client
 # always initializes successfully — but we keep the singleton pattern for
 # consistency with News/HDX clients.
-_weather_client: Optional[WeatherClient] = None
+_weather_client: WeatherClient | None = None
 
 
 def init_weather_tools(base_url: str = "", geo_url: str = "",
@@ -65,14 +64,14 @@ def init_weather_tools(base_url: str = "", geo_url: str = "",
         return False
 
 
-def get_weather_client() -> Optional[WeatherClient]:
+def get_weather_client() -> WeatherClient | None:
     """Get the global Weather client singleton."""
     return _weather_client
 
 
 # ── Helper ──────────────────────────────────────────────────────────────────
 
-def _parse_location(location: str) -> Optional[tuple]:
+def _parse_location(location: str) -> tuple | None:
     """Parse 'lat,lon' string into (float, float). Returns None if not coords."""
     if not location or "," not in location:
         return None

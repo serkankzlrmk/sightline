@@ -14,12 +14,11 @@ Usage:
   python scripts/daily_ingest.py --dry-run     # preview only, no writes
 """
 
-import sys
-import os
-import json
-import logging
 import argparse
-from datetime import datetime, timedelta, timezone
+import logging
+import os
+import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -31,10 +30,11 @@ os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 
-from config import config
-
 # Import ReliefWeb config directly (avoid __init__.py which imports heavy deps)
 import importlib.util
+
+from config import config
+
 _spec = importlib.util.spec_from_file_location(
     "reliefweb_config",
     str(PROJECT_ROOT / "reliefweb_api" / "reliefweb_config.py"),
@@ -75,10 +75,10 @@ def fetch_report_ids_for_date(target_date: str) -> list:
     Returns a list of report IDs.
     """
     from reliefweb_api.reliefweb_utils import retry_request
-    
+
     all_ids = []
     offset = 0
-    
+
     while True:
         payload = {
             "preset": "latest",
@@ -98,14 +98,14 @@ def fetch_report_ids_for_date(target_date: str) -> list:
                 ],
             },
         }
-        
+
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        
+
         # Build URL with appname query param
         url = RELIEFWEB_API_URL
         if APPNAME:
             url = f"{RELIEFWEB_API_URL}?appname={APPNAME}"
-        
+
         try:
             resp = retry_request(
                 "post", url,
@@ -119,22 +119,22 @@ def fetch_report_ids_for_date(target_date: str) -> list:
         except Exception as e:
             log.error("ReliefWeb API request failed (offset=%d): %s", offset, e)
             break
-        
+
         results = data.get("data", [])
         if not results:
             break
-        
+
         for r in results:
             rid = r.get("id") or r.get("fields", {}).get("id")
             if rid:
                 all_ids.append(int(rid))
-        
+
         total_count = data.get("totalCount", 0)
         offset += PAGE_SIZE
-        
+
         if offset >= total_count:
             break
-    
+
     return all_ids
 
 
@@ -143,24 +143,24 @@ def ingest_reports(report_ids: list, dry_run: bool = False) -> dict:
     
     Returns: {ingested: int, skipped: int, errors: int, error_details: list}
     """
-    from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
-    
+    from reliefweb_api.ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
+
     ingested = 0
     skipped = 0
     errors = 0
     error_details = []
-    
+
     for i, rid in enumerate(report_ids):
         if is_ingested(rid, DB_PATH) and is_ingested_with_pdf(rid, DB_PATH):
             skipped += 1
             log.debug("[%d/%d] Skipped %d (already in DB)", i + 1, len(report_ids), rid)
             continue
-        
+
         if dry_run:
             log.info("[%d/%d] Would ingest %d (dry run)", i + 1, len(report_ids), rid)
             ingested += 1
             continue
-        
+
         try:
             result = ingest_from_api(rid, DB_PATH, CHROMA_DIR)
             if result.get("success"):
@@ -176,7 +176,7 @@ def ingest_reports(report_ids: list, dry_run: bool = False) -> dict:
             errors += 1
             error_details.append({"report_id": rid, "error": str(e)})
             log.warning("[%d/%d] Error %d: %s", i + 1, len(report_ids), rid, e)
-    
+
     return {
         "ingested": ingested,
         "skipped": skipped,
@@ -192,31 +192,31 @@ def purge_old_data(days: int = PURGE_DAYS, dry_run: bool = False) -> dict:
     """
     from reliefweb_api.db_manager import DatabaseManager
     from reliefweb_api.vector_store import VectorStore
-    
+
     db = DatabaseManager(DB_PATH)
-    
+
     # Get old report IDs before purging (for ChromaDB cleanup)
     old_ids = db.get_old_report_ids(days=days)
-    
+
     if not old_ids:
         log.info("No reports older than %d days to purge", days)
         return {"reports_purged": 0, "chunks_purged_chroma": 0}
-    
+
     log.info("Found %d reports older than %d days to purge", len(old_ids), days)
-    
+
     if dry_run:
         log.info("Dry run: would purge %d reports", len(old_ids))
         return {"reports_purged": len(old_ids), "chunks_purged_chroma": 0}
-    
+
     # Purge from SQLite first (authoritative source)
     sqlite_purged = db.purge_old_reports(days=days)
     log.info("Purged %d reports from SQLite", sqlite_purged)
-    
+
     # Then purge from ChromaDB (derived index)
     vs = VectorStore(CHROMA_DIR)
     chroma_removed = vs.purge_by_report_ids(old_ids)
     log.info("Purged %d chunks from ChromaDB", chroma_removed)
-    
+
     return {
         "reports_purged": sqlite_purged,
         "chunks_purged_chroma": chroma_removed,
@@ -230,27 +230,27 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Preview only, no writes")
     parser.add_argument("--purge-days", type=int, default=PURGE_DAYS, help="Purge threshold in days (default: 90)")
     args = parser.parse_args()
-    
+
     # Determine target date
     if args.date:
         target_date = args.date
     else:
-        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        yesterday = datetime.now(UTC) - timedelta(days=1)
         target_date = yesterday.strftime("%Y-%m-%d")
-    
+
     log.info("=" * 60)
     log.info("Daily Ingest — %s", target_date)
     if args.dry_run:
         log.info("DRY RUN — no writes will be made")
     log.info("=" * 60)
-    
+
     ingest_result = {"ingested": 0, "skipped": 0, "errors": 0}
-    
+
     # Step 1: Fetch report IDs
     log.info("Fetching report IDs for %s...", target_date)
     report_ids = fetch_report_ids_for_date(target_date)
     log.info("Found %d reports for %s", len(report_ids), target_date)
-    
+
     if not report_ids:
         log.info("No reports found. Nothing to ingest.")
     else:
@@ -263,7 +263,7 @@ def main():
             ingest_result["skipped"],
             ingest_result["errors"],
         )
-    
+
     # Step 3: Purge old data
     purge_result = {"reports_purged": 0, "chunks_purged_chroma": 0}
     if not args.no_purge:
@@ -274,7 +274,7 @@ def main():
             purge_result["reports_purged"],
             purge_result["chunks_purged_chroma"],
         )
-    
+
     # Summary
     log.info("=" * 60)
     log.info("SUMMARY")
@@ -286,7 +286,7 @@ def main():
     log.info("  Purged (SQL):  %d", purge_result["reports_purged"])
     log.info("  Purged (Vec):  %d", purge_result["chunks_purged_chroma"])
     log.info("=" * 60)
-    
+
     # Exit with error code if there were ingest errors
     if ingest_result.get("errors", 0) > 0:
         sys.exit(1)

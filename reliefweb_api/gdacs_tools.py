@@ -26,19 +26,18 @@ GDACS alert levels:
 """
 
 import logging
-from typing import Optional
 
 from langchain.tools import tool
 
 from reliefweb_api.gdacs_client import GDACSClient
-from reliefweb_api.reliefweb_utils import format_response, format_error
+from reliefweb_api.reliefweb_utils import format_error, format_response
 
 logger = logging.getLogger(__name__)
 
 # ── Global GDACS client singleton ────────────────────────────────────────────
 # Initialized in server.py at startup. GDACS is keyless, so this almost
 # always succeeds.
-_gdacs_client: Optional[GDACSClient] = None
+_gdacs_client: GDACSClient | None = None
 
 
 def init_gdacs_tools(base_url: str = "", timeout: float = 30.0,
@@ -67,7 +66,7 @@ def init_gdacs_tools(base_url: str = "", timeout: float = 30.0,
         return False
 
 
-def get_gdacs_client() -> Optional[GDACSClient]:
+def get_gdacs_client() -> GDACSClient | None:
     """Get the global GDACS client singleton."""
     return _gdacs_client
 

@@ -8,9 +8,10 @@ Merges settings from:
 All values can be overridden via .env file in this directory.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load .env from this directory (override=True to ensure .env values take precedence)

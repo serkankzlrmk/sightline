@@ -3,23 +3,22 @@ sitrep_pipeline/llm_client.py
 LLM wrapper — OpenRouter / Ollama (OpenAI-compatible API).
 """
 
-import time
 import logging
-from typing import List, Dict, Optional
+import time
 
 import requests
 
 from config import (
-    LLM_PROVIDER,
-    _LLM_BASE_URL,
     _LLM_API_KEY,
-    OLLAMA_BASE_URL,
-    OLLAMA_API_KEY,
-    LLM_MODEL,
-    LLM_TEMPERATURE,
-    LLM_MAX_TOKENS_DEFAULT,
-    LLM_TIMEOUT,
+    _LLM_BASE_URL,
     LLM_MAX_RETRIES,
+    LLM_MAX_TOKENS_DEFAULT,
+    LLM_MODEL,
+    LLM_PROVIDER,
+    LLM_TEMPERATURE,
+    LLM_TIMEOUT,
+    OLLAMA_API_KEY,
+    OLLAMA_BASE_URL,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ _RATE_LIMIT_WAIT = 10
 def _get_base_url_and_headers() -> tuple[str, dict]:
     """LLM provider base URL and HTTP headers."""
     headers = {"Content-Type": "application/json"}
-    
+
     if LLM_PROVIDER == "openrouter":
         headers["Authorization"] = f"Bearer {_LLM_API_KEY}"
         headers["HTTP-Referer"] = "https://sightline.io"
@@ -43,7 +42,7 @@ def _get_base_url_and_headers() -> tuple[str, dict]:
 
 
 def chat(
-    messages: List[Dict[str, str]],
+    messages: list[dict[str, str]],
     model: str = LLM_MODEL,
     temperature: float = LLM_TEMPERATURE,
     max_tokens: int = LLM_MAX_TOKENS_DEFAULT,
@@ -73,7 +72,7 @@ def chat(
         "think": False,
     }
 
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for attempt in range(1, LLM_MAX_RETRIES + 1):
         try:
@@ -138,7 +137,7 @@ def chat(
     )
 
 
-def chat_simple(user_prompt: str, system_prompt: Optional[str] = None, **kwargs) -> str:
+def chat_simple(user_prompt: str, system_prompt: str | None = None, **kwargs) -> str:
     """
     Shortcut for a single user message.
 
@@ -147,7 +146,7 @@ def chat_simple(user_prompt: str, system_prompt: Optional[str] = None, **kwargs)
         system_prompt: System instruction (optional)
         **kwargs     : Additional parameters passed to chat() (temperature, max_tokens, etc.)
     """
-    messages: List[Dict[str, str]] = []
+    messages: list[dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": user_prompt})

@@ -14,16 +14,15 @@ Output:
 }
 """
 
-import re
 import logging
-from typing import Dict, List, Optional
+
+import llm_client
 
 from config import (
     LLM_MAX_TOKENS_SUMMARY,
     LLM_MODEL_ANSWERS,
     LLM_TEMPERATURE_ANSWERS,
 )
-import llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +77,7 @@ Your task is to produce a **coherent, flowing narrative report** in HTML format.
 **Write the complete narrative report now:**"""
 
 
-def _format_cluster_sources(cluster_summaries: Dict) -> tuple:
+def _format_cluster_sources(cluster_summaries: dict) -> tuple:
     """
     Converts cluster summaries to numbered source format.
     Returns: (source_text: str, source_meta: dict)
@@ -104,10 +103,10 @@ def _format_cluster_sources(cluster_summaries: Dict) -> tuple:
 def generate_narrative_report(
     country: str,
     event: str,
-    cluster_summaries: Dict,
-    exec_summary: Dict,
-    hdx_context: Optional[Dict] = None,
-) -> Dict:
+    cluster_summaries: dict,
+    exec_summary: dict,
+    hdx_context: dict | None = None,
+) -> dict:
     """
     Generates a full narrative report from executive summary and cluster summaries.
 
@@ -217,12 +216,12 @@ def _build_fallback_html(
     country: str,
     event: str,
     exec_summary_text: str,
-    cluster_summaries: Dict,
+    cluster_summaries: dict,
 ) -> str:
     """
     Generates plain HTML fallback if LLM call fails.
     """
-    html = f"<h2>1. Executive Overview</h2>\n"
+    html = "<h2>1. Executive Overview</h2>\n"
     if exec_summary_text:
         html += f"<p>{exec_summary_text}</p>\n"
     else:

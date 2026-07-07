@@ -12,7 +12,6 @@ Output:
 Requires: geopandas, shapely
 """
 
-import json
 import os
 import sys
 
@@ -141,7 +140,7 @@ def main():
     simplified["geometry"] = simplified["geometry"].simplify(tolerance=RES["tolerance"], preserve_topology=True)
     svg_parts = []
     svg_parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SVG_W} {SVG_H}" preserveAspectRatio="xMidYMid meet">')
-    svg_parts.append(f'  <!-- Ocean background -->')
+    svg_parts.append('  <!-- Ocean background -->')
     svg_parts.append(f'  <rect width="{SVG_W}" height="{SVG_H}" fill="rgba(245,245,247,1)"/>')
 
     svg_parts.append('  <!-- Graticule grid -->')
@@ -205,7 +204,7 @@ def main():
     for code, info in CRISIS_COUNTRIES.items():
         js_crisis += f'  "{code}": {{ "name": "{info["name"]}", "lat": {info["lat"]}, "lng": {info["lng"]} }},\n'
     js_crisis += "};"
-    print(f"\nJS CRISIS_COUNTRIES for app.js:")
+    print("\nJS CRISIS_COUNTRIES for app.js:")
     print(js_crisis)
 
 

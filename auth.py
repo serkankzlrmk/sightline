@@ -11,12 +11,12 @@ auth.py — Single source of truth for authentication and role management.
 - Helper: current_role() returns the authenticated user's role string.
 - Helper: set_user_role() / get_user_role() for Firebase Custom Claims management.
 """
-import os
 import functools
 import hmac
-import secrets
 import logging
-from flask import request, jsonify, g
+import os
+
+from flask import g, jsonify, request
 
 _log = logging.getLogger(__name__)
 
@@ -203,8 +203,9 @@ def verify_firebase_token(token: str) -> dict:
     Revocation is checked lazily instead.
     """
     _firebase_app()
-    from firebase_admin import auth as firebase_auth
     import time
+
+    from firebase_admin import auth as firebase_auth
     try:
         decoded = firebase_auth.verify_id_token(token, check_revoked=False)
         return decoded

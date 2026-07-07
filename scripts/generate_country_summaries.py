@@ -6,9 +6,9 @@ Cron: Monday 07:00 UTC (after bulletin generation at 06:30)
 Usage: python scripts/generate_country_summaries.py
 """
 
-import sys
-import os
 import logging
+import os
+import sys
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

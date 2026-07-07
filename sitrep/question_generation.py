@@ -8,22 +8,21 @@ Original Stage 2.0 (2.0-Questions-generation.ipynb) logic:
 - Dedup: cosine similarity (DefaultEmbeddingFunction) — instead of CrossEncoder
 """
 
-import re
-import random
 import logging
-from typing import List, Dict, Tuple
+import random
+import re
 
+import llm_client
 import numpy as np
 
 from config import (
-    QUESTION_RUNS_PER_CLUSTER,
-    QUESTION_DEDUP_THRESHOLD,
-    MAX_QUESTIONS_PER_CLUSTER,
     LLM_MAX_TOKENS_DEFAULT,
     LLM_MODEL_QUESTIONS,
     LLM_TEMPERATURE_QUESTIONS,
+    MAX_QUESTIONS_PER_CLUSTER,
+    QUESTION_DEDUP_THRESHOLD,
+    QUESTION_RUNS_PER_CLUSTER,
 )
-import llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ _MAX_ARTICLES_IN_PROMPT: int = 20
 _MAX_ARTICLE_CHARS: int = 500
 
 
-def _build_prompt(headline: str, articles: List[str], event: str, country: str) -> str:
+def _build_prompt(headline: str, articles: list[str], event: str, country: str) -> str:
     """Builds the original Prompt 1 template.
     
     Random sampling and truncation applied to stay within token limits.
@@ -89,7 +88,7 @@ Content:
 # Question extraction
 # ---------------------------------------------------------------------------
 
-def _extract_questions(raw_text: str) -> List[str]:
+def _extract_questions(raw_text: str) -> list[str]:
     """
     Extracts question sentences from LLM output.
     - Cleans numbered list lines (1. / 1) etc.)
@@ -121,10 +120,10 @@ def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def _deduplicate_questions(
-    questions: List[str],
+    questions: list[str],
     threshold: float = QUESTION_DEDUP_THRESHOLD,
     max_keep: int = MAX_QUESTIONS_PER_CLUSTER,
-) -> List[str]:
+) -> list[str]:
     """
     Removes similar questions using cosine similarity.
     Uses ChromaDB's DefaultEmbeddingFunction (all-MiniLM-L6-v2).
@@ -148,8 +147,8 @@ def _deduplicate_questions(
         logger.warning("Could not compute embeddings, skipping dedup: %s", exc)
         return questions[:max_keep]
 
-    kept_indices: List[int] = []
-    kept_embeddings: List[np.ndarray] = []
+    kept_indices: list[int] = []
+    kept_embeddings: list[np.ndarray] = []
 
     for i, emb in enumerate(embeddings):
         is_duplicate = False
@@ -171,10 +170,10 @@ def _deduplicate_questions(
 # ---------------------------------------------------------------------------
 
 def generate_questions(
-    clusters: Dict,
+    clusters: dict,
     event: str,
     country: str,
-) -> Dict:
+) -> dict:
     """
     Generates questions for each cluster.
 
@@ -194,7 +193,7 @@ def generate_questions(
           }
         }
     """
-    result: Dict = {}
+    result: dict = {}
 
     for cluster_id, cluster_data in clusters.items():
         headline = cluster_data["cluster_headline"]
@@ -208,8 +207,8 @@ def generate_questions(
         prompt = _build_prompt(headline, articles_texts, event, country)
 
         # 3 independent runs
-        question_sets: List[List[str]] = []
-        all_raw: List[str] = []
+        question_sets: list[list[str]] = []
+        all_raw: list[str] = []
 
         for run_idx in range(QUESTION_RUNS_PER_CLUSTER):
             try:

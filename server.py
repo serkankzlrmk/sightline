@@ -15,20 +15,19 @@ Tabs:
           Tab 3: SITREP    (9-stage pipeline runner)
 """
 
-import sys
+import json
+import logging
 import os
 import re
-import json
+import secrets
+import sqlite3
+import subprocess
+import sys
+import threading
 import time
 import uuid
-import sqlite3
-import hashlib
-import threading
-import subprocess
-import logging
-import secrets
 from pathlib import Path
-from queue import Queue, Empty
+from queue import Empty, Queue
 
 # ── Suppress ONNX / TensorRT log noise before any onnxruntime import ─────────
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
@@ -36,31 +35,57 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
 
-from flask import Flask, Response, request, jsonify, render_template, send_from_directory, g
+import urllib3
+from flask import Flask, Response, g, jsonify, render_template, request
 from flask_cors import CORS
 
 from config import (
-    SERVER_HOST, SERVER_PORT, SERVER_DEBUG, SERVER_API_KEY, CORS_ORIGINS,
-    DB_PATH, CHATS_DB_PATH, OUTPUT_REPORTS_DIR, DOWNLOADS_DIR, LOG_LEVEL,
-    DAILY_MESSAGE_LIMIT, PREMIUM_MESSAGE_LIMIT, SSL_VERIFY, SSL_CA_BUNDLE, SECRET_KEY,
+    _LLM_API_KEY,
+    _LLM_BASE_URL,
     CHAT_MODELS,
-    OLLAMA_MODEL, _LLM_BASE_URL, _LLM_API_KEY, MODEL_TEMPERATURE, MODEL_MAX_TOKENS, OLLAMA_TIMEOUT,
+    CHATS_DB_PATH,
+    CORS_ORIGINS,
+    DAILY_MESSAGE_LIMIT,
+    DB_PATH,
+    LOG_LEVEL,
+    MODEL_MAX_TOKENS,
+    MODEL_TEMPERATURE,
+    OLLAMA_MODEL,
+    OLLAMA_TIMEOUT,
+    OUTPUT_REPORTS_DIR,
+    PREMIUM_MESSAGE_LIMIT,
+    SECRET_KEY,
+    SERVER_API_KEY,
+    SERVER_DEBUG,
+    SERVER_HOST,
+    SERVER_PORT,
     SITREP_JOB_TIMEOUT,
+    SSL_CA_BUNDLE,
+    SSL_VERIFY,
 )
 
-import urllib3
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from auth import require_auth, require_admin, require_role, current_uid, current_role, _admins, optional_auth
+from auth import _admins, current_role, current_uid, require_admin, require_auth, require_role
+from config import (
+    HDX_APP_IDENTIFIER,
+    HDX_BASE_URL,
+    HDX_RATE_LIMIT_PERIOD,
+    HDX_RATE_LIMIT_REQUESTS,
+    HDX_TIMEOUT,
+    NEWS_API_KEY,
+    NEWS_BASE_URL,
+    NEWS_RATE_LIMIT_PERIOD,
+    NEWS_RATE_LIMIT_REQUESTS,
+    NEWS_TIMEOUT,
+)
 
 # ── HDX Client (Humanitarian Data Exchange) ──────────────────────────────────
-from reliefweb_api.hdx_tools import init_hdx_tools, get_hdx_client
-from config import HDX_APP_IDENTIFIER, HDX_BASE_URL, HDX_TIMEOUT, HDX_RATE_LIMIT_REQUESTS, HDX_RATE_LIMIT_PERIOD
+from reliefweb_api.hdx_tools import get_hdx_client, init_hdx_tools
 
 # ── News Client (NewsAPI.org — World News) ──────────────────────────────────
-from reliefweb_api.news_tools import init_news_tools, get_news_client
-from config import NEWS_API_KEY, NEWS_BASE_URL, NEWS_TIMEOUT, NEWS_RATE_LIMIT_REQUESTS, NEWS_RATE_LIMIT_PERIOD
+from reliefweb_api.news_tools import get_news_client, init_news_tools
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -108,8 +133,11 @@ else:
     logger.warning("News client not initialized (NEWS_API_KEY not set). News endpoints will return 503.")
 
 # ── Initialize GDACS client (free, keyless — always succeeds) ────────────────
-from config import GDACS_BASE_URL as _GDACS_URL, GDACS_TIMEOUT as _GDACS_T, GDACS_CACHE_TTL as _GDACS_C
-from reliefweb_api.gdacs_tools import init_gdacs_tools as _init_gdacs, get_gdacs_client as _get_gdacs
+from config import GDACS_BASE_URL as _GDACS_URL
+from config import GDACS_CACHE_TTL as _GDACS_C
+from config import GDACS_TIMEOUT as _GDACS_T
+from reliefweb_api.gdacs_tools import init_gdacs_tools as _init_gdacs
+
 _gdacs_ok = _init_gdacs(base_url=_GDACS_URL, timeout=_GDACS_T, cache_ttl=_GDACS_C)
 if _gdacs_ok:
     logger.info("✓ GDACS client initialized — disaster alert tools available")
@@ -118,10 +146,22 @@ else:
 
 # ── Initialize Weather client (free, keyless — always succeeds) ─────────────
 from config import (
-    OPEN_METEO_BASE_URL as _OM_BASE, OPEN_METEO_GEO_URL as _OM_GEO,
-    OPEN_METEO_AQ_URL as _OM_AQ, OPEN_METEO_TIMEOUT as _OM_T, OPEN_METEO_CACHE_TTL as _OM_C,
+    OPEN_METEO_AQ_URL as _OM_AQ,
 )
-from reliefweb_api.weather_tools import init_weather_tools as _init_weather, get_weather_client as _get_weather
+from config import (
+    OPEN_METEO_BASE_URL as _OM_BASE,
+)
+from config import (
+    OPEN_METEO_CACHE_TTL as _OM_C,
+)
+from config import (
+    OPEN_METEO_GEO_URL as _OM_GEO,
+)
+from config import (
+    OPEN_METEO_TIMEOUT as _OM_T,
+)
+from reliefweb_api.weather_tools import init_weather_tools as _init_weather
+
 _weather_ok = _init_weather(base_url=_OM_BASE, geo_url=_OM_GEO, aq_url=_OM_AQ, timeout=_OM_T, cache_ttl=_OM_C)
 if _weather_ok:
     logger.info("✓ Weather client initialized — forecast + geocoding tools available")
@@ -129,8 +169,11 @@ else:
     logger.warning("Weather client not initialized. Weather tools will return errors.")
 
 # ── Initialize World Bank client (free, keyless — always succeeds) ──────────
-from config import WORLDBANK_BASE_URL as _WB_URL, WORLDBANK_TIMEOUT as _WB_T, WORLDBANK_CACHE_TTL as _WB_C
-from reliefweb_api.worldbank_tools import init_worldbank_tools as _init_wb, get_worldbank_client as _get_wb
+from config import WORLDBANK_BASE_URL as _WB_URL
+from config import WORLDBANK_CACHE_TTL as _WB_C
+from config import WORLDBANK_TIMEOUT as _WB_T
+from reliefweb_api.worldbank_tools import init_worldbank_tools as _init_wb
+
 _wb_ok = _init_wb(base_url=_WB_URL, timeout=_WB_T, cache_ttl=_WB_C)
 if _wb_ok:
     logger.info("✓ World Bank client initialized — economic indicator tools available")
@@ -141,6 +184,7 @@ else:
 # Non-blocking: starts background thread, returns immediately. Tools added
 # to agent when ready (~30-60s for npx/uvx subprocess startup).
 from mcp_integration import init_mcp_tools as _init_mcp
+
 _mcp_ok = _init_mcp()
 logger.info("MCP: Background init started — arxiv/sequential/brave tools will be available shortly")
 
@@ -150,6 +194,7 @@ CORS(app, origins=_cors_origins, supports_credentials=False)
 # ProxyFix: behind nginx, request.remote_addr is 127.0.0.1 for everyone.
 # This makes the per-IP rate limiter see the real client IP from X-Forwarded-For.
 from werkzeug.middleware.proxy_fix import ProxyFix
+
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 def _ssl_verify():
@@ -241,6 +286,7 @@ _agent_lock   = threading.Lock()
 
 # Multi-chat: SQLite-backed persistence (survives server restarts)
 import time as _time
+
 _chats_lock     = threading.Lock()
 _user_active_chat = {}  # uid → chat_id
 _user_active_chat_lock = threading.Lock()
@@ -591,7 +637,7 @@ def _ensure_active_chat(uid=""):
 
 def _load_langchain_messages(chat_id):
     """Load messages from DB as LangChain message objects."""
-    from langchain_core.messages import HumanMessage, AIMessage
+    from langchain_core.messages import AIMessage, HumanMessage
     rows = _db_get_messages(chat_id)
     msgs = []
     for r in rows:
@@ -617,6 +663,7 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
     def _do():
         try:
             from langchain_openai import ChatOpenAI
+
             from config import config as _cfg
             mini = ChatOpenAI(
                 model=_cfg.LLM_MODEL,
@@ -870,7 +917,7 @@ def api_chat_models():
 @require_admin
 def api_admin_users():
     """List all Firebase Auth users with their roles.  Admin only."""
-    from auth import get_user_role, _firebase_app
+    from auth import _firebase_app
     fb = _firebase_app()
     if not fb:
         return jsonify({"error": "Firebase not configured"}), 503
@@ -900,7 +947,7 @@ def api_admin_users():
 @require_admin
 def api_admin_set_role(uid):
     """Set a user's role via Firebase Custom Claims.  Admin only."""
-    from auth import set_user_role, ROLE_HIERARCHY
+    from auth import ROLE_HIERARCHY, set_user_role
     data = request.get_json(silent=True) or {}
     new_role = (data.get("role") or "").strip().lower()
     if new_role not in ROLE_HIERARCHY:
@@ -917,7 +964,7 @@ def api_admin_set_role(uid):
 @require_admin
 def api_admin_get_user(uid):
     """Get a single user's details including role.  Admin only."""
-    from auth import get_user_role, _firebase_app
+    from auth import _firebase_app
     fb = _firebase_app()
     if not fb:
         return jsonify({"error": "Firebase not configured"}), 503
@@ -1055,7 +1102,7 @@ def api_admin_analytics():
 @require_admin
 def api_admin_config():
     """Get current runtime config values. Admin only."""
-    from config import ACTIVE_MODEL, LLM_MODEL, LLM_PROVIDER, MODEL_TEMPERATURE, MODEL_MAX_TOKENS
+    from config import ACTIVE_MODEL, LLM_MODEL, LLM_PROVIDER, MODEL_MAX_TOKENS, MODEL_TEMPERATURE
     return jsonify({
         "ACTIVE_MODEL": ACTIVE_MODEL,
         "LLM_MODEL": LLM_MODEL,
@@ -1109,7 +1156,7 @@ def api_admin_update_config():
     lines = []
     if env_path.exists():
         lines = env_path.read_text(encoding="utf-8").splitlines()
-    
+
     # Update or add each key
     updated_keys = set()
     for i, line in enumerate(lines):
@@ -1123,13 +1170,14 @@ def api_admin_update_config():
     for key in updates:
         if key not in updated_keys:
             lines.append(f"{key}={updates[key]}")
-    
+
     # Write back
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     logger.info("api_admin_update_config: Updated .env keys: %s", list(updates.keys()))
 
     # Reload config module
     import importlib
+
     import config as config_module
     importlib.reload(config_module)
     # Re-import updated values into server module
@@ -1170,7 +1218,7 @@ def health():
     status flags — no model names, no release info, no dev_mode flag (which
     would be a banner saying 'auth is disabled here').
     """
-    from config import CHROMA_DIR, _LLM_API_KEY, VECTOR_BACKEND
+    from config import _LLM_API_KEY, CHROMA_DIR, VECTOR_BACKEND
 
     checks = {"status": "ok", "version": "1.2"}
 
@@ -1188,7 +1236,7 @@ def health():
     # Vector store check (boolean only — no backend name leak)
     if VECTOR_BACKEND == "pgvector":
         try:
-            from config import SUPABASE_URL, SUPABASE_DB_URL
+            from config import SUPABASE_DB_URL, SUPABASE_URL
             checks["vector"] = bool(SUPABASE_URL and SUPABASE_DB_URL)
         except Exception:
             checks["vector"] = False
@@ -1517,7 +1565,6 @@ def api_agent_chat():
     # Deep Think: sequential reasoning flag
     use_sequential = model_config.get("sequential", False)
 
-    from langchain_core.messages import HumanMessage, AIMessage
 
     def generate():
         # busy flag was already set under _user_agent_busy_lock before this generator starts
@@ -1531,10 +1578,11 @@ def api_agent_chat():
             if selected_model_name != OLLAMA_MODEL:
                 # Create a temporary agent with the selected model
                 from langchain_openai import ChatOpenAI
-                from agent.relief_agent import all_tools, _build_system_prompt
-                from langgraph.graph import StateGraph, START
+                from langgraph.graph import START, StateGraph
                 from langgraph.graph.message import MessagesState
                 from langgraph.prebuilt import ToolNode
+
+                from agent.relief_agent import _build_system_prompt, all_tools
 
                 temp_llm = ChatOpenAI(
                     model=selected_model_name,
@@ -2158,13 +2206,14 @@ def api_bulletin_generate():
     Runs generation in a background thread and returns a job_id immediately.
     Frontend can poll /api/sitrep/bulletin/generate/status/<job_id> for progress.
     """
-    from sitrep.weekly_bulletin import generate_weekly_bulletin
     from datetime import datetime, timedelta
-    
+
+    from sitrep.weekly_bulletin import generate_weekly_bulletin
+
     data = request.get_json(silent=True) or {}
     date_from = data.get("date_from", "")
     date_to = data.get("date_to", "")
-    
+
     if not date_from or not date_to:
         # Default to last week
         today = datetime.now()
@@ -2172,7 +2221,7 @@ def api_bulletin_generate():
         last_sunday = last_monday + timedelta(days=6)
         date_from = date_from or last_monday.strftime("%Y-%m-%d")
         date_to = date_to or last_sunday.strftime("%Y-%m-%d")
-    
+
     # Create a job for background generation
     job_id = f"bulletin-{_time.time():.0f}"
     with _jobs_lock:
@@ -2184,7 +2233,7 @@ def api_bulletin_generate():
             "date_from": date_from,
             "date_to": date_to,
         }
-    
+
     def _run_bulletin():
         q = _jobs[job_id]["queue"]
         try:
@@ -2208,10 +2257,10 @@ def api_bulletin_generate():
                 _jobs[job_id]["error"] = str(exc)
         finally:
             q.put(None)  # sentinel
-    
+
     thread = threading.Thread(target=_run_bulletin, daemon=True)
     thread.start()
-    
+
     return jsonify({
         "status": "started",
         "job_id": job_id,
@@ -2229,7 +2278,7 @@ def api_bulletin_generate_status(job_id):
         job = _jobs.get(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    
+
     # Collect any new log lines from the queue
     logs = []
     q = job["queue"]
@@ -2241,7 +2290,7 @@ def api_bulletin_generate_status(job_id):
             logs.append(line)
     except Empty:
         pass
-    
+
     response = {
         "status": job["status"],
         "logs": logs,
@@ -2252,7 +2301,7 @@ def api_bulletin_generate_status(job_id):
         response["result"] = job["result"]
     if job["status"] == "error" and "error" in job:
         response["error"] = job["error"]
-    
+
     return jsonify(response)
 
 
@@ -2500,7 +2549,7 @@ def api_ingest_daily():
     Returns: {fetched, ingested, skipped, errors, purged_sql, purged_chroma}
     """
     import subprocess
-    
+
     data = request.get_json(silent=True) or {}
     target_date = data.get("date", "")  # empty = yesterday
     purge_days = data.get("purge_days", 90)
@@ -2525,7 +2574,7 @@ def api_ingest_daily():
     if no_purge:
         cmd.append("--no-purge")
     cmd += ["--purge-days", str(purge_days)]
-    
+
     try:
         result = subprocess.run(
             cmd,
@@ -2535,7 +2584,7 @@ def api_ingest_daily():
             cwd=str(Path(__file__).parent),
         )
         output = result.stdout + result.stderr
-        
+
         # Parse the summary from output
         summary = {
             "fetched": 0, "ingested": 0, "skipped": 0, "errors": 0,
@@ -2556,7 +2605,7 @@ def api_ingest_daily():
             if m: summary["purged_sql"] = int(m.group(1))
             m = re.search(r"Purged \(Vec\):\s+(\d+)", line)
             if m: summary["purged_chroma"] = int(m.group(1))
-        
+
         if result.returncode != 0:
             summary["warning"] = "Script exited with non-zero code (some errors occurred)"
 
@@ -2566,7 +2615,7 @@ def api_ingest_daily():
             "purged_sql": summary["purged_sql"], "purged_chroma": summary["purged_chroma"],
         })
         return jsonify(summary)
-        
+
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Daily ingest timed out (10 min limit)"}), 504
     except Exception as e:
@@ -2580,10 +2629,16 @@ MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this
 @require_admin
 def api_ingest_upload():
     """Upload a PDF with user-supplied metadata → SQLite + ChromaDB."""
-    import tempfile, shutil
+    import shutil
+    import tempfile
+
     from reliefweb_api.db_manager import (
-        DatabaseManager, extract_pdf_text, chunk_text,
-        build_chunk_with_header, CHUNK_SIZE, CHUNK_OVERLAP,
+        CHUNK_OVERLAP,
+        CHUNK_SIZE,
+        DatabaseManager,
+        build_chunk_with_header,
+        chunk_text,
+        extract_pdf_text,
     )
     from reliefweb_api.vector_store import VectorStore
 
@@ -2699,14 +2754,14 @@ def api_get_proposals():
             "SELECT id, title, country, event, themes, donor, date_from, date_to, created_at FROM proposals WHERE uid = ? ORDER BY created_at DESC",
             (uid,)
         ).fetchall()
-        
+
         proposals = []
         for r in rows:
             try:
                 themes_list = json.loads(r["themes"])
             except Exception:
                 themes_list = [t.strip() for t in r["themes"].split(",") if t.strip()]
-                
+
             proposals.append({
                 "id": r["id"],
                 "title": r["title"],
@@ -2731,7 +2786,7 @@ def api_get_proposals():
 def api_create_proposal():
     uid = current_uid()
     data = request.json or {}
-    
+
     title = data.get("title", "New Proposal").strip()
     country = data.get("country", "").strip()
     event = data.get("event", "").strip()
@@ -2739,26 +2794,26 @@ def api_create_proposal():
     donor = data.get("donor", "ECHO").strip()
     date_from = data.get("date_from", "").strip()
     date_to = data.get("date_to", "").strip()
-    
+
     if not country:
         return jsonify({"error": "Country context is required"}), 400
-        
+
     prop_id = "prop_" + str(uuid.uuid4().hex[:12])
-    
+
     default_toc = [
         {"level": "impact", "text": "Enhanced safety and reduced vulnerability of affected populations."},
         {"level": "outcome", "text": "Access to vital emergency services and basic needs is restored."},
         {"level": "output", "text": "Emergency relief kits and support materials distributed."},
         {"level": "activity", "text": "Procure and deliver aid packages to targeted zones."}
     ]
-    
+
     default_logframe = {
         "goal": f"G1. Reduced vulnerability to disaster shocks in {country}.",
         "outcomes": "OC1. Targeted households report basic needs met.\nIndicator: % of target pop with satisfied needs.",
         "outputs": "O1. Relief materials delivered to local centers.\nIndicator: Number of kits distributed.",
         "activities": "A1. Deploy logistics team.\nA2. Complete safe distributions."
     }
-    
+
     default_narrative = f"## Project Summary\nEmergency humanitarian response targeting communities in {country} affected by recent crises.\n\n## Methodology\nInterventions will focus on key sectors: {', '.join(themes)}."
 
     conn = _chats_db()
@@ -2768,14 +2823,14 @@ def api_create_proposal():
                (id, uid, title, country, event, themes, donor, date_from, date_to, toc, logframe, narrative, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                prop_id, uid, title, country, event, 
-                json.dumps(themes), donor, date_from, date_to, 
+                prop_id, uid, title, country, event,
+                json.dumps(themes), donor, date_from, date_to,
                 json.dumps(default_toc), json.dumps(default_logframe), default_narrative,
                 time.time()
             )
         )
         conn.commit()
-        
+
         return jsonify({
             "id": prop_id,
             "title": title,
@@ -2806,15 +2861,15 @@ def api_get_proposal_detail(prop_id):
             "SELECT * FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         try:
             themes_list = json.loads(row["themes"])
         except Exception:
             themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
-            
+
         return jsonify({
             "id": row["id"],
             "title": row["title"],
@@ -2841,35 +2896,35 @@ def api_get_proposal_detail(prop_id):
 def api_update_proposal(prop_id):
     uid = current_uid()
     data = request.json or {}
-    
+
     conn = _chats_db()
     try:
         row = conn.execute(
             "SELECT id FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         fields_to_update = {}
         for k in ["title", "country", "event", "donor", "date_from", "date_to", "narrative"]:
             if k in data:
                 fields_to_update[k] = data[k]
-                
+
         if "themes" in data:
             fields_to_update["themes"] = json.dumps(data["themes"])
         if "toc" in data:
             fields_to_update["toc"] = json.dumps(data["toc"])
         if "logframe" in data:
             fields_to_update["logframe"] = json.dumps(data["logframe"])
-            
+
         if not fields_to_update:
             return jsonify({"message": "No changes made"})
-            
+
         set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
         params = list(fields_to_update.values()) + [prop_id, uid]
-        
+
         conn.execute(
             f"UPDATE proposals SET {set_clause} WHERE id = ? AND uid = ?",
             params
@@ -2893,10 +2948,10 @@ def api_delete_proposal(prop_id):
             "SELECT id FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         conn.execute(
             "DELETE FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
@@ -2920,17 +2975,17 @@ def api_proposal_generate_toc(prop_id):
             "SELECT country, event, themes FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         country = row["country"]
         event = row["event"]
         try:
             themes = json.loads(row["themes"])
         except Exception:
             themes = [row["themes"]]
-            
+
         context_chunks = []
         try:
             from reliefweb_api.vector_store import VectorStore
@@ -2943,7 +2998,7 @@ def api_proposal_generate_toc(prop_id):
             logger.warning(f"Vector search failed in generate-toc: {vec_err}")
 
         context_text = "\n\n".join(context_chunks)[:4000]
-        
+
         system_prompt = (
             "You are an expert humanitarian crisis proposal designer.\n"
             "Your task is to draft a Theory of Change (ToC) for a relief project.\n"
@@ -2957,35 +3012,35 @@ def api_proposal_generate_toc(prop_id):
             "Ensure the logic flows sequentially (Activity -> Output -> Outcome -> Impact).\n"
             "Return ONLY the JSON array, no explanation or markdown blocks."
         )
-        
+
         user_prompt = (
             f"Country: {country}\n"
             f"Crisis / Event: {event}\n"
             f"Target Themes: {', '.join(themes)}\n\n"
             f"Crisis Context Data:\n{context_text if context_text else 'No recent report details available.'}"
         )
-        
+
         from sitrep.llm_client import chat as llm_chat
         response = llm_chat([
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ])
-        
+
         cleaned = response.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("```")[1]
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
         cleaned = cleaned.strip()
-        
+
         toc_nodes = json.loads(cleaned)
-        
+
         conn.execute(
             "UPDATE proposals SET toc = ? WHERE id = ? AND uid = ?",
             (json.dumps(toc_nodes), prop_id, uid)
         )
         conn.commit()
-        
+
         return jsonify(toc_nodes)
     except Exception as e:
         logger.error(f"api_proposal_generate_toc error: {prop_id}, {e}")
@@ -3004,14 +3059,14 @@ def api_proposal_generate_logframe(prop_id):
             "SELECT country, event, themes, toc FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         country = row["country"]
         event = row["event"]
         toc = json.loads(row["toc"])
-        
+
         system_prompt = (
             "You are an expert humanitarian program officer.\n"
             "Based on the Theory of Change (ToC) provided, draft a structured Logical Framework (Logframe) matrix.\n"
@@ -3023,35 +3078,35 @@ def api_proposal_generate_logframe(prop_id):
             "Make all indicators SMART (Specific, Measurable, Achievable, Relevant, Time-bound).\n"
             "Return ONLY the JSON object, no explanation or markdown blocks."
         )
-        
+
         user_prompt = (
             f"Country: {country}\n"
             f"Crisis: {event}\n"
-            f"Theory of Change Hierarchy:\n" + 
+            f"Theory of Change Hierarchy:\n" +
             "\n".join([f"- {node['level'].upper()}: {node['text']}" for node in toc])
         )
-        
+
         from sitrep.llm_client import chat as llm_chat
         response = llm_chat([
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ])
-        
+
         cleaned = response.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("```")[1]
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:]
         cleaned = cleaned.strip()
-        
+
         logframe_data = json.loads(cleaned)
-        
+
         conn.execute(
             "UPDATE proposals SET logframe = ? WHERE id = ? AND uid = ?",
             (json.dumps(logframe_data), prop_id, uid)
         )
         conn.commit()
-        
+
         return jsonify(logframe_data)
     except Exception as e:
         logger.error(f"api_proposal_generate_logframe error: {prop_id}, {e}")
@@ -3070,19 +3125,19 @@ def api_proposal_chunks(prop_id):
             "SELECT country, themes, date_from, date_to FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         country = row["country"]
         try:
             themes = json.loads(row["themes"])
         except Exception:
             themes = [t.strip() for t in row["themes"].split(",") if t.strip()]
-            
+
         date_from = row["date_from"]
         date_to = row["date_to"]
-        
+
         chunks = []
         try:
             from sitrep.chroma_adapter import ChromaAdapter
@@ -3092,7 +3147,7 @@ def api_proposal_chunks(prop_id):
             )
         except BaseException as adapter_err:
             logger.warning(f"ChromaAdapter failed in api_proposal_chunks: {adapter_err}")
-        
+
         results = []
         for c in chunks[:15]:
             results.append({
@@ -3101,7 +3156,7 @@ def api_proposal_chunks(prop_id):
                 "date": c.get("date", ""),
                 "themes": c.get("themes", "")
             })
-            
+
         return jsonify(results)
     except Exception as e:
         logger.error(f"api_proposal_chunks error: {prop_id}, {e}")
@@ -3116,10 +3171,10 @@ def api_proposal_advisor_chat(prop_id):
     uid = current_uid()
     data = request.json or {}
     message = data.get("message", "").strip()
-    
+
     if not message:
         return jsonify({"error": "Message is required"}), 400
-        
+
     conn = _chats_db()
     try:
         # Verify proposal ownership
@@ -3127,12 +3182,12 @@ def api_proposal_advisor_chat(prop_id):
             "SELECT country, event, donor, toc, logframe FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         chat_id = f"proposal_advisor_{prop_id}"
-        
+
         # Ensure advisor chat session exists in chats table
         chat_row = conn.execute("SELECT id FROM chats WHERE id = ?", (chat_id,)).fetchone()
         if not chat_row:
@@ -3141,31 +3196,31 @@ def api_proposal_advisor_chat(prop_id):
                 (chat_id, uid, f"Advisor: {row['country']} Proposal", _time.time())
             )
             conn.commit()
-            
+
         # Get historical advisor messages
         db_rows = conn.execute(
             "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY ts ASC",
             (chat_id,)
         ).fetchall()
-        
-        from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+
+        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
         messages = []
         for r in db_rows:
             if r["role"] == "user":
                 messages.append(HumanMessage(content=r["content"]))
             elif r["role"] == "assistant":
                 messages.append(AIMessage(content=r["content"]))
-                
+
         # Append the new user message
         messages.append(HumanMessage(content=message))
-        
+
         # Save user message to database
         conn.execute(
             "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'user', ?, ?)",
             (chat_id, message, _time.time())
         )
         conn.commit()
-        
+
         # Fetch context chunks
         chunks_text = ""
         try:
@@ -3175,7 +3230,7 @@ def api_proposal_advisor_chat(prop_id):
                 themes_list = json.loads(row["themes"])
             except Exception:
                 themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
-            
+
             # Use row data from proposal (country, themes) to get chunks
             chunks = db.get_chunks_by_country_and_themes(row["country"], themes_list or None)
             if chunks:
@@ -3214,43 +3269,43 @@ Provide specific, constructive feedback and suggestions. Use your tools (edit_pr
                 "proposal_id": prop_id
             }
         }
-        
+
         result = agent.invoke({"messages": messages}, config=config)
-        
+
         # Save agent response to database
         final_response = ""
         for msg in reversed(result.get("messages", [])):
             if isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
                 final_response = msg.content
                 break
-                
+
         if not final_response:
             final_response = "I have reviewed your proposal details."
-            
+
         conn.execute(
             "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'assistant', ?, ?)",
             (chat_id, final_response, _time.time())
         )
         conn.commit()
-        
+
         # Check if proposal tools were executed to trigger auto-refresh in frontend
         proposal_edited = False
         for msg in result.get("messages", []):
             if isinstance(msg, ToolMessage) and msg.name in ("edit_proposal_toc", "edit_proposal_logframe", "edit_proposal_narrative"):
                 proposal_edited = True
                 break
-                
+
         command_data = None
         if proposal_edited:
             command_data = {"action": "refresh"}
-            
+
         # Legacy support for text command tags
         cmd_match = re.search(r"<cmd>(.*?)</cmd>", final_response, re.DOTALL)
         if cmd_match:
             try:
                 command_data = json.loads(cmd_match.group(1).strip())
                 final_response = final_response.replace(cmd_match.group(0), "").strip()
-                
+
                 # Apply legacy command to database
                 if command_data.get("action") == "update_logframe":
                     field = command_data.get("field")
@@ -3276,7 +3331,7 @@ Provide specific, constructive feedback and suggestions. Use your tools (edit_pr
                         conn.commit()
             except Exception as parse_err:
                 logger.warning(f"Failed to parse or apply advisor command JSON: {parse_err}")
-                
+
         return jsonify({
             "response": final_response,
             "command": command_data
@@ -3297,7 +3352,7 @@ def api_proposal_advisor_background_review(prop_id):
             "SELECT country, event, donor, toc, logframe, narrative, themes FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
 
@@ -3310,14 +3365,14 @@ def api_proposal_advisor_background_review(prop_id):
                 themes_list = json.loads(row["themes"])
             except Exception:
                 themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
-            
+
             chunks = db.get_chunks_by_country_and_themes(row["country"], themes_list or None)
             if chunks:
                 chunks_text = "\n\n".join([f"- {c.get('title', 'Report')}: {c.get('text', '')}" for c in chunks[:10]])
         except Exception as e:
             logger.warning(f"Failed to fetch chunks for background review: {e}")
 
-        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
         advisor_context = f"""
 You are the Proposal Background AI Advisor. The user just saved a field update to their proposal.
 Your task is to review the current proposal state in the background and suggest improvements.
@@ -3357,12 +3412,12 @@ If everything looks perfect and no edits are needed, just reply with an encourag
                 "proposal_id": prop_id
             }
         }
-        
+
         result = agent.invoke({"messages": messages}, config=config)
-        
+
         final_message = "Background review complete."
         drafts = {}
-        
+
         for msg in result.get("messages", []):
             if isinstance(msg, AIMessage) and getattr(msg, "content", "") and not getattr(msg, "tool_calls", None):
                 final_message = msg.content
@@ -3376,7 +3431,7 @@ If everything looks perfect and no edits are needed, just reply with an encourag
                             drafts["logframe"] = args["logframe"]
                         if args.get("narrative"):
                             drafts["narrative"] = args["narrative"]
-                            
+
         # Log to chat history to show background action in Advisor
         chat_id = f"proposal_advisor_{prop_id}"
         chat_row = conn.execute("SELECT id FROM chats WHERE id = ?", (chat_id,)).fetchone()
@@ -3384,7 +3439,7 @@ If everything looks perfect and no edits are needed, just reply with an encourag
             msg_to_save = final_message
             if drafts:
                 msg_to_save = final_message + "\n\n*(I have prepared proposed drafts for your review. Click the Review button to see them.)*"
-                
+
             conn.execute(
                 "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'assistant', ?, ?)",
                 (chat_id, msg_to_save, _time.time())
@@ -3415,12 +3470,12 @@ def api_proposal_advisor_history(prop_id):
         ).fetchone()
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         db_rows = conn.execute(
             "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY ts ASC",
             (chat_id,)
         ).fetchall()
-        
+
         history = [{"role": r["role"], "content": r["content"]} for r in db_rows]
         return jsonify(history)
     except Exception as e:
@@ -3441,16 +3496,16 @@ def api_proposal_generate_narrative(prop_id):
             "SELECT country, event, donor, toc, logframe FROM proposals WHERE id = ? AND uid = ?",
             (prop_id, uid)
         ).fetchone()
-        
+
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
-            
+
         country = row["country"]
         event = row["event"]
         donor = row["donor"]
         toc = row["toc"]
         logframe = row["logframe"]
-        
+
         system_prompt = (
             f"You are a professional grant proposal writer specialized in {donor} application guidelines.\n"
             f"Draft the full project description narrative matching {donor} standard templates.\n"
@@ -3459,25 +3514,25 @@ def api_proposal_generate_narrative(prop_id):
             "Incorporate details from the Logical Framework and Theory of Change provided.\n"
             "Maintain a formal, data-driven, and highly persuasive tone. Do not write placeholders."
         )
-        
+
         user_prompt = (
             f"Crisis Context: {country} / {event}\n"
             f"Theory of Change: {toc}\n"
             f"Logical Framework Matrix: {logframe}"
         )
-        
+
         from sitrep.llm_client import chat as llm_chat
         response = llm_chat([
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ])
-        
+
         conn.execute(
             "UPDATE proposals SET narrative = ? WHERE id = ? AND uid = ?",
             (response, prop_id, uid)
         )
         conn.commit()
-        
+
         return jsonify({"narrative": response})
     except Exception as e:
         logger.error(f"api_proposal_generate_narrative error: {prop_id}, {e}")

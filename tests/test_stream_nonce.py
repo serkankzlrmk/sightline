@@ -3,8 +3,7 @@ Tests for SITREP stream nonce lifecycle — single-use, TTL, UID + job_id bindin
 """
 import os
 import sys
-import time
-from unittest.mock import patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the nonce functions directly from server module
@@ -20,6 +19,7 @@ except Exception:
     HAS_SERVER = False
 
 import pytest
+
 pytestmark = pytest.mark.skipif(not HAS_SERVER, reason="server module not importable in test env")
 
 

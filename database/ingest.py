@@ -21,10 +21,10 @@ After running this script, the knowledge base (reliefweb_chroma/) is ready
 for semantic search via the search_knowledge_base agent tool or VectorStore.search().
 """
 
-import sys
-import os
-import json
 import argparse
+import json
+import os
+import sys
 from pathlib import Path
 
 # Force unbuffered output for real-time logging in nohup/CI
@@ -37,8 +37,8 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 # Allow running from repo root (reliefweb_api/ is in project root)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from reliefweb_api.db_manager import DatabaseManager, DEFAULT_DB_PATH, CHUNK_SIZE, CHUNK_OVERLAP
-from reliefweb_api.ingest_pipeline import is_ingested, auto_ingest, CHROMA_DIR
+from reliefweb_api.db_manager import CHUNK_OVERLAP, CHUNK_SIZE, DEFAULT_DB_PATH, DatabaseManager
+from reliefweb_api.ingest_pipeline import CHROMA_DIR, auto_ingest
 from reliefweb_api.vector_store import VectorStore
 
 # Force line-buffered stdout for real-time logging
@@ -175,7 +175,7 @@ def main():
 
     # ── In-memory API ingest mode ────────────────────────────────
     if args.from_api:
-        from reliefweb_api.ingest_pipeline import is_ingested, is_ingested_with_pdf, ingest_from_api
+        from reliefweb_api.ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
         print("=" * 60)
         print("IN-MEMORY INGEST FROM RELIEFWEB API")
         print("=" * 60)

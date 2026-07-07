@@ -17,16 +17,15 @@ Usage:
 """
 
 import logging
-from typing import Optional
 
 from langchain.tools import tool
 
 from reliefweb_api.news_client import NewsClient
-from reliefweb_api.reliefweb_utils import format_response, format_error
+from reliefweb_api.reliefweb_utils import format_error, format_response
 
 logger = logging.getLogger(__name__)
 
-_news_client: Optional[NewsClient] = None
+_news_client: NewsClient | None = None
 
 
 def init_news_tools(api_key: str = "", base_url: str = "",
@@ -57,7 +56,7 @@ def init_news_tools(api_key: str = "", base_url: str = "",
         return False
 
 
-def get_news_client() -> Optional[NewsClient]:
+def get_news_client() -> NewsClient | None:
     """Get the global News client singleton."""
     return _news_client
 
@@ -79,9 +78,9 @@ def _news_result_to_json(result) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 @tool
-def news_search(query: str, country: Optional[str] = None,
-                language: Optional[str] = None,
-                from_date: Optional[str] = None, to_date: Optional[str] = None,
+def news_search(query: str, country: str | None = None,
+                language: str | None = None,
+                from_date: str | None = None, to_date: str | None = None,
                 sort_by: str = "relevancy", limit: int = 10) -> str:
     """Search global news articles by keyword, country, language, and date range.
 
@@ -128,9 +127,9 @@ def news_search(query: str, country: Optional[str] = None,
 
 
 @tool
-def news_headlines(country: Optional[str] = None,
-                    category: Optional[str] = None,
-                    language: Optional[str] = None,
+def news_headlines(country: str | None = None,
+                    category: str | None = None,
+                    language: str | None = None,
                     limit: int = 10) -> str:
     """Get top/breaking news headlines by country and category.
 
@@ -170,9 +169,9 @@ def news_headlines(country: Optional[str] = None,
 
 
 @tool
-def news_sources(category: Optional[str] = None,
-                  language: Optional[str] = None,
-                  country: Optional[str] = None) -> str:
+def news_sources(category: str | None = None,
+                  language: str | None = None,
+                  country: str | None = None) -> str:
     """List available news sources filtered by category, language, and country.
 
     Use this to discover which news sources cover a specific country or topic.

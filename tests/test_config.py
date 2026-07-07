@@ -4,7 +4,6 @@ Test: Configuration validation.
 Ensures config values are sensible and required settings exist.
 """
 
-import pytest
 
 
 def test_config_has_llm_provider():
@@ -29,7 +28,7 @@ def test_config_server_port_valid():
 
 def test_config_chunk_size_valid():
     """Chunk size must be positive."""
-    from reliefweb_api.db_manager import CHUNK_SIZE, CHUNK_OVERLAP
+    from reliefweb_api.db_manager import CHUNK_OVERLAP, CHUNK_SIZE
     assert CHUNK_SIZE > 0, f"CHUNK_SIZE must be > 0, got {CHUNK_SIZE}"
     assert CHUNK_OVERLAP >= 0, f"CHUNK_OVERLAP must be >= 0, got {CHUNK_OVERLAP}"
     assert CHUNK_OVERLAP < CHUNK_SIZE, "CHUNK_OVERLAP must be < CHUNK_SIZE"

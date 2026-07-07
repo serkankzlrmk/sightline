@@ -6,13 +6,13 @@ Original Stage 2.1 (2.1-Questions_filtering_SDGs.ipynb) logic.
 SDG classification is out of scope.
 """
 
-import re
 import json
 import logging
-from typing import List, Dict, Optional
+import re
 
-from config import LLM_MAX_TOKENS_DEFAULT, LLM_MODEL_FILTER, LLM_TEMPERATURE_FILTER
 import llm_client
+
+from config import LLM_MODEL_FILTER, LLM_TEMPERATURE_FILTER
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ Question to evaluate:
 # Single question evaluation
 # ---------------------------------------------------------------------------
 
-def _evaluate_question(question: str) -> Optional[Dict]:
+def _evaluate_question(question: str) -> dict | None:
     """
     Evaluates a single question against 4 criteria.
 
@@ -113,7 +113,7 @@ def _evaluate_question(question: str) -> Optional[Dict]:
         return None
 
 
-def _passes_all_criteria(eval_result: Dict) -> bool:
+def _passes_all_criteria(eval_result: dict) -> bool:
     """At most 1 criterion can fail (criterion 1 = other-country criterion excluded)."""
     score = eval_result.get("score", [0, 0, 0, 0])
     # Criterion 0 (other country) is a hard reject — others allow at most 1 fail tolerance
@@ -127,7 +127,7 @@ def _passes_all_criteria(eval_result: Dict) -> bool:
 # Main function
 # ---------------------------------------------------------------------------
 
-def filter_questions(questions_data: Dict) -> Dict:
+def filter_questions(questions_data: dict) -> dict:
     """
     Filters question generation output.
 
@@ -145,7 +145,7 @@ def filter_questions(questions_data: Dict) -> Dict:
           }
         }
     """
-    result: Dict = {}
+    result: dict = {}
 
     for cluster_id, cluster_data in questions_data.items():
         headline = cluster_data["cluster_headline"]
@@ -156,7 +156,7 @@ def filter_questions(questions_data: Dict) -> Dict:
             cluster_id, headline, len(questions),
         )
 
-        filtered: List[str] = []
+        filtered: list[str] = []
         evaluated = 0
 
         for question in questions:

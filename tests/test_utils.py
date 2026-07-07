@@ -4,7 +4,6 @@ Test: Utility functions in country_codes.py and reliefweb_utils.py.
 Pure functions — no external dependencies, no DB, no network.
 """
 
-import pytest
 
 
 # ── country_codes.py ───────────────────────────────────────────────────────────

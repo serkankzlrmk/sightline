@@ -8,19 +8,18 @@ Version 2 changes:
 - report_assembly.py fuzzy match fallback no longer needed
 """
 
-import re
 import logging
+import re
 from itertools import zip_longest
-from typing import List, Dict, Optional
 
-from config import (
-    RETRIEVAL_TOP_K_SUMMARY,
-    RRF_K,
-    RRF_NUM_SUBQUERIES,
-    LLM_MAX_TOKENS_SUMMARY,
-)
 import llm_client
 from rag_answers import _generate_subqueries, _reciprocal_rank_fusion
+
+from config import (
+    LLM_MAX_TOKENS_SUMMARY,
+    RETRIEVAL_TOP_K_SUMMARY,
+    RRF_K,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +93,7 @@ Carefully analyze the source documents provided in the context below. Then, gene
 """
 
 
-def _format_numbered_context(items: List[Dict]) -> str:
+def _format_numbered_context(items: list[dict]) -> str:
     """
     Converts a [{"title": str, "text": str}, ...] list to numbered source format.
     If title is present, a title line is added.
@@ -112,9 +111,9 @@ def _format_numbered_context(items: List[Dict]) -> str:
 
 def _simple_retrieve(
     query: str,
-    corpus: List[str],
+    corpus: list[str],
     k: int,
-) -> List[Dict]:
+) -> list[dict]:
     """
     Performs embedding-based retrieval over a corpus (string list).
     Uses simple cosine similarity instead of ColBERT for small pools.
@@ -162,10 +161,10 @@ def _simple_retrieve(
 
 
 def generate_executive_summary(
-    postprocessed_answers: List[Dict],
-    cluster_summaries: Optional[Dict] = None,
-    hdx_context: Optional[Dict] = None,
-) -> Dict:
+    postprocessed_answers: list[dict],
+    cluster_summaries: dict | None = None,
+    hdx_context: dict | None = None,
+) -> dict:
     """
     Generates an executive summary.
 
@@ -231,8 +230,8 @@ def generate_executive_summary(
                 summary = "The provided sources offer limited information for a comprehensive overview."
 
             cited_numbers = sorted({int(m) for m in re.findall(r"\[(\d+)\]", summary)})
-            cited_paragraphs: Dict[str, str] = {}
-            cited_paragraphs_meta: Dict[str, Dict] = {}
+            cited_paragraphs: dict[str, str] = {}
+            cited_paragraphs_meta: dict[str, dict] = {}
             for num in cited_numbers:
                 idx = num - 1
                 if 0 <= idx < len(sources):
@@ -266,7 +265,7 @@ def generate_executive_summary(
     # =========================================================================
 
     # 1. Collect all new_used_contexts with metadata (dedup, text → meta)
-    all_contexts_meta: Dict[str, Dict] = {}  # text → {title, url}
+    all_contexts_meta: dict[str, dict] = {}  # text → {title, url}
     for answer in postprocessed_answers:
         contexts = answer.get("new_used_contexts", [])
         metas = answer.get("new_used_contexts_meta", [])
@@ -322,8 +321,8 @@ def generate_executive_summary(
 
     # 4. Resolve used citations
     cited_numbers = sorted({int(m) for m in re.findall(r"\[(\d+)\]", summary)})
-    cited_paragraphs: Dict[str, str] = {}
-    cited_paragraphs_meta: Dict[str, Dict] = {}
+    cited_paragraphs: dict[str, str] = {}
+    cited_paragraphs_meta: dict[str, dict] = {}
 
     for num in cited_numbers:
         idx = num - 1

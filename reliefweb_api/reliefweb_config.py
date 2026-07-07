@@ -4,7 +4,7 @@ ReliefWeb API Configuration and Constants
 
 import os
 from pathlib import Path
-from typing import Dict
+
 from dotenv import load_dotenv
 
 # Load .env from project root (ensures env vars are available at module level)
@@ -66,7 +66,7 @@ LOCAL_DB_PATH = os.getenv("DB_PATH", "reliefweb.db")
 # COUNTRY NAME MAPPING
 # ========================================================================
 
-COUNTRY_NAME_MAP: Dict[str, str] = {
+COUNTRY_NAME_MAP: dict[str, str] = {
     # Middle East
     "syria": "Syrian Arab Republic",
     "yemen": "Yemen",
