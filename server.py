@@ -2981,6 +2981,69 @@ def api_delete_proposal(prop_id):
         conn.close()
 
 
+@app.route("/api/admin/sitrep/<filename>", methods=["DELETE"])
+@require_admin
+def api_admin_delete_sitrep(filename):
+    """Delete a SITREP report file (admin only)."""
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    base = OUTPUT_REPORTS_DIR.resolve()
+    path = (OUTPUT_REPORTS_DIR / filename).resolve()
+    if not path.is_relative_to(base):
+        return jsonify({"error": "Invalid filename"}), 400
+    if not path.exists():
+        return jsonify({"error": "Report not found"}), 404
+    try:
+        path.unlink()
+        _log_event(current_uid(), "sitrep_deleted", {"filename": filename})
+        return jsonify({"message": "Report deleted"})
+    except Exception as e:
+        logger.error(f"api_admin_delete_sitrep error: {filename}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/admin/bulletin/<filename>", methods=["DELETE"])
+@require_admin
+def api_admin_delete_bulletin(filename):
+    """Delete a weekly bulletin file (admin only)."""
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    from sitrep.weekly_bulletin import BULLETINS_DIR
+    base = BULLETINS_DIR.resolve()
+    path = (BULLETINS_DIR / filename).resolve()
+    if not path.is_relative_to(base):
+        return jsonify({"error": "Invalid filename"}), 400
+    if not path.exists():
+        return jsonify({"error": "Bulletin not found"}), 404
+    try:
+        path.unlink()
+        _log_event(current_uid(), "bulletin_deleted", {"filename": filename})
+        return jsonify({"message": "Bulletin deleted"})
+    except Exception as e:
+        logger.error(f"api_admin_delete_bulletin error: {filename}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/admin/proposals/<prop_id>", methods=["DELETE"])
+@require_admin
+def api_admin_delete_proposal(prop_id):
+    """Delete any proposal regardless of owner (admin only)."""
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT id FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+        conn.execute("DELETE FROM proposals WHERE id = ?", (prop_id,))
+        conn.commit()
+        _log_event(current_uid(), "proposal_deleted", {"prop_id": prop_id, "admin": True})
+        return jsonify({"message": "Proposal deleted"})
+    except Exception as e:
+        logger.error(f"api_admin_delete_proposal error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/proposals/<prop_id>/generate-toc", methods=["POST"])
 @require_auth
 def api_proposal_generate_toc(prop_id):
