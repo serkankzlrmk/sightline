@@ -107,8 +107,11 @@ jobs:
             # Start new container
             docker run -d --name sightline \
               --env-file /opt/reliefagent/data/.env \
-              -v reliefweb_db:/app/reliefweb.db \
-              -v chats_db:/app/chats.db \
+              -e DB_PATH=/app/data/reliefweb.db \
+              -e CHATS_DB_PATH=/app/data/chats.db \
+              -e CHROMA_DIR=/app/reliefweb_chroma \
+              -e CONTAINER_MODE=true \
+              -v reliefweb_db:/app/data \
               -v chroma_data:/app/reliefweb_chroma \
               -v output_data:/app/output \
               -v mcp_cache:/tmp/uv-cache \
@@ -131,8 +134,11 @@ jobs:
                 if [ -n "$PREV_TAG" ]; then
                   docker run -d --name sightline \
                     --env-file /opt/reliefagent/data/.env \
-                    -v reliefweb_db:/app/reliefweb.db \
-                    -v chats_db:/app/chats.db \
+                    -e DB_PATH=/app/data/reliefweb.db \
+                    -e CHATS_DB_PATH=/app/data/chats.db \
+                    -e CHROMA_DIR=/app/reliefweb_chroma \
+                    -e CONTAINER_MODE=true \
+                    -v reliefweb_db:/app/data \
                     -v chroma_data:/app/reliefweb_chroma \
                     -v output_data:/app/output \
                     -v mcp_cache:/tmp/uv-cache \
