@@ -289,7 +289,8 @@ class ChromaAdapter:
     ) -> list[dict]:
         """
         Returns all chunks belonging to a given country.
-        Normalizes country name for better matching.
+        Searches both primary_country and all_countries to catch multi-country reports.
+        Uses SQLite to find matching report IDs, then fetches chunks from ChromaDB.
 
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
@@ -299,11 +300,14 @@ class ChromaAdapter:
         if self.backend == "pgvector":
             return self._get_pgvector().get_chunks_by_country(normalized, limit=limit)
 
-        # ChromaDB path
+        report_ids = self._sqlite_find_report_ids_by_country(normalized, limit=limit)
+        if not report_ids:
+            return []
+
         results = self.collection.get(
-            where={"primary_country": {"$eq": normalized}},
+            where={"report_id": {"$in": report_ids}},
             limit=limit,
-            include=["documents", "metadatas", "embeddings"],
+            include=["documents", "metadatas"],
         )
         return self._format_results(results)
 
@@ -625,6 +629,45 @@ class ChromaAdapter:
         except Exception:
             pass
         return {"min": None, "max": None, "count": 0}
+
+    def _sqlite_find_report_ids_by_country(self, country: str, limit: int = 2000) -> list[int]:
+        """Find report IDs that mention a country (in the countries JSON array)."""
+        try:
+            import json as _json
+            import sqlite3
+
+            from config import DB_PATH
+            conn = sqlite3.connect(str(DB_PATH))
+            rows = conn.execute(
+                "SELECT report_id, countries FROM reports "
+                "WHERE countries IS NOT NULL AND countries != '[]'"
+            ).fetchall()
+            conn.close()
+
+            country_lower = country.strip().lower()
+            aliases = {
+                "syria": "syrian arab republic",
+                "turkey": "türkiye",
+                "iran": "iran (islamic republic of)",
+                "dr congo": "democratic republic of the congo",
+                "opt": "occupied palestinian territory",
+            }
+            alias_lower = aliases.get(country_lower, country_lower)
+
+            ids = []
+            for rid, countries_json in rows:
+                try:
+                    countries = _json.loads(countries_json)
+                    for c in countries:
+                        c_lower = c.strip().lower()
+                        if c_lower == country_lower or c_lower == alias_lower:
+                            ids.append(rid)
+                            break
+                except (ValueError, TypeError):
+                    pass
+            return ids[:limit]
+        except Exception:
+            return []
 
     def _sqlite_list_countries_with_counts(self) -> list[dict]:
         """SQLite fallback for list_countries_with_counts.

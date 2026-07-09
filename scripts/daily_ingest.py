@@ -64,7 +64,7 @@ log = logging.getLogger("daily_ingest")
 DB_PATH = str(config.DB_PATH)
 CHROMA_DIR = str(config.CHROMA_DIR)
 APPNAME = RELIEFWEB_APPNAME
-PURGE_DAYS = 90
+PURGE_DAYS = 30
 RELIEFWEB_API_URL = RELIEFWEB_REPORTS_API
 PAGE_SIZE = 100  # max per request (ReliefWeb API limit)
 
