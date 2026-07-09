@@ -16,6 +16,19 @@ def client(app):
     return app.test_client()
 
 class TestProposalsAPI:
+    def setup_method(self, method):
+        """Clean proposals table before each test to avoid monthly limit conflicts."""
+        try:
+            import sqlite3
+            from config import CHATS_DB_PATH
+            conn = sqlite3.connect(str(CHATS_DB_PATH))
+            conn.execute("DELETE FROM proposals WHERE uid LIKE 'test-%'")
+            conn.execute("DELETE FROM chat_messages WHERE chat_id LIKE 'proposal_advisor_%'")
+            conn.execute("DELETE FROM chats WHERE id LIKE 'proposal_advisor_%'")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
     def test_get_proposals_requires_auth(self, client):
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "_api_key", return_value=""):
@@ -29,7 +42,7 @@ class TestProposalsAPI:
             assert resp.status_code == 401
 
     def test_create_and_get_proposal_flow(self, client):
-        fake_token = {"uid": "test-user-123", "role": "free"}
+        fake_token = {"uid": "test-user-123", "role": "premium"}
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token):
 
@@ -106,7 +119,7 @@ class TestProposalsAPI:
             assert get_resp_deleted.status_code == 404
 
     def test_llm_generation_flows(self, client):
-        fake_token = {"uid": "test-user-123", "role": "free"}
+        fake_token = {"uid": "test-user-123", "role": "premium"}
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token), \
              patch("reliefweb_api.vector_store.VectorStore") as mock_vector_store:
@@ -188,7 +201,7 @@ class TestProposalsAPI:
                 assert "Recent data" in narr_data["narrative"]
 
     def test_proposal_chunks_endpoint(self, client):
-        fake_token = {"uid": "test-user-123", "role": "free"}
+        fake_token = {"uid": "test-user-123", "role": "premium"}
         with patch.object(auth, "_dev_mode", return_value=False), \
              patch.object(auth, "verify_firebase_token", return_value=fake_token):
 

@@ -2858,13 +2858,22 @@ document.addEventListener('DOMContentLoaded', () => {
         createNewProposal();
         break;
       case 'generate-toc':
-        generateProposalToC();
+        generateSection('toc');
         break;
       case 'generate-logframe':
-        generateProposalLogframe();
+        generateSection('logframe');
         break;
       case 'generate-narrative':
-        generateProposalNarrative();
+        generateSection('final_review');
+        break;
+      case 'generate-section':
+        generateSection(target.dataset.step);
+        break;
+      case 'approve-section':
+        approveSection(target.dataset.step);
+        break;
+      case 'wizard-select-step':
+        wizardSelectStep(target.dataset.step);
         break;
       case 'open-diff-modal':
         openDiffModal();
@@ -3305,56 +3314,32 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ── Proposal Pipeline Client Logic (SQLite & LLM Integrated) ──
+// ── Proposal Wizard — Step-by-step donor proposal generator ──
+const PROPOSAL_STEPS = [
+  { key: 'cover',           label: 'Cover Page',             num: 1 },
+  { key: 'background',      label: 'Context & Background',   num: 2 },
+  { key: 'needs_assessment',label: 'Needs Assessment',       num: 3 },
+  { key: 'toc',             label: 'Theory of Change',       num: 4 },
+  { key: 'logframe',       label: 'Logical Framework',      num: 5 },
+  { key: 'methodology',    label: 'Methodology',             num: 6 },
+  { key: 'budget',         label: 'Budget Summary',          num: 7 },
+  { key: 'mne_framework',  label: 'Monitoring & Evaluation', num: 8 },
+  { key: 'risk_matrix',    label: 'Risk Matrix',             num: 9 },
+  { key: 'sustainability', label: 'Sustainability & Exit',   num: 10 },
+  { key: 'coordination',   label: 'Coordination',            num: 11 },
+  { key: 'final_review',   label: 'Final Review & Export',   num: 12 },
+];
+
 let proposalState = {
   activeProposalId: null,
-  currentStep: 'context',
+  currentStep: 'cover',
   proposals: [],
   activeProposal: null,
   dbCountries: [],
-  drafts: null
+  generating: false,
 };
 
 async function initProposalPipeline() {
-  // Initialize resizable split panels
-  const workspace = document.getElementById('proposal-workspace');
-  const editor = document.querySelector('.proposal-editor-panel');
-  const gutter = document.getElementById('proposal-split-gutter');
-  
-  if (workspace && editor && gutter) {
-    let isDragging = false;
-    
-    gutter.addEventListener('mousedown', (e) => {
-      isDragging = true;
-      gutter.classList.add('dragging');
-      document.body.style.cursor = 'col-resize';
-      e.preventDefault();
-    });
-    
-    document.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      
-      const workspaceRect = workspace.getBoundingClientRect();
-      const leftWidth = e.clientX - workspaceRect.left;
-      const percentage = (leftWidth / workspaceRect.width) * 100;
-      
-      if (percentage >= 35 && percentage <= 75) {
-        editor.style.flex = `0 0 ${percentage}%`;
-        if (proposalState.currentStep === 'toc') {
-          drawTocFlowLines();
-        }
-      }
-    });
-    
-    document.addEventListener('mouseup', () => {
-      if (isDragging) {
-        isDragging = false;
-        gutter.classList.remove('dragging');
-        document.body.style.cursor = '';
-      }
-    });
-  }
-
   const btnNew = document.getElementById('btn-new-proposal');
   const btnCreateFirst = document.getElementById('btn-create-first-proposal');
   const btnExport = document.getElementById('btn-proposal-export');
@@ -3363,26 +3348,17 @@ async function initProposalPipeline() {
 
   if (btnNew) btnNew.addEventListener('click', createNewProposal);
   if (btnCreateFirst) btnCreateFirst.addEventListener('click', createNewProposal);
-  if (btnExport) btnExport.addEventListener('click', exportProposalPDF);
-  
+  if (btnExport) btnExport.addEventListener('click', exportProposalMarkdown);
   if (btnSendCritique) btnSendCritique.addEventListener('click', sendProposalCritique);
   if (txtCritique) {
     txtCritique.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendProposalCritique();
-      }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendProposalCritique(); }
     });
   }
 
-  // Bind proposal create modal submit
   const createModal = document.getElementById('proposal-create-modal');
   const closeBtn = document.getElementById('proposal-create-modal-close-btn');
   const createForm = document.getElementById('proposal-create-form');
-
-  const btnCloseDrawer = document.getElementById('btn-close-rag-drawer');
-  if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', closeRagDrawer);
-
   if (closeBtn) closeBtn.addEventListener('click', () => createModal.classList.remove('open'));
   if (createForm) {
     createForm.addEventListener('submit', async (e) => {
@@ -3390,26 +3366,13 @@ async function initProposalPipeline() {
       const title = document.getElementById('prop-create-title').value.trim();
       const country = document.getElementById('prop-create-country').value;
       const donor = document.getElementById('prop-create-donor').value;
-      
       const themeChecks = document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]:checked');
       const themes = Array.from(themeChecks).map(cb => cb.value);
-      
       createModal.classList.remove('open');
       await executeCreateProposal({ title, country, donor, themes });
     });
   }
 
-  // Handle step tabs
-  document.querySelectorAll('.proposal-step-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      if (!proposalState.activeProposalId) return;
-      document.querySelectorAll('.proposal-step-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      switchProposalStep(tab.dataset.step);
-    });
-  });
-  
-  // Fetch initial data
   await fetchDbCountries();
   await fetchProposals();
 }
@@ -3419,21 +3382,16 @@ async function fetchDbCountries() {
     const res = await api('/api/db/countries');
     const data = await res.json();
     proposalState.dbCountries = data || [];
-  } catch (err) {
-    console.error("fetchDbCountries error:", err);
-    proposalState.dbCountries = [];
-  }
+  } catch (err) { proposalState.dbCountries = []; }
 }
 
 async function fetchProposals() {
   try {
     const res = await api('/api/proposals');
     const data = await res.json();
-    proposalState.proposals = data;
+    proposalState.proposals = Array.isArray(data) ? data : [];
     renderProposalList();
-  } catch (err) {
-    console.error("fetchProposals error:", err);
-  }
+  } catch (err) { proposalState.proposals = []; renderProposalList(); }
 }
 
 async function createProposalFromSitrep(dataset) {
@@ -3442,101 +3400,50 @@ async function createProposalFromSitrep(dataset) {
   const themes = dataset.themes ? dataset.themes.split(',') : [];
   const dateFrom = dataset.dateFrom || '';
   const dateTo = dataset.dateTo || '';
-
-  // Switch to proposal tab
   switchTab('proposal');
-
   try {
     const res = await api('/api/proposals/new', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: `${country} ${event ? '- ' + event : ''} Proposal`,
-        country: country,
-        event: event,
-        themes: themes,
-        donor: 'ECHO',
-        date_from: dateFrom,
-        date_to: dateTo
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: `${country} ${event ? '- ' + event : ''} Proposal`, country, event, themes, donor: 'ECHO', date_from: dateFrom, date_to: dateTo })
     });
-    
     const newProp = await res.json();
     if (newProp.error) throw new Error(newProp.error);
-    
     proposalState.proposals.unshift(newProp);
     proposalState.activeProposalId = newProp.id;
     proposalState.activeProposal = newProp;
-    proposalState.currentStep = 'context';
-
+    proposalState.currentStep = newProp.current_step || 'cover';
     renderProposalList();
     renderProposalWorkspace();
-    
-    // Set tab active
-    document.querySelectorAll('.proposal-step-tab').forEach(t => {
-      t.classList.toggle('active', t.dataset.step === 'context');
-    });
-
-    const msgs = document.getElementById('critique-messages');
-    if (msgs) {
-      msgs.innerHTML = `
-        <div class="critique-msg system">
-          <strong>Sightline Advisor</strong>
-          <p>I have preloaded the context from the <strong>${country}</strong> SITREP. Use step 2 and 3 to generate the Theory of Change and SMART Logframe matrix via LLM.</p>
-        </div>
-      `;
-    }
-  } catch (err) {
-    alert("Could not create proposal: " + err.message);
-  }
+  } catch (err) { alert("Could not create proposal: " + err.message); }
 }
 
 function createNewProposal() {
   const createModal = document.getElementById('proposal-create-modal');
   if (!createModal) return;
-  
-  // Populate country select
   const select = document.getElementById('prop-create-country');
   if (select && proposalState.dbCountries) {
-    select.innerHTML = '<option value="">— Select Country —</option>' + 
-      proposalState.dbCountries.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    select.innerHTML = '<option value="">— Select Country —</option>' + proposalState.dbCountries.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
   }
-  
-  // Clear input fields
   document.getElementById('prop-create-title').value = '';
   document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]').forEach(cb => cb.checked = false);
-  
   createModal.classList.add('open');
 }
 
 async function executeCreateProposal({ title, country, donor, themes }) {
   try {
     const res = await api('/api/proposals/new', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: title,
-        country: country,
-        event: 'Emergency Response',
-        themes: themes,
-        donor: donor
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, country, event: 'Emergency Response', themes, donor })
     });
-    
     const newProp = await res.json();
     if (newProp.error) throw new Error(newProp.error);
-    
     proposalState.proposals.unshift(newProp);
     proposalState.activeProposalId = newProp.id;
     proposalState.activeProposal = newProp;
-    proposalState.currentStep = 'context';
-
+    proposalState.currentStep = newProp.current_step || 'cover';
     renderProposalList();
     renderProposalWorkspace();
-    await loadAndRenderAdvisorHistory(newProp.id, newProp.title);
-  } catch (err) {
-    alert("Could not create proposal: " + err.message);
-  }
+  } catch (err) { alert("Could not create proposal: " + err.message); }
 }
 
 async function selectProposal(id) {
@@ -3544,1024 +3451,317 @@ async function selectProposal(id) {
     const res = await api(`/api/proposals/${id}`);
     const prop = await res.json();
     if (prop.error) throw new Error(prop.error);
-    
     proposalState.activeProposalId = id;
     proposalState.activeProposal = prop;
-    proposalState.currentStep = 'context';
-    
+    proposalState.currentStep = prop.current_step || 'cover';
     renderProposalList();
     renderProposalWorkspace();
-    
-    document.querySelectorAll('.proposal-step-tab').forEach(t => {
-      t.classList.toggle('active', t.dataset.step === 'context');
-    });
-
-    // Load and render Advisor chat history
-    await loadAndRenderAdvisorHistory(id, prop.title);
-  } catch (err) {
-    alert("Could not load proposal detail: " + err.message);
-  }
+  } catch (err) { alert("Could not load proposal: " + err.message); }
 }
 
 function renderProposalList() {
   const list = document.getElementById('proposal-list');
   if (!list) return;
-  
-  if (proposalState.proposals.length === 0) {
-    list.innerHTML = `<div class="empty-state">No proposals drafted yet</div>`;
+  if (!proposalState.proposals || proposalState.proposals.length === 0) {
+    list.innerHTML = `<div class="empty-state">No proposals yet</div>`;
     return;
   }
-  
   list.innerHTML = proposalState.proposals.map(p => {
     const activeClass = p.id === proposalState.activeProposalId ? 'active' : '';
+    const stepIdx = PROPOSAL_STEPS.findIndex(s => s.key === (p.current_step || 'cover'));
+    const statusIcon = p.completed_at ? '✓' : `${stepIdx+1}/12`;
     return `
-      <div class="report-item ${activeClass}" data-action="select-proposal" data-id="${p.id}" style="cursor:pointer; padding: 10px; border-bottom: 1px solid var(--border-light)">
+      <div class="report-item ${activeClass}" data-action="select-proposal" data-id="${p.id}" style="cursor:pointer; padding:10px; border-bottom:1px solid var(--border-light)">
         <div class="report-item-title" style="font-weight:600; font-size:13px">${escHtml(p.title)}</div>
-        <div class="report-item-meta" style="font-size:11px; color:var(--text-muted)">📍 ${escHtml(p.country)} | ${escHtml(p.donor)}</div>
-      </div>
-    `;
+        <div class="report-item-meta" style="font-size:11px; color:var(--text-muted)">${escHtml(p.country||'')} | ${escHtml(p.donor||'')} | ${statusIcon}</div>
+      </div>`;
   }).join('');
 }
 
 function renderProposalWorkspace() {
-  const container = document.getElementById('proposal-step-content');
-  if (!container) return;
-  
+  const contentEl = document.getElementById('wizard-section-content');
+  const stepsEl = document.getElementById('wizard-steps-list');
+  const titleEl = document.getElementById('proposal-project-title');
+  const ctxEl = document.getElementById('proposal-project-context');
+  const exportBtn = document.getElementById('btn-proposal-export');
   const prop = proposalState.activeProposal;
   if (!prop) {
-    container.innerHTML = `
+    if (contentEl) contentEl.innerHTML = `
       <div class="proposal-welcome-placeholder">
         <div class="welcome-icon">📋</div>
         <h3>Humanitarian Proposal Design Studio</h3>
-        <p>Analyze crisis data, establish change logic, generate structured Logframes, and draft donor proposals in one unified, AI-assisted workspace.</p>
+        <p>Generate a complete donor-ready proposal step by step. The AI agent researches crisis data, builds your ToC, Logframe, Budget, and full narrative.</p>
         <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal" data-action="create-new-proposal">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span>Create New Proposal</span>
         </button>
-      </div>
-    `;
-    document.getElementById('proposal-project-title').textContent = "Select or create a proposal";
-    document.getElementById('proposal-project-context').textContent = "Analyze crisis data, establish change logic, generate structured Logframes.";
-    document.getElementById('btn-proposal-export').disabled = true;
+      </div>`;
+    if (stepsEl) stepsEl.innerHTML = '';
+    if (titleEl) titleEl.textContent = 'Select or Create a Proposal';
+    if (ctxEl) ctxEl.textContent = 'Step-by-step AI-assisted donor proposal wizard';
+    if (exportBtn) exportBtn.disabled = true;
     return;
   }
-
-  document.getElementById('proposal-project-title').textContent = prop.title;
-  document.getElementById('proposal-project-context').textContent = `Country: ${prop.country} | Donor Template: ${prop.donor} | Focus: ${prop.event || 'Emergency Response'}`;
-  document.getElementById('btn-proposal-export').disabled = false;
-
-  switchProposalStep(proposalState.currentStep);
+  if (titleEl) titleEl.textContent = prop.title;
+  if (ctxEl) ctxEl.textContent = `${prop.country} | ${prop.donor} | ${prop.event || 'Emergency Response'}`;
+  if (exportBtn) exportBtn.disabled = false;
+  renderWizardSteps();
+  renderSectionContent(proposalState.currentStep);
 }
 
-function switchProposalStep(step) {
+function renderWizardSteps() {
+  const stepsEl = document.getElementById('wizard-steps-list');
+  if (!stepsEl || !proposalState.activeProposal) return;
+  const stepStatus = proposalState.activeProposal.step_status || {};
+  const currentStep = proposalState.currentStep;
+  const currentIdx = PROPOSAL_STEPS.findIndex(s => s.key === currentStep);
+  const completedCount = Object.values(stepStatus).filter(s => s === 'complete').length;
+  const progressFill = document.getElementById('wizard-progress-fill');
+  if (progressFill) progressFill.style.width = `${(completedCount / PROPOSAL_STEPS.length) * 100}%`;
+
+  stepsEl.innerHTML = PROPOSAL_STEPS.map((step, idx) => {
+    const status = stepStatus[step.key] || 'empty';
+    const canClick = status === 'complete' || status === 'draft' || idx <= currentIdx;
+    const isActive = step.key === currentStep;
+    let icon = '○'; let cls = 'wizard-step';
+    if (status === 'complete') { icon = '✓'; cls += ' complete'; }
+    if (status === 'draft' || status === 'reviewing') { icon = '✎'; cls += ' draft'; }
+    if (isActive) cls += ' active';
+    return `
+      <div class="${cls}" data-step="${step.key}" ${canClick ? 'data-action="wizard-select-step"' : ''}>
+        <span class="wizard-step-num">${step.num}</span>
+        <span class="wizard-step-label">${step.label}</span>
+        <span class="wizard-step-icon">${icon}</span>
+      </div>`;
+  }).join('');
+}
+
+function renderSectionContent(step) {
+  const contentEl = document.getElementById('wizard-section-content');
+  if (!contentEl || !proposalState.activeProposal) return;
+  const prop = proposalState.activeProposal;
+  const stepStatus = prop.step_status || {};
+  const status = stepStatus[step] || 'empty';
+  const stepInfo = PROPOSAL_STEPS.find(s => s.key === step) || {};
+  const canEdit = prop.can_edit !== false;
+  const sectionContent = getSectionContent(prop, step);
+
+  contentEl.innerHTML = `
+    <div class="wizard-section-inner">
+      <div class="wizard-section-header-row">
+        <h3>${stepInfo.num || ''}. ${stepInfo.label || step}</h3>
+        <span class="wizard-status-badge wizard-status-${status}">${status}</span>
+      </div>
+      <div class="wizard-section-body" id="wizard-section-body">
+        ${sectionContent ? renderSectionMarkdown(sectionContent, step) : '<div class="empty-state">No content yet. Click "Generate" to create this section with AI.</div>'}
+      </div>
+      <div class="wizard-section-actions">
+        ${canEdit ? `
+          <button class="btn btn-primary btn-sm btn-with-icon" data-action="generate-section" data-step="${step}" ${proposalState.generating ? 'disabled' : ''}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            <span>${proposalState.generating ? 'Generating...' : (sectionContent ? 'Regenerate' : 'Generate with AI')}</span>
+          </button>
+          ${sectionContent ? `
+            <button class="btn btn-green btn-sm btn-with-icon" data-action="approve-section" data-step="${step}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Approve &amp; Continue</span>
+            </button>` : ''}
+        ` : `<span class="text-muted" style="font-size:12px">Read-only — upgrade to premium to create proposals</span>`}
+      </div>
+    </div>`;
+}
+
+function getSectionContent(prop, step) {
+  const fieldMap = { cover:'cover_page', background:'background', needs_assessment:'needs_assessment', toc:'toc', logframe:'logframe', methodology:'methodology', budget:'budget', mne_framework:'mne_framework', risk_matrix:'risk_matrix', sustainability:'sustainability', coordination:'coordination', final_review:'narrative' };
+  return prop[fieldMap[step]] || '';
+}
+
+function renderSectionMarkdown(content, step) {
+  if (!content) return '';
+  if (typeof content === 'object') return renderJsonSection(content, step);
+  if (typeof content === 'string' && (content.startsWith('{') || content.startsWith('['))) {
+    try { return renderJsonSection(JSON.parse(content), step); } catch(e) { return renderMarkdown(content); }
+  }
+  return renderMarkdown(content);
+}
+
+function renderJsonSection(obj, step) {
+  if (Array.isArray(obj)) {
+    if (step === 'toc') return `<div class="toc-list">${obj.map(n => `<div class="toc-node toc-${n.level}"><span class="toc-level">${escHtml(n.level||'')}</span><span class="toc-text">${escHtml(n.text||'')}</span></div>`).join('')}</div>`;
+    if (step === 'risk_matrix') return `<table class="risk-table"><thead><tr><th>Risk</th><th>Prob.</th><th>Impact</th><th>Mitigation</th></tr></thead><tbody>${obj.map(r => `<tr><td>${escHtml(r.risk||'')}</td><td>${escHtml(r.probability||'')}</td><td>${escHtml(r.impact||'')}</td><td>${escHtml(r.mitigation||'')}</td></tr>`).join('')}</tbody></table>`;
+    return `<pre>${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
+  }
+  if (step === 'cover' || step === 'budget' || step === 'mne_framework') {
+    let html = '<div class="section-key-values">';
+    for (const [k, v] of Object.entries(obj)) {
+      if (Array.isArray(v)) html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong><div>${v.map(i => `<div>${typeof i==='object'?escHtml(JSON.stringify(i)):escHtml(i)}</div>`).join('')}</div></div>`;
+      else if (typeof v === 'object') html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong><pre>${escHtml(JSON.stringify(v,null,2))}</pre></div>`;
+      else html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong> ${escHtml(String(v))}</div>`;
+    }
+    return html + '</div>';
+  }
+  if (step === 'logframe') {
+    let html = '<div class="logframe-view">';
+    for (const [k, v] of Object.entries(obj)) html += `<div class="lf-row"><span class="lf-key">${escHtml(k.replace(/_/g,' ').toUpperCase())}</span><span class="lf-val">${escHtml(String(v))}</span></div>`;
+    return html + '</div>';
+  }
+  return `<pre>${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
+}
+
+function renderMarkdown(text) {
+  if (typeof text !== 'string') return '';
+  let html = escHtml(text);
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = `<p>${html}</p>`;
+  return html;
+}
+
+async function generateSection(step) {
+  if (!proposalState.activeProposalId || proposalState.generating) return;
+  proposalState.generating = true;
+  showAdvisorMessage('Sightline Advisor', `Generating ${step} section... The agent is researching and writing.`);
+  renderSectionContent(step);
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    proposalState.generating = false;
+    renderWizardSteps();
+    renderSectionContent(step);
+    showAdvisorMessage('Sightline Advisor', `${step} section generated. Review and click "Approve & Continue" when ready.`);
+  } catch (err) {
+    proposalState.generating = false;
+    renderSectionContent(step);
+    showAdvisorMessage('System', `Generation failed: ${err.message}`);
+  }
+}
+
+async function approveSection(step) {
+  if (!proposalState.activeProposalId) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    proposalState.currentStep = data.next_step || 'cover';
+    renderWizardSteps();
+    renderSectionContent(proposalState.currentStep);
+    showAdvisorMessage('Sightline Advisor', `✓ ${step} approved! Next: ${data.next_step}`);
+  } catch (err) { alert("Approve failed: " + err.message); }
+}
+
+function wizardSelectStep(step) {
+  if (!proposalState.activeProposal) return;
   proposalState.currentStep = step;
-  const container = document.getElementById('proposal-step-content');
-  if (!container || !proposalState.activeProposal) return;
-
-  const prop = proposalState.activeProposal;
-
-  if (step === 'context') {
-    container.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:16px; max-width:600px; margin:0 auto">
-        <div class="form-group">
-          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Project Title</label>
-          <input type="text" class="form-control" value="${escHtml(prop.title)}" oninput="updatePropField('title', this.value)" style="width:100%">
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Country Context</label>
-          <select class="form-control" onchange="updatePropField('country', this.value)" style="width:100%">
-            <option value="">— Select Country —</option>
-            ${(proposalState.dbCountries || []).map(c => `
-              <option value="${escHtml(c)}" ${prop.country === c ? 'selected' : ''}>${escHtml(c)}</option>
-            `).join('')}
-          </select>
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Donor Framework</label>
-          <select class="form-control" onchange="updatePropField('donor', this.value)" style="width:100%">
-            <option value="ECHO" ${prop.donor === 'ECHO' ? 'selected' : ''}>ECHO (European Commission)</option>
-            <option value="USAID" ${prop.donor === 'USAID' ? 'selected' : ''}>USAID / BHA</option>
-            <option value="OCHA" ${prop.donor === 'OCHA' ? 'selected' : ''}>UN OCHA (CBPF)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Target Sectors / Themes</label>
-          <div style="display:flex; gap:8px">
-            ${(prop.themes || []).map(t => `<span class="report-hero-theme" style="margin:0">${escHtml(t)}</span>`).join('')}
-          </div>
-        </div>
-        <div class="form-group" style="margin-top:16px;">
-          <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Database Evidence Chunks (RAG Sources)</label>
-          <div id="proposal-context-chunks-list" style="max-height: 250px; overflow-y: auto; padding-right: 4px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--bg-card);">
-            <!-- loaded dynamically -->
-          </div>
-        </div>
-      </div>
-    `;
-    loadAndRenderContextChunks(prop);
-  } else if (step === 'toc') {
-    const isToCDefault = prop.toc.length === 4 && prop.toc[0].text.includes("Enhanced safety");
-    container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:10px">
-        <span class="text-muted" style="font-size:12px">Theory of Change Logic Flow. Click any node to edit.</span>
-        <button class="btn btn-xs btn-primary btn-with-icon" data-action="generate-toc">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          <span>${isToCDefault ? 'Generate with AI' : 'Regenerate'}</span>
-        </button>
-      </div>
-      
-      <div class="toc-flow-container" id="toc-flow-container">
-        <svg class="toc-flow-svg" id="toc-flow-svg">
-          <defs>
-            <linearGradient id="flow-grad-0" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.6" />
-              <stop offset="100%" stop-color="var(--blue)" stop-opacity="0.6" />
-            </linearGradient>
-            <linearGradient id="flow-grad-1" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.6" />
-              <stop offset="100%" stop-color="var(--green)" stop-opacity="0.6" />
-            </linearGradient>
-            <linearGradient id="flow-grad-2" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="var(--green)" stop-opacity="0.6" />
-              <stop offset="100%" stop-color="var(--amber)" stop-opacity="0.6" />
-            </linearGradient>
-            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 2 L 10 5 L 0 8 z" fill="var(--text-muted)" />
-            </marker>
-          </defs>
-        </svg>
-        
-        <div class="toc-node impact" id="toc-node-0" data-action="edit-toc-node" data-index="0">
-          <span class="toc-node-label impact">Goal / Impact</span>
-          <span class="toc-node-text">${escHtml(prop.toc[0]?.text || '—')}</span>
-        </div>
-        
-        <div class="toc-node outcome" id="toc-node-1" data-action="edit-toc-node" data-index="1">
-          <span class="toc-node-label outcome">Outcome</span>
-          <span class="toc-node-text">${escHtml(prop.toc[1]?.text || '—')}</span>
-        </div>
-        
-        <div class="toc-node output" id="toc-node-2" data-action="edit-toc-node" data-index="2">
-          <span class="toc-node-label output">Output</span>
-          <span class="toc-node-text">${escHtml(prop.toc[2]?.text || '—')}</span>
-        </div>
-        
-        <div class="toc-node activity" id="toc-node-3" data-action="edit-toc-node" data-index="3">
-          <span class="toc-node-label activity">Activity</span>
-          <span class="toc-node-text">${escHtml(prop.toc[3]?.text || '—')}</span>
-        </div>
-      </div>
-    `;
-    requestAnimationFrame(drawTocFlowLines);
-  } else if (step === 'logframe') {
-    const isLogframeDefault = prop.logframe.goal && prop.logframe.goal.includes("Reduced vulnerability");
-    
-    const getBadgeHTML = (level, text) => {
-      const isSpecific = text.length > 20;
-      const isMeasurable = /([0-9]+|%|count|number|rate)/i.test(text);
-      const isTimebound = /(202\d|year|month|day|week|end|duration|deadline|quarter)/i.test(text);
-      const score = [isSpecific, isMeasurable, isTimebound].filter(Boolean).length + 2;
-      const badgeClass = score >= 4 ? 'validated' : 'warning';
-      return `<span class="smart-badge ${badgeClass}" data-action="open-smart-scorecard" data-level="${level}">SMART (${score}/5)</span>`;
-    };
-
-    container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-        <span class="text-muted" style="font-size:12px">Logframe Matrix cells autosave. Click SMART badges to review indicator quality.</span>
-        <button class="btn btn-xs btn-primary btn-with-icon" data-action="generate-logframe">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          <span>${isLogframeDefault ? 'Generate with AI' : 'Regenerate'}</span>
-        </button>
-      </div>
-      <table class="logframe-table">
-        <thead>
-          <tr>
-            <th style="width:25%">Project Logic</th>
-            <th style="width:25%">Indicators</th>
-            <th style="width:25%">Sources of Verification</th>
-            <th style="width:25%">Assumptions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <span class="logframe-row-level">Goal</span>
-              <textarea class="logframe-cell-edit" onchange="updateLogframeField('goal', this.value)">${escHtml(prop.logframe.goal || '')}</textarea>
-            </td>
-            <td>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                <span class="text-muted" style="font-size:10px; font-weight:600;">Indicators</span>
-                ${getBadgeHTML('goal', prop.logframe.goal_indicator || '')}
-              </div>
-              <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('goal_indicator', this.value)">${escHtml(prop.logframe.goal_indicator || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Verification sources..." onchange="updateLogframeField('goal_sources', this.value)">${escHtml(prop.logframe.goal_sources || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Critical assumptions..." onchange="updateLogframeField('goal_assumptions', this.value)">${escHtml(prop.logframe.goal_assumptions || '')}</textarea>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <span class="logframe-row-level">Outcomes</span>
-              <textarea class="logframe-cell-edit" onchange="updateLogframeField('outcomes', this.value)">${escHtml(prop.logframe.outcomes || '')}</textarea>
-            </td>
-            <td>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                <span class="text-muted" style="font-size:10px; font-weight:600;">Indicators</span>
-                ${getBadgeHTML('outcomes', prop.logframe.outcomes_indicator || '')}
-              </div>
-              <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('outcomes_indicator', this.value)">${escHtml(prop.logframe.outcomes_indicator || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Verification sources..." onchange="updateLogframeField('outcomes_sources', this.value)">${escHtml(prop.logframe.outcomes_sources || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Critical assumptions..." onchange="updateLogframeField('outcomes_assumptions', this.value)">${escHtml(prop.logframe.outcomes_assumptions || '')}</textarea>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <span class="logframe-row-level">Outputs</span>
-              <textarea class="logframe-cell-edit" onchange="updateLogframeField('outputs', this.value)">${escHtml(prop.logframe.outputs || '')}</textarea>
-            </td>
-            <td>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                <span class="text-muted" style="font-size:10px; font-weight:600;">Indicators</span>
-                ${getBadgeHTML('outputs', prop.logframe.outputs_indicator || '')}
-              </div>
-              <textarea class="logframe-cell-edit" placeholder="Indicators..." onchange="updateLogframeField('outputs_indicator', this.value)">${escHtml(prop.logframe.outputs_indicator || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Verification sources..." onchange="updateLogframeField('outputs_sources', this.value)">${escHtml(prop.logframe.outputs_sources || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Critical assumptions..." onchange="updateLogframeField('outputs_assumptions', this.value)">${escHtml(prop.logframe.outputs_assumptions || '')}</textarea>
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <span class="logframe-row-level">Activities</span>
-              <textarea class="logframe-cell-edit" onchange="updateLogframeField('activities', this.value)">${escHtml(prop.logframe.activities || '')}</textarea>
-            </td>
-            <td>
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                <span class="text-muted" style="font-size:10px; font-weight:600;">Inputs / Resources</span>
-                ${getBadgeHTML('activities', prop.logframe.activities_inputs || '')}
-              </div>
-              <textarea class="logframe-cell-edit" placeholder="Inputs..." onchange="updateLogframeField('activities_inputs', this.value)">${escHtml(prop.logframe.activities_inputs || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Budget Reference..." onchange="updateLogframeField('activities_budget', this.value)">${escHtml(prop.logframe.activities_budget || '')}</textarea>
-            </td>
-            <td>
-              <textarea class="logframe-cell-edit" placeholder="Preconditions..." onchange="updateLogframeField('activities_preconditions', this.value)">${escHtml(prop.logframe.activities_preconditions || '')}</textarea>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    `;
-  } else if (step === 'narrative') {
-    const isNarrativeEmpty = !prop.narrative || prop.narrative.includes("Emergency humanitarian response");
-    container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-        <span class="text-muted" style="font-size:12px">Full Project Proposal Text. Markdown editor.</span>
-        <button class="btn btn-xs btn-primary btn-with-icon" data-action="generate-narrative">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          <span>${isNarrativeEmpty ? 'Write with AI' : 'Regenerate'}</span>
-        </button>
-      </div>
-      <div class="proposal-narrative-editor" style="height:100%; display:flex; flex-direction:column; gap:16px">
-        <textarea class="form-control" style="flex:1; font-family:monospace; font-size:13.5px; min-height:450px; padding:16px; line-height:1.5" oninput="updatePropField('narrative', this.value)">${escHtml(prop.narrative || '')}</textarea>
-      </div>
-    `;
-  }
-}
-
-async function loadAndRenderContextChunks(prop) {
-  const listEl = document.getElementById('proposal-context-chunks-list');
-  if (!listEl) return;
-  
-  listEl.innerHTML = '<div class="text-muted" style="font-size:12px; padding: 10px;">Loading matching evidence chunks from database...</div>';
-  
-  try {
-    const res = await api(`/api/proposals/${prop.id}/chunks`);
-    const chunks = await res.json();
-    
-    if (!chunks || chunks.length === 0) {
-      listEl.innerHTML = '<div class="text-muted" style="font-size:12px; padding: 10px;">No matching report chunks found in the database. Try selecting a different country or themes.</div>';
-      return;
-    }
-    
-    // Cache the active chunks
-    proposalState.activeChunks = chunks;
-    
-    listEl.innerHTML = chunks.map((c, i) => `
-      <div class="report-item-rag" data-action="open-rag-drawer" data-index="${i}" style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;">
-        <div style="display:flex; justify-content:space-between; font-weight:700; font-size:11px; color:var(--text-secondary); margin-bottom:6px; pointer-events: none;">
-          <span>📄 ${escHtml(c.title)}</span>
-          <span>📅 ${escHtml(c.date)}</span>
-        </div>
-        <p style="font-size:12.5px; line-height:1.4; margin:0; color:var(--text); text-align:left; pointer-events: none;">${escHtml(c.text)}</p>
-        <div style="margin-top:6px; font-size:10px; color:var(--primary); font-weight:600; text-align:left; pointer-events: none;">Themes: ${escHtml(c.themes)}</div>
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error("loadAndRenderContextChunks error:", err);
-    listEl.innerHTML = '<div class="text-muted" style="font-size:12px; padding: 10px; color: var(--red);">Failed to load database chunks.</div>';
-  }
-}
-
-// AI generation operations
-async function generateProposalToC() {
-  const prop = proposalState.activeProposal;
-  if (!prop) return;
-
-  const container = document.getElementById('proposal-step-content');
-  container.innerHTML = `
-    <div class="center-loading">
-      <div class="loading-placeholder">
-        ⏳ Analyzing ReliefWeb contexts & generating Theory of Change...
-      </div>
-    </div>
-  `;
-
-  try {
-    const res = await api(`/api/proposals/${prop.id}/generate-toc`, { method: 'POST' });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    prop.toc = data;
-    switchProposalStep('toc');
-    addAdvisorMessage("Sightline Advisor", "I have drafted the Theory of Change using vector-retrieved data from the crisis zone. Look at the flow nodes.");
-  } catch (err) {
-    alert("ToC Generation failed: " + err.message);
-    switchProposalStep('toc');
-  }
-}
-
-async function generateProposalLogframe() {
-  const prop = proposalState.activeProposal;
-  if (!prop) return;
-
-  const container = document.getElementById('proposal-step-content');
-  container.innerHTML = `
-    <div class="center-loading">
-      <div class="loading-placeholder">
-        ⏳ Drafting Logical Framework Matrix with SMART indicators...
-      </div>
-    </div>
-  `;
-
-  try {
-    const res = await api(`/api/proposals/${prop.id}/generate-logframe`, { method: 'POST' });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    prop.logframe = data;
-    switchProposalStep('logframe');
-    addAdvisorMessage("Sightline Advisor", "I have structured the Logframe Matrix based on our ToC hierarchy, proposing SMART indicators for your donor template.");
-  } catch (err) {
-    alert("Logframe Generation failed: " + err.message);
-    switchProposalStep('logframe');
-  }
-}
-
-async function generateProposalNarrative() {
-  const prop = proposalState.activeProposal;
-  if (!prop) return;
-
-  const container = document.getElementById('proposal-step-content');
-  container.innerHTML = `
-    <div class="center-loading">
-      <div class="loading-placeholder">
-        ⏳ Writing project narrative according to donor guidelines...
-      </div>
-    </div>
-  `;
-
-  try {
-    const res = await api(`/api/proposals/${prop.id}/generate-narrative`, { method: 'POST' });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    prop.narrative = data.narrative;
-    switchProposalStep('narrative');
-    addAdvisorMessage("Sightline Advisor", "The complete narrative proposal has been drafted. You can export it or edit it.");
-  } catch (err) {
-    alert("Narrative Generation failed: " + err.message);
-    switchProposalStep('narrative');
-  }
-}
-
-let proposalSaveTimeout = null;
-function saveActiveProposal() {
-  clearTimeout(proposalSaveTimeout);
-  proposalSaveTimeout = setTimeout(async () => {
-    const prop = proposalState.activeProposal;
-    if (!prop) return;
-    try {
-      await api(`/api/proposals/${prop.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: prop.title,
-          country: prop.country,
-          event: prop.event,
-          themes: prop.themes,
-          donor: prop.donor,
-          date_from: prop.date_from,
-          date_to: prop.date_to,
-          toc: prop.toc,
-          logframe: prop.logframe,
-          narrative: prop.narrative
-        })
-      });
-      console.log("Proposal auto-saved to database");
-      // Trigger real-time AI background review
-      triggerBackgroundReview(prop.id);
-    } catch (err) {
-      console.error("Auto-save failed:", err);
-    }
-  }, 1000);
-}
-
-function updatePropField(field, val) {
-  if (proposalState.activeProposal) {
-    proposalState.activeProposal[field] = val;
-    if (field === 'title' || field === 'donor' || field === 'country') {
-      renderProposalList();
-      document.getElementById('proposal-project-title').textContent = proposalState.activeProposal.title;
-      document.getElementById('proposal-project-context').textContent = `Country: ${proposalState.activeProposal.country} | Donor Template: ${proposalState.activeProposal.donor} | Focus: ${proposalState.activeProposal.event || 'Emergency Response'}`;
-      
-      // Reload matching chunks if country changed
-      if (field === 'country' && proposalState.currentStep === 'context') {
-        loadAndRenderContextChunks(proposalState.activeProposal);
-      }
-    }
-    saveActiveProposal();
-  }
-}
-
-function updateLogframeField(field, val) {
-  if (proposalState.activeProposal) {
-    proposalState.activeProposal.logframe[field] = val;
-    saveActiveProposal();
-  }
+  renderWizardSteps();
+  renderSectionContent(step);
 }
 
 async function sendProposalCritique() {
   const inp = document.getElementById('critique-input');
-  if (!inp || !inp.value.trim() || !proposalState.activeProposalId) return;
-
   const msgs = document.getElementById('critique-messages');
-  if (!msgs) return;
-
+  if (!inp || !msgs || !proposalState.activeProposalId) return;
   const text = inp.value.trim();
   inp.value = '';
-
-  // Append user message
   const userBubble = document.createElement('div');
   userBubble.className = 'critique-msg user';
-  userBubble.innerHTML = `
-    <strong>You</strong>
-    <p>${escHtml(text)}</p>
-  `;
+  userBubble.innerHTML = `<strong>You</strong><p>${escHtml(text)}</p>`;
   msgs.appendChild(userBubble);
-
-  // Append thinking indicator
   const thinkingBubble = document.createElement('div');
   thinkingBubble.className = 'critique-msg system';
-  thinkingBubble.innerHTML = `
-    <strong>Sightline Advisor</strong>
-    <p class="msg-placeholder">Reviewing project logic & guidelines...</p>
-  `;
+  thinkingBubble.innerHTML = `<strong>Sightline Advisor</strong><p class="msg-placeholder">Revising section...</p>`;
   msgs.appendChild(thinkingBubble);
   msgs.scrollTop = msgs.scrollHeight;
 
+  const step = proposalState.currentStep;
   try {
-    const res = await api(`/api/proposals/${proposalState.activeProposalId}/advisor/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text })
+    const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/revise`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback: text }),
     });
-    
-    const data = await res.json();
-    thinkingBubble.remove();
-    
-    if (data.error) throw new Error(data.error);
-    
-    const replyBubble = document.createElement('div');
-    replyBubble.className = 'critique-msg system';
-    replyBubble.innerHTML = `
-      <strong>Sightline Advisor</strong>
-      <p>${escHtml(data.response)}</p>
-    `;
-    msgs.appendChild(replyBubble);
-    
-    if (data.command) {
-      const infoMsg = document.createElement('div');
-      infoMsg.className = 'critique-msg system';
-      infoMsg.style.borderColor = 'var(--green)';
-      infoMsg.innerHTML = `<strong>System</strong><p>Auto-updated proposal layout based on AI Advisor recommendation.</p>`;
-      msgs.appendChild(infoMsg);
-      
-      const pRes = await api(`/api/proposals/${proposalState.activeProposalId}`);
-      const prop = await pRes.json();
-      proposalState.activeProposal = prop;
-      switchProposalStep(proposalState.currentStep);
+    thinkingBubble.querySelector('p').textContent = '';
+    const replyP = thinkingBubble.querySelector('p');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', fullText = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'token') { fullText += event.text || ''; replyP.textContent = fullText; msgs.scrollTop = msgs.scrollHeight; }
+          else if (event.type === 'saved') {
+            const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+            const prop = await refreshed.json();
+            if (!prop.error) proposalState.activeProposal = prop;
+            renderSectionContent(step);
+          }
+          else if (event.type === 'error') replyP.textContent = `Error: ${event.text || 'Revision failed'}`;
+        } catch(e) {}
+      }
     }
-    
-    msgs.scrollTop = msgs.scrollHeight;
-  } catch (err) {
-    thinkingBubble.remove();
-    alert("Advisor request failed: " + err.message);
-  }
+  } catch (err) { thinkingBubble.querySelector('p').textContent = "Revision failed: " + err.message; }
 }
 
-function addAdvisorMessage(sender, text) {
+function showAdvisorMessage(sender, text) {
   const msgs = document.getElementById('critique-messages');
   if (!msgs) return;
   const bubble = document.createElement('div');
   bubble.className = 'critique-msg system';
-  bubble.innerHTML = `
-    <strong>${escHtml(sender)}</strong>
-    <p>${escHtml(text)}</p>
-  `;
+  bubble.innerHTML = `<strong>${escHtml(sender)}</strong><p>${escHtml(text)}</p>`;
   msgs.appendChild(bubble);
   msgs.scrollTop = msgs.scrollHeight;
 }
+
+async function exportProposalMarkdown() {
+  if (!proposalState.activeProposalId) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/export`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const blob = new Blob([data.markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = data.filename || 'proposal.md'; a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) { alert("Export failed: " + err.message); }
+}
+
+function addAdvisorMessage(sender, text) { showAdvisorMessage(sender, text); }
 
 async function loadAndRenderAdvisorHistory(propId, propTitle) {
   const msgs = document.getElementById('critique-messages');
   if (!msgs) return;
-  
-  try {
-    const res = await api(`/api/proposals/${propId}/advisor/history`);
-    const history = await res.json();
-    
-    let html = `
-      <div class="critique-msg system">
-        <strong>Sightline Advisor</strong>
-        <p>Welcome back! Ask me to review your Theory of Change or Logframe matrix for <strong>${escHtml(propTitle)}</strong>.</p>
-      </div>
-    `;
-    
-    if (history && history.length > 0) {
-      html += history.map(m => {
-        const isUser = m.role === 'user';
-        const sender = isUser ? 'You' : 'Sightline Advisor';
-        const className = isUser ? 'critique-msg user' : 'critique-msg system';
-        return `
-          <div class="${className}">
-            <strong>${escHtml(sender)}</strong>
-            <p>${escHtml(m.content)}</p>
-          </div>
-        `;
-      }).join('');
-    }
-    
-    msgs.innerHTML = html;
-    msgs.scrollTop = msgs.scrollHeight;
-  } catch (err) {
-    console.error("loadAndRenderAdvisorHistory error:", err);
-  }
+  msgs.innerHTML = `<div class="critique-msg system"><strong>Sightline Advisor</strong><p>Select a section and click "Generate" to start. Ask me for revisions anytime.</p></div>`;
 }
 
-function exportProposalPDF() {
-  const prop = proposalState.activeProposal;
-  if (!prop) return;
-  
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>${prop.title} - Proposal Export</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #111; line-height: 1.6; }
-          h1 { border-bottom: 2px solid #0056b3; padding-bottom: 10px; color: #0056b3; }
-          h2 { color: #333; margin-top: 30px; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; page-break-inside: avoid; }
-          th, td { border: 1px solid #aaa; padding: 10px; text-align: left; vertical-align: top; font-size: 13px; }
-          th { background-color: #f2f2f2; }
-          .meta { font-style: italic; color: #555; margin-bottom: 20px; }
-          .toc-node { border-left: 3px solid #0056b3; background: #f9f9f9; padding: 8px 12px; margin: 6px 0; font-size: 14px; }
-          .page-break { page-break-before: always; }
-        </style>
-      </head>
-      <body>
-        <h1>${prop.title}</h1>
-        <div class="meta">Country Context: ${prop.country} | Donor template: ${prop.donor} | Created via Sightline</div>
-        
-        <h2>1. Theory of Change</h2>
-        <div class="toc-node"><strong>Impact:</strong> ${prop.toc[0]?.text || '—'}</div>
-        <div class="toc-node"><strong>Outcome:</strong> ${prop.toc[1]?.text || '—'}</div>
-        <div class="toc-node"><strong>Output:</strong> ${prop.toc[2]?.text || '—'}</div>
-        <div class="toc-node"><strong>Activity:</strong> ${prop.toc[3]?.text || '—'}</div>
-
-        <div class="page-break"></div>
-        <h2>2. Logical Framework Matrix</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Project Logic</th>
-              <th>Indicators</th>
-              <th>Verification Sources</th>
-              <th>Assumptions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Goal:</strong><br>${prop.logframe.goal || ''}</td>
-              <td>${prop.logframe.goal_indicator || ''}</td>
-              <td>${prop.logframe.goal_sources || ''}</td>
-              <td>${prop.logframe.goal_assumptions || ''}</td>
-            </tr>
-            <tr>
-              <td><strong>Outcomes:</strong><br>${prop.logframe.outcomes || ''}</td>
-              <td>${prop.logframe.outcomes_indicator || ''}</td>
-              <td>${prop.logframe.outcomes_sources || ''}</td>
-              <td>${prop.logframe.outcomes_assumptions || ''}</td>
-            </tr>
-            <tr>
-              <td><strong>Outputs:</strong><br>${prop.logframe.outputs || ''}</td>
-              <td>${prop.logframe.outputs_indicator || ''}</td>
-              <td>${prop.logframe.outputs_sources || ''}</td>
-              <td>${prop.logframe.outputs_assumptions || ''}</td>
-            </tr>
-            <tr>
-              <td><strong>Activities:</strong><br>${prop.logframe.activities || ''}</td>
-              <td>${prop.logframe.activities_inputs || ''}</td>
-              <td>${prop.logframe.activities_budget || ''}</td>
-              <td>${prop.logframe.activities_preconditions || ''}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="page-break"></div>
-        <h2>3. Detailed Project Narrative</h2>
-        <div>${prop.narrative.replace(/\n/g, '<br>')}</div>
-
-        <script>
-          window.onload = function() { window.print(); }
-        </script>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
+async function saveActiveProposal() {
+  if (!proposalState.activeProposalId || !proposalState.activeProposal) return;
+  try { await api(`/api/proposals/${proposalState.activeProposalId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposalState.activeProposal) }); }
+  catch(err) { console.warn("Save proposal failed:", err); }
 }
 
-function openRagDrawer(index) {
-  const drawer = document.getElementById('proposal-rag-drawer');
-  const body = document.getElementById('rag-drawer-body');
-  if (!drawer || !body || !proposalState.activeChunks || !proposalState.activeProposal) return;
-  
-  const chunk = proposalState.activeChunks[index];
-  if (!chunk) return;
-  
-  let highlightedText = escHtml(chunk.text);
-  const termsToHighlight = [
-    proposalState.activeProposal.country,
-    proposalState.activeProposal.event,
-    ...(proposalState.activeProposal.themes || [])
-  ];
-  
-  termsToHighlight.forEach(term => {
-    if (!term) return;
-    const regex = new RegExp(`(${term})`, 'gi');
-    highlightedText = highlightedText.replace(regex, '<mark class="drawer-highlight">$1</mark>');
-  });
-  
-  body.innerHTML = `
-    <div class="drawer-meta-item">
-      <span>📍</span>
-      <strong>Country:</strong> ${escHtml(proposalState.activeProposal.country)}
-    </div>
-    <div class="drawer-meta-item">
-      <span>📅</span>
-      <strong>Report Date:</strong> ${escHtml(chunk.date)}
-    </div>
-    <div class="drawer-meta-item">
-      <span>🏷️</span>
-      <strong>Themes:</strong> ${escHtml(chunk.themes)}
-    </div>
-    <div class="drawer-meta-item" style="margin-bottom: 20px;">
-      <span>🔗</span>
-      <strong>Source Report:</strong> 
-      <a href="https://reliefweb.int/report/${chunk.id || ''}" target="_blank" style="color: var(--blue); text-decoration: underline;">
-        ${escHtml(chunk.title)}
-      </a>
-    </div>
-    <div style="font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px;">Full Excerpt:</div>
-    <p style="background: rgba(0,0,0,0.02); border-left: 3px solid var(--primary); padding: 12px; border-radius: var(--radius-sm); font-size: 13.5px; line-height: 1.5; color: var(--text); text-align: left;">
-      ${highlightedText}
-    </p>
-  `;
-  
-  drawer.classList.add('open');
-}
-
-function closeRagDrawer() {
-  const drawer = document.getElementById('proposal-rag-drawer');
-  if (drawer) drawer.classList.remove('open');
-}
-
-function drawTocFlowLines() {
-  const svg = document.getElementById('toc-flow-svg');
-  const container = document.getElementById('toc-flow-container');
-  if (!svg || !container) return;
-  
-  svg.querySelectorAll('path.flow-line').forEach(p => p.remove());
-  
-  const containerRect = container.getBoundingClientRect();
-  
-  for (let i = 0; i < 3; i++) {
-    const nodeA = document.getElementById(`toc-node-${i}`);
-    const nodeB = document.getElementById(`toc-node-${i+1}`);
-    if (!nodeA || !nodeB) continue;
-    
-    const rectA = nodeA.getBoundingClientRect();
-    const rectB = nodeB.getBoundingClientRect();
-    
-    const xA = (rectA.left + rectA.right) / 2 - containerRect.left;
-    const yA = rectA.bottom - containerRect.top;
-    
-    const xB = (rectB.left + rectB.right) / 2 - containerRect.left;
-    const yB = rectB.top - containerRect.top;
-    
-    const controlY = (yA + yB) / 2;
-    const pathD = `M ${xA} ${yA} C ${xA} ${controlY}, ${xB} ${controlY}, ${xB} ${yB}`;
-    
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', pathD);
-    path.setAttribute('class', 'flow-line');
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', `url(#flow-grad-${i})`);
-    path.setAttribute('stroke-width', '2');
-    path.setAttribute('marker-end', 'url(#arrow)');
-    svg.appendChild(path);
-  }
-}
-
-function editTocNode(index) {
-  document.querySelectorAll('.apple-popover').forEach(p => p.remove());
-  
-  const node = document.getElementById(`toc-node-${index}`);
-  if (!node || !proposalState.activeProposal) return;
-  
-  const rect = node.getBoundingClientRect();
-  const container = document.getElementById('toc-flow-container');
-  const containerRect = container.getBoundingClientRect();
-  
-  const popover = document.createElement('div');
-  popover.className = 'apple-popover';
-  popover.style.left = `${(rect.left + rect.right)/2 - containerRect.left - 160}px`;
-  popover.style.top = `${rect.bottom - containerRect.top + 10}px`;
-  
-  const nodeTitle = ['Goal / Impact', 'Outcome', 'Output', 'Activity'][index];
-  const currentText = proposalState.activeProposal.toc[index]?.text || '';
-  
-  popover.innerHTML = `
-    <div class="popover-header">Edit ${nodeTitle}</div>
-    <div class="popover-body">
-      <textarea id="popover-toc-textarea">${escHtml(currentText)}</textarea>
-    </div>
-    <div class="popover-actions">
-      <button class="btn btn-xs btn-secondary" id="btn-popover-cancel">Cancel</button>
-      <button class="btn btn-xs btn-primary" id="btn-popover-save">Save Changes</button>
-    </div>
-  `;
-  
-  container.appendChild(popover);
-  
-  const textarea = document.getElementById('popover-toc-textarea');
-  if (textarea) textarea.focus();
-  
-  document.getElementById('btn-popover-cancel').addEventListener('click', () => popover.remove());
-  
-  document.getElementById('btn-popover-save').addEventListener('click', async () => {
-    const newText = textarea.value.trim();
-    if (!newText) return;
-    
-    proposalState.activeProposal.toc[index].text = newText;
-    
-    const prop = proposalState.activeProposal;
-    try {
-      const res = await api(`/api/proposals/${prop.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(prop)
-      });
-      const updated = await res.json();
-      if (updated.error) throw new Error(updated.error);
-      
-      node.querySelector('.toc-node-text').textContent = newText;
-      popover.remove();
-      drawTocFlowLines();
-      
-      addAdvisorMessage("System", `Theory of Change level '${nodeTitle}' updated successfully.`);
-    } catch (err) {
-      alert("Failed to save changes: " + err.message);
-    }
-  });
-}
-
-window.addEventListener('resize', () => {
-  if (proposalState.currentStep === 'toc') {
-    drawTocFlowLines();
-  }
-});
-
-function openSmartScorecard(level, badgeElement) {
-  document.querySelectorAll('.apple-popover').forEach(p => p.remove());
-  
-  const prop = proposalState.activeProposal;
-  if (!prop) return;
-  
-  let indicatorText = '';
-  if (level === 'goal') indicatorText = prop.logframe.goal_indicator || '';
-  else if (level === 'outcomes') indicatorText = prop.logframe.outcomes_indicator || '';
-  else if (level === 'outputs') indicatorText = prop.logframe.outputs_indicator || '';
-  else if (level === 'activities') indicatorText = prop.logframe.activities_inputs || '';
-  
-  const isSpecific = indicatorText.length > 20;
-  const isMeasurable = /([0-9]+|%|count|number|rate)/i.test(indicatorText);
-  const isAchievable = indicatorText.length > 10;
-  const isRelevant = indicatorText.length > 10;
-  const isTimebound = /(202\d|year|month|day|week|end|duration|deadline|quarter)/i.test(indicatorText);
-  
-  const score = [isSpecific, isMeasurable, isAchievable, isRelevant, isTimebound].filter(Boolean).length;
-  
-  const rect = badgeElement.getBoundingClientRect();
-  const container = document.getElementById('proposal-step-content');
-  const containerRect = container.getBoundingClientRect();
-  
-  const popover = document.createElement('div');
-  popover.className = 'apple-popover';
-  popover.style.left = `${rect.left - containerRect.left - 100}px`;
-  popover.style.top = `${rect.bottom - containerRect.top + 8}px`;
-  
-  popover.innerHTML = `
-    <div class="popover-header">SMART Validation: ${level.toUpperCase()}</div>
-    <div class="popover-body">
-      <ul class="scorecard-criteria-list">
-        <li class="scorecard-criteria-item ${isSpecific ? 'pass' : 'fail'}">
-          <span class="check-icon">${isSpecific ? '✓' : '✗'}</span>
-          <span><strong>Specific:</strong> ${isSpecific ? 'Well specified.' : 'Too brief, add context.'}</span>
-        </li>
-        <li class="scorecard-criteria-item ${isMeasurable ? 'pass' : 'fail'}">
-          <span class="check-icon">${isMeasurable ? '✓' : '✗'}</span>
-          <span><strong>Measurable:</strong> ${isMeasurable ? 'Contains numbers/rates.' : 'No numbers or metric unit.'}</span>
-        </li>
-        <li class="scorecard-criteria-item ${isAchievable ? 'pass' : 'fail'}">
-          <span class="check-icon">${isAchievable ? '✓' : '✗'}</span>
-          <span><strong>Achievable:</strong> Clear target defined.</span>
-        </li>
-        <li class="scorecard-criteria-item ${isRelevant ? 'pass' : 'fail'}">
-          <span class="check-icon">${isRelevant ? '✓' : '✗'}</span>
-          <span><strong>Relevant:</strong> Aligned to crisis needs.</span>
-        </li>
-        <li class="scorecard-criteria-item ${isTimebound ? 'pass' : 'fail'}">
-          <span class="check-icon">${isTimebound ? '✓' : '✗'}</span>
-          <span><strong>Time-bound:</strong> ${isTimebound ? 'Mentions timeframe.' : 'No timeline/dates specified.'}</span>
-        </li>
-      </ul>
-      <div style="font-size:12px; font-weight:700; color:var(--text); margin-bottom:8px;">Overall Score: ${score}/5</div>
-    </div>
-    <div class="popover-actions">
-      <button class="btn btn-xs btn-secondary" id="btn-scorecard-close">Close</button>
-      <button class="btn btn-xs btn-primary" id="btn-scorecard-improve">Improve with AI</button>
-    </div>
-  `;
-  
-  container.appendChild(popover);
-  
-  document.getElementById('btn-scorecard-close').addEventListener('click', () => popover.remove());
-  
-  document.getElementById('btn-scorecard-improve').addEventListener('click', () => {
-    popover.remove();
-    const txtCritique = document.getElementById('critique-input');
-    if (txtCritique) {
-      txtCritique.value = `Improve the indicators for the ${level} layer in my logical framework to make them fully SMART and optimized for donors.`;
-      sendProposalCritique();
-    }
-  });
-}
-
-// ── Real-time Background AI Advisor & Diff Modal ──
-
-let bgReviewTimeout = null;
-async function triggerBackgroundReview(propId) {
-  clearTimeout(bgReviewTimeout);
-  bgReviewTimeout = setTimeout(async () => {
-    try {
-      const res = await api(`/api/proposals/${propId}/advisor/background-review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-      
-      if (data.drafts) {
-        proposalState.drafts = data.drafts;
-        addAdvisorMessageHtml("Sightline Advisor", `${escHtml(data.message)}<br><button class="btn btn-primary btn-xs" style="margin-top:8px;" data-action="open-diff-modal">Review AI Edits</button>`);
-      } else if (data.message && data.message !== "Background review complete.") {
-        addAdvisorMessage("Sightline Advisor", data.message);
-      }
-    } catch(e) {
-      console.warn("Background review failed", e);
-    }
-  }, 2000); // Wait 2 seconds after the auto-save before hitting the AI
-}
-
-function addAdvisorMessageHtml(sender, htmlContent) {
-  const msgs = document.getElementById('critique-messages');
-  if (!msgs) return;
-  const bubble = document.createElement('div');
-  bubble.className = 'critique-msg system';
-  bubble.innerHTML = `
-    <strong>${escHtml(sender)}</strong>
-    <p>${htmlContent}</p>
-  `;
-  msgs.appendChild(bubble);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function openDiffModal() {
-  const modal = document.getElementById('proposal-diff-modal');
-  const content = document.getElementById('proposal-diff-content');
-  if (!modal || !content || !proposalState.drafts) return;
-  
-  content.innerHTML = '';
-  
-  const drafts = proposalState.drafts;
-  const current = proposalState.activeProposal;
-  
-  if (drafts.toc) {
-    content.innerHTML += buildDiffSection("Theory of Change", JSON.stringify(current.toc, null, 2), drafts.toc);
-  }
-  if (drafts.logframe) {
-    content.innerHTML += buildDiffSection("Logframe Matrix", JSON.stringify(current.logframe, null, 2), drafts.logframe);
-  }
-  if (drafts.narrative) {
-    content.innerHTML += buildDiffSection("Narrative Text", current.narrative, drafts.narrative);
-  }
-  
-  modal.classList.add('active');
-}
-
-function buildDiffSection(title, oldText, newText) {
-  return `
-    <div class="diff-section">
-      <div class="diff-section-header">${title}</div>
-      <div class="diff-section-body">
-        <div class="diff-current">
-          <strong>Current:</strong>
-          <pre>${escHtml(oldText)}</pre>
-        </div>
-        <div class="diff-proposed">
-          <strong>Proposed:</strong>
-          <pre>${escHtml(newText)}</pre>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const diffModal = document.getElementById('proposal-diff-modal');
-  const btnClose = document.getElementById('proposal-diff-modal-close-btn');
-  const btnReject = document.getElementById('proposal-diff-reject-btn');
-  const btnApprove = document.getElementById('proposal-diff-approve-btn');
-  
-  if (btnClose) btnClose.addEventListener('click', () => diffModal.classList.remove('active'));
-  if (btnReject) btnReject.addEventListener('click', () => {
-    proposalState.drafts = null;
-    diffModal.classList.remove('active');
-    addAdvisorMessage("System", "Drafts rejected by user.");
-  });
-  
-  if (btnApprove) btnApprove.addEventListener('click', () => {
-    if (!proposalState.drafts || !proposalState.activeProposal) return;
-    const drafts = proposalState.drafts;
-    const current = proposalState.activeProposal;
-    
-    if (drafts.toc) {
-      try { current.toc = JSON.parse(drafts.toc); } catch(e) { }
-    }
-    if (drafts.logframe) {
-      try { current.logframe = JSON.parse(drafts.logframe); } catch(e) { }
-    }
-    if (drafts.narrative) {
-      current.narrative = drafts.narrative;
-    }
-    
-    proposalState.drafts = null;
-    saveActiveProposal(); 
-    switchProposalStep(proposalState.currentStep);
-    diffModal.classList.remove('active');
-    
-    addAdvisorMessageHtml("System", `<span style="color:var(--green)">✓ Drafts approved and applied to proposal.</span>`);
-  });
-
-});
 
 /* ── Walkthrough Scroll Reveal ── */
 document.addEventListener('DOMContentLoaded', function initWalkthroughObserver() {

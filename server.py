@@ -471,19 +471,31 @@ def _init_chats_db():
             signup_source  TEXT NOT NULL DEFAULT 'web'
         );
         CREATE TABLE IF NOT EXISTS proposals (
-            id         TEXT PRIMARY KEY,
-            uid        TEXT NOT NULL,
-            title      TEXT NOT NULL,
-            country    TEXT NOT NULL,
-            event      TEXT NOT NULL,
-            themes     TEXT NOT NULL,
-            donor      TEXT NOT NULL,
-            date_from  TEXT NOT NULL DEFAULT '',
-            date_to    TEXT NOT NULL DEFAULT '',
-            toc        TEXT NOT NULL DEFAULT '[]',
-            logframe   TEXT NOT NULL DEFAULT '{}',
-            narrative  TEXT NOT NULL DEFAULT '',
-            created_at REAL NOT NULL
+            id              TEXT PRIMARY KEY,
+            uid             TEXT NOT NULL,
+            title           TEXT NOT NULL,
+            country         TEXT NOT NULL,
+            event           TEXT NOT NULL,
+            themes          TEXT NOT NULL,
+            donor           TEXT NOT NULL,
+            date_from       TEXT NOT NULL DEFAULT '',
+            date_to         TEXT NOT NULL DEFAULT '',
+            toc             TEXT NOT NULL DEFAULT '[]',
+            logframe        TEXT NOT NULL DEFAULT '{}',
+            narrative       TEXT NOT NULL DEFAULT '',
+            created_at      REAL NOT NULL,
+            cover_page      TEXT NOT NULL DEFAULT '{}',
+            background      TEXT NOT NULL DEFAULT '',
+            needs_assessment TEXT NOT NULL DEFAULT '',
+            methodology     TEXT NOT NULL DEFAULT '',
+            budget          TEXT NOT NULL DEFAULT '{}',
+            mne_framework   TEXT NOT NULL DEFAULT '{}',
+            risk_matrix     TEXT NOT NULL DEFAULT '[]',
+            sustainability  TEXT NOT NULL DEFAULT '',
+            coordination    TEXT NOT NULL DEFAULT '',
+            current_step    TEXT NOT NULL DEFAULT 'cover',
+            step_status     TEXT NOT NULL DEFAULT '{}',
+            completed_at    REAL
         );
         CREATE INDEX IF NOT EXISTS idx_proposals_uid ON proposals(uid);
     """)
@@ -493,6 +505,26 @@ def _init_chats_db():
         conn.execute("ALTER TABLE chats ADD COLUMN uid TEXT NOT NULL DEFAULT ''")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_chats_uid ON chats(uid)")
         conn.commit()
+    # Migration: add new section columns to existing proposals table
+    prop_cols = [r[1] for r in conn.execute("PRAGMA table_info(proposals)").fetchall()]
+    _new_prop_cols = {
+        "cover_page":      ("TEXT NOT NULL DEFAULT '{}'"),
+        "background":      ("TEXT NOT NULL DEFAULT ''"),
+        "needs_assessment":("TEXT NOT NULL DEFAULT ''"),
+        "methodology":     ("TEXT NOT NULL DEFAULT ''"),
+        "budget":          ("TEXT NOT NULL DEFAULT '{}'"),
+        "mne_framework":   ("TEXT NOT NULL DEFAULT '{}'"),
+        "risk_matrix":     ("TEXT NOT NULL DEFAULT '[]'"),
+        "sustainability":  ("TEXT NOT NULL DEFAULT ''"),
+        "coordination":    ("TEXT NOT NULL DEFAULT ''"),
+        "current_step":    ("TEXT NOT NULL DEFAULT 'cover'"),
+        "step_status":     ("TEXT NOT NULL DEFAULT '{}'"),
+        "completed_at":    ("REAL"),
+    }
+    for col, coldef in _new_prop_cols.items():
+        if col not in prop_cols:
+            conn.execute(f"ALTER TABLE proposals ADD COLUMN {col} {coldef}")
+    conn.commit()
     conn.close()
 
 _init_chats_db()
@@ -2764,12 +2796,27 @@ def api_ingest_upload():
 @require_auth
 def api_get_proposals():
     uid = current_uid()
+    role = current_role()
     conn = _chats_db()
     try:
-        rows = conn.execute(
-            "SELECT id, title, country, event, themes, donor, date_from, date_to, created_at FROM proposals WHERE uid = ? ORDER BY created_at DESC",
-            (uid,)
-        ).fetchall()
+        if role == "free":
+            rows = conn.execute(
+                """SELECT id, title, country, event, themes, donor, date_from, date_to,
+                          current_step, step_status, created_at, completed_at
+                   FROM proposals
+                   WHERE uid = ? OR completed_at IS NOT NULL
+                   ORDER BY created_at DESC""",
+                (uid,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT id, title, country, event, themes, donor, date_from, date_to,
+                          current_step, step_status, created_at, completed_at
+                   FROM proposals
+                   WHERE uid = ?
+                   ORDER BY created_at DESC""",
+                (uid,)
+            ).fetchall()
 
         proposals = []
         for r in rows:
@@ -2777,6 +2824,11 @@ def api_get_proposals():
                 themes_list = json.loads(r["themes"])
             except Exception:
                 themes_list = [t.strip() for t in r["themes"].split(",") if t.strip()]
+
+            try:
+                step_status = json.loads(r["step_status"]) if r["step_status"] else {}
+            except Exception:
+                step_status = {}
 
             proposals.append({
                 "id": r["id"],
@@ -2787,7 +2839,11 @@ def api_get_proposals():
                 "donor": r["donor"],
                 "date_from": r["date_from"],
                 "date_to": r["date_to"],
-                "created_at": r["created_at"]
+                "current_step": r["current_step"] or "cover",
+                "step_status": step_status,
+                "created_at": r["created_at"],
+                "completed_at": r["completed_at"],
+                "is_owner": r["id"] and uid and True or False,
             })
         return jsonify(proposals)
     except Exception as e:
@@ -2798,9 +2854,10 @@ def api_get_proposals():
 
 
 @app.route("/api/proposals/new", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_create_proposal():
     uid = current_uid()
+    role = current_role()
     data = request.json or {}
 
     title = data.get("title", "New Proposal").strip()
@@ -2814,38 +2871,65 @@ def api_create_proposal():
     if not country:
         return jsonify({"error": "Country context is required"}), 400
 
-    prop_id = "prop_" + str(uuid.uuid4().hex[:12])
-
-    default_toc = [
-        {"level": "impact", "text": "Enhanced safety and reduced vulnerability of affected populations."},
-        {"level": "outcome", "text": "Access to vital emergency services and basic needs is restored."},
-        {"level": "output", "text": "Emergency relief kits and support materials distributed."},
-        {"level": "activity", "text": "Procure and deliver aid packages to targeted zones."}
-    ]
-
-    default_logframe = {
-        "goal": f"G1. Reduced vulnerability to disaster shocks in {country}.",
-        "outcomes": "OC1. Targeted households report basic needs met.\nIndicator: % of target pop with satisfied needs.",
-        "outputs": "O1. Relief materials delivered to local centers.\nIndicator: Number of kits distributed.",
-        "activities": "A1. Deploy logistics team.\nA2. Complete safe distributions."
-    }
-
-    default_narrative = f"## Project Summary\nEmergency humanitarian response targeting communities in {country} affected by recent crises.\n\n## Methodology\nInterventions will focus on key sectors: {', '.join(themes)}."
-
     conn = _chats_db()
     try:
+        if role == "premium":
+            monthly_count = conn.execute(
+                "SELECT COUNT(*) FROM proposals WHERE uid = ? AND created_at > ?",
+                (uid, _time.time() - 30 * 86400)
+            ).fetchone()[0]
+            if monthly_count >= 1:
+                return jsonify({
+                    "error": "Monthly proposal limit reached (1/month for premium). "
+                             "Delete an existing proposal or upgrade to admin for unlimited.",
+                    "limit": 1,
+                    "used": monthly_count,
+                    "premium_limit": True,
+                }), 429
+
+        prop_id = "prop_" + str(uuid.uuid4().hex[:12])
+
+        default_toc = [
+            {"level": "impact", "text": "Enhanced safety and reduced vulnerability of affected populations."},
+            {"level": "outcome", "text": "Access to vital emergency services and basic needs is restored."},
+            {"level": "output", "text": "Emergency relief kits and support materials distributed."},
+            {"level": "activity", "text": "Procure and deliver aid packages to targeted zones."}
+        ]
+
+        default_logframe = {
+            "goal": f"G1. Reduced vulnerability to disaster shocks in {country}.",
+            "outcomes": "OC1. Targeted households report basic needs met.\nIndicator: % of target pop with satisfied needs.",
+            "outputs": "O1. Relief materials delivered to local centers.\nIndicator: Number of kits distributed.",
+            "activities": "A1. Deploy logistics team.\nA2. Complete safe distributions."
+        }
+
+        default_narrative = f"## Project Summary\nEmergency humanitarian response targeting communities in {country} affected by recent crises.\n\n## Methodology\nInterventions will focus on key sectors: {', '.join(themes)}."
+
+        default_step_status = {step: "locked" for step in [
+            "cover", "background", "needs_assessment", "toc", "logframe",
+            "methodology", "budget", "mne_framework", "risk_matrix",
+            "sustainability", "coordination", "final_review"
+        ]}
+        default_step_status["cover"] = "empty"
+
         conn.execute(
             """INSERT INTO proposals 
-               (id, uid, title, country, event, themes, donor, date_from, date_to, toc, logframe, narrative, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, uid, title, country, event, themes, donor, date_from, date_to,
+                toc, logframe, narrative, created_at,
+                cover_page, background, needs_assessment, methodology, budget,
+                mne_framework, risk_matrix, sustainability, coordination,
+                current_step, step_status, completed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', '', '', '', '{}', '{}', '[]', '', '', 'cover', ?, NULL)""",
             (
                 prop_id, uid, title, country, event,
                 json.dumps(themes), donor, date_from, date_to,
                 json.dumps(default_toc), json.dumps(default_logframe), default_narrative,
-                time.time()
+                _time.time(),
+                json.dumps(default_step_status),
             )
         )
         conn.commit()
+        _log_event(uid, "proposal_created", {"prop_id": prop_id, "role": role})
 
         return jsonify({
             "id": prop_id,
@@ -2858,7 +2942,19 @@ def api_create_proposal():
             "date_to": date_to,
             "toc": default_toc,
             "logframe": default_logframe,
-            "narrative": default_narrative
+            "narrative": default_narrative,
+            "cover_page": {},
+            "background": "",
+            "needs_assessment": "",
+            "methodology": "",
+            "budget": {},
+            "mne_framework": {},
+            "risk_matrix": [],
+            "sustainability": "",
+            "coordination": "",
+            "current_step": "cover",
+            "step_status": default_step_status,
+            "completed_at": None,
         }), 201
     except Exception as e:
         logger.error(f"api_create_proposal error: {e}")
@@ -2871,20 +2967,38 @@ def api_create_proposal():
 @require_auth
 def api_get_proposal_detail(prop_id):
     uid = current_uid()
+    role = current_role()
     conn = _chats_db()
     try:
         row = conn.execute(
-            "SELECT * FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
+            "SELECT * FROM proposals WHERE id = ?",
+            (prop_id,)
         ).fetchone()
 
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
 
+        is_owner = row["uid"] == uid
+        is_admin = role == "admin"
+        is_completed = row["completed_at"] is not None
+
+        if not is_owner and not is_admin:
+            if role == "free" and not is_completed:
+                return jsonify({"error": "This proposal is not yet published", "premium_required": False}), 403
+            if role == "premium" and not is_completed:
+                return jsonify({"error": "You can only view completed proposals from other users"}), 403
+
+        can_edit = (is_owner and role in ("premium", "admin")) or is_admin
+
         try:
             themes_list = json.loads(row["themes"])
         except Exception:
             themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
+
+        try:
+            step_status = json.loads(row["step_status"]) if row["step_status"] else {}
+        except Exception:
+            step_status = {}
 
         return jsonify({
             "id": row["id"],
@@ -2898,7 +3012,21 @@ def api_get_proposal_detail(prop_id):
             "toc": json.loads(row["toc"]),
             "logframe": json.loads(row["logframe"]),
             "narrative": row["narrative"],
-            "created_at": row["created_at"]
+            "cover_page": json.loads(row["cover_page"]) if row["cover_page"] else {},
+            "background": row["background"] or "",
+            "needs_assessment": row["needs_assessment"] or "",
+            "methodology": row["methodology"] or "",
+            "budget": json.loads(row["budget"]) if row["budget"] else {},
+            "mne_framework": json.loads(row["mne_framework"]) if row["mne_framework"] else {},
+            "risk_matrix": json.loads(row["risk_matrix"]) if row["risk_matrix"] else [],
+            "sustainability": row["sustainability"] or "",
+            "coordination": row["coordination"] or "",
+            "current_step": row["current_step"] or "cover",
+            "step_status": step_status,
+            "created_at": row["created_at"],
+            "completed_at": row["completed_at"],
+            "can_edit": can_edit,
+            "is_owner": is_owner,
         })
     except Exception as e:
         logger.error(f"api_get_proposal_detail error: {prop_id}, {e}")
@@ -2908,43 +3036,65 @@ def api_get_proposal_detail(prop_id):
 
 
 @app.route("/api/proposals/<prop_id>", methods=["PUT"])
-@require_auth
+@require_role("premium")
 def api_update_proposal(prop_id):
     uid = current_uid()
+    role = current_role()
     data = request.json or {}
 
     conn = _chats_db()
     try:
-        row = conn.execute(
-            "SELECT id FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
-        ).fetchone()
+        if role == "admin":
+            row = conn.execute(
+                "SELECT id FROM proposals WHERE id = ?", (prop_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM proposals WHERE id = ? AND uid = ?",
+                (prop_id, uid)
+            ).fetchone()
 
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
 
+        allowed_fields = [
+            "title", "country", "event", "donor", "date_from", "date_to",
+            "narrative", "background", "needs_assessment", "methodology",
+            "sustainability", "coordination",
+        ]
+        json_fields = ["themes", "toc", "logframe", "cover_page", "budget", "mne_framework", "risk_matrix"]
+
         fields_to_update = {}
-        for k in ["title", "country", "event", "donor", "date_from", "date_to", "narrative"]:
+        for k in allowed_fields:
             if k in data:
                 fields_to_update[k] = data[k]
 
-        if "themes" in data:
-            fields_to_update["themes"] = json.dumps(data["themes"])
-        if "toc" in data:
-            fields_to_update["toc"] = json.dumps(data["toc"])
-        if "logframe" in data:
-            fields_to_update["logframe"] = json.dumps(data["logframe"])
+        for k in json_fields:
+            if k in data:
+                fields_to_update[k] = json.dumps(data[k])
+
+        if "current_step" in data:
+            fields_to_update["current_step"] = data["current_step"]
+        if "step_status" in data:
+            fields_to_update["step_status"] = json.dumps(data["step_status"])
 
         if not fields_to_update:
             return jsonify({"message": "No changes made"})
 
-        set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
-        params = list(fields_to_update.values()) + [prop_id, uid]
-
-        conn.execute(
-            f"UPDATE proposals SET {set_clause} WHERE id = ? AND uid = ?",
-            params
-        )
+        if role == "admin":
+            set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
+            params = list(fields_to_update.values()) + [prop_id]
+            conn.execute(
+                f"UPDATE proposals SET {set_clause} WHERE id = ?",
+                params
+            )
+        else:
+            set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
+            params = list(fields_to_update.values()) + [prop_id, uid]
+            conn.execute(
+                f"UPDATE proposals SET {set_clause} WHERE id = ? AND uid = ?",
+                params
+            )
         conn.commit()
         return jsonify({"message": "Proposal updated successfully"})
     except Exception as e:
@@ -2955,24 +3105,29 @@ def api_update_proposal(prop_id):
 
 
 @app.route("/api/proposals/<prop_id>", methods=["DELETE"])
-@require_auth
+@require_role("premium")
 def api_delete_proposal(prop_id):
     uid = current_uid()
+    role = current_role()
     conn = _chats_db()
     try:
-        row = conn.execute(
-            "SELECT id FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
-        ).fetchone()
+        if role == "admin":
+            row = conn.execute("SELECT id FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM proposals WHERE id = ? AND uid = ?",
+                (prop_id, uid)
+            ).fetchone()
 
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
 
-        conn.execute(
-            "DELETE FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
-        )
+        if role == "admin":
+            conn.execute("DELETE FROM proposals WHERE id = ?", (prop_id,))
+        else:
+            conn.execute("DELETE FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid))
         conn.commit()
+        _log_event(uid, "proposal_deleted", {"prop_id": prop_id})
         return jsonify({"message": "Proposal deleted successfully"})
     except Exception as e:
         logger.error(f"api_delete_proposal error: {prop_id}, {e}")
@@ -3564,8 +3719,435 @@ def api_proposal_advisor_history(prop_id):
 
 
 
-@app.route("/api/proposals/<prop_id>/generate-narrative", methods=["POST"])
+
+# =============================================================================
+# Proposal Wizard — Section Management
+# =============================================================================
+
+PROPOSAL_SECTIONS = [
+    "cover", "background", "needs_assessment", "toc", "logframe",
+    "methodology", "budget", "mne_framework", "risk_matrix",
+    "sustainability", "coordination", "final_review",
+]
+PROPOSAL_SECTION_LABELS = {
+    "cover": "Cover Page",
+    "background": "Context & Background",
+    "needs_assessment": "Needs Assessment",
+    "toc": "Theory of Change",
+    "logframe": "Logical Framework",
+    "methodology": "Methodology",
+    "budget": "Budget Summary",
+    "mne_framework": "Monitoring & Evaluation",
+    "risk_matrix": "Risk Matrix",
+    "sustainability": "Sustainability & Exit",
+    "coordination": "Coordination",
+    "final_review": "Final Review & Export",
+}
+SECTION_DB_FIELDS = {
+    "cover": "cover_page",
+    "background": "background",
+    "needs_assessment": "needs_assessment",
+    "toc": "toc",
+    "logframe": "logframe",
+    "methodology": "methodology",
+    "budget": "budget",
+    "mne_framework": "mne_framework",
+    "risk_matrix": "risk_matrix",
+    "sustainability": "sustainability",
+    "coordination": "coordination",
+    "final_review": "narrative",
+}
+
+
+def _get_proposal_for_edit(prop_id: str, uid: str, role: str):
+    """Fetch proposal row, check edit permissions. Returns (row, conn) or (None, conn)."""
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM proposals WHERE id = ? AND uid = ?",
+                (prop_id, uid)
+            ).fetchone()
+        return row, conn
+    except Exception:
+        conn.close()
+        return None, None
+
+
+def _update_step_status(conn, prop_id: str, step: str, status: str, uid: str, role: str):
+    """Update the step_status JSON for a proposal."""
+    row = conn.execute("SELECT step_status FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+    if not row:
+        return
+    try:
+        step_status = json.loads(row["step_status"]) if row["step_status"] else {}
+    except Exception:
+        step_status = {}
+    step_status[step] = status
+    if role == "admin":
+        conn.execute("UPDATE proposals SET step_status = ? WHERE id = ?", (json.dumps(step_status), prop_id))
+    else:
+        conn.execute("UPDATE proposals SET step_status = ? WHERE id = ? AND uid = ?", (json.dumps(step_status), prop_id, uid))
+    conn.commit()
+
+
+@app.route("/api/proposals/<prop_id>/sections/<step>/generate", methods=["POST"])
+@require_role("premium")
+def api_proposal_generate_section(prop_id, step):
+    """Generate a proposal section using the agent with step-specific prompt and tools."""
+    if step not in PROPOSAL_SECTIONS:
+        return jsonify({"error": f"Invalid section. Must be one of: {', '.join(PROPOSAL_SECTIONS)}"}), 400
+
+    uid = current_uid()
+    role = current_role()
+    row, conn = _get_proposal_for_edit(prop_id, uid, role)
+    if not row:
+        conn.close() if conn else None
+        return jsonify({"error": "Proposal not found or not editable"}), 404
+
+    try:
+        _update_step_status(conn, prop_id, step, "reviewing", uid, role)
+
+        from agent.proposal_agent import generate_section
+        result = generate_section(
+            prop_id=prop_id,
+            step=step,
+            proposal_row=dict(row),
+            uid=uid,
+        )
+
+        if "error" in result:
+            _update_step_status(conn, prop_id, step, "draft", uid, role)
+            return jsonify(result), 500
+
+        db_field = SECTION_DB_FIELDS.get(step)
+        if db_field and result.get("content"):
+            content = result["content"]
+            if db_field in ("toc", "logframe", "cover_page", "budget", "mne_framework", "risk_matrix"):
+                if isinstance(content, str):
+                    try:
+                        content = json.loads(content)
+                    except Exception:
+                        content = content
+                stored = json.dumps(content) if not isinstance(content, str) else content
+                if isinstance(content, (list, dict)):
+                    stored = json.dumps(content)
+                else:
+                    stored = content
+            else:
+                stored = content if isinstance(content, str) else str(content)
+
+            if role == "admin":
+                conn.execute(f"UPDATE proposals SET {db_field} = ? WHERE id = ?", (stored, prop_id))
+            else:
+                conn.execute(f"UPDATE proposals SET {db_field} = ? WHERE id = ? AND uid = ?", (stored, prop_id, uid))
+            conn.commit()
+
+        _update_step_status(conn, prop_id, step, "draft", uid, role)
+        _log_event(uid, "proposal_section_generated", {"prop_id": prop_id, "step": step})
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"api_proposal_generate_section error: {prop_id}, {step}, {e}")
+        _update_step_status(conn, prop_id, step, "empty", uid, role)
+        return jsonify({"error": f"Section generation failed: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/sections/<step>/revise", methods=["POST"])
+@require_role("premium")
+def api_proposal_revise_section(prop_id, step):
+    """Revise a section via SSE streaming based on user feedback."""
+    if step not in PROPOSAL_SECTIONS:
+        return jsonify({"error": "Invalid section"}), 400
+
+    uid = current_uid()
+    role = current_role()
+    data = request.get_json(silent=True) or {}
+    feedback = (data.get("feedback") or "").strip()
+    if not feedback:
+        return jsonify({"error": "Feedback message is required"}), 400
+
+    row, conn = _get_proposal_for_edit(prop_id, uid, role)
+    if not row:
+        conn.close() if conn else None
+        return jsonify({"error": "Proposal not found or not editable"}), 404
+
+    current_content = row[SECTION_DB_FIELDS.get(step, "")] or ""
+    conn.close()
+
+    def generate():
+        try:
+            from agent.proposal_agent import revise_section_stream
+
+            yield f"data: {json.dumps({'type': 'start'})}\n\n"
+
+            for chunk_type, chunk_data in revise_section_stream(
+                prop_id=prop_id,
+                step=step,
+                proposal_row=dict(row),
+                feedback=feedback,
+                uid=uid,
+            ):
+                yield f"data: {json.dumps({'type': chunk_type, **chunk_data})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            logger.error(f"api_proposal_revise_section error: {prop_id}, {step}, {e}")
+            yield f"data: {json.dumps({'type': 'error', 'text': 'Revision failed'})}\n\n"
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.route("/api/proposals/<prop_id>/sections/<step>/approve", methods=["POST"])
+@require_role("premium")
+def api_proposal_approve_section(prop_id, step):
+    """Approve a section, lock it, and advance to next step."""
+    if step not in PROPOSAL_SECTIONS:
+        return jsonify({"error": "Invalid section"}), 400
+
+    uid = current_uid()
+    role = current_role()
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT current_step, step_status FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT current_step, step_status FROM proposals WHERE id = ? AND uid = ?",
+                (prop_id, uid)
+            ).fetchone()
+
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        step_status = json.loads(row["step_status"]) if row["step_status"] else {}
+        step_status[step] = "complete"
+
+        current_idx = PROPOSAL_SECTIONS.index(step) if step in PROPOSAL_SECTIONS else 0
+        next_step = PROPOSAL_SECTIONS[current_idx + 1] if current_idx + 1 < len(PROPOSAL_SECTIONS) else "final_review"
+
+        if next_step not in step_status or step_status[next_step] != "complete":
+            step_status[next_step] = step_status.get(next_step, "empty") if next_step != step else "complete"
+
+        is_final = step == "final_review" or current_idx == len(PROPOSAL_SECTIONS) - 1
+        completed_at = _time.time() if is_final else None
+
+        if role == "admin":
+            conn.execute(
+                "UPDATE proposals SET current_step = ?, step_status = ?, completed_at = COALESCE(?, completed_at) WHERE id = ?",
+                (next_step, json.dumps(step_status), completed_at, prop_id)
+            )
+        else:
+            conn.execute(
+                "UPDATE proposals SET current_step = ?, step_status = ?, completed_at = COALESCE(?, completed_at) WHERE id = ? AND uid = ?",
+                (next_step, json.dumps(step_status), completed_at, prop_id, uid)
+            )
+        conn.commit()
+
+        _log_event(uid, "proposal_section_approved", {"prop_id": prop_id, "step": step, "next_step": next_step})
+
+        return jsonify({
+            "message": f"Section '{step}' approved",
+            "next_step": next_step,
+            "step_status": step_status,
+            "completed": is_final,
+        })
+    except Exception as e:
+        logger.error(f"api_proposal_approve_section error: {prop_id}, {step}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/sections/<step>", methods=["PUT"])
+@require_role("premium")
+def api_proposal_update_section(prop_id, step):
+    """Manually update a section's content (user edits)."""
+    if step not in PROPOSAL_SECTIONS:
+        return jsonify({"error": "Invalid section"}), 400
+
+    uid = current_uid()
+    role = current_role()
+    data = request.get_json(silent=True) or {}
+    content = data.get("content")
+
+    if content is None:
+        return jsonify({"error": "content field is required"}), 400
+
+    db_field = SECTION_DB_FIELDS.get(step)
+    if not db_field:
+        return jsonify({"error": "No database field for this section"}), 400
+
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT id FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute("SELECT id FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        if db_field in ("toc", "logframe", "cover_page", "budget", "mne_framework", "risk_matrix"):
+            if isinstance(content, str):
+                try:
+                    parsed = json.loads(content)
+                    stored = json.dumps(parsed)
+                except Exception:
+                    stored = content
+            else:
+                stored = json.dumps(content)
+        else:
+            stored = content if isinstance(content, str) else str(content)
+
+        if role == "admin":
+            conn.execute(f"UPDATE proposals SET {db_field} = ? WHERE id = ?", (stored, prop_id))
+        else:
+            conn.execute(f"UPDATE proposals SET {db_field} = ? WHERE id = ? AND uid = ?", (stored, prop_id, uid))
+        conn.commit()
+
+        return jsonify({"message": "Section updated"})
+    except Exception as e:
+        logger.error(f"api_proposal_update_section error: {prop_id}, {step}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/export", methods=["POST"])
 @require_auth
+def api_proposal_export(prop_id):
+    """Compile all sections into a full markdown proposal."""
+    uid = current_uid()
+    role = current_role()
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+
+        if not row:
+            allowed = conn.execute(
+                "SELECT completed_at FROM proposals WHERE id = ?", (prop_id,)
+            ).fetchone()
+            if not allowed or not allowed["completed_at"]:
+                return jsonify({"error": "Proposal not found"}), 404
+            row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+            if not row:
+                return jsonify({"error": "Proposal not found"}), 404
+
+        try:
+            cover = json.loads(row["cover_page"]) if row["cover_page"] else {}
+        except Exception:
+            cover = {}
+        try:
+            toc = json.loads(row["toc"]) if row["toc"] else []
+        except Exception:
+            toc = []
+        try:
+            logframe = json.loads(row["logframe"]) if row["logframe"] else {}
+        except Exception:
+            logframe = {}
+        try:
+            budget = json.loads(row["budget"]) if row["budget"] else {}
+        except Exception:
+            budget = {}
+        try:
+            mne = json.loads(row["mne_framework"]) if row["mne_framework"] else {}
+        except Exception:
+            mne = {}
+        try:
+            risks = json.loads(row["risk_matrix"]) if row["risk_matrix"] else []
+        except Exception:
+            risks = []
+
+        try:
+            themes_list = json.loads(row["themes"])
+        except Exception:
+            themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
+
+        md_parts = []
+        md_parts.append(f"# {row['title']}\n")
+        md_parts.append(f"**Country:** {row['country']}  \n**Donor:** {row['donor']}  \n**Themes:** {', '.join(themes_list)}\n")
+
+        if cover:
+            md_parts.append(f"\n## Cover Page\n")
+            for k, v in cover.items():
+                md_parts.append(f"**{k.replace('_', ' ').title()}:** {v}  \n")
+
+        if row["background"]:
+            md_parts.append(f"\n## Context & Background\n\n{row['background']}\n")
+        if row["needs_assessment"]:
+            md_parts.append(f"\n## Needs Assessment\n\n{row['needs_assessment']}\n")
+
+        if toc:
+            md_parts.append(f"\n## Theory of Change\n")
+            for node in toc:
+                md_parts.append(f"- **{node.get('level', '').title()}:** {node.get('text', '')}\n")
+
+        if logframe:
+            md_parts.append(f"\n## Logical Framework\n")
+            for k, v in logframe.items():
+                md_parts.append(f"- **{k.replace('_', ' ').title()}:** {v}\n")
+
+        if row["methodology"]:
+            md_parts.append(f"\n## Methodology\n\n{row['methodology']}\n")
+
+        if budget:
+            md_parts.append(f"\n## Budget Summary\n")
+            if budget.get("total"):
+                md_parts.append(f"**Total:** {budget['total']}\n")
+            for line in budget.get("lines", []):
+                md_parts.append(f"- {line.get('category', '')}: {line.get('amount', '')} — {line.get('description', '')}\n")
+
+        if mne:
+            md_parts.append(f"\n## Monitoring & Evaluation\n")
+            for ind in mne.get("indicators", []):
+                md_parts.append(f"- **{ind.get('name', '')}** — Baseline: {ind.get('baseline', '')}, Target: {ind.get('target', '')}, Source: {ind.get('source', '')}\n")
+
+        if risks:
+            md_parts.append(f"\n## Risk Matrix\n")
+            md_parts.append(f"| Risk | Probability | Impact | Mitigation |\n|------|------------|--------|------------|\n")
+            for r in risks:
+                md_parts.append(f"| {r.get('risk', '')} | {r.get('probability', '')} | {r.get('impact', '')} | {r.get('mitigation', '')} |\n")
+
+        if row["sustainability"]:
+            md_parts.append(f"\n## Sustainability & Exit Strategy\n\n{row['sustainability']}\n")
+        if row["coordination"]:
+            md_parts.append(f"\n## Coordination\n\n{row['coordination']}\n")
+        if row["narrative"]:
+            md_parts.append(f"\n## Full Narrative\n\n{row['narrative']}\n")
+
+        full_md = "\n".join(md_parts)
+        _log_event(uid, "proposal_exported", {"prop_id": prop_id})
+
+        return jsonify({
+            "markdown": full_md,
+            "title": row["title"],
+            "filename": f"proposal_{prop_id}.md",
+        })
+    except Exception as e:
+        logger.error(f"api_proposal_export error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/generate-narrative", methods=["POST"])
+@require_role("premium")
 def api_proposal_generate_narrative(prop_id):
     uid = current_uid()
     conn = _chats_db()

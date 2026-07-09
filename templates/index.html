@@ -657,43 +657,52 @@
   <!-- ─── TAB: PROPOSAL DESIGN PIPELINE ────────── -->
   <div class="panel" id="panel-proposal">
     <div class="proposal-page">
+      <!-- Sidebar: Proposal List -->
       <div class="proposal-sidebar">
         <div class="proposal-sidebar-head">
-          <span class="proposal-sidebar-title">My Proposals</span>
+          <span class="proposal-sidebar-title">Proposals</span>
           <button class="btn btn-xs btn-primary btn-with-icon" id="btn-new-proposal">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>New</span>
           </button>
         </div>
         <div class="proposal-list" id="proposal-list">
-          <div class="empty-state">No proposals drafted yet</div>
+          <div class="empty-state">No proposals yet</div>
         </div>
       </div>
+
+      <!-- Workspace: Wizard -->
       <div class="proposal-workspace" id="proposal-workspace">
-        <div class="proposal-editor-panel">
-          <div class="proposal-workspace-header">
-            <div class="proposal-meta-info">
-              <h2 id="proposal-project-title">Select or create a proposal</h2>
-              <p id="proposal-project-context" class="text-muted">Analyze crisis data, establish change logic, generate structured Logframes.</p>
+        <!-- Step Sidebar (left of content) -->
+        <div class="wizard-steps-sidebar" id="wizard-steps-sidebar">
+          <div class="wizard-progress-bar">
+            <div class="wizard-progress-fill" id="wizard-progress-fill" style="width:0%"></div>
+          </div>
+          <div class="wizard-steps-list" id="wizard-steps-list">
+            <!-- Steps populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="wizard-content-area">
+          <div class="wizard-section-header">
+            <div>
+              <h2 id="proposal-project-title">Select or Create a Proposal</h2>
+              <p id="proposal-project-context" class="text-muted">Step-by-step AI-assisted donor proposal wizard</p>
             </div>
             <div class="proposal-actions">
               <button class="btn btn-secondary btn-sm btn-with-icon" id="btn-proposal-export" disabled>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span>Export PDF</span>
+                <span>Export</span>
               </button>
             </div>
           </div>
-          <div class="proposal-steps-tabs">
-            <button class="proposal-step-tab active" data-step="context">1. Context</button>
-            <button class="proposal-step-tab" data-step="toc">2. Theory of Change</button>
-            <button class="proposal-step-tab" data-step="logframe">3. Logframe Matrix</button>
-            <button class="proposal-step-tab" data-step="narrative">4. Proposal Text</button>
-          </div>
-          <div class="proposal-step-content" id="proposal-step-content">
+
+          <div class="wizard-section-content" id="wizard-section-content">
             <div class="proposal-welcome-placeholder">
               <div class="welcome-icon">📋</div>
               <h3>Humanitarian Proposal Design Studio</h3>
-              <p>Analyze crisis data, establish change logic, generate structured Logframes, and draft donor proposals in one unified, AI-assisted workspace.</p>
+              <p>Generate a complete donor-ready proposal step by step. The AI agent researches crisis data, builds your Theory of Change, Logframe, Budget, and full narrative — with your review at each stage.</p>
               <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <span>Create New Proposal</span>
@@ -701,40 +710,27 @@
             </div>
           </div>
         </div>
-        
-        <div class="split-gutter" id="proposal-split-gutter"></div>
-        
-        <div class="proposal-advisor-panel">
+
+        <!-- AI Advisor / Revision Panel -->
+        <div class="proposal-advisor-panel" id="proposal-advisor-panel">
           <div class="critique-header">
-            <span>AI Proposal Advisor</span>
-            <span class="status-indicator-green">Active</span>
+            <span>AI Advisor</span>
+            <span class="status-indicator-green" id="advisor-status">Ready</span>
           </div>
           <div class="critique-messages" id="critique-messages">
             <div class="critique-msg system">
               <strong>Sightline Advisor</strong>
-              <p>Welcome! Once you select a crisis context, I will critically review your Theory of Change and Logical Framework, checking for SMART indicators and donor alignment.</p>
+              <p>Select a proposal and generate a section, then ask me for revisions.</p>
             </div>
           </div>
           <div class="critique-input-wrap">
-            <textarea class="critique-textarea" id="critique-input" placeholder="Ask for critique or give instructions..." rows="1"></textarea>
+            <textarea class="critique-textarea" id="critique-input" placeholder="Ask for revisions or feedback..." rows="1"></textarea>
             <button class="send-btn" id="btn-send-critique">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
             </button>
           </div>
         </div>
       </div>
-      
-      <!-- Slide-over Drawer for RAG Chunk Details -->
-      <div class="slide-over-drawer" id="proposal-rag-drawer">
-        <div class="drawer-header">
-          <span class="drawer-title">Evidence Chunk Details</span>
-          <button class="drawer-close" id="btn-close-rag-drawer">&times;</button>
-        </div>
-        <div class="drawer-body" id="rag-drawer-body">
-          <!-- Populated dynamically -->
-        </div>
-      </div>
-      
     </div>
   </div>
 
