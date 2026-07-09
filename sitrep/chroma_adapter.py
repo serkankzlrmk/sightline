@@ -274,27 +274,9 @@ class ChromaAdapter:
             except Exception:
                 pass
 
-        # ChromaDB path — metadata-only scan
-        try:
-            if self.collection.count() > 0:
-                results = self.collection.get(include=["metadatas"])
-                counts: dict[str, int] = {}
-                for m in results["metadatas"]:
-                    c = m.get("primary_country", "")
-                    if c:
-                        counts[c] = counts.get(c, 0) + 1
-                result = sorted(
-                    [{"name": k, "count": v} for k, v in counts.items()],
-                    key=lambda x: x["count"],
-                    reverse=True,
-                )
-                self._countries_with_counts_cache = result
-                return result
-        except Exception:
-            pass
-
-        # SQLite fallback
-        return self._sqlite_list_countries_with_counts()
+        result = self._sqlite_list_countries_with_counts()
+        self._countries_with_counts_cache = result
+        return result
 
     # ------------------------------------------------------------------
     # Data retrieval
