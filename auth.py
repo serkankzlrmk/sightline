@@ -41,6 +41,7 @@ def _firebase_app():
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "firebase-service-account.json"),
         "/opt/sightline/data/firebase-service-account.json",
+        "/app/data/firebase-service-account.json",
     ]
     sa_path = next((p for p in _sa_paths if os.path.exists(p)), None)
     if not sa_path:
