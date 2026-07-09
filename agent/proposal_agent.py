@@ -69,7 +69,14 @@ def _get_model():
 
 def _parse_agent_output(response_text: str, step: str) -> dict:
     """Parse the agent's response into structured output."""
-    cleaned = response_text.strip()
+    cleaned = (response_text or "").strip()
+
+    if not cleaned:
+        return {
+            "content": "",
+            "sources": [],
+            "error": "Agent returned empty response",
+        }
 
     if cleaned.startswith("```"):
         parts = cleaned.split("```")
@@ -160,7 +167,7 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str) -> d
 
             result = agent.invoke(
                 {"messages": [HumanMessage(content=user_context)]},
-                config={"recursion_limit": 15},
+                config={"recursion_limit": 20},
             )
 
             response_text = ""
@@ -172,9 +179,19 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str) -> d
 
             if not response_text:
                 for msg in reversed(result.get("messages", [])):
-                    if hasattr(msg, "content") and isinstance(msg.content, str):
+                    if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content:
                         response_text = msg.content
                         break
+
+            if not response_text:
+                tool_results = []
+                for msg in result.get("messages", []):
+                    if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content and getattr(msg, "name", ""):
+                        tool_results.append(f"[{msg.name}]: {msg.content[:500]}")
+                if tool_results:
+                    response_text = "Based on the research:\n\n" + "\n\n".join(tool_results)
+                else:
+                    return {"error": "Agent could not generate content for this section. Please try again or revise manually."}
 
         else:
             messages = [

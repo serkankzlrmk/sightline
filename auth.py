@@ -30,31 +30,39 @@ def _get_app_config():
     return config
 
 
+import threading
+
+_firebase_lock = threading.Lock()
+
+
 def _firebase_app():
-    """Lazy-init Firebase Admin SDK (only when needed)."""
+    """Lazy-init Firebase Admin SDK (only when needed). Thread-safe."""
     global _fb_app
     if _fb_app is not None:
         return _fb_app
 
-    # Search for SA file in multiple locations
-    _sa_paths = [
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "firebase-service-account.json"),
-        "/opt/sightline/data/firebase-service-account.json",
-        "/app/data/firebase-service-account.json",
-    ]
-    sa_path = next((p for p in _sa_paths if os.path.exists(p)), None)
-    if not sa_path:
-        return None
+    with _firebase_lock:
+        if _fb_app is not None:
+            return _fb_app
 
-    import firebase_admin
-    from firebase_admin import credentials
-    try:
-        _fb_app = firebase_admin.get_app()
-    except ValueError:
-        cred = credentials.Certificate(sa_path)
-        _fb_app = firebase_admin.initialize_app(cred)
-    return _fb_app
+        _sa_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "firebase-service-account.json"),
+            "/opt/sightline/data/firebase-service-account.json",
+            "/app/data/firebase-service-account.json",
+        ]
+        sa_path = next((p for p in _sa_paths if os.path.exists(p)), None)
+        if not sa_path:
+            return None
+
+        import firebase_admin
+        from firebase_admin import credentials
+        try:
+            _fb_app = firebase_admin.get_app()
+        except ValueError:
+            cred = credentials.Certificate(sa_path)
+            _fb_app = firebase_admin.initialize_app(cred)
+        return _fb_app
 
 
 _fb_app = None
