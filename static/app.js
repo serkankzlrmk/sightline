@@ -215,11 +215,13 @@ function switchTab(name) {
   // Home: hide sidebar, show hamburger
   if (name === 'home') {
     if (sidebar) sidebar.classList.add('hidden');
+    document.body.classList.add('sidebar-hidden');
     if (main) main.style.marginLeft = '0';
-    if (hamburger) hamburger.style.display = 'none';
+    if (hamburger) hamburger.style.display = '';
     setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
   } else {
     if (sidebar) sidebar.classList.remove('hidden');
+    document.body.classList.remove('sidebar-hidden');
     if (sidebar && sidebar.classList.contains('collapsed')) {
       if (main) main.style.marginLeft = '72px';
     } else {
@@ -841,7 +843,7 @@ function renderTable() {
     return;
   }
 
-  body.innerHTML = data.map(r => {
+  body.innerHTML = data.map((r, index) => {
     const fmtBadge = r.format_type
       ? `<span class="badge b-blue">${esc(r.format_type.replace('Situation Report','Sit.Rep').replace('News and Press Release','News'))}</span>`
       : '';
@@ -849,7 +851,7 @@ function renderTable() {
       ? '<span class="badge b-green">PDF</span>'
       : '<span class="badge b-gray">—</span>';
 
-    return `<tr class="db-report-row" data-report-id="${r.report_id}">
+    return `<tr class="db-report-row animate-fade-in-up" data-report-id="${r.report_id}" style="animation-delay: ${index * 15}ms;">
       <td class="id-cell">${r.report_id}</td>
       <td class="no-nowrap">${r.date || ''}</td>
       <td>${esc(r.primary_country || '')}</td>
@@ -2131,34 +2133,68 @@ function renderDashOverview(b) {
   const bentoStatsEl = document.getElementById('dash-overview-stats');
   
   if (b.key_figures && b.key_figures.length > 0) {
-    // 3 Floating glass panels over map
+    // 3 Floating glass panels over map (no longer hidden on mobile, just flex)
     if (heroStatsEl) {
       const heroStats = b.key_figures.slice(0, 3);
-      heroStatsEl.innerHTML = heroStats.map((f, i) => `
-        <div class="glass-panel p-6 rounded-3xl flex flex-col justify-end min-h-[140px] transform hover:-translate-y-1 transition-all duration-300 ${i === 2 ? 'hidden md:flex' : ''}">
-          <span class="text-4xl lg:text-5xl font-semibold tracking-tighter text-white mb-1 drop-shadow">${esc(f.value)}</span>
-          <span class="text-sm font-medium text-gray-400 uppercase tracking-wider">${esc(f.label)}</span>
+      heroStatsEl.innerHTML = heroStats.map((f, idx) => `
+        <div class="bg-white/90 backdrop-blur-xl border border-zinc-200/40 shadow-[0_8px_30px_rgba(0,0,0,0.03)] p-6 rounded-2xl flex flex-col justify-end min-h-[130px] transform hover:-translate-y-1 transition-all duration-300 animate-fade-in-up" style="animation-delay: ${idx * 80}ms;">
+          <span class="text-3xl lg:text-4xl font-extrabold tracking-tight text-zinc-950 mb-1">${esc(f.value)}</span>
+          <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">${esc(f.label)}</span>
         </div>
       `).join('');
     }
 
-    // Remaining stats into Bento Grid
+    // Populate Bento Grid with aggregated metrics from bulletin data
     if (bentoStatsEl) {
-      const bentoStats = b.key_figures.slice(3);
-      if (bentoStats.length > 0) {
-        bentoStatsEl.innerHTML = bentoStats.map((f, i) => {
-          // Add some variance to bento cell sizes (every 3rd item is col-span-2 if available)
-          const isLarge = i % 3 === 0 && bentoStats.length > i+1 ? 'col-span-2' : '';
-          return `
-          <div class="bg-panel-dark border border-white/5 p-6 rounded-2xl flex flex-col justify-center ${isLarge}">
-            <span class="text-2xl font-semibold text-gray-200">${esc(f.value)}</span>
-            <span class="text-xs font-medium text-gray-500 uppercase tracking-wider mt-1">${esc(f.label)}</span>
+      const highSeverityCount = b.crises ? b.crises.filter(c => c.severity === 'high').length : 0;
+      const highSeverityReports = b.crises ? b.crises.filter(c => c.severity === 'high').reduce((acc, c) => acc + (c.report_count || 0), 0) : 0;
+      
+      const topCountries = b.crises ? [...b.crises].sort((x, y) => (y.report_count || 0) - (x.report_count || 0)).slice(0, 3) : [];
+      const topCountriesStr = topCountries.map(c => `${c.country} (${c.report_count})`).join(', ');
+
+      const bentoCards = [
+        {
+          title: "Critical Hotspots",
+          value: `${highSeverityCount} High Severity`,
+          subtitle: `${highSeverityReports} reports require urgent action`,
+          isLarge: true
+        },
+        {
+          title: "Primary Category",
+          value: `${b.top_themes && b.top_themes.length > 0 ? b.top_themes[0] : 'N/A'}`,
+          subtitle: "Most active theme",
+          isLarge: false
+        },
+        {
+          title: "Data Chunks",
+          value: `${b.total_chunks || '—'}`,
+          subtitle: "Vector chunks analyzed",
+          isLarge: false
+        },
+        {
+          title: "Top Focus Areas",
+          value: `${topCountriesStr || 'None'}`,
+          subtitle: "Most reported locations",
+          isLarge: true
+        }
+      ];
+
+      bentoStatsEl.innerHTML = bentoCards.map((c, idx) => {
+        const isCritical = c.title === "Critical Hotspots";
+        const isFocus = c.title === "Top Focus Areas";
+        const accentClass = isCritical ? 'text-[#E8364E]' : 'text-zinc-500';
+        const titleClass = isCritical ? 'text-[#E8364E]' : (isFocus ? 'text-zinc-600' : 'text-zinc-400');
+        const cardBg = isCritical ? 'bg-gradient-to-br from-rose-50/40 to-white' : 'bg-gradient-to-br from-zinc-50/40 to-white';
+        const cardBorder = isCritical ? 'border-rose-100/80' : 'border-zinc-200/50';
+
+        return `
+          <div class="${cardBg} border ${cardBorder} shadow-[0_4px_20px_rgba(0,0,0,0.01)] p-6 rounded-2xl flex flex-col justify-center ${c.isLarge ? 'col-span-2' : ''} hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 animate-fade-in-up" style="animation-delay: ${(idx + 3) * 80}ms;">
+            <span class="text-[10px] font-bold ${titleClass} uppercase tracking-wider mb-1">${esc(c.title)}</span>
+            <span class="text-xl font-extrabold text-zinc-950 truncate" title="${esc(c.value)}">${esc(c.value)}</span>
+            <span class="text-xs text-zinc-500 mt-1">${esc(c.subtitle)}</span>
           </div>
-          `;
-        }).join('');
-      } else {
-        bentoStatsEl.innerHTML = '';
-      }
+        `;
+      }).join('');
     }
   }
 
@@ -2214,20 +2250,28 @@ function initWorldMap() {
     leafletMap = L.map(container, {
       center: [20, 15],
       zoom: 2,
-      minZoom: 2,
-      maxZoom: 8,
-      zoomControl: false,
+      minZoom: 1,
+      maxZoom: 10,
+      zoomControl: true,
       attributionControl: true,
       worldCopyJump: true,
+      scrollWheelZoom: false,
+      doubleClickZoom: true,
     });
-
-    L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 19,
     }).addTo(leafletMap);
+
+    // Forward scroll wheel events from map container to panel-home
+    container.addEventListener('wheel', (e) => {
+      const panel = document.getElementById('panel-home');
+      if (panel) {
+        panel.scrollTop += e.deltaY;
+      }
+    }, { passive: true });
 
     setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 500);
   } catch (err) {
@@ -2597,27 +2641,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const sidebar = document.getElementById('sidebar-nav');
   if (sidebar) sidebar.classList.add('collapsed');
   document.body.classList.add('sidebar-collapsed');
+  // On initial load, home is default, so sidebar starts hidden
+  document.body.classList.add('sidebar-hidden');
   const hamburgerBtn = document.getElementById('hamburger-btn');
   if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => {
     const sb = document.getElementById('sidebar-nav');
     const mn = document.querySelector('.main');
     if (sb) { sb.classList.remove('hidden', 'collapsed'); }
     document.body.classList.remove('sidebar-collapsed');
+    document.body.classList.remove('sidebar-hidden');
     if (mn) mn.style.marginLeft = '';
     sidebarJustOpened = true;
     setTimeout(() => { sidebarJustOpened = false; }, 100);
   });
 
-  // Click outside sidebar → collapse it (premium UX)
+  // Click outside sidebar → hide it completely (premium UX)
   let sidebarJustOpened = false;
   const mainEl = document.querySelector('.main');
   if (mainEl) {
     mainEl.addEventListener('click', (e) => {
       if (sidebarJustOpened) { sidebarJustOpened = false; return; }
       const sb = document.getElementById('sidebar-nav');
-      if (sb && !sb.classList.contains('collapsed') && !sb.classList.contains('hidden')) {
-        sb.classList.add('collapsed');
-        document.body.classList.add('sidebar-collapsed');
+      if (sb && !sb.classList.contains('hidden')) {
+        sb.classList.add('hidden');
+        document.body.classList.add('sidebar-hidden');
+        if (mainEl) mainEl.style.marginLeft = '0';
+        setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 150);
       }
     });
   }
@@ -2804,6 +2853,21 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'cancel-delete-chat':
         e.stopPropagation();
         target.closest('.delete-confirm')?.remove();
+        break;
+      case 'create-new-proposal':
+        createNewProposal();
+        break;
+      case 'generate-toc':
+        generateProposalToC();
+        break;
+      case 'generate-logframe':
+        generateProposalLogframe();
+        break;
+      case 'generate-narrative':
+        generateProposalNarrative();
+        break;
+      case 'open-diff-modal':
+        openDiffModal();
         break;
       case 'discuss-sitrep':
         discussSitrepWithAgent();
@@ -3115,9 +3179,8 @@ function renderBulletin(b, container) {
   );
 
   const severityBadge = (s) => {
-    const colors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
     const labels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
-    return `<span class="severity-badge" style="background:${colors[s]||'#6b7280'}22;color:${colors[s]||'#6b7280'};border:1px solid ${colors[s]||'#6b7280'}44">${labels[s]||s.toUpperCase()}</span>`;
+    return `<span class="severity-badge severity-${s}">${labels[s]||s.toUpperCase()}</span>`;
   };
 
   const keyFigures = (b.key_figures || []).map(f => `
@@ -3531,7 +3594,7 @@ function renderProposalWorkspace() {
         <div class="welcome-icon">📋</div>
         <h3>Humanitarian Proposal Design Studio</h3>
         <p>Analyze crisis data, establish change logic, generate structured Logframes, and draft donor proposals in one unified, AI-assisted workspace.</p>
-        <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal" onclick="createNewProposal()">
+        <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal" data-action="create-new-proposal">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span>Create New Proposal</span>
         </button>
@@ -3559,7 +3622,7 @@ function switchProposalStep(step) {
 
   if (step === 'context') {
     container.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:16px; max-width:600px">
+      <div style="display:flex; flex-direction:column; gap:16px; max-width:600px; margin:0 auto">
         <div class="form-group">
           <label style="font-weight:700; font-size:12px; display:block; margin-bottom:6px">Project Title</label>
           <input type="text" class="form-control" value="${escHtml(prop.title)}" oninput="updatePropField('title', this.value)" style="width:100%">
@@ -3601,7 +3664,7 @@ function switchProposalStep(step) {
     container.innerHTML = `
       <div style="display:flex; justify-content:space-between; width:100%; align-items:center; margin-bottom:10px">
         <span class="text-muted" style="font-size:12px">Theory of Change Logic Flow. Click any node to edit.</span>
-        <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalToC()">
+        <button class="btn btn-xs btn-primary btn-with-icon" data-action="generate-toc">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
           <span>${isToCDefault ? 'Generate with AI' : 'Regenerate'}</span>
         </button>
@@ -3649,7 +3712,7 @@ function switchProposalStep(step) {
         </div>
       </div>
     `;
-    setTimeout(drawTocFlowLines, 100);
+    requestAnimationFrame(drawTocFlowLines);
   } else if (step === 'logframe') {
     const isLogframeDefault = prop.logframe.goal && prop.logframe.goal.includes("Reduced vulnerability");
     
@@ -3665,7 +3728,7 @@ function switchProposalStep(step) {
     container.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
         <span class="text-muted" style="font-size:12px">Logframe Matrix cells autosave. Click SMART badges to review indicator quality.</span>
-        <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalLogframe()">
+        <button class="btn btn-xs btn-primary btn-with-icon" data-action="generate-logframe">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
           <span>${isLogframeDefault ? 'Generate with AI' : 'Regenerate'}</span>
         </button>
@@ -3764,7 +3827,7 @@ function switchProposalStep(step) {
     container.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
         <span class="text-muted" style="font-size:12px">Full Project Proposal Text. Markdown editor.</span>
-        <button class="btn btn-xs btn-primary btn-with-icon" onclick="generateProposalNarrative()">
+        <button class="btn btn-xs btn-primary btn-with-icon" data-action="generate-narrative">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
           <span>${isNarrativeEmpty ? 'Write with AI' : 'Regenerate'}</span>
         </button>
@@ -3942,18 +4005,6 @@ function updateLogframeField(field, val) {
   if (proposalState.activeProposal) {
     proposalState.activeProposal.logframe[field] = val;
     saveActiveProposal();
-  }
-}
-
-function editTocNode(index) {
-  const node = proposalState.activeProposal.toc[index];
-  if (!node) return;
-  const newVal = prompt("Edit text:", node.text);
-  if (newVal) {
-    node.text = newVal;
-    switchProposalStep('toc');
-    saveActiveProposal();
-    addAdvisorMessage("System", `You manually edited the ${node.level.toUpperCase()} node.`);
   }
 }
 
@@ -4410,7 +4461,7 @@ async function triggerBackgroundReview(propId) {
       
       if (data.drafts) {
         proposalState.drafts = data.drafts;
-        addAdvisorMessageHtml("Sightline Advisor", `${escHtml(data.message)}<br><button class="btn btn-primary btn-xs" style="margin-top:8px;" onclick="openDiffModal()">Review AI Edits</button>`);
+        addAdvisorMessageHtml("Sightline Advisor", `${escHtml(data.message)}<br><button class="btn btn-primary btn-xs" style="margin-top:8px;" data-action="open-diff-modal">Review AI Edits</button>`);
       } else if (data.message && data.message !== "Background review complete.") {
         addAdvisorMessage("Sightline Advisor", data.message);
       }
@@ -4458,16 +4509,16 @@ function openDiffModal() {
 
 function buildDiffSection(title, oldText, newText) {
   return `
-    <div style="border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;">
-      <div style="background: var(--bg-hover); padding: 8px 12px; font-weight: 600; border-bottom: 1px solid var(--border);">${title}</div>
-      <div style="display: flex; flex-direction: column; gap: 0;">
-        <div style="padding: 12px; background: rgba(239, 68, 68, 0.05); border-bottom: 1px dashed var(--border);">
-          <strong style="color: var(--red); font-size: 11px; text-transform: uppercase;">Current:</strong>
-          <pre style="white-space: pre-wrap; font-size: 12px; margin-top: 6px; color: var(--text-muted);">${escHtml(oldText)}</pre>
+    <div class="diff-section">
+      <div class="diff-section-header">${title}</div>
+      <div class="diff-section-body">
+        <div class="diff-current">
+          <strong>Current:</strong>
+          <pre>${escHtml(oldText)}</pre>
         </div>
-        <div style="padding: 12px; background: rgba(16, 185, 129, 0.05);">
-          <strong style="color: var(--green); font-size: 11px; text-transform: uppercase;">Proposed:</strong>
-          <pre style="white-space: pre-wrap; font-size: 12px; margin-top: 6px; color: var(--text);">${escHtml(newText)}</pre>
+        <div class="diff-proposed">
+          <strong>Proposed:</strong>
+          <pre>${escHtml(newText)}</pre>
         </div>
       </div>
     </div>
@@ -4509,4 +4560,46 @@ document.addEventListener('DOMContentLoaded', () => {
     
     addAdvisorMessageHtml("System", `<span style="color:var(--green)">✓ Drafts approved and applied to proposal.</span>`);
   });
+
 });
+
+/* ── Walkthrough Scroll Reveal ── */
+document.addEventListener('DOMContentLoaded', function initWalkthroughObserver() {
+  const rows = document.querySelectorAll('.wt-feature-row');
+  if (!rows.length) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('wt-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  rows.forEach(row => observer.observe(row));
+
+  /* Video error → show placeholder fallback */
+  document.querySelectorAll('.wt-video').forEach(video => {
+    const showPlaceholder = () => {
+      video.style.display = 'none';
+      video.setAttribute('error', '');
+      const placeholder = video.nextElementSibling;
+      if (placeholder && placeholder.classList.contains('wt-video-placeholder')) {
+        placeholder.style.display = 'flex';
+      }
+    };
+    video.addEventListener('error', showPlaceholder);
+    if (video.readyState === 0 && video.networkState === 3) showPlaceholder();
+  });
+
+  /* CTA "go-chat" button → switch to agent tab */
+  document.querySelectorAll('[data-action="go-chat"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabBtn = document.querySelector('[data-tab="agent"]');
+      if (tabBtn) tabBtn.click();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+});
+

@@ -71,23 +71,21 @@ window.showLoginPanel = showLoginPanel;
 // ═══════════════════════════════════════════════════════════
 
 function showOverlay() {
-  // Freemium preview: set preview-mode but DON'T show login panel.
-  // Login panel only appears when user clicks a gated tab (bulletin/chat/sitrep/db)
+  // Anonymous visitor: app stays interactive, overlay hidden.
+  // Login panel only appears when user clicks a gated tab (chat/sitrep/bulletin/db/proposal).
   document.body.classList.add("preview-mode");
   document.body.classList.remove("auth-locked");
-  // Ensure overlay is hidden (no auto slide-in on page load)
   const el = document.getElementById("auth-overlay");
   if (el) {
     el.classList.add("hidden");
     el.classList.remove("slide-in");
   }
-  // Dispatch preview-ready so app.js can load public data
   window.__authReady = false;
   window.dispatchEvent(new Event('preview-ready'));
 }
 
 function showLoginPanel() {
-  // Show the slide-in login panel (triggered by gated tab click)
+  // Slide-in the login panel from the right (triggered by gated tab click)
   const el = document.getElementById("auth-overlay");
   if (el) {
     el.classList.remove("hidden");
@@ -105,7 +103,6 @@ function hideOverlay() {
   }
   document.body.classList.remove("preview-mode");
   document.body.classList.remove("auth-locked");
-  // Force reflow to ensure CSS changes take effect
   document.body.offsetHeight;
 }
 
@@ -282,6 +279,31 @@ function updateVisibility() {
   if (premiumBanner) premiumBanner.style.display = isPremium ? "none" : "flex";
   if (recentList) recentList.style.display = isPremium ? "none" : "block";
   if (fullAccess) fullAccess.classList.toggle("hidden", !isPremium);
+
+  // Bottom CTA Section + Promo block visibility
+  const ctaAuth    = document.getElementById("walkthrough-cta-auth");
+  const ctaExplore = document.getElementById("walkthrough-cta-explore");
+  const promoBlock = document.getElementById("wt-promo-block");
+  const isAuthed   = !!getIdToken();
+
+  // Individual CTA cards (used only when block is visible)
+  if (ctaAuth)    ctaAuth.style.display    = isAuthed ? "none"  : "block";
+  if (ctaExplore) ctaExplore.style.display = isAuthed ? "block" : "none";
+
+  // Collapse/expand the whole walkthrough section smoothly
+  if (promoBlock) {
+    if (isAuthed) {
+      promoBlock.style.maxHeight = "0px";
+      promoBlock.style.opacity   = "0";
+      promoBlock.style.pointerEvents = "none";
+      promoBlock.style.marginTop = "0";
+      promoBlock.style.paddingTop = "0";
+    } else {
+      promoBlock.style.maxHeight = "9999px";
+      promoBlock.style.opacity   = "1";
+      promoBlock.style.pointerEvents = "auto";
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -404,6 +426,9 @@ function init() {
 function _initFirebase() {
   const btn = document.getElementById("auth-google-btn");
   if (btn) btn.addEventListener("click", doSignIn);
+
+  const btnBottom = document.getElementById("auth-google-btn-bottom");
+  if (btnBottom) btnBottom.addEventListener("click", doSignIn);
 
   // Check for redirect sign-in result (page reload after redirect)
   getRedirectResult(auth).then(async (result) => {

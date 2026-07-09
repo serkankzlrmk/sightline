@@ -5,18 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Sightline</title>
   <link rel="icon" href="/static/logo.png" type="image/png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- TODO: Add SRI integrity hashes -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
   <!-- Tailwind CSS v4 -->
   <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
   <style type="text/tailwindcss">
     @theme {
-      --font-sans: 'Inter', sans-serif;
-      --color-brand-accent: #3b82f6; /* Electric Blue base, will override in CSS if needed */
+      --font-sans: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --color-brand-accent: #E8364E; /* Sightline Crimson */
       --color-bg-dark: #09090b; /* zinc-950 */
       --color-panel-dark: #18181b; /* zinc-900 */
     }
@@ -27,70 +28,11 @@
 <a href="#main-content" class="skip-link">Skip to main content</a>
 
 <!-- ═══════════════════════════════════════════════
-     AUTH LOGIN OVERLAY
+     AUTH LOGIN PANEL (slide-in from right)
+     — appears only when user clicks a gated tab
      ═══════════════════════════════════════════════ -->
-<div id="auth-overlay" class="auth-overlay">
-  <!-- Left: Hero / Introduction -->
-  <div class="auth-hero">
-    <div class="auth-hero-content">
-
-      <h1 class="auth-hero-title">Intelligence for<br>Humanitarian Action</h1>
-      <div class="auth-hero-stats">
-        <div class="auth-hero-stat">
-          <span class="auth-hero-stat-value">600+</span>
-          <span class="auth-hero-stat-label">Reports Ingested</span>
-        </div>
-        <div class="auth-hero-stat">
-          <span class="auth-hero-stat-value">86</span>
-          <span class="auth-hero-stat-label">Countries Covered</span>
-        </div>
-        <div class="auth-hero-stat">
-          <span class="auth-hero-stat-value">24K+</span>
-          <span class="auth-hero-stat-label">Data Chunks</span>
-        </div>
-      </div>
-      <div class="auth-hero-features">
-        <div class="auth-hero-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <span>Semantic search across humanitarian reports</span>
-        </div>
-        <div class="auth-hero-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <span>AI-powered SITREP generation pipeline</span>
-        </div>
-        <div class="auth-hero-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span>Every answer backed by cited sources</span>
-        </div>
-        <div class="auth-hero-feature">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          <span>HDX humanitarian data integration</span>
-        </div>
-      </div>
-      <!-- Data Sources -->
-      <div class="auth-hero-sources">
-        <div class="auth-hero-sources-label">Data Sources</div>
-        <div class="auth-hero-sources-list">
-          <div class="auth-hero-source active">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <span>ReliefWeb</span>
-            <span class="source-badge active">Live</span>
-          </div>
-          <div class="auth-hero-source active">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            <span>HDX</span>
-            <span class="source-badge active">Live</span>
-          </div>
-          <div class="auth-hero-source active">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <span>Sightline AI</span>
-            <span class="source-badge active">Live</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!-- Right: Login Card -->
+<div id="auth-overlay" class="auth-overlay hidden">
+  <!-- Login Card (slide-in panel) -->
   <div class="auth-card">
     <button class="auth-panel-close" id="auth-panel-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     <div class="auth-card-inner">
@@ -108,7 +50,7 @@
           </div>
         </div>
         <div class="auth-card-feature">
-          <div class="auth-card-feature-icon" style="background:rgba(139,92,246,.08);color:#8b5cf6;">
+          <div class="auth-card-feature-icon" style="background:rgba(232,54,78,.08);color:#E8364E;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
           <div>
@@ -127,7 +69,7 @@
         </div>
       </div>
       <button id="auth-google-btn" class="auth-google-btn">
-        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 4.07v2.84l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         <span>Sign in with Google</span>
       </button>
       <div id="auth-error" class="auth-error"></div>
@@ -145,8 +87,6 @@
       <div class="modal-bdy" id="legal-modal-body"></div>
     </div>
   </div>
-
-  <div class="auth-copyright">&copy; 2026 Sightline</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -208,53 +148,73 @@
      MAIN CONTENT AREA
      ═══════════════════════════════════════════════ -->
 <div class="main" id="main-content">
-
   <!-- Hamburger button — shown when sidebar is hidden/collapsed -->
-  <button class="hamburger-btn" id="hamburger-btn" aria-label="Open menu" title="Open menu">
+  <button class="hamburger-btn" id="hamburger-btn" aria-label="Open menu" title="Open menu" style="z-index: 1001;">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
 
   <!-- ─── TAB: HOME DASHBOARD ─────────────────── -->
   <div class="panel active relative h-screen w-full overflow-y-auto overflow-x-hidden" id="panel-home">
     
-    <!-- Full-width World Map (Leaflet) — hero section (Fixed Background) -->
-    <div class="fixed inset-0 z-0" id="dash-map-wrap" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
-      <div id="world-map" class="h-full w-full" style="width: 100%; height: 100%; background: #000;"></div>
+    <!-- Full-width World Map (Leaflet) — hero section (Absolute Background) -->
+    <div class="absolute inset-0 z-0" id="dash-map-wrap" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
+      <div id="world-map" class="h-full w-full" style="width: 100%; height: 100%; background: #e5e7eb;"></div>
       
-      <!-- Topbar overlay on map -->
-      <div class="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-[400] pointer-events-none">
-        <div class="pointer-events-auto">
-          <h1 class="text-3xl font-semibold tracking-tight text-white mb-4 drop-shadow-md">Global Intelligence</h1>
-          <div class="flex gap-3">
-            <button class="dash-quick-link backdrop-blur-md bg-black/40 border border-white/10 hover:bg-black/60 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-all" data-action="go-chat">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              Agent
-            </button>
-            <button class="dash-quick-link backdrop-blur-md bg-black/40 border border-white/10 hover:bg-black/60 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-all" data-action="go-sitrep">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              SITREP
-            </button>
-          </div>
+      <!-- Top Right Search and Sources -->
+      <div style="position: absolute; top: 24px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 400; pointer-events: none;">
+        <!-- Search Box -->
+        <div class="relative pointer-events-auto">
+          <input type="text" id="map-search-input" class="search-input-glass text-zinc-900 placeholder-zinc-400 pl-10 pr-4 py-2.5 rounded-full text-sm w-72 focus:outline-none transition-all" placeholder="Search country..." autocomplete="off">
+          <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
         
-        <div class="flex flex-col items-end gap-4 pointer-events-auto">
-          <!-- Search Box -->
-          <div class="relative">
-            <input type="text" id="map-search-input" class="bg-black/50 backdrop-blur-md border border-white/15 text-white placeholder-gray-400 px-4 py-2 rounded-full text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/50" placeholder="Search country..." autocomplete="off">
-            <svg class="absolute right-3 top-2.5 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          </div>
-          
-          <!-- Floating Hero Stats Container (populated by JS or static for now, we will move dash-overview-stats down, so here we can just put a glass panel for top sources) -->
-          <div class="dash-map-overlay static flex flex-col gap-2 mt-4 right-0 bottom-auto bg-black/30 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-            <span class="dash-source active flex items-center gap-2 text-xs text-gray-200">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              ReliefWeb <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto"></span>
-            </span>
-            <span class="dash-source active flex items-center gap-2 text-xs text-gray-200">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              HDX <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-auto"></span>
-            </span>
-          </div>
+        <!-- Sources -->
+        <div class="pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[420px]">
+          <!-- ReliefWeb -->
+          <span class="source-badge-glass text-zinc-700" title="ReliefWeb Feed: Active">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            ReliefWeb <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- HDX -->
+          <span class="source-badge-glass text-zinc-700" title="HDX Feed: Active">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            HDX <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- GDACS -->
+          <span class="source-badge-glass text-zinc-700" title="GDACS Alerts: Active">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            GDACS <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- World Bank -->
+          <span class="source-badge-glass text-zinc-700" title="World Bank Indicators: Active">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="21" x2="21" y2="21"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="5 21 5 10 5 3"/><polyline points="19 21 19 10 19 3"/><polyline points="12 21 12 10 12 3"/></svg>
+            World Bank <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- NewsAPI -->
+          <span class="source-badge-glass text-zinc-700" title="NewsAPI Feed: Active">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M16 8h2m-6 4h6m-6 4h6M6 8h4v8H6z"/></svg>
+            News <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- Open-Meteo -->
+          <span class="source-badge-glass text-zinc-700" title="Open-Meteo Weather: Active">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg>
+            Weather <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- Brave MCP -->
+          <span class="source-badge-glass text-zinc-700" title="Brave Search MCP: Connected">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9.06 11.9 2.44 2.44 3.44-3.44"/></svg>
+            Brave MCP <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- ArXiv MCP -->
+          <span class="source-badge-glass text-zinc-700" title="ArXiv Academic MCP: Connected">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            ArXiv MCP <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
+          <!-- Sequential Thinking MCP -->
+          <span class="source-badge-glass text-zinc-700" title="Sequential Thinking MCP: Connected">
+            <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1 0-3.12 3 3 0 0 1 0-3.88 2.5 2.5 0 0 1 0-3.12A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 0-3.12 3 3 0 0 0 0-3.88 2.5 2.5 0 0 0 0-3.12A2.5 2.5 0 0 0 14.5 2Z"/></svg>
+            Thinking MCP <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-glow"></span>
+          </span>
         </div>
       </div>
       
@@ -270,33 +230,39 @@
 
     <!-- Scrollable Foreground Content -->
     <div class="relative z-10 w-full" style="margin-top: 80vh;">
-      <div class="bg-bg-dark rounded-t-[40px] border-t border-white/10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)] min-h-screen px-8 py-16 flex flex-col items-center">
+      <div class="bg-white/95 backdrop-blur-3xl rounded-t-[40px] border-t border-gray-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.08)] min-h-screen px-8 py-16 flex flex-col items-center">
         
         <!-- Drag handle aesthetic -->
-        <div class="absolute top-4 left-1/2 -translate-x-1/2 w-16 h-1.5 bg-white/20 rounded-full"></div>
+        <div class="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity duration-300 pointer-events-none select-none">
+          <div class="w-16 h-1 bg-zinc-300 rounded-full"></div>
+          <span class="text-[9px] font-bold text-zinc-400 tracking-widest uppercase">SCROLL FOR DETAILED BRIEFING</span>
+        </div>
 
         <div class="max-w-6xl w-full">
           <!-- Floating Hero Stats -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 -mt-32 mb-16 w-full" id="dash-hero-stats">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:-mt-24 mb-8 md:mb-16 w-full" id="dash-hero-stats">
             <!-- Populated by JS -->
           </div>
 
-        <div class="dash-section dash-weekly-section w-full">
-          <div class="flex items-end justify-between mb-8 border-b border-white/10 pb-4">
-            <h2 class="text-2xl font-light tracking-tight text-white">Weekly Intelligence <span class="text-brand-accent font-medium">Brief</span></h2>
-            <span class="text-sm text-gray-500 uppercase tracking-wider font-mono" id="dash-weekly-date"></span>
-          </div>
-          
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
-            <!-- Left: Bulletin Text -->
-            <div class="lg:col-span-7">
-              <div class="dash-weekly-text text-gray-300 leading-relaxed font-light text-lg prose prose-invert" id="dash-weekly-text">
-                <p class="animate-pulse">Loading overview…</p>
+          <div class="dash-section dash-weekly-section w-full">
+            <div class="flex items-center justify-between mb-8 border-b border-zinc-200/60 pb-4">
+              <div class="flex flex-col gap-1">
+                <span class="text-[10px] font-bold text-[#E8364E] uppercase tracking-wider">Weekly Overview</span>
+                <h2 class="text-2xl lg:text-3xl font-extrabold tracking-tight text-zinc-900">Weekly <span class="text-[#E8364E] font-semibold">Brief</span></h2>
               </div>
-              <button class="mt-8 text-brand-accent hover:text-white transition-colors text-sm font-medium tracking-wide uppercase flex items-center gap-2" id="dash-weekly-link" style="display:none">
-                Read Full Bulletin <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </button>
+              <span class="text-xs text-zinc-400 font-bold tracking-wider font-mono bg-zinc-100/80 px-3 py-1.5 rounded-full border border-zinc-200/30" id="dash-weekly-date"></span>
             </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+              <!-- Left: Bulletin Text -->
+              <div class="lg:col-span-7">
+                <div class="dash-weekly-text text-zinc-700 leading-relaxed font-normal text-base prose prose-zinc max-w-none" id="dash-weekly-text">
+                  <p class="animate-pulse text-zinc-400">Loading overview…</p>
+                </div>
+                <button class="mt-8 text-[#E8364E] hover:text-red-700 transition-colors text-xs font-bold tracking-wider uppercase flex items-center gap-2" id="dash-weekly-link" style="display:none">
+                  Read Full Bulletin <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+              </div>
             
             <!-- Right: Bento Grid Detailed Stats -->
             <div class="lg:col-span-5">
@@ -306,6 +272,159 @@
             </div>
           </div>
         </div>
+
+        <!-- Promo block: divider + walkthrough (hidden after login) -->
+        <div id="wt-promo-block" class="w-full flex flex-col items-center" style="transition: opacity 0.5s ease, max-height 0.6s ease; overflow: hidden;">
+
+        <!-- Divider -->
+        <div class="w-full h-px bg-zinc-200/60 my-16 max-w-6xl"></div>
+
+        <!-- Platform Walkthrough Section (Vertical Stack) -->
+        <div class="dash-section w-full max-w-6xl mb-0 flex flex-col gap-0" id="wt-section">
+
+          <!-- Section Header -->
+          <div class="text-center max-w-2xl mx-auto mb-20">
+            <span class="text-[10px] font-bold text-[#E8364E] uppercase tracking-widest">Platform Walkthrough</span>
+            <h2 class="text-2xl lg:text-3xl font-extrabold tracking-tight text-zinc-900 mt-2">See How Sightline <span class="text-[#E8364E] font-semibold">Works</span></h2>
+            <p class="text-zinc-500 text-sm mt-3 leading-relaxed">From real-time data ingestion to AI-powered intelligence reports — built for humanitarian decision makers.</p>
+          </div>
+
+          <!-- Feature 1: Live Intelligence Dashboard -->
+          <div class="wt-feature-row wt-row-even">
+            <div class="wt-feature-text">
+              <div class="wt-feature-badge">01</div>
+              <h3 class="wt-feature-title">Live Intelligence Dashboard</h3>
+              <p class="wt-feature-desc">A global crisis map with real-time markers sourced from ReliefWeb, GDACS, HDX, and more — updated daily. Pan and zoom to explore active disasters, funding gaps, and displacement patterns worldwide.</p>
+              <ul class="wt-feature-bullets">
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 143 countries tracked</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Real-time GDACS alert overlays</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Severity-coded country cards</li>
+              </ul>
+            </div>
+            <div class="wt-feature-media">
+              <div class="wt-video-wrap">
+                <video class="wt-video" src="/static/videos/dashboard.mp4" autoplay loop muted playsinline>
+                  <div class="wt-video-fallback">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m8 21 8 0M12 17v4"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>Dashboard Preview</span>
+                  </div>
+                </video>
+                <div class="wt-video-placeholder">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m8 21 8 0M12 17v4"/></svg>
+                  <span>Dashboard Preview</span>
+                  <p class="text-xs opacity-50 mt-1">Add /static/videos/dashboard.mp4</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature 2: AI Crisis Agent -->
+          <div class="wt-feature-row wt-row-odd">
+            <div class="wt-feature-media">
+              <div class="wt-video-wrap">
+                <video class="wt-video" src="/static/videos/agent.mp4" autoplay loop muted playsinline>
+                </video>
+                <div class="wt-video-placeholder">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8V4H8"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M4 14h16M4 18h16M4 10h16"/><rect x="2" y="6" width="20" height="16" rx="2"/></svg>
+                  <span>Agent Chat Preview</span>
+                  <p class="text-xs opacity-50 mt-1">Add /static/videos/agent.mp4</p>
+                </div>
+              </div>
+            </div>
+            <div class="wt-feature-text">
+              <div class="wt-feature-badge">02</div>
+              <h3 class="wt-feature-title">AI Crisis Agent</h3>
+              <p class="wt-feature-desc">Ask complex, multi-source intelligence questions in plain language. The agent searches ReliefWeb, HDX, GDACS, and ArXiv simultaneously — synthesizing data into structured, cited answers with maps and charts.</p>
+              <ul class="wt-feature-bullets">
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 54 integrated tools</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Gemini 2.5 Pro + Deep Think</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Source-cited responses</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Feature 3: Auto SITREP Generation -->
+          <div class="wt-feature-row wt-row-even">
+            <div class="wt-feature-text">
+              <div class="wt-feature-badge">03</div>
+              <h3 class="wt-feature-title">SITREP Generator</h3>
+              <p class="wt-feature-desc">Generate publication-ready Situation Reports from scratch in minutes. A 10-stage AI pipeline analyzes incoming data, identifies priority crises, clusters events geographically, and writes structured intelligence documents.</p>
+              <ul class="wt-feature-bullets">
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 10-stage pipeline</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Automated geo-clustering</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Export-ready markdown output</li>
+              </ul>
+            </div>
+            <div class="wt-feature-media">
+              <div class="wt-video-wrap">
+                <video class="wt-video" src="/static/videos/sitrep.mp4" autoplay loop muted playsinline>
+                </video>
+                <div class="wt-video-placeholder">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                  <span>SITREP Preview</span>
+                  <p class="text-xs opacity-50 mt-1">Add /static/videos/sitrep.mp4</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature 4: Weekly Intelligence Bulletin -->
+          <div class="wt-feature-row wt-row-odd">
+            <div class="wt-feature-media">
+              <div class="wt-video-wrap">
+                <video class="wt-video" src="/static/videos/bulletin.mp4" autoplay loop muted playsinline>
+                </video>
+                <div class="wt-video-placeholder">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M16 8h2m-6 4h6m-6 4h6M6 8h4v8H6z"/></svg>
+                  <span>Bulletin Preview</span>
+                  <p class="text-xs opacity-50 mt-1">Add /static/videos/bulletin.mp4</p>
+                </div>
+              </div>
+            </div>
+            <div class="wt-feature-text">
+              <div class="wt-feature-badge">04</div>
+              <h3 class="wt-feature-title">Weekly Intelligence Bulletin</h3>
+              <p class="wt-feature-desc">Every Monday, Sightline auto-generates a comprehensive weekly brief: top humanitarian crises, funding gaps, displacement trends, and priority alerts — curated from thousands of sources automatically.</p>
+              <ul class="wt-feature-bullets">
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Auto-generated every Monday</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 30+ country summaries</li>
+                <li><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Multi-source synthesis</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Bottom CTA: Login Card -->
+          <div id="walkthrough-cta-auth" class="wt-cta-card mt-20">
+            <div class="wt-cta-glow"></div>
+            <div class="wt-cta-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3 class="wt-cta-title">Ready to Access Full Intelligence?</h3>
+            <p class="wt-cta-desc">Log in with your Google account to unlock the AI Chat, SITREP Generator, and full Database access. Free tier available — no credit card required.</p>
+            <button class="wt-cta-btn" id="auth-google-btn-bottom">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Continue with Google
+            </button>
+            <p class="wt-cta-note">Secure sign-in via Firebase · No spam, ever</p>
+          </div>
+
+          <!-- Post-login CTA (shown after login) -->
+          <div id="walkthrough-cta-explore" class="wt-cta-card wt-cta-logged-in mt-20" style="display:none">
+            <div class="wt-cta-glow wt-cta-glow-green"></div>
+            <div class="wt-cta-icon wt-cta-icon-green">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <h3 class="wt-cta-title">You're In — Start Exploring</h3>
+            <p class="wt-cta-desc">All features are now unlocked. Use the tabs above to access the AI Agent, SITREP Generator, Bulletins, and the full Report Database.</p>
+            <button class="wt-cta-btn wt-cta-btn-green" data-action="go-chat">
+              Open AI Agent Chat →
+            </button>
+          </div>
+
+        </div>
+
+        </div><!-- /wt-promo-block -->
+
       </div>
     </div>
   </div>
@@ -906,8 +1025,8 @@
       <div class="modal-title">Review Proposed AI Edits</div>
       <button class="modal-close" id="proposal-diff-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
-    <div class="modal-bdy" style="max-height: 60vh; overflow-y: auto;">
-      <div id="proposal-diff-content" style="display:flex; flex-direction:column; gap:20px;">
+    <div class="modal-bdy">
+      <div id="proposal-diff-content">
         <!-- Diff items will be injected here -->
       </div>
     </div>
