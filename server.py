@@ -1359,20 +1359,33 @@ def api_country_summaries():
     return jsonify(summaries)
 
 
+_chroma_adapter = None
+_chroma_adapter_lock = threading.Lock()
+
+
+def _get_chroma_adapter():
+    global _chroma_adapter
+    if _chroma_adapter is not None:
+        return _chroma_adapter
+    with _chroma_adapter_lock:
+        if _chroma_adapter is not None:
+            return _chroma_adapter
+        from sitrep.chroma_adapter import ChromaAdapter
+        _chroma_adapter = ChromaAdapter()
+        return _chroma_adapter
+
+
 @app.route("/api/public/countries")
 def api_public_countries():
     """Public: all countries with chunk counts + coordinates (for map markers)."""
     try:
-        from sitrep.chroma_adapter import ChromaAdapter
         from sitrep.weekly_bulletin import COUNTRY_COORDS
-        db = ChromaAdapter()
+        db = _get_chroma_adapter()
         countries = db.list_countries_with_counts()
-        # Add coordinates where available
         for c in countries:
             name = c.get("name", "")
             coords = COUNTRY_COORDS.get(name, {})
             if not coords:
-                # Try common aliases
                 aliases = {"Syrian Arab Republic": "Syria", "Türkiye": "Turkey", "oPt": "occupied Palestinian territory",
                        "DR Congo": "Democratic Republic of the Congo", "Iran (Islamic Republic of)": "Iran"}
                 coords = COUNTRY_COORDS.get(aliases.get(name, ""), {})
@@ -1832,7 +1845,9 @@ def api_db_reports():
             query += " AND date <= ?"
             params.append(date_to)
 
-        # Free users: only last 3 days of reports
+        if not date_from and not date_to and not search and not source and not country:
+            query += " AND date >= date('now', '-7 days')"
+
         if role not in ("premium", "admin"):
             query += " AND date >= date('now', '-3 days')"
 
@@ -1842,6 +1857,8 @@ def api_db_reports():
 
         if limit and limit.isdigit():
             query += f" LIMIT {int(limit)}"
+        else:
+            query += " LIMIT 50"
 
         rows = conn.execute(query, params).fetchall()
     except Exception:
@@ -1920,8 +1937,7 @@ def api_sitrep_themes():
 def api_sitrep_countries():
     """Return country values with chunk counts for SITREP dropdown."""
     try:
-        from sitrep.chroma_adapter import ChromaAdapter
-        db = ChromaAdapter()
+        db = _get_chroma_adapter()
         return jsonify(db.list_countries_with_counts())
     except Exception as exc:
         logger.error("api_sitrep_countries error: %s", exc, exc_info=True)
@@ -1932,8 +1948,7 @@ def api_sitrep_countries():
 @require_auth
 def api_sitrep_date_range(country):
     try:
-        from sitrep.chroma_adapter import ChromaAdapter
-        db = ChromaAdapter()
+        db = _get_chroma_adapter()
         return jsonify(db.get_date_range(country))
     except Exception as exc:
         logger.error("api_sitrep_date_range error: %s", exc, exc_info=True)
