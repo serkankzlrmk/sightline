@@ -3639,9 +3639,14 @@ async function initProposalPipeline() {
         await saveActiveProposal();
       }
       
-      if (action === 'add-toc-node') {
+      if (action === 'add-toc-node' || action === 'add-toc-node-svg') {
         if (!Array.isArray(proposalState.activeProposal.toc)) proposalState.activeProposal.toc = [];
-        proposalState.activeProposal.toc.push({ level: 'output', text: '' });
+        let level = 'output';
+        if (action === 'add-toc-node-svg') {
+          const sel = document.getElementById('toc-new-level');
+          if (sel) level = sel.value;
+        }
+        proposalState.activeProposal.toc.push({ level, text: '' });
         renderSectionContent(step);
         await saveActiveProposal();
       }
@@ -3696,6 +3701,7 @@ async function createProposalFromSitrep(dataset) {
     proposalState.currentStep = newProp.current_step || 'cover';
     renderProposalList();
     renderProposalWorkspace();
+    if (window.renderPinnedSourcesList) window.renderPinnedSourcesList();
   } catch (err) { alert("Could not create proposal: " + err.message); }
 }
 
@@ -3798,6 +3804,7 @@ async function selectProposal(id) {
     proposalState.currentStep = prop.current_step || 'cover';
     renderProposalList();
     renderProposalWorkspace();
+    if (window.renderPinnedSourcesList) window.renderPinnedSourcesList();
   } catch (err) { alert("Could not load proposal: " + err.message); }
 }
 
@@ -4014,6 +4021,132 @@ function formatLabel(key) {
   return label.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
 
+function renderTocSvg(nodes, canEdit) {
+  const levels = ['impact', 'outcome', 'output', 'activity'];
+  let html = `<div class="toc-svg-mapper" style="display:flex; justify-content:space-between; position:relative; overflow-x:auto; padding: 20px; background:var(--bg-light); border-radius:12px; gap: 24px; user-select:none;">`;
+  
+  levels.forEach((lvl, colIdx) => {
+    const colNodes = nodes.map((n, i) => ({...n, origIdx: i})).filter(n => n.level === lvl);
+    
+    html += `<div class="toc-column" style="flex: 1; min-width: 200px; display:flex; flex-direction:column; gap:16px; position:relative;">
+      <div style="text-transform:uppercase; font-size:11px; font-weight:700; color:var(--text-muted); letter-spacing:1px; margin-bottom:8px; border-bottom:1px solid var(--border-color); padding-bottom:4px;">${lvl}</div>`;
+      
+    if (colNodes.length === 0) {
+       html += `<div style="opacity:0.4; font-size:12px; font-style:italic;">No nodes</div>`;
+    }
+      
+    colNodes.forEach(node => {
+      html += `<div class="toc-node-card" data-index="${node.origIdx}" style="background:#fff; border:1px solid #d1d5db; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.03); position:relative; transition:all 0.2s ease;">`;
+      if (canEdit) {
+        html += `<textarea class="table-textarea toc-node-input" data-field="text" rows="2" style="width:100%; border:none; resize:none; font-size:13px; outline:none; font-family:var(--font-sans);" placeholder="Enter ${lvl}...">${escHtml(node.text || '')}</textarea>`;
+        html += `<button type="button" class="btn-delete-row" data-action="delete-toc-node" data-index="${node.origIdx}" style="position:absolute; top:-8px; right:-8px; background:var(--danger); color:white; border-radius:50%; width:20px; height:20px; font-size:12px; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2);">×</button>`;
+      } else {
+        html += `<div style="font-size:13px; color:var(--text-main); font-weight:500;">${escHtml(node.text || '')}</div>`;
+      }
+      html += `</div>`;
+    });
+    
+    html += `</div>`;
+    if (colIdx < levels.length - 1) {
+      html += `<div style="display:flex; align-items:center; color:#9ca3af;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5;"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>`;
+    }
+  });
+  html += `</div>`;
+  if (canEdit) {
+    html += `<div class="table-actions-row" style="margin-top:16px;">
+      <select id="toc-new-level" class="table-select" style="width:auto; display:inline-block; margin-right:8px; border-radius:6px;">
+        <option value="impact">Impact</option>
+        <option value="outcome" selected>Outcome</option>
+        <option value="output">Output</option>
+        <option value="activity">Activity</option>
+      </select>
+      <button type="button" class="btn btn-xs btn-secondary" data-action="add-toc-node-svg">+ Add Node</button>
+    </div>`;
+  }
+  return html;
+}
+
+function renderRiskHeatmap(risks, canEdit) {
+  const levels = ['High', 'Medium', 'Low'];
+  let html = `<div class="risk-heatmap-container" style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">`;
+  
+  html += `<div class="heatmap-grid" style="display:grid; grid-template-columns: 24px 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 24px; gap:8px; width:400px; height:400px; flex-shrink:0;">`;
+  html += `<div style="grid-row: 1 / 4; grid-column: 1; writing-mode: vertical-rl; transform: rotate(180deg); text-align:center; font-weight:700; font-size:11px; color:var(--text-muted); letter-spacing:1px;">PROBABILITY</div>`;
+  
+  levels.forEach((prob, rIdx) => {
+    levels.toReversed().forEach((imp, cIdx) => {
+      const cellRisks = risks.map((r,i) => ({...r, origIdx: i})).filter(r => r.probability === prob && r.impact === imp);
+      let bg = '#f8f9fa';
+      if (prob==='High' && imp==='High') bg = '#fee2e2'; // Light Red
+      else if (prob==='High' && imp==='Low') bg = '#fef3c7'; // Light Yellow
+      else if (prob==='Low' && imp==='High') bg = '#fef3c7'; // Light Yellow
+      else if (prob==='Medium' && imp==='Medium') bg = '#fef3c7'; // Light Yellow
+      else if (prob==='Low' && imp==='Low') bg = '#dcfce7'; // Light Green
+      
+      html += `<div class="heatmap-cell" data-prob="${prob}" data-imp="${imp}" style="background:${bg}; border:1px solid rgba(0,0,0,0.05); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;" ${canEdit ? 'ondragover="event.preventDefault()" ondrop="window.handleRiskDrop(event)"' : ''}>`;
+      html += `<div style="font-size:10px; color:rgba(0,0,0,0.4); text-transform:uppercase; text-align:right; font-weight:600;">${prob} / ${imp}</div>`;
+      
+      cellRisks.forEach(r => {
+        html += `<div class="risk-card-mini" draggable="${canEdit}" ondragstart="event.dataTransfer.setData('text/plain', ${r.origIdx})" data-index="${r.origIdx}" style="background:white; border:1px solid #d1d5db; border-radius:4px; padding:6px 8px; font-size:11px; cursor:${canEdit ? 'grab' : 'default'}; box-shadow:0 1px 2px rgba(0,0,0,0.05); color:var(--text-main); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">`;
+        html += `${escHtml(r.risk)}`;
+        html += `</div>`;
+      });
+      
+      html += `</div>`;
+    });
+  });
+  html += `<div style="grid-row: 4; grid-column: 2 / 5; text-align:center; font-weight:700; font-size:11px; color:var(--text-muted); align-self:end; letter-spacing:1px;">IMPACT</div>`;
+  html += `</div>`; 
+  
+  html += `<div class="risk-details-list" style="flex:1; min-width:300px; display:flex; flex-direction:column; gap:12px;">`;
+  html += `<h4 style="margin:0; font-size:13px; text-transform:uppercase; color:var(--text-muted); letter-spacing:1px; border-bottom:1px solid var(--border-color); padding-bottom:6px;">Risk Actions</h4>`;
+  
+  if (risks.length === 0) {
+    html += `<div style="font-size:13px; color:var(--text-muted); font-style:italic;">No risks identified.</div>`;
+  }
+  
+  risks.forEach((r, idx) => {
+    html += `<div class="risk-detail-card" data-index="${idx}" style="background:white; border:1px solid var(--border-color); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">`;
+    if (canEdit) {
+      html += `<div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">`;
+      html += `<input type="text" class="table-input risk-item-input" data-field="risk" value="${escHtml(r.risk || '')}" placeholder="Risk Event" style="flex:1; font-weight:600; font-size:14px; padding:4px 0; border:none; border-bottom:1px solid transparent; border-radius:0;">`;
+      html += `<button type="button" class="btn-delete-row" data-action="delete-risk" data-index="${idx}" style="width:24px; height:24px; border-radius:4px;">×</button>`;
+      html += `</div>`;
+      html += `<input type="text" class="table-input risk-item-input" data-field="mitigation" value="${escHtml(r.mitigation || '')}" placeholder="Mitigation Strategy" style="padding:6px 8px; font-size:13px; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px;">`;
+    } else {
+      html += `<strong style="font-size:14px;">${escHtml(r.risk || '')}</strong>`;
+      html += `<div style="font-size:13px; color:var(--text-muted);">Mitigation: ${escHtml(r.mitigation || '')}</div>`;
+    }
+    html += `</div>`;
+  });
+  
+  if (canEdit) {
+    html += `<div style="margin-top:8px;"><button type="button" class="btn btn-xs btn-secondary" data-action="add-risk">+ Add New Risk</button></div>`;
+  }
+  
+  html += `</div></div>`;
+  return html;
+}
+
+window.handleRiskDrop = function(e) {
+  e.preventDefault();
+  const idx = parseInt(e.dataTransfer.getData('text/plain'));
+  const cell = e.target.closest('.heatmap-cell');
+  if (!cell || isNaN(idx)) return;
+  
+  const prob = cell.dataset.prob;
+  const imp = cell.dataset.imp;
+  
+  if (proposalState.activeProposal && Array.isArray(proposalState.activeProposal.risk_matrix)) {
+    proposalState.activeProposal.risk_matrix[idx].probability = prob;
+    proposalState.activeProposal.risk_matrix[idx].impact = imp;
+    debouncedSaveProposal();
+    renderSectionContent('risk_matrix');
+  }
+}
+
 function renderJsonSection(obj, step) {
   const canEdit = proposalState.activeProposal && proposalState.activeProposal.can_edit !== false;
   const disabledAttr = canEdit ? '' : 'disabled';
@@ -4223,95 +4356,12 @@ function renderJsonSection(obj, step) {
 
   if (step === 'risk_matrix') {
     const risks = Array.isArray(obj) ? obj : [];
-
-    if (canEdit) {
-      let html = '<div class="risk-editor-view">';
-      html += `
-        <table class="risk-table editable-table">
-          <thead>
-            <tr>
-              <th>Risk Event</th>
-              <th style="width: 100px;">Probability</th>
-              <th style="width: 100px;">Impact</th>
-              <th>Mitigation Action</th>
-              <th style="width: 50px;">Action</th>
-            </tr>
-          </thead>
-          <tbody id="risk-rows-body">
-            ${risks.map((r, idx) => `
-              <tr data-index="${idx}">
-                <td><input type="text" class="table-input risk-item-input" data-field="risk" value="${escHtml(r.risk || '')}" placeholder="Risk Description"></td>
-                <td>
-                  <select class="table-select risk-item-input" data-field="probability">
-                    <option value="High" ${r.probability === 'High' ? 'selected' : ''}>High</option>
-                    <option value="Medium" ${r.probability === 'Medium' ? 'selected' : ''}>Medium</option>
-                    <option value="Low" ${r.probability === 'Low' ? 'selected' : ''}>Low</option>
-                  </select>
-                </td>
-                <td>
-                  <select class="table-select risk-item-input" data-field="impact">
-                    <option value="High" ${r.impact === 'High' ? 'selected' : ''}>High</option>
-                    <option value="Medium" ${r.impact === 'Medium' ? 'selected' : ''}>Medium</option>
-                    <option value="Low" ${r.impact === 'Low' ? 'selected' : ''}>Low</option>
-                  </select>
-                </td>
-                <td><input type="text" class="table-input risk-item-input" data-field="mitigation" value="${escHtml(r.mitigation || '')}" placeholder="Mitigation Strategy"></td>
-                <td><button type="button" class="btn-delete-row" data-action="delete-risk" data-index="${idx}">×</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>`;
-
-      html += `
-        <div class="table-actions-row">
-          <button type="button" class="btn btn-xs btn-secondary" data-action="add-risk">+ Add Risk Factor</button>
-        </div>`;
-      return html + '</div>';
-    } else {
-      return `<table class="risk-table"><thead><tr><th>Risk</th><th>Prob.</th><th>Impact</th><th>Mitigation</th></tr></thead><tbody>${risks.map(r => `<tr><td>${escHtml(r.risk||'')}</td><td>${escHtml(r.probability||'')}</td><td>${escHtml(r.impact||'')}</td><td>${escHtml(r.mitigation||'')}</td></tr>`).join('')}</tbody></table>`;
-    }
+    return renderRiskHeatmap(risks, canEdit);
   }
 
   if (step === 'toc') {
     const nodes = Array.isArray(obj) ? obj : [];
-
-    if (canEdit) {
-      let html = '<div class="toc-editor-view">';
-      html += `
-        <table class="toc-table editable-table">
-          <thead>
-            <tr>
-              <th style="width: 120px;">Level</th>
-              <th>Chain Statement</th>
-              <th style="width: 50px;">Action</th>
-            </tr>
-          </thead>
-          <tbody id="toc-nodes-body">
-            ${nodes.map((node, idx) => `
-              <tr data-index="${idx}">
-                <td>
-                  <select class="table-select toc-node-input" data-field="level">
-                    <option value="impact" ${node.level === 'impact' ? 'selected' : ''}>Impact</option>
-                    <option value="outcome" ${node.level === 'outcome' ? 'selected' : ''}>Outcome</option>
-                    <option value="output" ${node.level === 'output' ? 'selected' : ''}>Output</option>
-                    <option value="activity" ${node.level === 'activity' ? 'selected' : ''}>Activity</option>
-                  </select>
-                </td>
-                <td><input type="text" class="table-input toc-node-input" data-field="text" value="${escHtml(node.text || '')}" placeholder="Statement text..."></td>
-                <td><button type="button" class="btn-delete-row" data-action="delete-toc-node" data-index="${idx}">×</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>`;
-
-      html += `
-        <div class="table-actions-row">
-          <button type="button" class="btn btn-xs btn-secondary" data-action="add-toc-node">+ Add Chain Step</button>
-        </div>`;
-      return html + '</div>';
-    } else {
-      return `<div class="toc-list">${nodes.map(n => `<div class="toc-node toc-${n.level}"><span class="toc-level">${escHtml(n.level||'')}</span><span class="toc-text">${escHtml(n.text||'')}</span></div>`).join('')}</div>`;
-    }
+    return renderTocSvg(nodes, canEdit);
   }
 
   if (step === 'logframe') {
@@ -4580,9 +4630,99 @@ function showAdvisorMessage(sender, text) {
   if (!msgs) return;
   const bubble = document.createElement('div');
   bubble.className = 'critique-msg system';
-  bubble.innerHTML = `<strong>${escHtml(sender)}</strong><p>${escHtml(text)}</p>`;
+  
+  let formatted = escHtml(text);
+  formatted = formatted.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, (match, title, url) => {
+    return `<div class="advisor-source-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-light); padding:8px 12px; border:1px solid var(--border-color); border-radius:6px; margin:4px 0;">
+      <a href="${url}" target="_blank" style="color:var(--primary); font-weight:600; font-size:12px; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="${title}">${title}</a>
+      <button class="btn btn-xs" onclick="window.pinSource('${url}', '${title.replace(/'/g, "\\'")}')" style="background:var(--primary); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:600;">📌 Pin</button>
+    </div>`;
+  });
+  
+  bubble.innerHTML = `<strong>${escHtml(sender)}</strong><p>${formatted}</p>`;
   msgs.appendChild(bubble);
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+window.pinSource = async function(url, title) {
+  if (!proposalState.activeProposalId) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/pin-source`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title, snippet: '' })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showAdvisorMessage('System', `✓ Pinned: ${title}`);
+    
+    // Refresh proposal to get pinned_sources
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) {
+      proposalState.activeProposal = prop;
+      renderPinnedSourcesList(); 
+    }
+  } catch (err) {
+    showAdvisorMessage('System', `Failed to pin source: ${err.message}`);
+  }
+}
+
+window.renderPinnedSourcesList = function() {
+  const panel = document.getElementById('proposal-advisor-panel');
+  if (!panel) return;
+  let listEl = document.getElementById('pinned-sources-list');
+  if (!listEl) {
+    listEl = document.createElement('div');
+    listEl.id = 'pinned-sources-list';
+    listEl.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-main); max-height: 250px; overflow-y: auto;';
+    const header = panel.querySelector('.critique-header');
+    if (header) header.insertAdjacentElement('afterend', listEl);
+  }
+  
+  const sources = proposalState.activeProposal?.pinned_sources;
+  let parsed = [];
+  try {
+    if (typeof sources === 'string') parsed = JSON.parse(sources);
+    else if (Array.isArray(sources)) parsed = sources;
+  } catch(e){}
+  
+  if (!parsed || parsed.length === 0) {
+    listEl.innerHTML = `<div style="font-size:12px; color:var(--text-muted); font-style:italic;">No pinned sources yet.</div>`;
+    return;
+  }
+  
+  let html = `<div style="font-weight:700; font-size:11px; text-transform:uppercase; color:var(--text-muted); margin-bottom:12px; letter-spacing:1px;">Pinned Sources (${parsed.length})</div>`;
+  html += `<div style="display:flex; flex-direction:column; gap:8px;">`;
+  parsed.forEach((s, idx) => {
+    html += `<div style="background:#fff; border:1px solid var(--border-color); border-radius:6px; padding:10px; font-size:12px; box-shadow:0 1px 2px rgba(0,0,0,0.02); position:relative; padding-right:32px;">
+      <div style="font-weight:600; color:var(--text-main); margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(s.title)}">
+        <a href="${escHtml(s.url)}" target="_blank" style="color:inherit; text-decoration:none;">${escHtml(s.title || 'Source')}</a>
+      </div>
+      <div style="font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(s.url)}">${escHtml(s.url)}</div>
+      <button onclick="window.unpinSource(${idx})" style="position:absolute; right:8px; top:12px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:14px; padding:0; line-height:1;" title="Remove Pin">×</button>
+    </div>`;
+  });
+  html += `</div>`;
+  listEl.innerHTML = html;
+}
+
+window.unpinSource = async function(index) {
+  if (!proposalState.activeProposalId) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/pin-source/${index}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    
+    // Refresh proposal to get pinned_sources
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) {
+      proposalState.activeProposal = prop;
+      renderPinnedSourcesList(); 
+    }
+  } catch (err) {
+    showAdvisorMessage('System', `Failed to unpin source: ${err.message}`);
+  }
 }
 
 async function exportProposalMarkdown() {
@@ -4703,18 +4843,30 @@ async function exportProposalPDF() {
         <title>${escHtml(data.title || 'Proposal')}</title>
         <meta charset="utf-8">
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap');
           
           @page {
             size: A4;
-            margin: 20mm;
+            margin: 25mm 20mm 25mm 20mm;
+            @bottom-right {
+              content: counter(page);
+              font-family: 'Inter', sans-serif;
+              font-size: 10px;
+              color: #94a3b8;
+            }
+            @bottom-left {
+              content: "Sightline Advisor Studio - Confidential Draft";
+              font-family: 'Inter', sans-serif;
+              font-size: 10px;
+              color: #94a3b8;
+            }
           }
           
           body {
             font-family: 'Inter', -apple-system, sans-serif;
-            color: #1a1a1a;
-            line-height: 1.6;
-            font-size: 13px;
+            color: #1e293b;
+            line-height: 1.7;
+            font-size: 12px;
             margin: 0;
             padding: 0;
             background: #fff;
@@ -4724,159 +4876,229 @@ async function exportProposalPDF() {
           
           /* Cover Page */
           .print-cover-page {
-            height: 90vh;
+            height: 90vh; /* Fill exactly one printed page minus margins */
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             page-break-after: always;
-            padding: 40px 0;
+            padding: 20px 0;
             box-sizing: border-box;
+            position: relative;
+          }
+
+          /* Subtle Watermark for Cover */
+          .cover-watermark {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 150px;
+            color: rgba(226, 232, 240, 0.4);
+            font-weight: 800;
+            font-family: 'Inter', sans-serif;
+            z-index: -1;
+            pointer-events: none;
+            letter-spacing: 20px;
           }
           
           .cover-header {
-            border-bottom: 2px solid #e8364e;
-            padding-bottom: 20px;
+            border-top: 4px solid #e8364e;
+            padding-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
           }
           
           .cover-logo {
-            font-weight: 700;
-            font-size: 24px;
+            font-weight: 800;
+            font-size: 28px;
             color: #e8364e;
-            letter-spacing: -0.5px;
+            letter-spacing: -1px;
+            font-family: 'Inter', sans-serif;
           }
           
           .cover-logo span {
-            color: #1e293b;
+            color: #0f172a;
           }
           
           .cover-body {
-            margin-top: 100px;
+            margin-top: 80px;
+            flex-grow: 1;
           }
           
           .cover-tagline {
-            font-size: 11px;
+            font-size: 12px;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #64748b;
-            font-weight: 600;
-            margin-bottom: 12px;
+            letter-spacing: 3px;
+            color: #e8364e;
+            font-weight: 700;
+            margin-bottom: 24px;
+            display: block;
           }
           
           .cover-title {
             font-family: 'Playfair Display', serif;
-            font-size: 38px;
-            font-weight: 700;
-            line-height: 1.2;
+            font-size: 46px;
+            font-weight: 800;
+            line-height: 1.15;
             color: #0f172a;
-            margin: 0 0 24px 0;
+            margin: 0 0 40px 0;
+            max-width: 90%;
+            letter-spacing: -0.5px;
           }
           
           .cover-metadata-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 30px;
-            margin-top: 40px;
-            max-width: 600px;
+            gap: 30px 40px;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 40px;
+            margin-top: 60px;
+            max-width: 80%;
           }
           
           .cover-meta-item {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
           }
           
           .cover-meta-item strong {
-            font-size: 9px;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
             color: #64748b;
+            font-weight: 600;
           }
           
           .cover-meta-item span {
-            font-size: 13px;
-            color: #1e293b;
+            font-size: 14px;
+            color: #0f172a;
             font-weight: 500;
           }
           
           .cover-footer {
-            font-size: 10px;
+            font-size: 11px;
             color: #64748b;
             border-top: 1px solid #e2e8f0;
-            padding-top: 20px;
+            padding-top: 24px;
             display: flex;
             justify-content: space-between;
+            font-weight: 500;
+          }
+
+          .cover-footer .confidential {
+            color: #e8364e;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
           }
           
           /* Document Sections */
+          .proposal-content {
+            padding-top: 20px;
+          }
+
           h1, h2, h3, h4 {
             color: #0f172a;
-            font-family: 'Inter', sans-serif;
           }
           
-          h2 {
-            font-size: 18px;
+          h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
             font-weight: 700;
-            border-bottom: 1.5px solid #0f172a;
-            padding-bottom: 6px;
-            margin-top: 40px;
+            margin-bottom: 24px;
             color: #0f172a;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
+          }
+
+          h2 {
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 8px;
+            margin-top: 48px;
+            margin-bottom: 16px;
+            color: #0f172a;
+            page-break-after: avoid;
+          }
+          
+          /* Specifically force page breaks for major sections except the very first one */
+          .proposal-content > h2:not(:first-child) {
             page-break-before: always;
           }
-          
+
           h3 {
+            font-family: 'Inter', sans-serif;
             font-size: 14px;
             font-weight: 600;
-            margin-top: 20px;
-            margin-bottom: 10px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #1e293b;
+            page-break-after: avoid;
           }
           
           p {
-            margin: 0 0 12px 0;
+            margin: 0 0 16px 0;
             text-align: justify;
-          }
-          
-          /* Table style */
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            page-break-inside: avoid;
-          }
-          
-          th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-weight: 600;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            text-align: left;
-            padding: 8px 10px;
-            border-bottom: 1.5px solid #cbd5e1;
-            border-top: 1px solid #e2e8f0;
-          }
-          
-          td {
-            padding: 8px 10px;
-            border-bottom: 1px solid #e2e8f0;
-            font-size: 11.5px;
             color: #334155;
           }
           
-          tr:nth-child(even) {
-            background-color: #f8fafc;
+          /* Table style - Premium Minimalist */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 24px 0;
+            page-break-inside: auto;
+          }
+          
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+
+          th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: left;
+            padding: 12px 14px;
+            border-bottom: 2px solid #cbd5e1;
+          }
+          
+          td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 11.5px;
+            color: #334155;
+            vertical-align: top;
           }
           
           /* Timeline / Theory of Change Lists */
-          ul {
-            margin: 12px 0;
-            padding-left: 20px;
+          ul, ol {
+            margin: 16px 0;
+            padding-left: 24px;
+            color: #334155;
           }
           
           li {
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            padding-left: 4px;
+          }
+          
+          li::marker {
+            color: #e8364e;
+            font-weight: bold;
+          }
+
+          strong {
+            color: #0f172a;
+            font-weight: 600;
           }
           
           @media print {
@@ -4888,20 +5110,22 @@ async function exportProposalPDF() {
       </head>
       <body>
         <div class="print-cover-page">
+          <div class="cover-watermark">DRAFT</div>
           <div class="cover-header">
             <div class="cover-logo">Sight<span>line</span></div>
+            <div style="text-align: right; font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Project Design Document</div>
           </div>
           <div class="cover-body">
-            <div class="cover-tagline">Humanitarian Project Proposal</div>
+            <span class="cover-tagline">Humanitarian Intervention Proposal</span>
             <h1 class="cover-title">${escHtml(prop.title || 'Untitled Proposal')}</h1>
             
             <div class="cover-metadata-grid">
               <div class="cover-meta-item">
-                <strong>Country</strong>
+                <strong>Country of Operation</strong>
                 <span>${escHtml(prop.country || 'N/A')}</span>
               </div>
               <div class="cover-meta-item">
-                <strong>Donor</strong>
+                <strong>Target Donor</strong>
                 <span>${escHtml(prop.donor || 'N/A')}</span>
               </div>
               <div class="cover-meta-item">
@@ -4910,13 +5134,13 @@ async function exportProposalPDF() {
               </div>
               <div class="cover-meta-item">
                 <strong>Date Generated</strong>
-                <span>${new Date().toLocaleDateString()}</span>
+                <span>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
               </div>
             </div>
           </div>
           <div class="cover-footer">
-            <span>Sightline Advisor Studio</span>
-            <span>Confidential Draft Proposal</span>
+            <span>Prepared by Sightline Advisor Studio</span>
+            <span class="confidential">Confidential Draft</span>
           </div>
         </div>
         

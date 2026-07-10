@@ -495,7 +495,14 @@ def _init_chats_db():
             coordination    TEXT NOT NULL DEFAULT '',
             current_step    TEXT NOT NULL DEFAULT 'cover',
             step_status     TEXT NOT NULL DEFAULT '{}',
-            completed_at    REAL
+            completed_at    REAL,
+            pinned_sources  TEXT NOT NULL DEFAULT '[]',
+            beneficiary_data TEXT NOT NULL DEFAULT '{}',
+            toc_nodes       TEXT NOT NULL DEFAULT '[]',
+            logframe_data   TEXT NOT NULL DEFAULT '{}',
+            budget_details  TEXT NOT NULL DEFAULT '{}',
+            risk_details    TEXT NOT NULL DEFAULT '[]',
+            mne_plan        TEXT NOT NULL DEFAULT '[]'
         );
         CREATE INDEX IF NOT EXISTS idx_proposals_uid ON proposals(uid);
     """)
@@ -522,6 +529,13 @@ def _init_chats_db():
         "completed_at":    ("REAL"),
         "reference_text":  ("TEXT NOT NULL DEFAULT ''"),
         "reference_filename": ("TEXT NOT NULL DEFAULT ''"),
+        "pinned_sources":  ("TEXT NOT NULL DEFAULT '[]'"),
+        "beneficiary_data":("TEXT NOT NULL DEFAULT '{}'"),
+        "toc_nodes":       ("TEXT NOT NULL DEFAULT '[]'"),
+        "logframe_data":   ("TEXT NOT NULL DEFAULT '{}'"),
+        "budget_details":  ("TEXT NOT NULL DEFAULT '{}'"),
+        "risk_details":    ("TEXT NOT NULL DEFAULT '[]'"),
+        "mne_plan":        ("TEXT NOT NULL DEFAULT '[]'"),
     }
     for col, coldef in _new_prop_cols.items():
         if col not in prop_cols:
@@ -3178,7 +3192,182 @@ def api_delete_proposal(prop_id):
         conn.close()
 
 
-@app.route("/api/admin/sitrep/<filename>", methods=["DELETE"])
+@app.route("/api/proposals/<prop_id>/pin-source", methods=["POST"])
+@require_auth
+def api_pin_source(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT id, pinned_sources FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row: return jsonify({"error": "Proposal not found"}), 404
+        
+        pinned = []
+        if row["pinned_sources"]:
+            try: pinned = json.loads(row["pinned_sources"])
+            except: pass
+        
+        pinned.append({
+            "id": data.get("id", str(uuid.uuid4())),
+            "title": data.get("title", ""),
+            "url": data.get("url", ""),
+            "snippet": data.get("snippet", "")
+        })
+        
+        conn.execute("UPDATE proposals SET pinned_sources = ? WHERE id = ?", (json.dumps(pinned), prop_id))
+        conn.commit()
+        return jsonify({"status": "success", "pinned_sources": pinned})
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/pin-source/<int:index>", methods=["DELETE"])
+@require_auth
+def api_delete_pinned_source(prop_id, index):
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT id, pinned_sources FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row: return jsonify({"error": "Proposal not found"}), 404
+        
+        pinned = []
+        if row["pinned_sources"]:
+            try: pinned = json.loads(row["pinned_sources"])
+            except: pass
+            
+        if 0 <= index < len(pinned):
+            pinned.pop(index)
+            conn.execute("UPDATE proposals SET pinned_sources = ? WHERE id = ?", (json.dumps(pinned), prop_id))
+            conn.commit()
+            return jsonify({"status": "success", "pinned_sources": pinned})
+        else:
+            return jsonify({"error": "Index out of bounds"}), 400
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/toc", methods=["PUT"])
+@require_auth
+def api_update_toc(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT id FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row: return jsonify({"error": "Proposal not found"}), 404
+        nodes = data.get("nodes", [])
+        conn.execute("UPDATE proposals SET toc_nodes = ? WHERE id = ?", (json.dumps(nodes), prop_id))
+        conn.commit()
+        return jsonify({"message": "Theory of Change updated", "toc_nodes": nodes})
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/logframe", methods=["PUT"])
+@require_auth
+def api_update_logframe(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT id, logframe_data FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row: return jsonify({"error": "Proposal not found"}), 404
+        
+        lf = {}
+        if row["logframe_data"]:
+            try: lf = json.loads(row["logframe_data"])
+            except: pass
+            
+        section = data.get("section")
+        index = data.get("index")
+        field = data.get("field")
+        value = data.get("value")
+        
+        if section and field and index is not None:
+            if section not in lf: lf[section] = []
+            while len(lf[section]) <= index:
+                lf[section].append({})
+            lf[section][index][field] = value
+            
+            conn.execute("UPDATE proposals SET logframe_data = ? WHERE id = ?", (json.dumps(lf), prop_id))
+            conn.commit()
+            return jsonify({"message": "Logframe cell updated", "logframe_data": lf})
+        else:
+            if "logframe_data" in data:
+                conn.execute("UPDATE proposals SET logframe_data = ? WHERE id = ?", (json.dumps(data["logframe_data"]), prop_id))
+                conn.commit()
+                return jsonify({"message": "Logframe updated", "logframe_data": data["logframe_data"]})
+            return jsonify({"error": "Invalid payload"}), 400
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/budget-calc", methods=["PUT"])
+@require_auth
+def api_budget_calc(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT id, budget_details FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row: return jsonify({"error": "Proposal not found"}), 404
+        
+        lines = data.get("lines", [])
+        total = sum(float(line.get("amount", 0)) for line in lines)
+        percentages = {}
+        if total > 0:
+            for line in lines:
+                cat = line.get("category", "Unknown")
+                amt = float(line.get("amount", 0))
+                percentages[cat] = f"{(amt / total) * 100:.1f}%"
+                
+        donor_limit_ok = True
+        budget_det = {
+            "lines": lines,
+            "total": total,
+            "percentages": percentages,
+            "donor_limit_ok": donor_limit_ok
+        }
+        
+        conn.execute("UPDATE proposals SET budget_details = ? WHERE id = ?", (json.dumps(budget_det), prop_id))
+        conn.commit()
+        return jsonify(budget_det)
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/apply-suggestion", methods=["POST"])
+@require_auth
+def api_apply_suggestion(prop_id):
+    uid = current_uid()
+    data = request.json or {}
+    action = data.get("action")
+    payload = data.get("payload", {})
+    
+    conn = _chats_db()
+    try:
+        row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row: return jsonify({"error": "Proposal not found"}), 404
+        
+        if action == "update_logframe":
+            lf = {}
+            if row["logframe_data"]:
+                try: lf = json.loads(row["logframe_data"])
+                except: pass
+            sec, idx, fld, val = payload.get("section"), payload.get("index"), payload.get("field"), payload.get("value")
+            if sec and fld and idx is not None:
+                if sec not in lf: lf[sec] = []
+                while len(lf[sec]) <= idx: lf[sec].append({})
+                lf[sec][idx][fld] = val
+                conn.execute("UPDATE proposals SET logframe_data = ? WHERE id = ?", (json.dumps(lf), prop_id))
+                conn.commit()
+                return jsonify({"status": "applied", "new_state": lf})
+                
+        return jsonify({"error": "Unsupported action"}), 400
+    finally:
+        conn.close()
+
+
 @require_admin
 def api_admin_delete_sitrep(filename):
     """Delete a SITREP report file (admin only)."""
