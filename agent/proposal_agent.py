@@ -211,7 +211,33 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
 
         response_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
 
-        return _parse_agent_output(response_text, step)
+        result = _parse_agent_output(response_text, step)
+
+        try:
+            from agent.me_reviewer import review_section
+            toc_data = proposal_row.get("toc", [])
+            logframe_data = proposal_row.get("logframe", {})
+            if isinstance(toc_data, str):
+                try: toc_data = json.loads(toc_data)
+                except: pass
+            if isinstance(logframe_data, str):
+                try: logframe_data = json.loads(logframe_data)
+                except: pass
+
+            review = review_section(
+                content=result.get("content", ""),
+                step=step,
+                toc=toc_data if isinstance(toc_data, list) else [],
+                logframe=logframe_data if isinstance(logframe_data, dict) else {},
+                sources=result.get("sources", []),
+            )
+            result["quality_score"] = review.get("quality_score")
+            result["suggestions"] = review.get("suggestions", [])
+            result["overall_score"] = review.get("overall_score", 0)
+        except Exception as review_err:
+            logger.warning(f"M&E review failed for {step}: {review_err}")
+
+        return result
 
     except Exception as e:
         logger.error(f"generate_section error: prop={prop_id}, step={step}, err={e}")

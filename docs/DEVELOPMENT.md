@@ -183,9 +183,12 @@ RedAgent/
 ├── tests/                    # 171 tests
 ├── deploy/                   # Deployment configs
 ├── .github/workflows/        # CI/CD (deploy.yml)
-├── DEPLOYMENT.md             # Production deploy guide
-├── ROADMAP.md                # Growth roadmap
-└── AGENTS.md                 # Agent instructions (read this!)
+├── docs/                     # All documentation (deploy, dev, roadmap, codemap, etc.)
+├── AGENTS.md                 # Agent instructions (read this first!)
+├── Dockerfile                # Single-stage ARM64 build
+├── docker-compose.yml        # app + caddy services
+├── Caddyfile                 # Reverse proxy + auto-TLS
+└── requirements.txt          # Python dependencies
 ```
 
 ---

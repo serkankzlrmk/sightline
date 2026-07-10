@@ -42,7 +42,7 @@
 - `.gitignore` düzeltildi: `.env.*` yerine sadece `.env.local` ve `.env.production` ignore ediliyor
 
 ### 5. UI/Tasarım Temizliği (Design Cleanup)
-- **DESIGN_DIRECTIVES.md**: Diğer ajanlar için Apple esintili görsel tasarım yönergesi kök dizine eklendi.
+- **DESIGN_DIRECTIVES.md**: Diğer ajanlar için Apple esintili görsel tasarım yönergesi `docs/` altına eklendi.
 - **index.html & app.js (SVG İkonlar)**: Arayüzdeki ham unicode semboller (`⬆`, `↻`, `Date ↓`, `▶ Run`, `✕`, `×`, `⚠`, `✓`, `⚠️`) tek renkli çizgi bazlı inline SVG ikonlar ile değiştirildi.
 - **style.css (Taktil Efektler)**: Tıklama esnasında buton ve tablar için `:active` basılma esneme durumu (`scale(0.97)`) eklendi. İkon-metin doğrusal hizalaması için CSS sınıfları entegre edildi.
 - **Backend Güvenliği**: Yapılan tüm tasarım güncellemeleri sonrasında 171 adet pytest testi çalıştırıldı ve tamamının başarılı geçtiği teyit edildi.
@@ -58,7 +58,7 @@
   - `server.py` dosyasına SQLite `proposals` tablosu, CRUD API uç noktaları (`/api/proposals/*`), dynamic chunks API (`/api/proposals/<prop_id>/chunks`) ve RAG destekli LLM Generation / Advisor Chat route'ları eklendi.
 - **Test ve Şartname**:
   - `tests/test_proposals.py` unit test suite'i yazılarak tüm API CRUD ve LLM generation akışları test edildi. 175 testin tamamı başarılı passed durumundadır.
-  - Kök dizindeki `PROPOSAL_PIPELINE_SPEC.md` spesifikasyon dokümanı tamamlandı.
+  - `docs/PROPOSAL_PIPELINE_SPEC.md` spesifikasyon dokümanı tamamlandı.
 
 ---
 

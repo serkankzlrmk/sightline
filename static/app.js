@@ -36,6 +36,9 @@ const chatState = {
   currentAiEl: null,
   currentAiText: '',
   selectedModel: DEFAULT_MODEL,
+  mode: 'analyst',         // analyst | proposal | me_reviewer
+  proposalId: null,       // active proposal for proposal/review modes
+  proposalsLoaded: false,
 };
 
 // SITREP tab state
@@ -321,6 +324,69 @@ function toggleChatSidebar() {
   ov.classList.toggle('open', open);
 }
 
+async function loadChatProposals() {
+  try {
+    const res = await api('/api/proposals');
+    const data = await res.json();
+    chatState.proposals = Array.isArray(data) ? data : [];
+    chatState.proposalsLoaded = true;
+  } catch (err) {
+    chatState.proposals = [];
+  }
+}
+
+function showProposalPicker(mode) {
+  let picker = document.getElementById('chat-proposal-picker');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'chat-proposal-picker';
+    picker.style.cssText = 'padding: 6px 16px; background: var(--bg-elevated, var(--bg-card)); border-bottom: 1px solid var(--border-light); display:flex; align-items:center; gap:8px; font-size:12px;';
+    const chatScroll = document.querySelector('.chat-footer');
+    if (chatScroll && chatScroll.parentNode) {
+      chatScroll.parentNode.insertBefore(picker, chatScroll);
+    }
+  }
+  const label = mode === 'me_reviewer' ? 'Review proposal:' : 'Work on proposal:';
+  const proposals = chatState.proposals || [];
+  let options = '<option value="">— Select —</option>';
+  for (const p of proposals) {
+    options += `<option value="${p.id}" ${chatState.proposalId === p.id ? 'selected' : ''}>${escHtml(p.title)} (${escHtml(p.country || '?')})</option>`;
+  }
+  picker.innerHTML = `
+    <span style="color:var(--text-muted); white-space:nowrap;">${label}</span>
+    <select id="chat-proposal-select" style="flex:1; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary);">
+      ${options}
+    </select>
+  `;
+  const sel = document.getElementById('chat-proposal-select');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      chatState.proposalId = sel.value || null;
+      if (mode === 'proposal') {
+        updateChatPlaceholder('Ask me to write or improve a proposal section...');
+      } else {
+        updateChatPlaceholder('Ask me to review the proposal...');
+      }
+    });
+  }
+  picker.style.display = 'flex';
+  if (mode === 'proposal') {
+    updateChatPlaceholder('Select a proposal above, then ask me to write or improve sections...');
+  } else {
+    updateChatPlaceholder('Select a proposal above, then ask me to review it...');
+  }
+}
+
+function hideProposalPicker() {
+  const picker = document.getElementById('chat-proposal-picker');
+  if (picker) picker.style.display = 'none';
+}
+
+function updateChatPlaceholder(text) {
+  const inp = document.getElementById('chat-input');
+  if (inp) inp.placeholder = text;
+}
+
 function sendQuickPrompt(text) {
   const rl = window.__rateLimit;
   const role = window.__userRole || 'free';
@@ -369,10 +435,13 @@ async function sendMessage() {
   chatState.currentAiText = '';
 
   try {
+    const body = { message: text, model: chatState.selectedModel, mode: chatState.mode };
+    if (chatState.proposalId) body.proposal_id = chatState.proposalId;
+
     const resp = await api('/api/agent/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message: text, model: chatState.selectedModel }),
+      body:    JSON.stringify(body),
     });
 
     if (resp.status === 429) {
@@ -2735,6 +2804,26 @@ document.addEventListener('DOMContentLoaded', () => {
   if (chatNewBtn) chatNewBtn.addEventListener('click', newChat);
   if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 
+  // Mode selector
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mode = btn.dataset.mode;
+      chatState.mode = mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (mode === 'proposal' || mode === 'me_reviewer') {
+        if (!chatState.proposalsLoaded) {
+          await loadChatProposals();
+        }
+        showProposalPicker(mode);
+      } else {
+        hideProposalPicker();
+        updateChatPlaceholder('Message Sightline...');
+      }
+    });
+  });
+
   // DB modal
   const dbModal = document.getElementById('db-modal');
   if (dbModal) dbModal.addEventListener('click', e => { if (e.target === dbModal) closeDbModal(); });
@@ -2825,6 +2914,10 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'select-proposal':
         selectProposal(target.dataset.id);
+        break;
+      case 'delete-proposal':
+        e.stopPropagation();
+        deleteProposalItem(target.dataset.id);
         break;
       case 'open-rag-drawer':
         openRagDrawer(parseInt(target.dataset.index));
@@ -3352,12 +3445,14 @@ async function initProposalPipeline() {
   const btnNew = document.getElementById('btn-new-proposal');
   const btnCreateFirst = document.getElementById('btn-create-first-proposal');
   const btnExport = document.getElementById('btn-proposal-export');
+  const btnExportPdf = document.getElementById('btn-proposal-export-pdf');
   const btnSendCritique = document.getElementById('btn-send-critique');
   const txtCritique = document.getElementById('critique-input');
 
   if (btnNew) btnNew.addEventListener('click', createNewProposal);
   if (btnCreateFirst) btnCreateFirst.addEventListener('click', createNewProposal);
   if (btnExport) btnExport.addEventListener('click', exportProposalMarkdown);
+  if (btnExportPdf) btnExportPdf.addEventListener('click', exportProposalPDF);
   if (btnSendCritique) btnSendCritique.addEventListener('click', sendProposalCritique);
   if (txtCritique) {
     txtCritique.addEventListener('keypress', (e) => {
@@ -3666,6 +3761,26 @@ async function executeCreateProposal({ title, country, donor, themes, briefing, 
   }
 }
 
+async function deleteProposalItem(id) {
+  if (!confirm('Delete this proposal permanently? This will remove all sections, drafts, and reference data.')) return;
+  try {
+    const res = await api(`/api/admin/proposals/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    proposalState.proposals = proposalState.proposals.filter(p => p.id !== id);
+    if (proposalState.activeProposalId === id) {
+      proposalState.activeProposalId = null;
+      proposalState.activeProposal = null;
+      renderProposalWorkspace();
+    }
+    renderProposalList();
+    showAdvisorMessage('System', 'Proposal deleted permanently.');
+  } catch (err) {
+    alert("Delete failed: " + err.message);
+  }
+}
+
 async function selectProposal(id) {
   try {
     const res = await api(`/api/proposals/${id}`);
@@ -3686,14 +3801,22 @@ function renderProposalList() {
     list.innerHTML = `<div class="empty-state">No proposals yet</div>`;
     return;
   }
+  const isAdmin = window.__userRole === 'admin';
   list.innerHTML = proposalState.proposals.map(p => {
     const activeClass = p.id === proposalState.activeProposalId ? 'active' : '';
     const stepIdx = PROPOSAL_STEPS.findIndex(s => s.key === (p.current_step || 'cover'));
-    const statusIcon = p.completed_at ? '✓' : `${stepIdx+1}/12`;
+    const statusIcon = p.completed_at ? '\u2713' : `${stepIdx+1}/12`;
+    const deleteBtn = isAdmin ? `
+      <button class="proposal-delete-btn" data-action="delete-proposal" data-id="${p.id}" title="Delete proposal"
+        style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; opacity:0.5; transition:opacity 0.2s;"
+        onmouseover="this.style.opacity=1;this.style.color='var(--red)';" onmouseout="this.style.opacity=0.5;this.style.color='var(--text-muted)';">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>` : '';
     return `
-      <div class="report-item ${activeClass}" data-action="select-proposal" data-id="${p.id}" style="cursor:pointer; padding:10px; border-bottom:1px solid var(--border-light)">
+      <div class="report-item ${activeClass}" data-action="select-proposal" data-id="${p.id}" style="cursor:pointer; padding:10px; padding-right:36px; border-bottom:1px solid var(--border-light); position:relative;">
         <div class="report-item-title" style="font-weight:600; font-size:13px">${escHtml(p.title)}</div>
         <div class="report-item-meta" style="font-size:11px; color:var(--text-muted)">${escHtml(p.country||'')} | ${escHtml(p.donor||'')} | ${statusIcon}</div>
+        ${deleteBtn}
       </div>`;
   }).join('');
 }
@@ -3704,6 +3827,7 @@ function renderProposalWorkspace() {
   const titleEl = document.getElementById('proposal-project-title');
   const ctxEl = document.getElementById('proposal-project-context');
   const exportBtn = document.getElementById('btn-proposal-export');
+  const exportPdfBtn = document.getElementById('btn-proposal-export-pdf');
   const prop = proposalState.activeProposal;
   if (!prop) {
     if (contentEl) contentEl.innerHTML = `
@@ -3720,12 +3844,14 @@ function renderProposalWorkspace() {
     if (titleEl) titleEl.textContent = 'Select or Create a Proposal';
     if (ctxEl) ctxEl.textContent = 'Step-by-step AI-assisted donor proposal wizard';
     if (exportBtn) exportBtn.disabled = true;
+    if (exportPdfBtn) exportPdfBtn.disabled = true;
     return;
   }
   if (titleEl) titleEl.textContent = prop.title;
   if (ctxEl) ctxEl.innerHTML = `${prop.country} | ${prop.donor} | ${prop.event || 'Emergency Response'}
     ${prop.has_reference ? `<span style="margin-left:12px; padding:2px 8px; background:var(--blue); color:#fff; border-radius:4px; font-size:10px;">REF: ${escHtml(prop.reference_filename || 'doc')}</span>` : ''}`;
   if (exportBtn) exportBtn.disabled = false;
+  if (exportPdfBtn) exportPdfBtn.disabled = false;
 
   const actionsEl = document.querySelector('.proposal-actions');
   if (actionsEl) {
@@ -3860,88 +3986,333 @@ function renderSectionMarkdown(content, step) {
   return renderMarkdown(content);
 }
 
+function formatLabel(key) {
+  let label = key.replace(/_/g, ' ');
+  label = label.replace(/([a-z])([A-Z])/g, '$1 $2');
+  label = label.trim();
+  return label.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
 function renderJsonSection(obj, step) {
-  if (Array.isArray(obj)) {
-    if (step === 'toc') return `<div class="toc-list">${obj.map(n => `<div class="toc-node toc-${n.level}"><span class="toc-level">${escHtml(n.level||'')}</span><span class="toc-text">${escHtml(n.text||'')}</span></div>`).join('')}</div>`;
-    if (step === 'risk_matrix') return `<table class="risk-table"><thead><tr><th>Risk</th><th>Prob.</th><th>Impact</th><th>Mitigation</th></tr></thead><tbody>${obj.map(r => `<tr><td>${escHtml(r.risk||'')}</td><td>${escHtml(r.probability||'')}</td><td>${escHtml(r.impact||'')}</td><td>${escHtml(r.mitigation||'')}</td></tr>`).join('')}</tbody></table>`;
-    return `<pre>${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
-  }
-  if (step === 'budget') {
-    let html = '<div class="budget-view">';
-    html += '<div class="budget-meta-grid">';
-    if (obj.total) html += `<div class="budget-meta-card"><strong>Total Budget</strong><span>${escHtml(obj.total)}</span></div>`;
-    if (obj.currency) html += `<div class="budget-meta-card"><strong>Currency</strong><span>${escHtml(obj.currency)}</span></div>`;
-    if (obj.duration_months) html += `<div class="budget-meta-card"><strong>Duration</strong><span>${escHtml(obj.duration_months)} Months</span></div>`;
-    html += '</div>';
-    
-    if (Array.isArray(obj.lines)) {
+  const canEdit = proposalState.activeProposal && proposalState.activeProposal.can_edit !== false;
+  const disabledAttr = canEdit ? '' : 'disabled';
+
+  if (step === 'cover') {
+    let html = '<div class="cover-editor-grid">';
+    for (const [k, v] of Object.entries(obj)) {
+      const label = formatLabel(k);
+      const isLong = typeof v === 'string' && v.length > 60;
       html += `
-        <table class="budget-table">
+        <div class="editor-field-wrap ${isLong ? 'full-width' : ''}">
+          <label class="field-label">${escHtml(label)}</label>
+          ${canEdit ? (isLong ? `
+            <textarea class="field-input cover-input" data-field="${escHtml(k)}" rows="3">${escHtml(v)}</textarea>
+          ` : `
+            <input type="text" class="field-input cover-input" data-field="${escHtml(k)}" value="${escHtml(v)}">
+          `) : (isLong ? `
+            <div class="field-input-readonly textarea-style">${escHtml(v)}</div>
+          ` : `
+            <div class="field-input-readonly">${escHtml(v)}</div>
+          `)}
+        </div>`;
+    }
+    return html + '</div>';
+  }
+
+  if (step === 'budget') {
+    let total = '';
+    let currency = 'USD';
+    let duration = '';
+    let lines = [];
+
+    for (const [k, v] of Object.entries(obj)) {
+      const normK = k.toLowerCase().replace(/_/g, '').replace(/\s/g, '');
+      if (normK === 'total' || normK === 'estimatedbudget' || normK === 'budget') total = v;
+      else if (normK === 'currency') currency = v;
+      else if (normK === 'durationmonths' || normK === 'projectduration' || normK === 'duration') duration = v;
+      else if (normK === 'lines' && Array.isArray(v)) lines = v;
+    }
+
+    if (canEdit) {
+      let html = '<div class="budget-editor-view">';
+      html += `
+        <div class="budget-meta-grid">
+          <div class="budget-meta-card-editor">
+            <label>Total Budget</label>
+            <input type="text" class="budget-meta-input" data-meta="total" value="${escHtml(total)}" placeholder="e.g. $500,000">
+          </div>
+          <div class="budget-meta-card-editor">
+            <label>Currency</label>
+            <input type="text" class="budget-meta-input" data-meta="currency" value="${escHtml(currency)}" placeholder="e.g. USD">
+          </div>
+          <div class="budget-meta-card-editor">
+            <label>Duration</label>
+            <input type="text" class="budget-meta-input" data-meta="duration_months" value="${escHtml(duration)}" placeholder="e.g. 12 months">
+          </div>
+        </div>`;
+
+      html += `
+        <table class="budget-table editable-table">
           <thead>
             <tr>
               <th>Category</th>
               <th>Amount</th>
               <th>Percentage</th>
+              <th style="width: 50px;">Action</th>
             </tr>
           </thead>
-          <tbody>
-            ${obj.lines.map(line => `
-              <tr>
-                <td><strong>${escHtml(line.category || '')}</strong></td>
-                <td>${escHtml(line.amount || '')}</td>
-                <td><span class="budget-pct-badge">${escHtml(line.percentage || '')}</span></td>
+          <tbody id="budget-lines-body">
+            ${lines.map((line, idx) => `
+              <tr data-index="${idx}">
+                <td><input type="text" class="table-input budget-line-input" data-field="category" value="${escHtml(line.category || '')}" placeholder="Category Name"></td>
+                <td><input type="text" class="table-input budget-line-input" data-field="amount" value="${escHtml(line.amount || '')}" placeholder="Amount"></td>
+                <td><input type="text" class="table-input budget-line-input" data-field="percentage" value="${escHtml(line.percentage || '')}" placeholder="Percentage"></td>
+                <td><button type="button" class="btn-delete-row" data-action="delete-budget-line" data-index="${idx}">×</button></td>
               </tr>
             `).join('')}
           </tbody>
         </table>`;
-    }
-    return html + '</div>';
-  }
-  if (step === 'mne_framework') {
-    let html = '<div class="mne-view">';
-    if (obj.framework_approach) {
-      html += `<div class="mne-approach-card"><strong>Approach</strong><span>${escHtml(obj.framework_approach)}</span></div>`;
-    }
-    if (Array.isArray(obj.indicators)) {
+
       html += `
-        <table class="mne-table">
+        <div class="table-actions-row">
+          <button type="button" class="btn btn-xs btn-secondary" data-action="add-budget-line">+ Add Line Category</button>
+        </div>`;
+      return html + '</div>';
+    } else {
+      let html = '<div class="budget-view">';
+      html += '<div class="budget-meta-grid">';
+      if (total) html += `<div class="budget-meta-card"><strong>Total Budget</strong><span>${escHtml(total)}</span></div>`;
+      if (currency) html += `<div class="budget-meta-card"><strong>Currency</strong><span>${escHtml(currency)}</span></div>`;
+      if (duration) html += `<div class="budget-meta-card"><strong>Duration</strong><span>${escHtml(duration)}</span></div>`;
+      html += '</div>';
+      
+      if (lines.length > 0) {
+        html += `
+          <table class="budget-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${lines.map(line => `
+                <tr>
+                  <td><strong>${escHtml(line.category || '')}</strong></td>
+                  <td>${escHtml(line.amount || '')}</td>
+                  <td><span class="budget-pct-badge">${escHtml(line.percentage || '')}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      }
+      return html + '</div>';
+    }
+  }
+
+  if (step === 'mne_framework') {
+    let approach = '';
+    let indicators = [];
+
+    for (const [k, v] of Object.entries(obj)) {
+      const normK = k.toLowerCase().replace(/_/g, '').replace(/\s/g, '');
+      if (normK === 'frameworkapproach' || normK === 'approach') approach = v;
+      else if (normK === 'indicators' && Array.isArray(v)) indicators = v;
+    }
+
+    if (canEdit) {
+      let html = '<div class="mne-editor-view">';
+      html += `
+        <div class="mne-approach-editor">
+          <label class="field-label">Framework Approach</label>
+          <input type="text" class="field-input mne-approach-input" value="${escHtml(approach)}" placeholder="e.g. Results-based, Logframe-driven">
+        </div>`;
+
+      html += `
+        <table class="mne-table editable-table">
           <thead>
             <tr>
               <th>Indicator Name</th>
-              <th>Type</th>
+              <th style="width: 110px;">Type</th>
               <th>Baseline</th>
               <th>Target</th>
               <th>Source</th>
+              <th style="width: 50px;">Action</th>
             </tr>
           </thead>
-          <tbody>
-            ${obj.indicators.map(ind => `
-              <tr>
-                <td><strong>${escHtml(ind.name || '')}</strong></td>
-                <td><span class="mne-type-badge type-${escHtml(ind.type || '').toLowerCase()}">${escHtml(ind.type || '')}</span></td>
-                <td>${escHtml(ind.baseline || '')}</td>
-                <td>${escHtml(ind.target || '')}</td>
-                <td><span class="mne-source-tag">${escHtml(ind.source || '')}</span></td>
+          <tbody id="mne-indicators-body">
+            ${indicators.map((ind, idx) => `
+              <tr data-index="${idx}">
+                <td><textarea class="table-textarea mne-indicator-input" data-field="name" rows="2" placeholder="Indicator text...">${escHtml(ind.name || '')}</textarea></td>
+                <td>
+                  <select class="table-select mne-indicator-input" data-field="type">
+                    <option value="output" ${String(ind.type).toLowerCase() === 'output' ? 'selected' : ''}>Output</option>
+                    <option value="outcome" ${String(ind.type).toLowerCase() === 'outcome' ? 'selected' : ''}>Outcome</option>
+                    <option value="impact" ${String(ind.type).toLowerCase() === 'impact' ? 'selected' : ''}>Impact</option>
+                  </select>
+                </td>
+                <td><input type="text" class="table-input mne-indicator-input" data-field="baseline" value="${escHtml(ind.baseline || '')}" placeholder="Baseline"></td>
+                <td><input type="text" class="table-input mne-indicator-input" data-field="target" value="${escHtml(ind.target || '')}" placeholder="Target"></td>
+                <td><input type="text" class="table-input mne-indicator-input" data-field="source" value="${escHtml(ind.source || '')}" placeholder="Source"></td>
+                <td><button type="button" class="btn-delete-row" data-action="delete-mne-indicator" data-index="${idx}">×</button></td>
               </tr>
             `).join('')}
           </tbody>
         </table>`;
+
+      html += `
+        <div class="table-actions-row">
+          <button type="button" class="btn btn-xs btn-secondary" data-action="add-mne-indicator">+ Add Indicator</button>
+        </div>`;
+      return html + '</div>';
+    } else {
+      let html = '<div class="mne-view">';
+      if (approach) {
+        html += `<div class="mne-approach-card"><strong>Approach</strong><span>${escHtml(approach)}</span></div>`;
+      }
+      if (indicators.length > 0) {
+        html += `
+          <table class="mne-table">
+            <thead>
+              <tr>
+                <th>Indicator Name</th>
+                <th>Type</th>
+                <th>Baseline</th>
+                <th>Target</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${indicators.map(ind => `
+                <tr>
+                  <td><strong>${escHtml(ind.name || '')}</strong></td>
+                  <td><span class="mne-type-badge type-${escHtml(ind.type || '').toLowerCase()}">${escHtml(ind.type || '')}</span></td>
+                  <td>${escHtml(ind.baseline || '')}</td>
+                  <td>${escHtml(ind.target || '')}</td>
+                  <td><span class="mne-source-tag">${escHtml(ind.source || '')}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`;
+      }
+      return html + '</div>';
     }
-    return html + '</div>';
   }
-  if (step === 'cover') {
-    let html = '<div class="section-key-values">';
-    for (const [k, v] of Object.entries(obj)) {
-      if (Array.isArray(v)) html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong><div>${v.map(i => `<div>${typeof i==='object'?escHtml(JSON.stringify(i)):escHtml(i)}</div>`).join('')}</div></div>`;
-      else if (typeof v === 'object') html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong><pre>${escHtml(JSON.stringify(v,null,2))}</pre></div>`;
-      else html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong> ${escHtml(String(v))}</div>`;
+
+  if (step === 'risk_matrix') {
+    const risks = Array.isArray(obj) ? obj : [];
+
+    if (canEdit) {
+      let html = '<div class="risk-editor-view">';
+      html += `
+        <table class="risk-table editable-table">
+          <thead>
+            <tr>
+              <th>Risk Event</th>
+              <th style="width: 100px;">Probability</th>
+              <th style="width: 100px;">Impact</th>
+              <th>Mitigation Action</th>
+              <th style="width: 50px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="risk-rows-body">
+            ${risks.map((r, idx) => `
+              <tr data-index="${idx}">
+                <td><input type="text" class="table-input risk-item-input" data-field="risk" value="${escHtml(r.risk || '')}" placeholder="Risk Description"></td>
+                <td>
+                  <select class="table-select risk-item-input" data-field="probability">
+                    <option value="High" ${r.probability === 'High' ? 'selected' : ''}>High</option>
+                    <option value="Medium" ${r.probability === 'Medium' ? 'selected' : ''}>Medium</option>
+                    <option value="Low" ${r.probability === 'Low' ? 'selected' : ''}>Low</option>
+                  </select>
+                </td>
+                <td>
+                  <select class="table-select risk-item-input" data-field="impact">
+                    <option value="High" ${r.impact === 'High' ? 'selected' : ''}>High</option>
+                    <option value="Medium" ${r.impact === 'Medium' ? 'selected' : ''}>Medium</option>
+                    <option value="Low" ${r.impact === 'Low' ? 'selected' : ''}>Low</option>
+                  </select>
+                </td>
+                <td><input type="text" class="table-input risk-item-input" data-field="mitigation" value="${escHtml(r.mitigation || '')}" placeholder="Mitigation Strategy"></td>
+                <td><button type="button" class="btn-delete-row" data-action="delete-risk" data-index="${idx}">×</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+      html += `
+        <div class="table-actions-row">
+          <button type="button" class="btn btn-xs btn-secondary" data-action="add-risk">+ Add Risk Factor</button>
+        </div>`;
+      return html + '</div>';
+    } else {
+      return `<table class="risk-table"><thead><tr><th>Risk</th><th>Prob.</th><th>Impact</th><th>Mitigation</th></tr></thead><tbody>${risks.map(r => `<tr><td>${escHtml(r.risk||'')}</td><td>${escHtml(r.probability||'')}</td><td>${escHtml(r.impact||'')}</td><td>${escHtml(r.mitigation||'')}</td></tr>`).join('')}</tbody></table>`;
     }
-    return html + '</div>';
   }
+
+  if (step === 'toc') {
+    const nodes = Array.isArray(obj) ? obj : [];
+
+    if (canEdit) {
+      let html = '<div class="toc-editor-view">';
+      html += `
+        <table class="toc-table editable-table">
+          <thead>
+            <tr>
+              <th style="width: 120px;">Level</th>
+              <th>Chain Statement</th>
+              <th style="width: 50px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="toc-nodes-body">
+            ${nodes.map((node, idx) => `
+              <tr data-index="${idx}">
+                <td>
+                  <select class="table-select toc-node-input" data-field="level">
+                    <option value="impact" ${node.level === 'impact' ? 'selected' : ''}>Impact</option>
+                    <option value="outcome" ${node.level === 'outcome' ? 'selected' : ''}>Outcome</option>
+                    <option value="output" ${node.level === 'output' ? 'selected' : ''}>Output</option>
+                    <option value="activity" ${node.level === 'activity' ? 'selected' : ''}>Activity</option>
+                  </select>
+                </td>
+                <td><input type="text" class="table-input toc-node-input" data-field="text" value="${escHtml(node.text || '')}" placeholder="Statement text..."></td>
+                <td><button type="button" class="btn-delete-row" data-action="delete-toc-node" data-index="${idx}">×</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+
+      html += `
+        <div class="table-actions-row">
+          <button type="button" class="btn btn-xs btn-secondary" data-action="add-toc-node">+ Add Chain Step</button>
+        </div>`;
+      return html + '</div>';
+    } else {
+      return `<div class="toc-list">${nodes.map(n => `<div class="toc-node toc-${n.level}"><span class="toc-level">${escHtml(n.level||'')}</span><span class="toc-text">${escHtml(n.text||'')}</span></div>`).join('')}</div>`;
+    }
+  }
+
   if (step === 'logframe') {
-    let html = '<div class="logframe-view">';
-    for (const [k, v] of Object.entries(obj)) html += `<div class="lf-row"><span class="lf-key">${escHtml(k.replace(/_/g,' ').toUpperCase())}</span><span class="lf-val">${escHtml(String(v))}</span></div>`;
-    return html + '</div>';
+    if (canEdit) {
+      let html = '<div class="logframe-editor-grid">';
+      for (const [k, v] of Object.entries(obj)) {
+        const label = formatLabel(k);
+        html += `
+          <div class="editor-field-wrap full-width">
+            <label class="field-label" style="text-transform: uppercase; color: var(--primary); font-weight:700;">${escHtml(label)}</label>
+            <textarea class="field-input logframe-input" data-field="${escHtml(k)}" rows="3" placeholder="Statement...">${escHtml(v)}</textarea>
+          </div>`;
+      }
+      return html + '</div>';
+    } else {
+      let html = '<div class="logframe-view">';
+      for (const [k, v] of Object.entries(obj)) {
+        const label = formatLabel(k);
+        html += `<div class="lf-row"><span class="lf-key">${escHtml(label.toUpperCase())}</span><span class="lf-val">${escHtml(String(v))}</span></div>`;
+      }
+      return html + '</div>';
+    }
   }
   return `<pre>${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
 }
@@ -3989,7 +4360,17 @@ async function generateSection(step) {
     proposalState.generating = false;
     renderWizardSteps();
     renderSectionContent(step);
-    showAdvisorMessage('Sightline Advisor', `${step} section generated. Review, edit, or click "Approve & Continue" when ready.`);
+
+    if (data.overall_score !== undefined) {
+      const scoreMsg = `${step} generated. Quality score: ${data.overall_score}/100`;
+      showAdvisorMessage('Sightline Advisor', scoreMsg);
+      if (data.suggestions && data.suggestions.length > 0) {
+        const suggestionText = data.suggestions.slice(0, 5).join('\n');
+        showAdvisorMessage('M&E Review', suggestionText);
+      }
+    } else {
+      showAdvisorMessage('Sightline Advisor', `${step} section generated. Review, edit, or click "Approve & Continue" when ready.`);
+    }
   } catch (err) {
     proposalState.generating = false;
     renderSectionContent(step);
@@ -4165,6 +4546,343 @@ async function exportProposalMarkdown() {
     a.href = url; a.download = data.filename || 'proposal.md'; a.click();
     URL.revokeObjectURL(url);
   } catch (err) { alert("Export failed: " + err.message); }
+}
+
+function renderProposalToHtml(markdown) {
+  const lines = markdown.split('\n');
+  let html = '';
+  let inList = false;
+  let inTable = false;
+  let tableHeaderDone = false;
+  
+  for (let line of lines) {
+    line = line.trim();
+    
+    // Handle tables
+    if (line.startsWith('|')) {
+      if (line.includes('---|')) {
+        continue;
+      }
+      if (!inTable) {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += '<table>';
+        inTable = true;
+        tableHeaderDone = false;
+      }
+      
+      const cells = line.split('|').map(c => c.trim()).filter((c, i, a) => i > 0 && i < a.length - 1);
+      html += '<tr>';
+      for (const cell of cells) {
+        const cellContent = cell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        if (!tableHeaderDone) {
+          html += `<th>${cellContent}</th>`;
+        } else {
+          html += `<td>${cellContent}</td>`;
+        }
+      }
+      html += '</tr>';
+      if (inTable && !tableHeaderDone) {
+        tableHeaderDone = true;
+      }
+      continue;
+    } else if (inTable) {
+      html += '</table>';
+      inTable = false;
+    }
+    
+    // Handle lists
+    if (line.startsWith('- ')) {
+      if (!inList) {
+        html += '<ul>';
+        inList = true;
+      }
+      let content = line.substring(2);
+      content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      html += `<li>${content}</li>`;
+      continue;
+    } else if (inList) {
+      html += '</ul>';
+      inList = false;
+    }
+    
+    // Handle headers
+    if (line.startsWith('# ')) {
+      html += `<h1>${escHtml(line.substring(2))}</h1>`;
+    } else if (line.startsWith('## ')) {
+      html += `<h2>${escHtml(line.substring(3))}</h2>`;
+    } else if (line.startsWith('### ')) {
+      html += `<h3>${escHtml(line.substring(4))}</h3>`;
+    } else if (line.length > 0) {
+      let content = escHtml(line);
+      content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      html += `<p>${content}</p>`;
+    }
+  }
+  
+  if (inList) html += '</ul>';
+  if (inTable) html += '</table>';
+  
+  return html;
+}
+
+async function exportProposalPDF() {
+  if (!proposalState.activeProposalId) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/export`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow popups to export PDF.");
+      return;
+    }
+
+    const prop = proposalState.activeProposal;
+    const compiledHtml = renderProposalToHtml(data.markdown);
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${escHtml(data.title || 'Proposal')}</title>
+        <meta charset="utf-8">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+          
+          @page {
+            size: A4;
+            margin: 20mm;
+          }
+          
+          body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #1a1a1a;
+            line-height: 1.6;
+            font-size: 13px;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          /* Cover Page */
+          .print-cover-page {
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-after: always;
+            padding: 40px 0;
+            box-sizing: border-box;
+          }
+          
+          .cover-header {
+            border-bottom: 2px solid #e8364e;
+            padding-bottom: 20px;
+          }
+          
+          .cover-logo {
+            font-weight: 700;
+            font-size: 24px;
+            color: #e8364e;
+            letter-spacing: -0.5px;
+          }
+          
+          .cover-logo span {
+            color: #1e293b;
+          }
+          
+          .cover-body {
+            margin-top: 100px;
+          }
+          
+          .cover-tagline {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #64748b;
+            font-weight: 600;
+            margin-bottom: 12px;
+          }
+          
+          .cover-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 38px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #0f172a;
+            margin: 0 0 24px 0;
+          }
+          
+          .cover-metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 30px;
+            margin-top: 40px;
+            max-width: 600px;
+          }
+          
+          .cover-meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          
+          .cover-meta-item strong {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+          }
+          
+          .cover-meta-item span {
+            font-size: 13px;
+            color: #1e293b;
+            font-weight: 500;
+          }
+          
+          .cover-footer {
+            font-size: 10px;
+            color: #64748b;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 20px;
+            display: flex;
+            justify-content: space-between;
+          }
+          
+          /* Document Sections */
+          h1, h2, h3, h4 {
+            color: #0f172a;
+            font-family: 'Inter', sans-serif;
+          }
+          
+          h2 {
+            font-size: 18px;
+            font-weight: 700;
+            border-bottom: 1.5px solid #0f172a;
+            padding-bottom: 6px;
+            margin-top: 40px;
+            color: #0f172a;
+            page-break-before: always;
+          }
+          
+          h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 20px;
+            margin-bottom: 10px;
+          }
+          
+          p {
+            margin: 0 0 12px 0;
+            text-align: justify;
+          }
+          
+          /* Table style */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            page-break-inside: avoid;
+          }
+          
+          th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1.5px solid #cbd5e1;
+            border-top: 1px solid #e2e8f0;
+          }
+          
+          td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 11.5px;
+            color: #334155;
+          }
+          
+          tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          
+          /* Timeline / Theory of Change Lists */
+          ul {
+            margin: 12px 0;
+            padding-left: 20px;
+          }
+          
+          li {
+            margin-bottom: 6px;
+          }
+          
+          @media print {
+            .no-print {
+              display: none;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-cover-page">
+          <div class="cover-header">
+            <div class="cover-logo">Sight<span>line</span></div>
+          </div>
+          <div class="cover-body">
+            <div class="cover-tagline">Humanitarian Project Proposal</div>
+            <h1 class="cover-title">${escHtml(prop.title || 'Untitled Proposal')}</h1>
+            
+            <div class="cover-metadata-grid">
+              <div class="cover-meta-item">
+                <strong>Country</strong>
+                <span>${escHtml(prop.country || 'N/A')}</span>
+              </div>
+              <div class="cover-meta-item">
+                <strong>Donor</strong>
+                <span>${escHtml(prop.donor || 'N/A')}</span>
+              </div>
+              <div class="cover-meta-item">
+                <strong>Sector & Focus</strong>
+                <span>${escHtml(prop.event || 'Emergency Response')}</span>
+              </div>
+              <div class="cover-meta-item">
+                <strong>Date Generated</strong>
+                <span>${new Date().toLocaleDateString()}</span>
+              </div>
+            </div>
+          </div>
+          <div class="cover-footer">
+            <span>Sightline Advisor Studio</span>
+            <span>Confidential Draft Proposal</span>
+          </div>
+        </div>
+        
+        <div class="proposal-content">
+          ${compiledHtml}
+        </div>
+        
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  } catch (err) { alert("PDF Export failed: " + err.message); }
 }
 
 function addAdvisorMessage(sender, text) { showAdvisorMessage(sender, text); }

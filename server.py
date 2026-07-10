@@ -1599,7 +1599,7 @@ def api_agent_chat():
         _user_agent_busy[uid] = True
         _user_agent_busy_since[uid] = _time.time()
 
-    _log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking")})
+    _log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking"), "mode": agent_mode})
     chat_id = _ensure_active_chat(uid)
 
     # Model selection for chat
@@ -1612,6 +1612,27 @@ def api_agent_chat():
 
     # Deep Think: sequential reasoning flag
     use_sequential = model_config.get("sequential", False)
+
+    # Agent mode: analyst (default), proposal, me_reviewer
+    agent_mode = data.get("mode", "analyst")
+    if agent_mode not in ("analyst", "proposal", "me_reviewer"):
+        agent_mode = "analyst"
+
+    # If proposal/review mode, attach proposal_id to config
+    proposal_id = data.get("proposal_id", "")
+    if agent_mode in ("proposal", "me_reviewer") and not proposal_id:
+        # Try to find user's most recent proposal
+        try:
+            _pconn = _chats_db()
+            _prow = _pconn.execute(
+                "SELECT id FROM proposals WHERE uid = ? ORDER BY created_at DESC LIMIT 1",
+                (uid,)
+            ).fetchone()
+            _pconn.close()
+            if _prow:
+                proposal_id = _prow["id"]
+        except Exception:
+            pass
 
 
     def generate():
@@ -1630,8 +1651,9 @@ def api_agent_chat():
                 from langgraph.graph.message import MessagesState
                 from langgraph.prebuilt import ToolNode
 
-                from agent.relief_agent import _build_system_prompt, all_tools
+                from agent.relief_agent import _build_system_prompt, get_tools_for_mode
 
+                mode_tools = get_tools_for_mode(agent_mode)
                 temp_llm = ChatOpenAI(
                     model=selected_model_name,
                     base_url=_LLM_BASE_URL,
@@ -1640,8 +1662,8 @@ def api_agent_chat():
                     max_tokens=MODEL_MAX_TOKENS,
                     timeout=OLLAMA_TIMEOUT,
                 )
-                temp_llm_with_tools = temp_llm.bind_tools(all_tools)
-                _system_prompt_text = _build_system_prompt(use_sequential=use_sequential)
+                temp_llm_with_tools = temp_llm.bind_tools(mode_tools)
+                _system_prompt_text = _build_system_prompt(use_sequential=use_sequential, mode=agent_mode)
 
                 def temp_llm_call(state: MessagesState):
                     messages = state["messages"]
@@ -1652,18 +1674,57 @@ def api_agent_chat():
 
                 _temp_builder = StateGraph(MessagesState)
                 _temp_builder.add_node("llm_call", temp_llm_call)
-                _temp_builder.add_node("tool_node", ToolNode(all_tools))
+                _temp_builder.add_node("tool_node", ToolNode(mode_tools))
                 _temp_builder.add_edge(START, "llm_call")
                 _temp_builder.add_conditional_edges("llm_call", lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__", ["tool_node", "__end__"])
                 _temp_builder.add_edge("tool_node", "llm_call")
                 agent = _temp_builder.compile()
             else:
-                agent = _get_agent()
+                from agent.relief_agent import _build_system_prompt, get_tools_for_mode
+                mode_tools = get_tools_for_mode(agent_mode)
+                _system_prompt_text = _build_system_prompt(use_sequential=use_sequential, mode=agent_mode)
+
+                from langchain_openai import ChatOpenAI
+                from langgraph.graph import START, StateGraph
+                from langgraph.graph.message import MessagesState
+                from langgraph.prebuilt import ToolNode
+
+                _tm = ChatOpenAI(
+                    model=OLLAMA_MODEL,
+                    base_url=_LLM_BASE_URL,
+                    api_key=_LLM_API_KEY,
+                    temperature=MODEL_TEMPERATURE,
+                    max_tokens=MODEL_MAX_TOKENS,
+                    timeout=OLLAMA_TIMEOUT,
+                ).bind_tools(mode_tools)
+
+                def _default_llm_call(state):
+                    messages = state["messages"]
+                    from langchain_core.messages import SystemMessage
+                    if not messages or not isinstance(messages[0], SystemMessage):
+                        messages = [SystemMessage(content=_system_prompt_text)] + messages
+                    return {"messages": _tm.invoke(messages)}
+
+                _b = StateGraph(MessagesState)
+                _b.add_node("llm_call", _default_llm_call)
+                _b.add_node("tool_node", ToolNode(mode_tools))
+                _b.add_edge(START, "llm_call")
+                _b.add_conditional_edges("llm_call", lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__", ["tool_node", "__end__"])
+                _b.add_edge("tool_node", "llm_call")
+                agent = _b.compile()
             full_response = ""
+
+            stream_config = {
+                "recursion_limit": 25,
+                "configurable": {
+                    "uid": uid,
+                    "proposal_id": proposal_id,
+                },
+            }
 
             for chunk, metadata in agent.stream(
                 {"messages": messages_snapshot},
-                config={"recursion_limit": 25},
+                config=stream_config,
                 stream_mode="messages",
             ):
                 node = metadata.get("langgraph_node", "")
@@ -4160,6 +4221,32 @@ def api_proposal_update_section(prop_id, step):
         return jsonify({"message": "Section updated"})
     except Exception as e:
         logger.error(f"api_proposal_update_section error: {prop_id}, {step}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/review", methods=["POST"])
+@require_role("premium")
+def api_proposal_review(prop_id):
+    """Run comprehensive M&E review on the entire proposal."""
+    uid = current_uid()
+    role = current_role()
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        from agent.me_reviewer import review_proposal
+        result = review_proposal(dict(row))
+        _log_event(uid, "proposal_reviewed", {"prop_id": prop_id, "score": result.get("overall_score", 0)})
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"api_proposal_review error: {prop_id}, {e}")
         return jsonify({"error": "Internal server error"}), 500
     finally:
         conn.close()

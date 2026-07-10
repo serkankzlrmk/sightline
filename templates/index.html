@@ -510,6 +510,20 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
         </button>
         <span class="topbar-title">Sightline</span>
+        <div class="mode-selector" id="mode-selector" style="margin-left:auto; display:flex; gap:4px;">
+          <button class="mode-btn active" data-mode="analyst" title="Humanitarian data analyst">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+            <span class="mode-label">Analyst</span>
+          </button>
+          <button class="mode-btn" data-mode="proposal" title="Proposal design expert">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="mode-label">Proposal</span>
+          </button>
+          <button class="mode-btn" data-mode="me_reviewer" title="M&E expert reviewer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span class="mode-label">M&E Review</span>
+          </button>
+        </div>
       </div>
       <div class="chat-scroll" id="chat-messages" role="log" aria-label="Chat messages" aria-live="polite">
         <div class="chat-center">
@@ -690,10 +704,14 @@
               <h2 id="proposal-project-title">Select or Create a Proposal</h2>
               <p id="proposal-project-context" class="text-muted">Step-by-step AI-assisted donor proposal wizard</p>
             </div>
-            <div class="proposal-actions">
+            <div class="proposal-actions" style="display:flex; gap: 8px;">
               <button class="btn btn-secondary btn-sm btn-with-icon" id="btn-proposal-export" disabled>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span>Export</span>
+                <span>Export MD</span>
+              </button>
+              <button class="btn btn-primary btn-sm btn-with-icon" id="btn-proposal-export-pdf" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <span>Export PDF</span>
               </button>
             </div>
           </div>

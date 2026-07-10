@@ -58,7 +58,7 @@ stitch_output/
 
 # Documentation (not needed in image)
 *.md
-!ROADMAP.md
+!AGENTS.md
 
 # Large geojson
 static/ne_*_countries.geojson
