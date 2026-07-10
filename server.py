@@ -2869,6 +2869,12 @@ def api_create_proposal():
     donor = data.get("donor", "ECHO").strip()
     date_from = data.get("date_from", "").strip()
     date_to = data.get("date_to", "").strip()
+    briefing = data.get("briefing", "").strip()
+
+    # If briefing provided, merge it with any reference_text later
+    briefing_text = ""
+    if briefing:
+        briefing_text = f"--- PROJECT BRIEFING (user-provided) ---\n{briefing}"
 
     if not country:
         return jsonify({"error": "Country context is required"}), 400
@@ -2915,19 +2921,20 @@ def api_create_proposal():
         default_step_status["cover"] = "empty"
 
         conn.execute(
-            """INSERT INTO proposals 
+            """INSERT INTO proposals
                (id, uid, title, country, event, themes, donor, date_from, date_to,
                 toc, logframe, narrative, created_at,
                 cover_page, background, needs_assessment, methodology, budget,
                 mne_framework, risk_matrix, sustainability, coordination,
-                current_step, step_status, completed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', '', '', '', '{}', '{}', '[]', '', '', 'cover', ?, NULL)""",
+                current_step, step_status, completed_at, reference_text, reference_filename)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', '', '', '', '{}', '{}', '[]', '', '', 'cover', ?, NULL, ?, '')""",
             (
                 prop_id, uid, title, country, event,
                 json.dumps(themes), donor, date_from, date_to,
                 json.dumps(default_toc), json.dumps(default_logframe), default_narrative,
                 _time.time(),
                 json.dumps(default_step_status),
+                briefing_text,
             )
         )
         conn.commit()
@@ -2957,6 +2964,8 @@ def api_create_proposal():
             "current_step": "cover",
             "step_status": default_step_status,
             "completed_at": None,
+            "has_reference": bool(briefing_text),
+            "reference_filename": "",
         }), 201
     except Exception as e:
         logger.error(f"api_create_proposal error: {e}")
@@ -3064,7 +3073,7 @@ def api_update_proposal(prop_id):
         allowed_fields = [
             "title", "country", "event", "donor", "date_from", "date_to",
             "narrative", "background", "needs_assessment", "methodology",
-            "sustainability", "coordination",
+            "sustainability", "coordination", "reference_text",
         ]
         json_fields = ["themes", "toc", "logframe", "cover_page", "budget", "mne_framework", "risk_matrix"]
 

@@ -3342,6 +3342,12 @@ let proposalState = {
   generating: false,
 };
 
+let proposalSaveTimeout;
+function debouncedSaveProposal() {
+  clearTimeout(proposalSaveTimeout);
+  proposalSaveTimeout = setTimeout(saveActiveProposal, 1000);
+}
+
 async function initProposalPipeline() {
   const btnNew = document.getElementById('btn-new-proposal');
   const btnCreateFirst = document.getElementById('btn-create-first-proposal');
@@ -3371,8 +3377,181 @@ async function initProposalPipeline() {
       const donor = document.getElementById('prop-create-donor').value;
       const themeChecks = document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]:checked');
       const themes = Array.from(themeChecks).map(cb => cb.value);
+      const briefing = document.getElementById('prop-create-briefing').value.trim();
+      const referenceFile = document.getElementById('prop-create-reference').files[0];
       createModal.classList.remove('open');
-      await executeCreateProposal({ title, country, donor, themes });
+      await executeCreateProposal({ title, country, donor, themes, briefing, referenceFile });
+    });
+  }
+
+  // Event delegation for editable proposal elements
+  const workspace = document.getElementById('panel-proposal');
+  if (workspace) {
+    workspace.addEventListener('input', (e) => {
+      if (!proposalState.activeProposal) return;
+      const target = e.target;
+      
+      if (target.classList.contains('cover-input')) {
+        const field = target.dataset.field;
+        if (!proposalState.activeProposal.cover_page) proposalState.activeProposal.cover_page = {};
+        proposalState.activeProposal.cover_page[field] = target.value;
+        debouncedSaveProposal();
+      }
+      
+      if (target.classList.contains('logframe-input')) {
+        const field = target.dataset.field;
+        if (!proposalState.activeProposal.logframe) proposalState.activeProposal.logframe = {};
+        proposalState.activeProposal.logframe[field] = target.value;
+        debouncedSaveProposal();
+      }
+      
+      if (target.classList.contains('budget-meta-input')) {
+        const meta = target.dataset.meta;
+        if (!proposalState.activeProposal.budget) proposalState.activeProposal.budget = {};
+        proposalState.activeProposal.budget[meta] = target.value;
+        debouncedSaveProposal();
+      }
+      
+      if (target.classList.contains('budget-line-input')) {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        if (proposalState.activeProposal.budget && Array.isArray(proposalState.activeProposal.budget.lines)) {
+          proposalState.activeProposal.budget.lines[idx][field] = target.value;
+          debouncedSaveProposal();
+        }
+      }
+      
+      if (target.classList.contains('mne-approach-input')) {
+        if (!proposalState.activeProposal.mne_framework) proposalState.activeProposal.mne_framework = {};
+        proposalState.activeProposal.mne_framework.framework_approach = target.value;
+        debouncedSaveProposal();
+      }
+      
+      if (target.classList.contains('mne-indicator-input') && target.tagName !== 'SELECT') {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        if (proposalState.activeProposal.mne_framework && Array.isArray(proposalState.activeProposal.mne_framework.indicators)) {
+          proposalState.activeProposal.mne_framework.indicators[idx][field] = target.value;
+          debouncedSaveProposal();
+        }
+      }
+      
+      if (target.classList.contains('risk-item-input') && target.tagName !== 'SELECT') {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        if (Array.isArray(proposalState.activeProposal.risk_matrix)) {
+          proposalState.activeProposal.risk_matrix[idx][field] = target.value;
+          debouncedSaveProposal();
+        }
+      }
+      
+      if (target.classList.contains('toc-node-input') && target.tagName !== 'SELECT') {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        if (Array.isArray(proposalState.activeProposal.toc)) {
+          proposalState.activeProposal.toc[idx][field] = target.value;
+          debouncedSaveProposal();
+        }
+      }
+    });
+
+    workspace.addEventListener('change', (e) => {
+      if (!proposalState.activeProposal) return;
+      const target = e.target;
+      
+      if (target.classList.contains('mne-indicator-input') && target.tagName === 'SELECT') {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        proposalState.activeProposal.mne_framework.indicators[idx][field] = target.value;
+        debouncedSaveProposal();
+      }
+      
+      if (target.classList.contains('risk-item-input') && target.tagName === 'SELECT') {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        proposalState.activeProposal.risk_matrix[idx][field] = target.value;
+        debouncedSaveProposal();
+      }
+      
+      if (target.classList.contains('toc-node-input') && target.tagName === 'SELECT') {
+        const tr = target.closest('tr');
+        const idx = parseInt(tr.dataset.index);
+        const field = target.dataset.field;
+        proposalState.activeProposal.toc[idx][field] = target.value;
+        debouncedSaveProposal();
+      }
+    });
+
+    workspace.addEventListener('click', async (e) => {
+      if (!proposalState.activeProposal) return;
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+      const action = target.dataset.action;
+      const step = proposalState.currentStep;
+      
+      if (action === 'add-budget-line') {
+        if (!proposalState.activeProposal.budget) proposalState.activeProposal.budget = {};
+        if (!Array.isArray(proposalState.activeProposal.budget.lines)) proposalState.activeProposal.budget.lines = [];
+        proposalState.activeProposal.budget.lines.push({ category: '', amount: '', percentage: '' });
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'delete-budget-line') {
+        const idx = parseInt(target.dataset.index);
+        proposalState.activeProposal.budget.lines.splice(idx, 1);
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'add-mne-indicator') {
+        if (!proposalState.activeProposal.mne_framework) proposalState.activeProposal.mne_framework = {};
+        if (!Array.isArray(proposalState.activeProposal.mne_framework.indicators)) proposalState.activeProposal.mne_framework.indicators = [];
+        proposalState.activeProposal.mne_framework.indicators.push({ name: '', type: 'output', baseline: '', target: '', source: '' });
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'delete-mne-indicator') {
+        const idx = parseInt(target.dataset.index);
+        proposalState.activeProposal.mne_framework.indicators.splice(idx, 1);
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'add-risk') {
+        if (!Array.isArray(proposalState.activeProposal.risk_matrix)) proposalState.activeProposal.risk_matrix = [];
+        proposalState.activeProposal.risk_matrix.push({ risk: '', probability: 'Medium', impact: 'Medium', mitigation: '' });
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'delete-risk') {
+        const idx = parseInt(target.dataset.index);
+        proposalState.activeProposal.risk_matrix.splice(idx, 1);
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'add-toc-node') {
+        if (!Array.isArray(proposalState.activeProposal.toc)) proposalState.activeProposal.toc = [];
+        proposalState.activeProposal.toc.push({ level: 'output', text: '' });
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
+      
+      if (action === 'delete-toc-node') {
+        const idx = parseInt(target.dataset.index);
+        proposalState.activeProposal.toc.splice(idx, 1);
+        renderSectionContent(step);
+        await saveActiveProposal();
+      }
     });
   }
 
@@ -3431,12 +3610,15 @@ function createNewProposal() {
   document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]').forEach(cb => cb.checked = false);
   createModal.classList.add('open');
 }
-
-async function executeCreateProposal({ title, country, donor, themes }) {
+async function executeCreateProposal({ title, country, donor, themes, briefing, referenceFile }) {
   try {
+    const body = { title, country, event: 'Emergency Response', themes, donor };
+    if (briefing) body.briefing = briefing;
+
     const res = await api('/api/proposals/new', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, country, event: 'Emergency Response', themes, donor })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
     const newProp = await res.json();
     if (newProp.error) throw new Error(newProp.error);
@@ -3444,9 +3626,44 @@ async function executeCreateProposal({ title, country, donor, themes }) {
     proposalState.activeProposalId = newProp.id;
     proposalState.activeProposal = newProp;
     proposalState.currentStep = newProp.current_step || 'cover';
+
+    if (referenceFile) {
+      showAdvisorMessage('System', `Uploading reference: ${referenceFile.name}...`);
+      const formData = new FormData();
+      formData.append('file', referenceFile);
+      const token = localStorage.getItem('id_token') || '';
+      const uploadRes = await fetch(`/api/proposals/${newProp.id}/upload-reference`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const uploadData = await uploadRes.json();
+      if (!uploadData.error) {
+        const refreshed = await api(`/api/proposals/${newProp.id}`);
+        const prop = await refreshed.json();
+        if (!prop.error) proposalState.activeProposal = prop;
+        showAdvisorMessage('System', `Reference uploaded: ${uploadData.filename} (${uploadData.chars} chars)`);
+      }
+    }
+
+    if (briefing) {
+      const putRes = await api(`/api/proposals/${newProp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference_text: `--- PROJECT BRIEFING ---\n${briefing}` }),
+      });
+    }
+
     renderProposalList();
     renderProposalWorkspace();
-  } catch (err) { alert("Could not create proposal: " + err.message); }
+    if (briefing || referenceFile) {
+      showAdvisorMessage('Sightline Advisor', `Proposal created with your briefing and reference document. Click "Generate with AI" on any section — the agent will use your inputs as context.`);
+    } else {
+      showAdvisorMessage('Sightline Advisor', 'Proposal created. Click "Generate with AI" to start. You can add instructions before generating each section.');
+    }
+  } catch (err) {
+    alert("Could not create proposal: " + err.message);
+  }
 }
 
 async function selectProposal(id) {
@@ -3649,7 +3866,70 @@ function renderJsonSection(obj, step) {
     if (step === 'risk_matrix') return `<table class="risk-table"><thead><tr><th>Risk</th><th>Prob.</th><th>Impact</th><th>Mitigation</th></tr></thead><tbody>${obj.map(r => `<tr><td>${escHtml(r.risk||'')}</td><td>${escHtml(r.probability||'')}</td><td>${escHtml(r.impact||'')}</td><td>${escHtml(r.mitigation||'')}</td></tr>`).join('')}</tbody></table>`;
     return `<pre>${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
   }
-  if (step === 'cover' || step === 'budget' || step === 'mne_framework') {
+  if (step === 'budget') {
+    let html = '<div class="budget-view">';
+    html += '<div class="budget-meta-grid">';
+    if (obj.total) html += `<div class="budget-meta-card"><strong>Total Budget</strong><span>${escHtml(obj.total)}</span></div>`;
+    if (obj.currency) html += `<div class="budget-meta-card"><strong>Currency</strong><span>${escHtml(obj.currency)}</span></div>`;
+    if (obj.duration_months) html += `<div class="budget-meta-card"><strong>Duration</strong><span>${escHtml(obj.duration_months)} Months</span></div>`;
+    html += '</div>';
+    
+    if (Array.isArray(obj.lines)) {
+      html += `
+        <table class="budget-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Amount</th>
+              <th>Percentage</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${obj.lines.map(line => `
+              <tr>
+                <td><strong>${escHtml(line.category || '')}</strong></td>
+                <td>${escHtml(line.amount || '')}</td>
+                <td><span class="budget-pct-badge">${escHtml(line.percentage || '')}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+    return html + '</div>';
+  }
+  if (step === 'mne_framework') {
+    let html = '<div class="mne-view">';
+    if (obj.framework_approach) {
+      html += `<div class="mne-approach-card"><strong>Approach</strong><span>${escHtml(obj.framework_approach)}</span></div>`;
+    }
+    if (Array.isArray(obj.indicators)) {
+      html += `
+        <table class="mne-table">
+          <thead>
+            <tr>
+              <th>Indicator Name</th>
+              <th>Type</th>
+              <th>Baseline</th>
+              <th>Target</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${obj.indicators.map(ind => `
+              <tr>
+                <td><strong>${escHtml(ind.name || '')}</strong></td>
+                <td><span class="mne-type-badge type-${escHtml(ind.type || '').toLowerCase()}">${escHtml(ind.type || '')}</span></td>
+                <td>${escHtml(ind.baseline || '')}</td>
+                <td>${escHtml(ind.target || '')}</td>
+                <td><span class="mne-source-tag">${escHtml(ind.source || '')}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+    return html + '</div>';
+  }
+  if (step === 'cover') {
     let html = '<div class="section-key-values">';
     for (const [k, v] of Object.entries(obj)) {
       if (Array.isArray(v)) html += `<div class="kv-row"><strong>${escHtml(k.replace(/_/g,' '))}:</strong><div>${v.map(i => `<div>${typeof i==='object'?escHtml(JSON.stringify(i)):escHtml(i)}</div>`).join('')}</div></div>`;
@@ -3748,11 +4028,12 @@ async function uploadReference() {
   const formData = new FormData();
   formData.append('file', file);
   try {
-    const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/upload-reference`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${authToken}` },
-      body: formData,
-    });
+  const token = localStorage.getItem('id_token') || '';
+  const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/upload-reference`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData,
+  });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);

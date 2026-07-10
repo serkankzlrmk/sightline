@@ -1002,9 +1002,25 @@
             <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Food and Nutrition"> Food & Nutrition</label>
             <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Shelter and Non-Food Items"> Shelter / NFI</label>
             <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Education"> Education</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Cash Assistance"> Cash Assistance</label>
+            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Camp Management"> Camp Management (CCCM)</label>
           </div>
         </div>
-        <div class="up-submit-row" style="margin-top:10px;">
+        <div class="form-group">
+          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">
+            Project Briefing (optional)
+            <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-muted)"> — describe your project or paste CFP/concept note</span>
+          </label>
+          <textarea class="fi" id="prop-create-briefing" rows="5" placeholder="e.g. We plan to provide emergency health services to 15,000 IDPs in Darfur. The project will run for 12 months with a budget around $500k. We're partnering with local NGO X. The main focus is maternal health and outbreak response..." style="width:100%; font-size:13px; resize:vertical;"></textarea>
+        </div>
+        <div class="form-group">
+          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">
+            Reference Document (optional)
+            <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-muted)"> — PDF, DOCX, or TXT</span>
+          </label>
+          <input type="file" id="prop-create-reference" accept=".pdf,.docx,.doc,.txt,.md" style="font-size:12px;">
+        </div>
+        <div class="up-submit-row" style="margin-top:10px; display:flex; gap:10px;">
           <button type="submit" class="btn btn-primary">Create Proposal</button>
         </div>
       </form>
