@@ -59,7 +59,7 @@ Return ONLY the JSON. Do not wrap in markdown code blocks.""",
 
 Call AT MOST 2 tools to gather data. Do not call more than 2 tools — synthesize from what you have.
 - search_knowledge_base: Search for needs assessment reports (call this FIRST)
-- hdx_get_refugees OR hdx_get_idps: Get displacement data (call ONE of these, not both)
+- worldbank_get_indicator: Get socio-economic baseline data if needed
 
 Write a structured needs assessment covering:
 1. **Affected Population Analysis** — Demographics, displacement patterns, vulnerability groups
@@ -71,7 +71,7 @@ Write a structured needs assessment covering:
 Include specific numbers where available. Write in professional markdown.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON. Do not wrap in markdown code blocks.""",
-        "tools": ["search_knowledge_base", "hdx_get_refugees", "worldbank_get_indicator"],
+        "tools": ["search_knowledge_base", "worldbank_get_indicator"],
         "output_format": "json",
     },
 
