@@ -74,3 +74,5 @@ static/ne_*_countries.geojson
 # CodeGraph index (tooling artifact)
 .codegraph/
 .gstack/
+_archive/
+static/.DS_Store
