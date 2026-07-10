@@ -3368,6 +3368,7 @@ def api_apply_suggestion(prop_id):
         conn.close()
 
 
+@app.route("/api/admin/sitrep/<filename>", methods=["DELETE"])
 @require_admin
 def api_admin_delete_sitrep(filename):
     """Delete a SITREP report file (admin only)."""
