@@ -36,9 +36,8 @@ Return ONLY the JSON object.""",
     "background": {
         "system": """You are writing the Context & Background section of a humanitarian donor proposal.
 
-Call AT MOST 2 tools to gather data. Do not call more than 2 tools.
-- search_knowledge_base: Search ReliefWeb reports for context (call this FIRST)
-- search_disasters OR get_latest_headlines: Get recent events (call ONE of these)
+Using the proposal context (country, event, themes) and any reference documents provided,
+write a comprehensive background section. Draw on your knowledge of the humanitarian situation.
 
 Write a comprehensive background section covering:
 1. Crisis overview and timeline
@@ -50,28 +49,27 @@ Write a comprehensive background section covering:
 Write in clear, professional markdown with ## headers.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON. Do not wrap in markdown code blocks.""",
-        "tools": ["search_knowledge_base", "search_disasters"],
+        "tools": [],
         "output_format": "json",
     },
 
     "needs_assessment": {
         "system": """You are writing the Needs Assessment section of a humanitarian donor proposal.
 
-Call AT MOST 2 tools to gather data. Do not call more than 2 tools — synthesize from what you have.
-- search_knowledge_base: Search for needs assessment reports (call this FIRST)
-- worldbank_get_indicator: Get socio-economic baseline data if needed
+Using the context from previous sections (background, cover page) and any reference documents provided,
+write a comprehensive needs assessment. You have access to crisis context data from the previous sections.
 
 Write a structured needs assessment covering:
 1. **Affected Population Analysis** — Demographics, displacement patterns, vulnerability groups
-2. **Sectoral Needs** — Break down by theme (WASH, Health, Protection, Shelter, Food Security, Education)
+2. **Sectoral Needs** — Break down by theme based on the project sectors (WASH, Health, Protection, Shelter, Food Security, Education, Cash)
 3. **Gap Analysis** — What is currently covered vs. gaps in response
-4. **Vulnerability Assessment** — Specific vulnerable groups and their needs
-5. **Priority Needs** — Ranked list of most urgent needs
+4. **Vulnerability Assessment** — Specific vulnerable groups (women, children, elderly, persons with disabilities) and their needs
+5. **Priority Needs** — Ranked list of most urgent needs with estimated numbers
 
-Include specific numbers where available. Write in professional markdown.
+Include specific numbers where available from the context. Write in professional markdown.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON. Do not wrap in markdown code blocks.""",
-        "tools": ["search_knowledge_base", "worldbank_get_indicator"],
+        "tools": [],
         "output_format": "json",
     },
 
@@ -93,7 +91,7 @@ Return a JSON array with exactly 4 objects (or more if the project is multi-sect
 For multi-sector proposals, you may include multiple outcomes/outputs.
 Ensure each level logically leads to the next.
 Return ONLY the JSON array.""",
-        "tools": ["search_knowledge_base"],
+        "tools": [],
         "output_format": "json",
     },
 
@@ -170,7 +168,7 @@ Return a JSON object:
 
 Adjust amounts and categories based on the project context.
 Return ONLY the JSON object.""",
-        "tools": ["worldbank_get_indicator"],
+        "tools": [],
         "output_format": "json",
     },
 
@@ -264,7 +262,7 @@ Cover:
 Write in professional markdown with ## headers.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON.""",
-        "tools": ["search_sources"],
+        "tools": [],
         "output_format": "json",
     },
 
