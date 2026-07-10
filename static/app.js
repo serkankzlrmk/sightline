@@ -2968,6 +2968,9 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'approve-section':
         approveSection(target.dataset.step);
         break;
+      case 'skip-section':
+        skipSection(target.dataset.step);
+        break;
       case 'wizard-select-step':
         wizardSelectStep(target.dataset.step);
         break;
@@ -3411,6 +3414,8 @@ document.addEventListener('click', (e) => {
 });
 
 // ── Proposal Wizard — Step-by-step donor proposal generator ──
+const OPTIONAL_STEPS = ['budget', 'risk_matrix', 'mne_framework', 'sustainability', 'coordination'];
+
 const PROPOSAL_STEPS = [
   { key: 'cover',           label: 'Cover Page',             num: 1 },
   { key: 'background',      label: 'Context & Background',   num: 2 },
@@ -3855,6 +3860,10 @@ function renderProposalWorkspace() {
   if (exportBtn) exportBtn.disabled = false;
   if (exportPdfBtn) exportPdfBtn.disabled = false;
 
+  // Re-bind export buttons (innerHTML replacement kills listeners)
+  if (exportBtn) exportBtn.onclick = exportProposalMarkdown;
+  if (exportPdfBtn) exportPdfBtn.onclick = exportProposalPDF;
+
   const actionsEl = document.querySelector('.proposal-actions');
   if (actionsEl) {
     let refHtml = '';
@@ -3873,6 +3882,11 @@ function renderProposalWorkspace() {
     const existing = actionsEl.innerHTML;
     if (!existing.includes('reference-file-input')) {
       actionsEl.innerHTML = refHtml + existing;
+      // Re-bind after innerHTML change
+      const eb = document.getElementById('btn-proposal-export');
+      const pb = document.getElementById('btn-proposal-export-pdf');
+      if (eb) { eb.disabled = false; eb.onclick = exportProposalMarkdown; }
+      if (pb) { pb.disabled = false; pb.onclick = exportProposalPDF; }
     }
   }
 
@@ -3960,6 +3974,11 @@ function renderSectionContent(step) {
             <button class="btn btn-green btn-sm btn-with-icon" data-action="approve-section" data-step="${step}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               <span>Approve &amp; Continue</span>
+            </button>
+          ` : ''}
+          ${OPTIONAL_STEPS.includes(step) && !sectionContent ? `
+            <button class="btn btn-secondary btn-sm" data-action="skip-section" data-step="${step}">
+              <span>Skip (optional)</span>
             </button>
           ` : ''}
         ` : `<span class="text-muted" style="font-size:12px">Read-only \u2014 upgrade to premium to create proposals</span>`}
@@ -4449,6 +4468,25 @@ async function deleteReference() {
   } catch (err) {
     alert('Remove failed: ' + err.message);
   }
+}
+
+async function skipSection(step) {
+  if (!proposalState.activeProposalId) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skip: true }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    proposalState.currentStep = data.next_step || 'cover';
+    renderWizardSteps();
+    renderSectionContent(proposalState.currentStep);
+    showAdvisorMessage('System', `${step} skipped. Next: ${data.next_step}`);
+  } catch (err) { alert("Skip failed: " + err.message); }
 }
 
 async function approveSection(step) {
