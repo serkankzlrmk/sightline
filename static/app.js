@@ -2869,6 +2869,9 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'generate-section':
         generateSection(target.dataset.step);
         break;
+      case 'save-section':
+        saveSectionManual(target.dataset.step);
+        break;
       case 'approve-section':
         approveSection(target.dataset.step);
         break;
@@ -3503,8 +3506,31 @@ function renderProposalWorkspace() {
     return;
   }
   if (titleEl) titleEl.textContent = prop.title;
-  if (ctxEl) ctxEl.textContent = `${prop.country} | ${prop.donor} | ${prop.event || 'Emergency Response'}`;
+  if (ctxEl) ctxEl.innerHTML = `${prop.country} | ${prop.donor} | ${prop.event || 'Emergency Response'}
+    ${prop.has_reference ? `<span style="margin-left:12px; padding:2px 8px; background:var(--blue); color:#fff; border-radius:4px; font-size:10px;">REF: ${escHtml(prop.reference_filename || 'doc')}</span>` : ''}`;
   if (exportBtn) exportBtn.disabled = false;
+
+  const actionsEl = document.querySelector('.proposal-actions');
+  if (actionsEl) {
+    let refHtml = '';
+    if (prop.can_edit !== false) {
+      refHtml = `
+        <input type="file" id="reference-file-input" accept=".pdf,.docx,.doc,.txt,.md" style="display:none" onchange="uploadReference()">
+        <button class="btn btn-secondary btn-sm btn-with-icon" onclick="document.getElementById('reference-file-input').click()" ${prop.has_reference ? 'disabled' : ''}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>${prop.has_reference ? 'Reference Attached' : 'Upload Reference'}</span>
+        </button>
+        ${prop.has_reference ? `<button class="btn btn-secondary btn-sm" onclick="deleteReference()" title="Remove reference">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>` : ''}
+      `;
+    }
+    const existing = actionsEl.innerHTML;
+    if (!existing.includes('reference-file-input')) {
+      actionsEl.innerHTML = refHtml + existing;
+    }
+  }
+
   renderWizardSteps();
   renderSectionContent(proposalState.currentStep);
 }
@@ -3545,6 +3571,7 @@ function renderSectionContent(step) {
   const stepInfo = PROPOSAL_STEPS.find(s => s.key === step) || {};
   const canEdit = prop.can_edit !== false;
   const sectionContent = getSectionContent(prop, step);
+  const isMarkdownSection = ['background','needs_assessment','methodology','sustainability','coordination','final_review'].includes(step);
 
   contentEl.innerHTML = `
     <div class="wizard-section-inner">
@@ -3552,22 +3579,53 @@ function renderSectionContent(step) {
         <h3>${stepInfo.num || ''}. ${stepInfo.label || step}</h3>
         <span class="wizard-status-badge wizard-status-${status}">${status}</span>
       </div>
+
+      ${canEdit ? `
+        <div class="wizard-instructions-area">
+          <label style="font-size:12px; font-weight:600; display:block; margin-bottom:6px; color:var(--text-muted)">
+            Custom Instructions (optional)
+          </label>
+          <textarea id="wizard-instructions-${step}" class="wizard-instructions-input" rows="2"
+            placeholder="e.g. Focus on women and children. Include 2024 displacement data. Use ECHO HIP template format."
+            style="width:100%; font-size:13px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical;"></textarea>
+        </div>
+      ` : ''}
+
       <div class="wizard-section-body" id="wizard-section-body">
-        ${sectionContent ? renderSectionMarkdown(sectionContent, step) : '<div class="empty-state">No content yet. Click "Generate" to create this section with AI.</div>'}
+        ${sectionContent
+          ? (isMarkdownSection
+            ? `<textarea id="wizard-editor-${step}" class="wizard-content-editor" style="width:100%; min-height:300px; font-family:var(--font-mono, monospace); font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical; line-height:1.6;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</textarea>`
+            : `<pre class="wizard-json-view" style="white-space:pre-wrap; font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); max-height:400px; overflow:auto;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</pre>`)
+          : '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)">No content yet. Write instructions above and click Generate, or just click Generate to let AI create this section.</div>'}
       </div>
-      <div class="wizard-section-actions">
+
+      <div class="wizard-section-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 0; border-top:1px solid var(--border-light);">
         ${canEdit ? `
           <button class="btn btn-primary btn-sm btn-with-icon" data-action="generate-section" data-step="${step}" ${proposalState.generating ? 'disabled' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
             <span>${proposalState.generating ? 'Generating...' : (sectionContent ? 'Regenerate' : 'Generate with AI')}</span>
           </button>
+          ${sectionContent && isMarkdownSection ? `
+            <button class="btn btn-secondary btn-sm btn-with-icon" data-action="save-section" data-step="${step}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span>Save Draft</span>
+            </button>
+          ` : ''}
           ${sectionContent ? `
             <button class="btn btn-green btn-sm btn-with-icon" data-action="approve-section" data-step="${step}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               <span>Approve &amp; Continue</span>
-            </button>` : ''}
-        ` : `<span class="text-muted" style="font-size:12px">Read-only — upgrade to premium to create proposals</span>`}
+            </button>
+          ` : ''}
+        ` : `<span class="text-muted" style="font-size:12px">Read-only \u2014 upgrade to premium to create proposals</span>`}
       </div>
+
+      ${prop.has_reference ? `
+        <div class="reference-attached" style="margin-top:8px; font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>Reference: ${escHtml(prop.reference_filename || 'document')} attached</span>
+        </div>
+      ` : ''}
     </div>`;
 }
 
@@ -3624,11 +3682,24 @@ function renderMarkdown(text) {
 async function generateSection(step) {
   if (!proposalState.activeProposalId || proposalState.generating) return;
   proposalState.generating = true;
-  showAdvisorMessage('Sightline Advisor', `Generating ${step} section... The agent is researching and writing.`);
+
+  const instrEl = document.getElementById(`wizard-instructions-${step}`);
+  const instructions = instrEl ? instrEl.value.trim() : '';
+
+  const editorEl = document.getElementById(`wizard-editor-${step}`);
+  const manualDraft = editorEl ? editorEl.value.trim() : '';
+
+  showAdvisorMessage('Sightline Advisor', `Generating ${step} section...${instructions ? ' Using your instructions.' : ''} The agent is researching and writing.`);
   renderSectionContent(step);
   try {
+    const body = {};
+    if (instructions) body.instructions = instructions;
+    if (manualDraft) body.manual_draft = manualDraft;
+
     const res = await api(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/generate`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -3638,11 +3709,78 @@ async function generateSection(step) {
     proposalState.generating = false;
     renderWizardSteps();
     renderSectionContent(step);
-    showAdvisorMessage('Sightline Advisor', `${step} section generated. Review and click "Approve & Continue" when ready.`);
+    showAdvisorMessage('Sightline Advisor', `${step} section generated. Review, edit, or click "Approve & Continue" when ready.`);
   } catch (err) {
     proposalState.generating = false;
     renderSectionContent(step);
     showAdvisorMessage('System', `Generation failed: ${err.message}`);
+  }
+}
+
+async function saveSectionManual(step) {
+  if (!proposalState.activeProposalId) return;
+  const editorEl = document.getElementById(`wizard-editor-${step}`);
+  if (!editorEl) return;
+  const content = editorEl.value.trim();
+  if (!content) { alert('Nothing to save'); return; }
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/sections/${step}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    showAdvisorMessage('System', 'Draft saved.');
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  }
+}
+
+async function uploadReference() {
+  if (!proposalState.activeProposalId) return;
+  const input = document.getElementById('reference-file-input');
+  if (!input || !input.files[0]) return;
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/upload-reference`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${authToken}` },
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    renderProposalWorkspace();
+    showAdvisorMessage('System', `Reference uploaded: ${data.filename} (${data.chars} chars)`);
+  } catch (err) {
+    alert('Upload failed: ' + err.message);
+  }
+}
+
+async function deleteReference() {
+  if (!proposalState.activeProposalId) return;
+  if (!confirm('Remove reference document?')) return;
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/reference`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    renderProposalWorkspace();
+    showAdvisorMessage('System', 'Reference document removed.');
+  } catch (err) {
+    alert('Remove failed: ' + err.message);
   }
 }
 

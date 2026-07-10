@@ -117,7 +117,8 @@ def _parse_agent_output(response_text: str, step: str) -> dict:
     }
 
 
-def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str) -> dict:
+def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
+                     instructions: str = "", manual_draft: str = "") -> dict:
     """Generate a proposal section using tools and LLM.
 
     Args:
@@ -125,6 +126,8 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str) -> d
         step: Section step name (e.g. 'background', 'needs_assessment')
         proposal_row: Full proposal row as dict
         uid: User ID
+        instructions: User's custom instructions/prompt for this section
+        manual_draft: User's own draft text to use as starting point
 
     Returns:
         {"content": str/dict, "sources": list} or {"error": str}
@@ -135,6 +138,11 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str) -> d
         tools = _get_tools_for_step(step)
 
         user_context = build_user_context(step, proposal_row)
+
+        if instructions:
+            user_context += f"\n\n--- USER INSTRUCTIONS ---\n{instructions}"
+        if manual_draft:
+            user_context += f"\n\n--- USER'S DRAFT (use as starting point, improve and expand) ---\n{manual_draft[:5000]}"
 
         model = _get_model()
         if model is None:

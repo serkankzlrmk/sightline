@@ -520,6 +520,8 @@ def _init_chats_db():
         "current_step":    ("TEXT NOT NULL DEFAULT 'cover'"),
         "step_status":     ("TEXT NOT NULL DEFAULT '{}'"),
         "completed_at":    ("REAL"),
+        "reference_text":  ("TEXT NOT NULL DEFAULT ''"),
+        "reference_filename": ("TEXT NOT NULL DEFAULT ''"),
     }
     for col, coldef in _new_prop_cols.items():
         if col not in prop_cols:
@@ -3027,6 +3029,8 @@ def api_get_proposal_detail(prop_id):
             "completed_at": row["completed_at"],
             "can_edit": can_edit,
             "is_owner": is_owner,
+            "reference_filename": row["reference_filename"] if "reference_filename" in row.keys() else "",
+            "has_reference": bool(row["reference_text"]) if "reference_text" in row.keys() else False,
         })
     except Exception as e:
         logger.error(f"api_get_proposal_detail error: {prop_id}, {e}")
@@ -3796,12 +3800,19 @@ def _update_step_status(conn, prop_id: str, step: str, status: str, uid: str, ro
 @app.route("/api/proposals/<prop_id>/sections/<step>/generate", methods=["POST"])
 @require_role("premium")
 def api_proposal_generate_section(prop_id, step):
-    """Generate a proposal section using the agent with step-specific prompt and tools."""
+    """Generate a proposal section using the agent with step-specific prompt and tools.
+
+    Accepts optional body: {"instructions": "user prompt", "manual_draft": "user's own draft"}
+    """
     if step not in PROPOSAL_SECTIONS:
         return jsonify({"error": f"Invalid section. Must be one of: {', '.join(PROPOSAL_SECTIONS)}"}), 400
 
     uid = current_uid()
     role = current_role()
+    data = request.get_json(silent=True) or {}
+    instructions = (data.get("instructions") or "").strip()
+    manual_draft = (data.get("manual_draft") or "").strip()
+
     row, conn = _get_proposal_for_edit(prop_id, uid, role)
     if not row:
         conn.close() if conn else None
@@ -3816,6 +3827,8 @@ def api_proposal_generate_section(prop_id, step):
             step=step,
             proposal_row=dict(row),
             uid=uid,
+            instructions=instructions,
+            manual_draft=manual_draft,
         )
 
         if "error" in result:
@@ -3830,12 +3843,8 @@ def api_proposal_generate_section(prop_id, step):
                     try:
                         content = json.loads(content)
                     except Exception:
-                        content = content
-                stored = json.dumps(content) if not isinstance(content, str) else content
-                if isinstance(content, (list, dict)):
-                    stored = json.dumps(content)
-                else:
-                    stored = content
+                        pass
+                stored = json.dumps(content) if isinstance(content, (list, dict)) else content
             else:
                 stored = content if isinstance(content, str) else str(content)
 
@@ -3853,6 +3862,127 @@ def api_proposal_generate_section(prop_id, step):
         logger.error(f"api_proposal_generate_section error: {prop_id}, {step}, {e}")
         _update_step_status(conn, prop_id, step, "empty", uid, role)
         return jsonify({"error": f"Section generation failed: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/upload-reference", methods=["POST"])
+@require_role("premium")
+def api_proposal_upload_reference(prop_id):
+    """Upload a reference document (PDF/DOCX/TXT) for the proposal.
+
+    Extracts text and stores it as reference_text for use during section generation.
+    """
+    uid = current_uid()
+    role = current_role()
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT id FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute("SELECT id FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files["file"]
+        if not file.filename:
+            return jsonify({"error": "No filename"}), 400
+
+        from werkzeug.utils import secure_filename
+        filename = secure_filename(file.filename)
+        if not filename:
+            return jsonify({"error": "Invalid filename"}), 400
+
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext not in ("pdf", "docx", "doc", "txt", "md"):
+            return jsonify({"error": f"Unsupported file type: .{ext}. Use PDF, DOCX, or TXT."}), 400
+
+        import tempfile, os as _os
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
+        file.save(tmp.name)
+        tmp.close()
+
+        try:
+            if ext == "pdf":
+                with open(tmp.name, "rb") as _f:
+                    if not _f.read(5).startswith(b"%PDF"):
+                        return jsonify({"error": "Invalid PDF file"}), 400
+                from reliefweb_api.db_manager import extract_pdf_text
+                text, _pages = extract_pdf_text(tmp.name)
+            elif ext in ("docx", "doc"):
+                try:
+                    import docx
+                    doc = docx.Document(tmp.name)
+                    text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+                except ImportError:
+                    return jsonify({"error": "DOCX parsing not available"}), 500
+            else:
+                with open(tmp.name, "r", encoding="utf-8", errors="ignore") as f:
+                    text = f.read()
+
+            text = text.strip()
+            if not text:
+                return jsonify({"error": "No text could be extracted from the file"}), 400
+
+            max_chars = 50000
+            if len(text) > max_chars:
+                text = text[:max_chars] + "\n\n[... document truncated ...]"
+
+            if role == "admin":
+                conn.execute(
+                    "UPDATE proposals SET reference_text = ?, reference_filename = ? WHERE id = ?",
+                    (text, filename, prop_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE proposals SET reference_text = ?, reference_filename = ? WHERE id = ? AND uid = ?",
+                    (text, filename, prop_id, uid)
+                )
+            conn.commit()
+            _log_event(uid, "proposal_reference_uploaded", {"prop_id": prop_id, "filename": filename})
+
+            return jsonify({
+                "message": "Reference document uploaded",
+                "filename": filename,
+                "chars": len(text),
+                "preview": text[:500] + "..." if len(text) > 500 else text,
+            })
+        finally:
+            _os.unlink(tmp.name)
+    except Exception as e:
+        logger.error(f"api_proposal_upload_reference error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/proposals/<prop_id>/reference", methods=["DELETE"])
+@require_role("premium")
+def api_proposal_delete_reference(prop_id):
+    """Remove the reference document from a proposal."""
+    uid = current_uid()
+    role = current_role()
+    conn = _chats_db()
+    try:
+        if role == "admin":
+            row = conn.execute("SELECT id FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        else:
+            row = conn.execute("SELECT id FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        if role == "admin":
+            conn.execute("UPDATE proposals SET reference_text = '', reference_filename = '' WHERE id = ?", (prop_id,))
+        else:
+            conn.execute("UPDATE proposals SET reference_text = '', reference_filename = '' WHERE id = ? AND uid = ?", (prop_id, uid))
+        conn.commit()
+        return jsonify({"message": "Reference document removed"})
+    except Exception as e:
+        logger.error(f"api_proposal_delete_reference error: {prop_id}, {e}")
+        return jsonify({"error": "Internal server error"}), 500
     finally:
         conn.close()
 

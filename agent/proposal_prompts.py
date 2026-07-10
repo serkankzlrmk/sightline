@@ -363,6 +363,10 @@ def build_user_context(step: str, proposal_row: dict) -> str:
         if content and content not in ("", "{}", "[]"):
             parts.append(f"\n--- Previous Section: {prev_step} ---\n{content[:3000]}")
 
+    reference_text = proposal_row.get("reference_text", "")
+    if reference_text:
+        parts.append(f"\n--- REFERENCE DOCUMENT (uploaded by user) ---\n{reference_text[:15000]}")
+
     return "\n".join(parts)
 
 
