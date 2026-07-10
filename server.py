@@ -3988,7 +3988,7 @@ def api_proposal_upload_reference(prop_id):
                     doc = docx.Document(tmp.name)
                     text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
                 except ImportError:
-                    return jsonify({"error": "DOCX parsing not available"}), 500
+                    return jsonify({"error": "DOCX parsing not available. Please upload PDF or TXT instead."}), 400
             else:
                 with open(tmp.name, "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()

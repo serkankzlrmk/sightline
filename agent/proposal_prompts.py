@@ -36,10 +36,9 @@ Return ONLY the JSON object.""",
     "background": {
         "system": """You are writing the Context & Background section of a humanitarian donor proposal.
 
-Use the available tools to gather current crisis information:
-- search_disasters: Find recent disaster/crisis events for the country
-- get_latest_headlines: Get current humanitarian headlines
-- search_knowledge_base: Search ReliefWeb reports for context
+Call AT MOST 2 tools to gather data. Do not call more than 2 tools.
+- search_knowledge_base: Search ReliefWeb reports for context (call this FIRST)
+- search_disasters OR get_latest_headlines: Get recent events (call ONE of these)
 
 Write a comprehensive background section covering:
 1. Crisis overview and timeline
@@ -50,19 +49,17 @@ Write a comprehensive background section covering:
 
 Write in clear, professional markdown with ## headers.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
-Return ONLY the JSON.""",
-        "tools": ["search_disasters", "get_latest_headlines", "search_knowledge_base"],
+Return ONLY the JSON. Do not wrap in markdown code blocks.""",
+        "tools": ["search_knowledge_base", "search_disasters"],
         "output_format": "json",
     },
 
     "needs_assessment": {
         "system": """You are writing the Needs Assessment section of a humanitarian donor proposal.
 
-Use available tools to gather quantitative data:
-- hdx_get_refugees: Get refugee population data for the country
-- hdx_get_idps: Get IDP data
-- search_knowledge_base: Search for needs assessment reports
-- worldbank_get_indicator: Get socio-economic indicators
+Call AT MOST 2 tools to gather data. Do not call more than 2 tools — synthesize from what you have.
+- search_knowledge_base: Search for needs assessment reports (call this FIRST)
+- hdx_get_refugees OR hdx_get_idps: Get displacement data (call ONE of these, not both)
 
 Write a structured needs assessment covering:
 1. **Affected Population Analysis** — Demographics, displacement patterns, vulnerability groups
@@ -73,8 +70,8 @@ Write a structured needs assessment covering:
 
 Include specific numbers where available. Write in professional markdown.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
-Return ONLY the JSON.""",
-        "tools": ["hdx_get_refugees", "hdx_get_idps", "search_knowledge_base", "worldbank_get_indicator"],
+Return ONLY the JSON. Do not wrap in markdown code blocks.""",
+        "tools": ["search_knowledge_base", "hdx_get_refugees", "worldbank_get_indicator"],
         "output_format": "json",
     },
 

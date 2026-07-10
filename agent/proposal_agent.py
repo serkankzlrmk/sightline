@@ -209,7 +209,11 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
             response = model.invoke(messages)
             response_text = response.content if hasattr(response, "content") else str(response)
 
-        response_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
+        import re as _re2
+        response_text = _re2.sub(r"<think>.*?</think>", "", response_text, flags=_re2.DOTALL).strip()
+        response_text = _re2.sub(r"\u271d.*?\u271d", "", response_text, flags=_re2.DOTALL).strip()
+        if not response_text:
+            return {"error": "Agent returned empty response after processing. Please try again or write the section manually."}
 
         result = _parse_agent_output(response_text, step)
 
