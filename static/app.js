@@ -3473,9 +3473,9 @@ async function initProposalPipeline() {
       const themeChecks = document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]:checked');
       const themes = Array.from(themeChecks).map(cb => cb.value);
       const briefing = document.getElementById('prop-create-briefing').value.trim();
-      const referenceFile = document.getElementById('prop-create-reference').files[0];
+      const referenceFiles = document.getElementById('prop-create-reference').files;
       createModal.classList.remove('open');
-      await executeCreateProposal({ title, country, donor, themes, briefing, referenceFile });
+      await executeCreateProposal({ title, country, donor, themes, briefing, referenceFiles });
     });
   }
 
@@ -3705,7 +3705,7 @@ function createNewProposal() {
   document.querySelectorAll('#prop-create-themes-check input[type="checkbox"]').forEach(cb => cb.checked = false);
   createModal.classList.add('open');
 }
-async function executeCreateProposal({ title, country, donor, themes, briefing, referenceFile }) {
+async function executeCreateProposal({ title, country, donor, themes, briefing, referenceFiles }) {
   try {
     const body = { title, country, event: 'Emergency Response', themes, donor };
     if (briefing) body.briefing = briefing;
@@ -3722,10 +3722,12 @@ async function executeCreateProposal({ title, country, donor, themes, briefing, 
     proposalState.activeProposal = newProp;
     proposalState.currentStep = newProp.current_step || 'cover';
 
-    if (referenceFile) {
-      showAdvisorMessage('System', `Uploading reference: ${referenceFile.name}...`);
+    if (referenceFiles && referenceFiles.length > 0) {
+      showAdvisorMessage('System', `Uploading ${referenceFiles.length} reference file(s)...`);
       const formData = new FormData();
-      formData.append('file', referenceFile);
+      for (const file of referenceFiles) {
+        formData.append('file', file);
+      }
       const token = localStorage.getItem('id_token') || '';
       const uploadRes = await fetch(`/api/proposals/${newProp.id}/upload-reference`, {
         method: 'POST',
@@ -3737,12 +3739,12 @@ async function executeCreateProposal({ title, country, donor, themes, briefing, 
         const refreshed = await api(`/api/proposals/${newProp.id}`);
         const prop = await refreshed.json();
         if (!prop.error) proposalState.activeProposal = prop;
-        showAdvisorMessage('System', `Reference uploaded: ${uploadData.filename} (${uploadData.chars} chars)`);
+        showAdvisorMessage('System', `${uploadData.files ? uploadData.files.length : 1} file(s) uploaded (${uploadData.chars} chars total)`);
       }
     }
 
     if (briefing) {
-      const putRes = await api(`/api/proposals/${newProp.id}`, {
+      await api(`/api/proposals/${newProp.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reference_text: `--- PROJECT BRIEFING ---\n${briefing}` }),
@@ -3751,8 +3753,8 @@ async function executeCreateProposal({ title, country, donor, themes, briefing, 
 
     renderProposalList();
     renderProposalWorkspace();
-    if (briefing || referenceFile) {
-      showAdvisorMessage('Sightline Advisor', `Proposal created with your briefing and reference document. Click "Generate with AI" on any section — the agent will use your inputs as context.`);
+    if (briefing || (referenceFiles && referenceFiles.length > 0)) {
+      showAdvisorMessage('Sightline Advisor', `Proposal created with your briefing and reference document(s). Click "Generate with AI" on any section — the agent will use your inputs as context.`);
     } else {
       showAdvisorMessage('Sightline Advisor', 'Proposal created. Click "Generate with AI" to start. You can add instructions before generating each section.');
     }
@@ -3858,7 +3860,7 @@ function renderProposalWorkspace() {
     let refHtml = '';
     if (prop.can_edit !== false) {
       refHtml = `
-        <input type="file" id="reference-file-input" accept=".pdf,.docx,.doc,.txt,.md" style="display:none" onchange="uploadReference()">
+        <input type="file" id="reference-file-input" accept=".pdf,.docx,.doc,.txt,.md" multiple style="display:none" onchange="uploadReference()">
         <button class="btn btn-secondary btn-sm btn-with-icon" onclick="document.getElementById('reference-file-input').click()" ${prop.has_reference ? 'disabled' : ''}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           <span>${prop.has_reference ? 'Reference Attached' : 'Upload Reference'}</span>
@@ -4404,24 +4406,27 @@ async function saveSectionManual(step) {
 async function uploadReference() {
   if (!proposalState.activeProposalId) return;
   const input = document.getElementById('reference-file-input');
-  if (!input || !input.files[0]) return;
-  const file = input.files[0];
+  if (!input || !input.files.length) return;
   const formData = new FormData();
-  formData.append('file', file);
+  for (const file of input.files) {
+    formData.append('file', file);
+  }
+  input.value = '';
   try {
-  const token = localStorage.getItem('id_token') || '';
-  const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/upload-reference`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: formData,
-  });
+    const token = localStorage.getItem('id_token') || '';
+    const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/upload-reference`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
     const prop = await refreshed.json();
     if (!prop.error) proposalState.activeProposal = prop;
     renderProposalWorkspace();
-    showAdvisorMessage('System', `Reference uploaded: ${data.filename} (${data.chars} chars)`);
+    const fileCount = data.files ? data.files.length : 1;
+    showAdvisorMessage('System', `${fileCount} file(s) uploaded: ${data.filename || ''} (${data.chars} chars total)${data.errors && data.errors.length ? ' | Errors: ' + data.errors.join('; ') : ''}`);
   } catch (err) {
     alert('Upload failed: ' + err.message);
   }
@@ -4460,7 +4465,17 @@ async function approveSection(step) {
     proposalState.currentStep = data.next_step || 'cover';
     renderWizardSteps();
     renderSectionContent(proposalState.currentStep);
-    showAdvisorMessage('Sightline Advisor', `✓ ${step} approved! Next: ${data.next_step}`);
+    showAdvisorMessage('Sightline Advisor', `\u2713 ${step} approved! Next: ${data.next_step}`);
+
+    if (data.validation && data.validation.warnings && data.validation.warnings.length > 0) {
+      const v = data.validation;
+      let msg = `Cross-section check: ${v.summary}\n`;
+      for (const w of v.warnings.slice(0, 5)) {
+        const icon = w.severity === 'high' ? '\uD83D\uDD34' : w.severity === 'medium' ? '\uD83D\uDFE1' : '\u26AA';
+        msg += `${icon} ${w.check}: ${w.message}\n`;
+      }
+      showAdvisorMessage('M&e Validator', msg);
+    }
   } catch (err) { alert("Approve failed: " + err.message); }
 }
 

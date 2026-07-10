@@ -3939,9 +3939,10 @@ def api_proposal_generate_section(prop_id, step):
 @app.route("/api/proposals/<prop_id>/upload-reference", methods=["POST"])
 @require_role("premium")
 def api_proposal_upload_reference(prop_id):
-    """Upload a reference document (PDF/DOCX/TXT) for the proposal.
+    """Upload reference document(s) (PDF/DOCX/TXT) for the proposal.
 
-    Extracts text and stores it as reference_text for use during section generation.
+    Supports multiple files — text from all files is concatenated.
+    Extracts text and stores as reference_text for use during section generation.
     """
     uid = current_uid()
     role = current_role()
@@ -3954,74 +3955,99 @@ def api_proposal_upload_reference(prop_id):
         if not row:
             return jsonify({"error": "Proposal not found"}), 404
 
-        if "file" not in request.files:
+        files = request.files.getlist("file")
+        if not files or not files[0].filename:
             return jsonify({"error": "No file uploaded"}), 400
 
-        file = request.files["file"]
-        if not file.filename:
-            return jsonify({"error": "No filename"}), 400
-
         from werkzeug.utils import secure_filename
-        filename = secure_filename(file.filename)
-        if not filename:
-            return jsonify({"error": "Invalid filename"}), 400
-
-        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        if ext not in ("pdf", "docx", "doc", "txt", "md"):
-            return jsonify({"error": f"Unsupported file type: .{ext}. Use PDF, DOCX, or TXT."}), 400
-
         import tempfile, os as _os
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
-        file.save(tmp.name)
-        tmp.close()
 
-        try:
-            if ext == "pdf":
-                with open(tmp.name, "rb") as _f:
-                    if not _f.read(5).startswith(b"%PDF"):
-                        return jsonify({"error": "Invalid PDF file"}), 400
-                from reliefweb_api.db_manager import extract_pdf_text
-                text, _pages = extract_pdf_text(tmp.name)
-            elif ext in ("docx", "doc"):
-                try:
-                    import docx
-                    doc = docx.Document(tmp.name)
-                    text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
-                except ImportError:
-                    return jsonify({"error": "DOCX parsing not available. Please upload PDF or TXT instead."}), 400
-            else:
-                with open(tmp.name, "r", encoding="utf-8", errors="ignore") as f:
-                    text = f.read()
+        all_texts = []
+        all_filenames = []
+        errors = []
 
-            text = text.strip()
-            if not text:
-                return jsonify({"error": "No text could be extracted from the file"}), 400
+        for file in files:
+            filename = secure_filename(file.filename or "")
+            if not filename:
+                continue
 
-            max_chars = 50000
-            if len(text) > max_chars:
-                text = text[:max_chars] + "\n\n[... document truncated ...]"
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            if ext not in ("pdf", "docx", "doc", "txt", "md"):
+                errors.append(f"{filename}: unsupported type (.{ext})")
+                continue
 
-            if role == "admin":
-                conn.execute(
-                    "UPDATE proposals SET reference_text = ?, reference_filename = ? WHERE id = ?",
-                    (text, filename, prop_id)
-                )
-            else:
-                conn.execute(
-                    "UPDATE proposals SET reference_text = ?, reference_filename = ? WHERE id = ? AND uid = ?",
-                    (text, filename, prop_id, uid)
-                )
-            conn.commit()
-            _log_event(uid, "proposal_reference_uploaded", {"prop_id": prop_id, "filename": filename})
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
+            file.save(tmp.name)
+            tmp.close()
 
-            return jsonify({
-                "message": "Reference document uploaded",
-                "filename": filename,
-                "chars": len(text),
-                "preview": text[:500] + "..." if len(text) > 500 else text,
-            })
-        finally:
-            _os.unlink(tmp.name)
+            try:
+                if ext == "pdf":
+                    with open(tmp.name, "rb") as _f:
+                        if not _f.read(5).startswith(b"%PDF"):
+                            errors.append(f"{filename}: invalid PDF")
+                            continue
+                    from reliefweb_api.db_manager import extract_pdf_text
+                    text, _pages = extract_pdf_text(tmp.name)
+                elif ext in ("docx", "doc"):
+                    try:
+                        import docx
+                        doc = docx.Document(tmp.name)
+                        text = "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+                    except ImportError:
+                        errors.append(f"{filename}: DOCX parsing not available")
+                        continue
+                else:
+                    with open(tmp.name, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
+
+                text = text.strip()
+                if text:
+                    all_texts.append(f"--- {filename} ---\n{text}")
+                    all_filenames.append(filename)
+                else:
+                    errors.append(f"{filename}: no text extracted")
+            finally:
+                _os.unlink(tmp.name)
+
+        if not all_texts:
+            return jsonify({"error": "No text could be extracted. " + "; ".join(errors)}), 400
+
+        combined_text = "\n\n".join(all_texts)
+        max_chars = 50000
+        if len(combined_text) > max_chars:
+            combined_text = combined_text[:max_chars] + "\n\n[... documents truncated ...]"
+
+        combined_filename = ", ".join(all_filenames)
+
+        # Merge with existing reference text if present
+        existing_row = conn.execute("SELECT reference_text FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+        existing_text = ""
+        if existing_row and existing_row["reference_text"]:
+            existing_text = existing_row["reference_text"]
+            combined_text = existing_text + "\n\n" + combined_text
+            if len(combined_text) > max_chars:
+                combined_text = combined_text[:max_chars] + "\n\n[... documents truncated ...]"
+
+        if role == "admin":
+            conn.execute(
+                "UPDATE proposals SET reference_text = ?, reference_filename = ? WHERE id = ?",
+                (combined_text, combined_filename, prop_id)
+            )
+        else:
+            conn.execute(
+                "UPDATE proposals SET reference_text = ?, reference_filename = ? WHERE id = ? AND uid = ?",
+                (combined_text, combined_filename, prop_id, uid)
+            )
+        conn.commit()
+        _log_event(uid, "proposal_reference_uploaded", {"prop_id": prop_id, "files": all_filenames})
+
+        return jsonify({
+            "message": f"{len(all_filenames)} file(s) uploaded",
+            "filename": combined_filename,
+            "files": all_filenames,
+            "chars": len(combined_text),
+            "errors": errors,
+        })
     except Exception as e:
         logger.error(f"api_proposal_upload_reference error: {prop_id}, {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -4158,11 +4184,26 @@ def api_proposal_approve_section(prop_id, step):
 
         _log_event(uid, "proposal_section_approved", {"prop_id": prop_id, "step": step, "next_step": next_step})
 
+        # Run cross-section validation after every 3rd step or on final
+        validation_result = None
+        if (current_idx + 1) % 3 == 0 or is_final:
+            try:
+                from agent.validation import validate_cross_sections
+                if role == "admin":
+                    full_row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
+                else:
+                    full_row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+                if full_row:
+                    validation_result = validate_cross_sections(dict(full_row))
+            except Exception as val_err:
+                logger.warning(f"Cross-section validation failed: {val_err}")
+
         return jsonify({
             "message": f"Section '{step}' approved",
             "next_step": next_step,
             "step_status": step_status,
             "completed": is_final,
+            "validation": validation_result,
         })
     except Exception as e:
         logger.error(f"api_proposal_approve_section error: {prop_id}, {step}, {e}")
@@ -4224,6 +4265,18 @@ def api_proposal_update_section(prop_id, step):
         return jsonify({"error": "Internal server error"}), 500
     finally:
         conn.close()
+
+
+@app.route("/api/donor-templates", methods=["GET"])
+@require_auth
+def api_donor_templates():
+    """List available donor templates."""
+    try:
+        from agent.donor_templates import list_templates
+        return jsonify(list_templates())
+    except Exception as e:
+        logger.error(f"api_donor_templates error: {e}")
+        return jsonify([]), 500
 
 
 @app.route("/api/proposals/<prop_id>/review", methods=["POST"])

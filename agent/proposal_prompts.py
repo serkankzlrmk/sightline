@@ -307,6 +307,14 @@ def build_user_context(step: str, proposal_row: dict) -> str:
     parts.append(f"Donor: {proposal_row.get('donor', '')}")
 
     try:
+        from agent.donor_templates import get_template_directive
+        donor_directive = get_template_directive(proposal_row.get('donor', ''))
+        if donor_directive:
+            parts.append(f"\n--- DONOR FORMAT REQUIREMENTS ---\n{donor_directive}")
+    except ImportError:
+        pass
+
+    try:
         themes = json.loads(proposal_row.get("themes", "[]"))
         if isinstance(themes, str):
             themes = [t.strip() for t in themes.split(",") if t.strip()]
