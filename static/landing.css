@@ -50,6 +50,7 @@ a { color: inherit; text-decoration: none; }
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  transition: opacity 1.0s ease;
 }
 #sketchfab-viewer {
   width: 100%;
@@ -66,6 +67,24 @@ a { color: inherit; text-decoration: none; }
   background: radial-gradient(ellipse at center, transparent 0%, rgba(3,3,5,0.3) 70%, rgba(3,3,5,0.6) 100%);
   z-index: 1;
   pointer-events: none;
+}
+
+/* ── Hologram Earth (Section 6 transition) ── */
+#hologram-container {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  pointer-events: none;
+}
+#hologram-container.active {
+  opacity: 1;
+}
+#hologram-viewer {
+  width: 100%;
+  height: 100%;
+  border: none;
 }
 
 /* ── Loading Screen ── */

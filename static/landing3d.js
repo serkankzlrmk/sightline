@@ -46,7 +46,9 @@
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 3.5);
+    // Hero: camera high, looking down — earth small at bottom, stars dominant
+    camera.position.set(2.0, -1.5, 4.2);
+    camera.lookAt(0, 0, 0);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -228,21 +230,47 @@
 
     // ── Scroll-driven camera ──
     if (camera && earth) {
-      var angle = scrollProgress * Math.PI * 1.7;
-      var radius = 3.5 - scrollProgress * 0.6;
-      var targetX = Math.sin(angle) * radius;
-      var targetZ = Math.cos(angle) * radius;
-      var targetY = scrollProgress * 1.5;
+      // Phase 1 (0-0.15): Hero — camera high up, earth small at bottom, stars dominant
+      // Phase 2 (0.15-0.85): Earth rises to center, camera orbits around Turkey → around world
+      // Phase 3 (0.85-1.0): Transition to hologram (earth fades out)
+      
+      var startAngle = 35 * Math.PI / 180; // Turkey meridian
+      var angle, radius, targetX, targetY, targetZ;
 
-      camera.position.x += (targetX - camera.position.x) * 0.03;
-      camera.position.y += (targetY - camera.position.y) * 0.03;
-      camera.position.z += (targetZ - camera.position.z) * 0.03;
+      if (scrollProgress < 0.15) {
+        // Hero: earth at bottom, small, stars dominant
+        var heroT = scrollProgress / 0.15; // 0 → 1
+        radius = 5.0 - heroT * 0.8; // far → closer
+        angle = startAngle;
+        targetX = Math.sin(angle) * radius;
+        targetZ = Math.cos(angle) * radius;
+        targetY = -1.5 + heroT * 0.5; // below center, rising slightly
+      } else if (scrollProgress < 0.85) {
+        // Main orbit: earth rises to center, camera orbits
+        var mainT = (scrollProgress - 0.15) / 0.70; // 0 → 1
+        angle = startAngle + mainT * Math.PI * 1.7;
+        radius = 4.2 - mainT * 1.0; // zoom in
+        targetX = Math.sin(angle) * radius;
+        targetZ = Math.cos(angle) * radius;
+        targetY = -1.0 + mainT * 2.5; // rises from bottom to upper
+      } else {
+        // Final section: move back, prepare for hologram
+        var endT = (scrollProgress - 0.85) / 0.15; // 0 → 1
+        angle = startAngle + Math.PI * 1.7;
+        radius = 3.2 + endT * 1.5; // pull back
+        targetX = Math.sin(angle) * radius;
+        targetZ = Math.cos(angle) * radius;
+        targetY = 1.5 + endT * 0.5;
+      }
+
+      camera.position.x += (targetX - camera.position.x) * 0.04;
+      camera.position.y += (targetY - camera.position.y) * 0.04;
+      camera.position.z += (targetZ - camera.position.z) * 0.04;
       camera.lookAt(0, 0, 0);
       earth.rotation.x = scrollProgress * 0.2;
 
-      // ── Section transition: when entering SITREP (section 2), darken earth ──
+      // ── SITREP section transition: darken earth ──
       if (dayMaterial && dayMaterial.uniforms) {
-        // Section 2 (SITREP) starts at progress ~0.28, ends at ~0.42
         var sitrepStart = 2 / NUM_SECTIONS;
         var sitrepEnd = 3 / NUM_SECTIONS;
         var sitrepProgress = 0;
@@ -251,8 +279,32 @@
         } else if (scrollProgress > sitrepEnd) {
           sitrepProgress = 1.0 - Math.min((scrollProgress - sitrepEnd) / 0.1, 1.0);
         }
-        // Smooth: 0 in normal sections, rises during SITREP
         dayMaterial.uniforms.nightMix.value = Math.max(0, sitrepProgress) * 0.6;
+      }
+
+      // ── Final section: fade out 3D globe, show hologram ──
+      var hologramContainer = document.getElementById('hologram-container');
+      var threeContainer = document.getElementById('sketchfab-container');
+      if (scrollProgress > 0.82) {
+        var holoT = (scrollProgress - 0.82) / 0.18; // 0 → 1
+        // Fade in hologram
+        if (hologramContainer) {
+          if (!hologramContainer.dataset.loaded) {
+            hologramContainer.dataset.loaded = '1';
+            var hologramFrame = document.getElementById('hologram-viewer');
+            if (hologramFrame && !hologramFrame.src) {
+              hologramFrame.src = 'https://sketchfab.com/models/7d9805604f744974baebbd9d6dcfd868/embed?autostart=1&preload=1&ui_infos=0&ui_controls=0&ui_watermark=0&ui_inspector=0&ui_settings=0&ui_help=0&ui_hints=0&ui_annotations=0&ui_stop=0&ui_start=0&ui_fullscreen=0&ui_collapse=0&autospin=0.5&transparent=1';
+            }
+          }
+          hologramContainer.style.opacity = holoT;
+        }
+        // Fade out 3D globe
+        if (threeContainer) {
+          threeContainer.style.opacity = 1 - holoT;
+        }
+      } else {
+        if (hologramContainer) hologramContainer.style.opacity = 0;
+        if (threeContainer) threeContainer.style.opacity = 1;
       }
     }
 
