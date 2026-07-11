@@ -10,7 +10,7 @@
     return;
   }
 
-  var NUM_SECTIONS = 8;
+  var NUM_SECTIONS = 7;
   var currentSection = -1;
   var scrollProgress = 0;
 
@@ -260,7 +260,7 @@
         if (atmosphere) atmosphere.visible = true;
         var mainT = (scrollProgress - 0.12) / 0.73; // 0 → 1
         angle = startAngle + mainT * Math.PI * 1.7;
-        radius = 5.2 - mainT * 1.8; // zoom in
+        radius = 3.5 - mainT * 1.3; // zoom in closer
         targetX = Math.sin(angle) * radius;
         targetZ = Math.cos(angle) * radius;
         targetY = -1.5 + mainT * 2.8; // rises from bottom to upper
@@ -268,7 +268,7 @@
         // Final section: keep earth visible but fade container
         var endT = (scrollProgress - 0.85) / 0.15; // 0 → 1
         angle = startAngle + Math.PI * 1.7;
-        radius = 3.4 + endT * 1.0;
+        radius = 2.2 + endT * 1.0;
         targetX = Math.sin(angle) * radius;
         targetZ = Math.cos(angle) * radius;
         targetY = 1.3 + endT * 0.3;

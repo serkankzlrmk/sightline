@@ -181,20 +181,28 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto 24px;
 }
 .lp-hero-logo img {
-  width: 80px; height: 80px;
-  border-radius: 16px;
+  width: 60px; height: 60px;
+  border-radius: 14px;
   filter: drop-shadow(0 8px 24px rgba(232,54,78,0.3));
+  margin-bottom: 8px;
 }
 .lp-hero-brand {
   font-family: 'Playfair Display', serif;
-  font-size: clamp(48px, 8vw, 96px);
+  font-size: clamp(36px, 6vw, 64px);
   font-weight: 800;
-  letter-spacing: -2px;
+  letter-spacing: -1px;
   background: linear-gradient(180deg, #ffffff 0%, #888888 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   text-shadow: 0 0 80px rgba(232,54,78,0.15);
+  margin-bottom: 16px;
+}
+.lp-hero-brand + .lp-hero-tag {
+  margin-bottom: 20px;
+}
+.lp-hero-brand + .lp-hero-tag + .lp-hero-title {
+  margin-top: 0;
 }
 
 /* ── Scroll Container ── */
