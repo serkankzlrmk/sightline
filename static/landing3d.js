@@ -322,12 +322,23 @@
 
     sections.forEach(function(s) { observer.observe(s); });
 
-    // Progress bar
+    // Progress bar + nav hide on scroll
     if (scrollContainer) {
       scrollContainer.addEventListener('scroll', function() {
         var max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
         var progress = max > 0 ? scrollContainer.scrollTop / max : 0;
         if (spFill) spFill.style.height = (progress * 100) + '%';
+        // Hide nav login button after scrolling past hero
+        var nav = document.querySelector('.lp-nav');
+        if (nav) {
+          if (scrollContainer.scrollTop > 100) {
+            nav.style.opacity = '0';
+            nav.style.pointerEvents = 'none';
+          } else {
+            nav.style.opacity = '1';
+            nav.style.pointerEvents = 'auto';
+          }
+        }
       }, { passive: true });
     }
 

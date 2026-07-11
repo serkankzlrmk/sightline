@@ -52,10 +52,7 @@
   <!-- Nav -->
   <nav class="lp-nav">
     <div class="lp-nav-inner">
-      <a href="/" class="lp-logo">
-        <img src="/static/logo.png" alt="Sightline" class="lp-nav-logo">
-        <span class="lp-logo-text">Sightline</span>
-      </a>
+      <div></div>
       <div class="lp-nav-cta">
         <a href="/app" class="lp-btn lp-btn-ghost">Login</a>
       </div>
@@ -82,13 +79,14 @@
         <div class="lp-hero-tag">Humanitarian Intelligence Platform</div>
         <h2 class="lp-hero-title">Write reports and proposals<br><span class="lp-accent">in minutes, not days</span></h2>
         <p class="lp-hero-desc">Sightline aggregates data from 59 humanitarian sources and uses AI to generate situation reports, donor proposals, and weekly bulletins automatically.</p>
-        <div class="lp-hero-actions">
-          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg">Start Free →</a>
-        </div>
         <div class="lp-hero-stats">
           <div class="lp-stat"><strong>89K+</strong><span>Reports</span></div>
           <div class="lp-stat"><strong>143</strong><span>Countries</span></div>
           <div class="lp-stat"><strong>59</strong><span>Sources</span></div>
+        </div>
+        <div class="scroll-hint" id="scroll-hint-hero">
+          <span>Explore the platform</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
         </div>
       </div>
     </section>
@@ -201,11 +199,11 @@
               <li>SITREP + PDF export</li>
               <li>M&E quality scoring</li>
             </ul>
-            <a href="mailto:contact@YOUR_PROJECT_ID.com?subject=Premium" class="lp-btn lp-btn-primary lp-btn-block">Get Premium</a>
+            <button class="lp-btn lp-btn-primary lp-btn-block" onclick="return false;">Get Premium</button>
           </div>
         </div>
 
-        <button class="lp-btn lp-btn-primary lp-btn-lg lp-cta-start" style="margin-top:32px;">Start Free →</button>
+        <button class="lp-btn lp-btn-primary lp-btn-lg lp-cta-start" style="margin-top:32px;">Jump In →</button>
 
         <footer class="lp-footer">
           <p>© 2026 Sightline · ReliefWeb · HDX · World Bank · GDACS</p>
