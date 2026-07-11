@@ -35,19 +35,23 @@
   var earthVisible = false;
 
   // Camera positions for each section
+  // Turkey is at ~35°E — camera should start at that angle
+  // Earth texture: 0° = prime meridian (Greenwich), positive = east
+  // To face Turkey: camera at angle = 35° from center
+  var turkeyAngle = 35 * Math.PI / 180;
   var sectionCameras = [
     // Section 0: Hero — looking up at stars, earth hidden
     { pos: { x: 0, y: -10, z: 0.5 }, look: { x: 0, y: 10, z: 0 }, earth: false },
-    // Section 1: Data sources — earth rises, Turkey facing
-    { pos: { x: 2.0, y: -0.5, z: 2.85 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 2: SITREP — orbit right
-    { pos: { x: 2.5, y: 0.5, z: 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 1: Data sources — earth rises with Turkey facing, close
+    { pos: { x: Math.sin(turkeyAngle) * 2.5, y: 0, z: Math.cos(turkeyAngle) * 2.5 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 2: SITREP — orbit right, slight tilt
+    { pos: { x: Math.sin(turkeyAngle + 0.6) * 2.3, y: 0.4, z: Math.cos(turkeyAngle + 0.6) * 2.3 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 3: Proposals — orbit further
-    { pos: { x: 1.5, y: 1.2, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: Math.sin(turkeyAngle + 1.2) * 2.1, y: 0.8, z: Math.cos(turkeyAngle + 1.2) * 2.1 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 4: Bulletins — orbit left
-    { pos: { x: -1.8, y: 0.8, z: 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: Math.sin(turkeyAngle + 1.8) * 2.0, y: 0.6, z: Math.cos(turkeyAngle + 1.8) * 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 5: M&E Quality — high angle
-    { pos: { x: -2.0, y: 1.8, z: 1.5 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: Math.sin(turkeyAngle + 2.4) * 1.8, y: 1.4, z: Math.cos(turkeyAngle + 2.4) * 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 6: CTA — back to stars, earth hidden
     { pos: { x: 0, y: -10, z: 0.5 }, look: { x: 0, y: 10, z: 0 }, earth: false }
   ];
@@ -244,14 +248,14 @@
       starFields[i].rotation.y += 0.00003 * (i + 1);
     }
 
-    // Smooth camera lerp
-    camera.position.x += (targetCameraPos.x - camera.position.x) * 0.025;
-    camera.position.y += (targetCameraPos.y - camera.position.y) * 0.025;
-    camera.position.z += (targetCameraPos.z - camera.position.z) * 0.025;
+    // Smooth camera lerp — faster for responsive feel
+    camera.position.x += (targetCameraPos.x - camera.position.x) * 0.06;
+    camera.position.y += (targetCameraPos.y - camera.position.y) * 0.06;
+    camera.position.z += (targetCameraPos.z - camera.position.z) * 0.06;
 
-    currentLookAt.x += (targetLookAt.x - currentLookAt.x) * 0.025;
-    currentLookAt.y += (targetLookAt.y - currentLookAt.y) * 0.025;
-    currentLookAt.z += (targetLookAt.z - currentLookAt.z) * 0.025;
+    currentLookAt.x += (targetLookAt.x - currentLookAt.x) * 0.06;
+    currentLookAt.y += (targetLookAt.y - currentLookAt.y) * 0.06;
+    currentLookAt.z += (targetLookAt.z - currentLookAt.z) * 0.06;
     camera.lookAt(currentLookAt.x, currentLookAt.y, currentLookAt.z);
 
     // Earth visibility
