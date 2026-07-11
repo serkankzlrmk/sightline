@@ -8,7 +8,7 @@
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const ADMIN_EMAIL = 'serkankizilirmak@gmail.com';
-const TAB_NAMES = ['home', 'agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
+const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
 const DEFAULT_MODEL = 'thinking';
 const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
@@ -221,6 +221,15 @@ function switchTab(name) {
     document.body.classList.add('sidebar-hidden');
     if (main) main.style.marginLeft = '0';
     if (hamburger) hamburger.style.display = '';
+  } else if (name === 'crisis-map') {
+    if (sidebar) sidebar.classList.remove('hidden');
+    document.body.classList.remove('sidebar-hidden');
+    if (sidebar && sidebar.classList.contains('collapsed')) {
+      if (main) main.style.marginLeft = '72px';
+    } else {
+      if (main) main.style.marginLeft = '';
+    }
+    if (hamburger) hamburger.style.display = '';
     setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
   } else {
     if (sidebar) sidebar.classList.remove('hidden');
@@ -241,7 +250,8 @@ function switchTab(name) {
     }
   }
 
-  if (name === 'home') loadDashboard();
+  if (name === 'home') loadCommandCenter();
+  if (name === 'crisis-map') loadDashboard();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2062,6 +2072,82 @@ function humanizeWeekLabel(label) {
   return `${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${ed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMAND CENTER (Home tab)
+// ═══════════════════════════════════════════════════════════════════════════
+
+let ccLoaded = false;
+
+async function loadCommandCenter() {
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  const isAuthed = !!tok;
+
+  // Auth CTA
+  const authCta = document.getElementById('cc-auth-cta');
+  if (authCta) authCta.style.display = isAuthed ? 'none' : 'block';
+
+  // Country dropdown
+  try {
+    const res = await api('/api/public/countries');
+    const countries = await res.json();
+    const sel = document.getElementById('cc-sitrep-country');
+    if (sel && Array.isArray(countries)) {
+      sel.innerHTML = '<option value="">Ülke seç...</option>' +
+        countries.slice(0, 50).map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    }
+  } catch {}
+
+  // Recent proposals (authed only)
+  if (isAuthed) {
+    try {
+      const res = await api('/api/proposals');
+      const proposals = await res.json();
+      const container = document.getElementById('cc-recent-proposals');
+      if (container && Array.isArray(proposals) && proposals.length > 0) {
+        container.innerHTML = '<div style="font-size:11px; color:var(--text-muted); margin-top:8px;">Recent:</div>' +
+          proposals.slice(0, 3).map(p =>
+            `<div class="cc-recent-item" data-action="cc-open-proposal" data-id="${p.id}" style="font-size:12px; padding:4px 0; cursor:pointer; color:var(--blue);">${escHtml(p.title)}</div>`
+          ).join('');
+      }
+    } catch {}
+  }
+
+  // Latest bulletin preview
+  try {
+    const res = await api('/api/public/bulletins');
+    const data = await res.json();
+    const bulletins = data.bulletins || data || [];
+    if (Array.isArray(bulletins) && bulletins.length > 0) {
+      const latest = bulletins[0];
+      const preview = document.getElementById('cc-bulletin-preview');
+      if (preview) {
+        preview.innerHTML = `<div style="font-size:13px;"><strong>${escHtml(latest.week_label || 'Latest')}</strong><br><span style="color:var(--text-muted)">${latest.crisis_count || ''} crises analyzed</span></div>`;
+      }
+    }
+  } catch {}
+}
+
+function ccStartSitrep() {
+  const sel = document.getElementById('cc-sitrep-country');
+  const country = sel ? sel.value : '';
+  switchTab('sitrep');
+  if (country) {
+    setTimeout(() => {
+      const inp = document.getElementById('inp-country');
+      if (inp) inp.value = country;
+    }, 200);
+  }
+}
+
+function ccStartProposal() {
+  switchTab('proposal');
+  setTimeout(() => createNewProposal(), 300);
+}
+
+function ccStartBulletin() {
+  switchTab('bulletin');
+}
+
 async function loadDashboard() {
   if (dashboardLoaded) return;
   dashboardLoaded = true;
@@ -2991,6 +3077,27 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'go-db':
         switchTab('db');
+        break;
+      case 'cc-start-sitrep':
+        ccStartSitrep();
+        break;
+      case 'cc-start-proposal':
+        ccStartProposal();
+        break;
+      case 'cc-start-bulletin':
+        ccStartBulletin();
+        break;
+      case 'cc-open-crisis-map':
+        switchTab('crisis-map');
+        break;
+      case 'cc-open-db':
+        switchTab('db');
+        break;
+      case 'cc-open-agent':
+        switchTab('agent');
+        break;
+      case 'cc-open-proposal':
+        selectProposal(target.dataset.id);
         break;
       case 'go-sitrep-country':
          switchTab('sitrep');

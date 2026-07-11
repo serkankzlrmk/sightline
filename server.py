@@ -1251,7 +1251,12 @@ def api_admin_update_config():
 
 
 @app.route("/")
-def index():
+def landing():
+    return render_template("landing.html", v=int(_time.time()))
+
+
+@app.route("/app")
+def spa():
     return render_template("index.html", v=int(_time.time()))
 
 

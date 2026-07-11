@@ -103,6 +103,10 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <span class="sidebar-tab-label">Home</span>
     </button>
+    <button class="sidebar-tab" id="tab-crisis-map" data-tab="crisis-map" aria-label="Crisis Map">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <span class="sidebar-tab-label">Map</span>
+    </button>
     <button class="sidebar-tab" id="tab-agent" data-tab="agent" aria-label="Chat">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span class="sidebar-tab-label">Chat</span>
@@ -153,8 +157,77 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
 
-  <!-- ─── TAB: HOME DASHBOARD ─────────────────── -->
+  <!-- ─── TAB: COMMAND CENTER (HOME) ─────────── -->
   <div class="panel active relative h-screen w-full overflow-y-auto overflow-x-hidden" id="panel-home">
+    <div class="command-center">
+      <div class="cc-header">
+        <h1>Ne üreteceksin?</h1>
+        <p class="cc-subtitle">Sightline ile insani yardım raporları ve donor proposal'ları dakikalarda oluşturun</p>
+      </div>
+      <div class="cc-doors">
+        <div class="cc-door" id="cc-door-sitrep">
+          <div class="cc-door-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3>Durum Raporu</h3>
+          <p>Ülke seç, 10-stage AI pipeline otomatik SITREP üretsin</p>
+          <div class="cc-door-action">
+            <select class="cc-door-select" id="cc-sitrep-country">
+              <option value="">Ülke seç...</option>
+            </select>
+            <button class="btn btn-primary btn-sm" data-action="cc-start-sitrep">Başlat</button>
+          </div>
+        </div>
+
+        <div class="cc-door cc-door-featured" id="cc-door-proposal">
+          <div class="cc-door-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3>Donor Proposal</h3>
+          <p>12 adımda ECHO / USAID / OCHA formatında proposal</p>
+          <div class="cc-door-action">
+            <button class="btn btn-primary btn-sm" data-action="cc-start-proposal">Yeni Proposal</button>
+          </div>
+          <div class="cc-recent-proposals" id="cc-recent-proposals"></div>
+        </div>
+
+        <div class="cc-door" id="cc-door-bulletin">
+          <div class="cc-door-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M16 8h2m-6 4h6m-6 4h6M6 8h4v8H6z"/></svg>
+          </div>
+          <h3>Haftalık Bülten</h3>
+          <p>Her hafta otomatik üretilen küresel durum özeti</p>
+          <div class="cc-bulletin-preview" id="cc-bulletin-preview">
+            <p class="text-muted" style="font-size:13px">Loading latest bulletin...</p>
+          </div>
+          <button class="btn btn-primary btn-sm" data-action="cc-start-bulletin">Bülteni Gör</button>
+        </div>
+      </div>
+
+      <div class="cc-secondary">
+        <button class="cc-secondary-btn" data-action="cc-open-crisis-map">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          Kriz Haritası
+        </button>
+        <button class="cc-secondary-btn" data-action="cc-open-db">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          Veritabanı
+        </button>
+        <button class="cc-secondary-btn" data-action="cc-open-agent">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M4 14h16M4 18h16M4 10h16"/><rect x="2" y="6" width="20" height="16" rx="2"/></svg>
+          AI Analist
+        </button>
+      </div>
+
+      <div class="cc-auth-cta" id="cc-auth-cta" style="display:none">
+        <p>Üretim araçlarını kullanmak için giriş yapın — Free tier mevcut</p>
+        <button class="btn btn-primary" id="cc-login-btn">Google ile giriş</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TAB: CRISIS MAP (OLD DASHBOARD) ─────────── -->
+  <div class="panel relative h-screen w-full overflow-y-auto overflow-x-hidden" id="panel-crisis-map" style="display:none">
     
     <!-- Full-width World Map (Leaflet) — hero section (Absolute Background) -->
     <div class="absolute inset-0 z-0" id="dash-map-wrap" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
