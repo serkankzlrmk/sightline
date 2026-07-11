@@ -1,5 +1,4 @@
-/* ── Sightline 3D Globe — Three.js Scroll-Driven ── */
-/* Custom 3D earth, no Sketchfab dependency */
+/* ── Sightline 3D Landing — Sketchfab Scroll-Driven Camera ── */
 
 (function() {
   'use strict';
@@ -11,194 +10,94 @@
     return;
   }
 
+  var MODEL_UID = '2b691638fa034aca919abb9e4d77c632';
   var NUM_SECTIONS = 7;
+  var api = null;
   var currentSection = -1;
   var scrollProgress = 0;
 
-  // ── Three.js setup ──
-  var scene, camera, renderer, globe, atmosphere, stars;
-  var container = document.getElementById('sketchfab-container');
+  var iframe = document.getElementById('sketchfab-viewer');
+  var loader = document.getElementById('loading-screen');
 
-  // Reuse the container div for our canvas
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'sketchfab-container';
-    document.body.insertBefore(container, document.body.firstChild);
-  }
-  container.innerHTML = '';
-  container.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;';
-
-  function initThree() {
-    // Load Three.js dynamically
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
-    script.onload = startScene;
-    script.onerror = function() {
-      console.warn('[Sightline 3D] Three.js failed to load');
-      hideLoader();
-      initScroll();
-    };
-    document.head.appendChild(script);
+  function hideLoader() {
+    if (loader) loader.classList.add('hidden');
   }
 
-  function startScene() {
-    if (typeof THREE === 'undefined') {
-      console.warn('[Sightline 3D] THREE not available');
+  function initSketchfab() {
+    if (typeof Sketchfab === 'undefined') {
+      console.warn('[Sightline 3D] Sketchfab API not loaded, using embed only');
       hideLoader();
       initScroll();
       return;
     }
 
-    scene = new THREE.Scene();
+    var client = new Sketchfab('1.12.1', iframe);
 
-    // Camera
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 3.5);
+    client.init(MODEL_UID, {
+      autostart: 1,
+      preload: 1,
+      max_texture_size: 2048,
+      ui_infos: 0,
+      ui_controls: 0,
+      ui_watermark: 0,
+      ui_inspector: 0,
+      ui_settings: 0,
+      ui_help: 0,
+      ui_hints: 0,
+      ui_annotations: 0,
+      ui_stop: 0,
+      ui_start: 0,
+      ui_fullscreen: 0,
+      ui_collapse: 0,
+      transparent: 1,
+      autospin: 0.5,
+      success_cb: 'onSketchfabReady',
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x050507, 1);
-    container.appendChild(renderer.domElement);
+      success: function(_api) {
+        api = _api;
+        api.start();
 
-    // ── Earth Globe ──
-    // NASA Blue Marble texture (public domain)
-    var loader = new THREE.TextureLoader();
-    loader.crossOrigin = 'anonymous';
+        api.addEventListener('viewerready', function() {
+          hideLoader();
 
-    // Use a simple colored sphere with a nice material as fallback
-    var geometry = new THREE.SphereGeometry(1, 64, 64);
+          // Get camera eye for rotation control
+          try {
+            api.getCameraLookAt(function(result) {
+              if (result) {
+                window.__camEye = result.position || [0, 0, 5];
+                window.__camTarget = result.target || [0, 0, 0];
+              }
+            });
+          } catch(e) {}
 
-    // Try loading earth texture, fallback to solid color
-    var earthTexture = loader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg',
-      function() { hideLoader(); },
-      undefined,
-      function() {
-        // Fallback: use a nice gradient material
-        globe.material = new THREE.MeshPhongMaterial({
-          color: 0x1a4d7a,
-          emissive: 0x0a2a4a,
-          shininess: 25,
-          specular: 0x335577
+          initScroll();
         });
+      },
+
+      error: function() {
         hideLoader();
+        console.warn('[Sightline 3D] Sketchfab init failed, embed only');
+        initScroll();
       }
-    );
-
-    globe = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
-      map: earthTexture,
-      shininess: 15,
-      specular: 0x222244
-    }));
-    scene.add(globe);
-
-    // ── Atmosphere glow (outer sphere) ──
-    var atmGeo = new THREE.SphereGeometry(1.08, 64, 64);
-    var atmMat = new THREE.ShaderMaterial({
-      vertexShader: [
-        'varying vec3 vNormal;',
-        'void main() {',
-        '  vNormal = normalize(normalMatrix * normal);',
-        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-        '}'
-      ].join('\n'),
-      fragmentShader: [
-        'varying vec3 vNormal;',
-        'void main() {',
-        '  float intensity = pow(0.65 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);',
-        '  gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;',
-        '}'
-      ].join('\n'),
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      transparent: true
     });
-    atmosphere = new THREE.Mesh(atmGeo, atmMat);
-    scene.add(atmosphere);
-
-    // ── Stars ──
-    var starGeo = new THREE.BufferGeometry();
-    var starCount = 3000;
-    var positions = new Float32Array(starCount * 3);
-    for (var i = 0; i < starCount * 3; i += 3) {
-      var r = 50 + Math.random() * 100;
-      var theta = Math.random() * Math.PI * 2;
-      var phi = Math.random() * Math.PI;
-      positions[i] = r * Math.sin(phi) * Math.cos(theta);
-      positions[i + 1] = r * Math.sin(phi) * Math.sin(theta);
-      positions[i + 2] = r * Math.cos(phi);
-    }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    var starMat = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.15,
-      transparent: true,
-      opacity: 0.8,
-      sizeAttenuation: true
-    });
-    stars = new THREE.Points(starGeo, starMat);
-    scene.add(stars);
-
-    // ── Lighting ──
-    var ambient = new THREE.AmbientLight(0x404060, 0.5);
-    scene.add(ambient);
-
-    var sun = new THREE.DirectionalLight(0xffffff, 1.2);
-    sun.position.set(5, 3, 5);
-    scene.add(sun);
-
-    var rim = new THREE.DirectionalLight(0x4488ff, 0.3);
-    rim.position.set(-5, -2, -3);
-    scene.add(rim);
-
-    // ── Resize ──
-    window.addEventListener('resize', function() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    // ── Animation loop ──
-    animate();
-
-    // Init scroll
-    initScroll();
   }
 
-  function animate() {
-    requestAnimationFrame(animate);
-
-    if (globe) {
-      // Base slow rotation
-      globe.rotation.y += 0.0008;
-
-      // Scroll-driven rotation
-      globe.rotation.x = scrollProgress * 0.5;
-      globe.rotation.y += scrollProgress * 0.01;
-
-      // Camera zoom: closer as you scroll down
-      var targetZ = 3.5 - scrollProgress * 1.5;
-      camera.position.z += (targetZ - camera.position.z) * 0.05;
-
-      // Camera tilt
-      camera.position.y = scrollProgress * 1.5;
-      camera.lookAt(0, 0, 0);
+  function rotateCamera(api, progress) {
+    if (!api) return;
+    try {
+      var eye = window.__camEye || [0, 0, 5];
+      var target = window.__camTarget || [0, 0, 0];
+      var radius = Math.sqrt(eye[0]*eye[0] + eye[2]*eye[2]) || 5;
+      var angle = progress * Math.PI * 2;
+      var newEye = [
+        Math.sin(angle) * radius,
+        eye[1] + progress * 1.5,
+        Math.cos(angle) * radius
+      ];
+      api.setCameraLookAt(newEye, target, 0.5);
+    } catch(e) {
+      console.warn('[Sightline 3D] Camera rotation failed:', e);
     }
-
-    if (stars) {
-      stars.rotation.y += 0.0002;
-    }
-
-    if (renderer && scene && camera) {
-      renderer.render(scene, camera);
-    }
-  }
-
-  function hideLoader() {
-    var loader = document.getElementById('loading-screen');
-    if (loader) loader.classList.add('hidden');
   }
 
   // ── Scroll handler ──
@@ -208,7 +107,6 @@
     var spDotsContainer = document.getElementById('sp-dots');
     var scrollHint = document.getElementById('scroll-hint');
 
-    // Create progress dots
     if (spDotsContainer) {
       for (var i = 0; i < NUM_SECTIONS; i++) {
         var dot = document.createElement('div');
@@ -235,13 +133,16 @@
       scrollProgress = maxScroll > 0 ? scrollY / maxScroll : 0;
 
       if (spFill) spFill.style.height = (scrollProgress * 100) + '%';
-
       if (scrollHint && scrollY > 50) scrollHint.classList.add('hidden');
 
       var section = Math.min(Math.floor(scrollProgress * NUM_SECTIONS), NUM_SECTIONS - 1);
 
       if (section !== currentSection) {
         activateSection(section, sections, dots);
+        // Animate camera on section change
+        if (api) {
+          rotateCamera(api, scrollProgress);
+        }
       }
 
       ticking = false;
@@ -262,14 +163,13 @@
   }
 
   // ── Start ──
-  // Timeout fallback
   setTimeout(function() {
     hideLoader();
-    if (typeof THREE === 'undefined') {
+    if (typeof THREE === 'undefined' && typeof Sketchfab === 'undefined') {
       initScroll();
     }
-  }, 8000);
+  }, 10000);
 
-  initThree();
+  initSketchfab();
 
 })();

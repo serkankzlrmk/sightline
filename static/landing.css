@@ -58,6 +58,16 @@ a { color: inherit; text-decoration: none; }
   pointer-events: none;
 }
 
+/* Dark overlay for text readability on 3D */
+#sketchfab-container::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5,5,7,0.6) 0%, rgba(5,5,7,0.3) 50%, rgba(5,5,7,0.7) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
 /* ── Loading Screen ── */
 #loading-screen {
   position: fixed;
