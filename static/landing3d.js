@@ -26,8 +26,6 @@
   var scene, camera, renderer, earth, clouds, atmosphere;
   var starFields = [];
   var loader = document.getElementById('loading-screen');
-  var texturesLoaded = 0;
-  var totalTextures = 4;
   var dayMaterial;
   var targetCameraPos = { x: 0, y: -4, z: 0.5 };
   var targetLookAt = { x: 0, y: 5, z: 0 };
@@ -90,7 +88,16 @@
     texLoader.crossOrigin = 'anonymous';
     var base = '/static/textures/';
 
-    function onTex() { texturesLoaded++; if (texturesLoaded >= totalTextures) hideLoader(); }
+    var texturesLoaded = 0;
+    var totalTextures = 5; // albedo + night + ocean + clouds + bump
+
+    function onTex() {
+      texturesLoaded++;
+      if (texturesLoaded >= totalTextures) {
+        hideLoader();
+        initScroll();
+      }
+    }
 
     var dayTex = texLoader.load(base + 'earth_albedo.jpg', onTex);
     dayTex.colorSpace = THREE.SRGBColorSpace;
@@ -105,7 +112,7 @@
     var cloudsTex = texLoader.load(base + 'earth_clouds.png', onTex);
     cloudsTex.colorSpace = THREE.SRGBColorSpace;
 
-    var bumpTex = texLoader.load(base + 'earth_bump.jpg');
+    var bumpTex = texLoader.load(base + 'earth_bump.jpg', onTex);
 
     // ── Earth shader ──
     var earthGeo = new THREE.SphereGeometry(1, 128, 128);
@@ -233,12 +240,13 @@
     });
 
     // ── Set initial camera (Section 0: stars only) ──
-    targetCameraPos = { x: 0, y: -10, z: 0.5 };
-    targetLookAt = { x: 0, y: 10, z: 0 };
+    targetCameraPos = { x: 0, y: -4, z: 0.5 };
+    targetLookAt = { x: 0, y: 5, z: 0 };
     currentSection = 0;
 
+    // Start animation loop immediately (renders stars while textures load)
     animate();
-    initScroll();
+    // initScroll() is called when all textures finish loading (onTex callback)
   }
 
   function animate() {
@@ -392,10 +400,13 @@
   }
 
   // ── Start ──
+  // Fallback: if textures don't load in 15s, proceed anyway
   setTimeout(function() {
     hideLoader();
-    if (typeof THREE === 'undefined') initScroll();
-  }, 8000);
+    if (currentSection === 0 && typeof THREE !== 'undefined') {
+      initScroll();
+    }
+  }, 15000);
 
   initThree();
 
