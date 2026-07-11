@@ -69,22 +69,21 @@ a { color: inherit; text-decoration: none; }
   pointer-events: none;
 }
 
-/* ── Hologram Earth (Section 6 transition) ── */
-#hologram-container {
+/* ── Video Overlay (Start Free → intro video → /app) ── */
+#video-overlay {
+  display: none;
   position: fixed;
   inset: 0;
-  z-index: 0;
-  opacity: 0;
-  transition: opacity 1.2s ease;
-  pointer-events: none;
+  z-index: 99999;
+  background: #000;
+  align-items: center;
+  justify-content: center;
 }
-#hologram-container.active {
-  opacity: 1;
-}
-#hologram-viewer {
+#video-overlay.active { display: flex; }
+#intro-video {
   width: 100%;
   height: 100%;
-  border: none;
+  object-fit: cover;
 }
 
 /* ── Loading Screen ── */
@@ -210,6 +209,9 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   z-index: 1;
   pointer-events: none;
+  scroll-snap-type: y mandatory;
+  height: 100vh;
+  overflow-y: scroll;
 }
 
 /* ── Sections ── */
@@ -217,17 +219,20 @@ a { color: inherit; text-decoration: none; }
   min-height: 100vh;
   display: flex;
   align-items: center;
-  padding: 80px 24px;
+  justify-content: center;
+  padding: 60px 24px;
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.8s ease;
   pointer-events: none;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 .lp-section.active {
   opacity: 1;
   pointer-events: auto;
 }
 .lp-section-inner {
-  max-width: 560px;
+  max-width: 600px;
   pointer-events: auto;
 }
 .lp-section-right .lp-section-inner {
@@ -240,6 +245,10 @@ a { color: inherit; text-decoration: none; }
 .lp-section-center .lp-section-inner {
   margin: 0 auto;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Hero ── */

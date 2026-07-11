@@ -33,17 +33,6 @@
   <!-- 3D Background (Three.js Canvas) -->
   <div id="sketchfab-container"></div>
 
-  <!-- Hologram Earth (shown in Section 6 CTA) -->
-  <div id="hologram-container">
-    <iframe id="hologram-viewer"
-      src="https://sketchfab.com/models/7d9805604f744974baebbd9d6dcfd868/embed?autostart=1&preload=1&ui_infos=0&ui_controls=0&ui_watermark=0&ui_inspector=0&ui_settings=0&ui_help=0&ui_hints=0&ui_annotations=0&ui_stop=0&ui_start=0&ui_fullscreen=0&ui_collapse=0&autospin=0.5&transparent=1"
-      allow="autoplay; fullscreen; xr-spatial-tracking"
-      allowautoplay="yes"
-      frameborder="0"
-      title="Hologram Earth">
-    </iframe>
-  </div>
-
   <!-- Loading Screen -->
   <div id="loading-screen">
     <div class="ls-inner">
@@ -60,12 +49,6 @@
     </div>
   </div>
 
-  <!-- Scroll Hint -->
-  <div class="scroll-hint" id="scroll-hint">
-    <span>Scroll to explore</span>
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-  </div>
-
   <!-- Nav -->
   <nav class="lp-nav">
     <div class="lp-nav-inner">
@@ -79,11 +62,18 @@
     </div>
   </nav>
 
+  <!-- Video Overlay (Start Free → intro video → /app) -->
+  <div id="video-overlay">
+    <video id="intro-video" muted>
+      <source src="/static/videos/intro.mp4" type="video/mp4">
+    </video>
+  </div>
+
   <!-- Content Sections (overlay on 3D) -->
   <main id="scroll-container">
 
-    <!-- Section 0: Hero (Sightline brand + tagline together) -->
-    <section class="lp-section" data-section="0">
+    <!-- Section 0: Hero — Stars only, Sightline brand + tagline -->
+    <section class="lp-section active" data-section="0">
       <div class="lp-section-inner lp-section-center">
         <div class="lp-hero-logo">
           <img src="/static/logo.png" alt="Sightline">
@@ -181,10 +171,12 @@
       </div>
     </section>
 
-    <!-- Section 6: CTA + Pricing -->
+    <!-- Section 6: CTA — Stars only, earth hidden, video redirect -->
     <section class="lp-section" data-section="6">
       <div class="lp-section-inner lp-section-center">
-        <span class="lp-section-num">06</span>
+        <div class="lp-hero-logo">
+          <img src="/static/logo.png" alt="Sightline">
+        </div>
         <h2>Ready to write your next<br>report in minutes?</h2>
         <p>Free tier — no credit card. Start generating situation reports and donor proposals today.</p>
 
@@ -197,7 +189,7 @@
               <li>1 proposal/month</li>
               <li>Read-only reports</li>
             </ul>
-            <a href="/app" class="lp-btn lp-btn-ghost lp-btn-block">Start Free</a>
+            <button class="lp-btn lp-btn-ghost lp-btn-block lp-cta-start">Start Free</button>
           </div>
           <div class="lp-pricing-card lp-pricing-featured">
             <div class="lp-price-badge">Recommended</div>
@@ -213,7 +205,7 @@
           </div>
         </div>
 
-        <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg lp-cta-final">Start Free →</a>
+        <button class="lp-btn lp-btn-primary lp-btn-lg lp-cta-start" style="margin-top:32px;">Start Free →</button>
 
         <footer class="lp-footer">
           <p>© 2026 Sightline · ReliefWeb · HDX · World Bank · GDACS</p>
