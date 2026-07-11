@@ -46,9 +46,9 @@
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Hero: camera high, looking down — earth small at bottom, stars dominant
-    camera.position.set(2.0, -1.5, 4.2);
-    camera.lookAt(0, 0, 0);
+    // Hero: camera looking up at stars only, earth hidden below
+    camera.position.set(0, -3.0, 1.0);
+    camera.lookAt(0, 5, 0);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -230,43 +230,48 @@
 
     // ── Scroll-driven camera ──
     if (camera && earth) {
-      // Phase 1 (0-0.15): Hero — camera high up, earth small at bottom, stars dominant
-      // Phase 2 (0.15-0.85): Earth rises to center, camera orbits around Turkey → around world
-      // Phase 3 (0.85-1.0): Transition to hologram (earth fades out)
-      
       var startAngle = 35 * Math.PI / 180; // Turkey meridian
       var angle, radius, targetX, targetY, targetZ;
+      var earthVisible = true;
 
-      if (scrollProgress < 0.15) {
-        // Hero: earth at bottom, small, stars dominant
-        var heroT = scrollProgress / 0.15; // 0 → 1
-        radius = 5.0 - heroT * 0.8; // far → closer
+      if (scrollProgress < 0.12) {
+        // Hero: camera looking up at stars, earth not visible (below camera FOV)
+        var heroT = scrollProgress / 0.12; // 0 → 1
+        // Camera slowly pans down toward earth
+        radius = 6.0;
         angle = startAngle;
         targetX = Math.sin(angle) * radius;
         targetZ = Math.cos(angle) * radius;
-        targetY = -1.5 + heroT * 0.5; // below center, rising slightly
+        targetY = -4.0 + heroT * 2.5; // starts way below, slowly rises
+        // Keep earth invisible during hero
+        earthVisible = false;
+        if (clouds) clouds.visible = false;
       } else if (scrollProgress < 0.85) {
-        // Main orbit: earth rises to center, camera orbits
-        var mainT = (scrollProgress - 0.15) / 0.70; // 0 → 1
+        // Main orbit: earth rises into view, camera orbits
+        earthVisible = true;
+        if (clouds) clouds.visible = true;
+        var mainT = (scrollProgress - 0.12) / 0.73; // 0 → 1
         angle = startAngle + mainT * Math.PI * 1.7;
-        radius = 4.2 - mainT * 1.0; // zoom in
+        radius = 5.2 - mainT * 1.8; // zoom in
         targetX = Math.sin(angle) * radius;
         targetZ = Math.cos(angle) * radius;
-        targetY = -1.0 + mainT * 2.5; // rises from bottom to upper
+        targetY = -1.5 + mainT * 2.8; // rises from bottom to upper
       } else {
-        // Final section: move back, prepare for hologram
+        // Final section: keep earth visible but fade container
         var endT = (scrollProgress - 0.85) / 0.15; // 0 → 1
         angle = startAngle + Math.PI * 1.7;
-        radius = 3.2 + endT * 1.5; // pull back
+        radius = 3.4 + endT * 1.0;
         targetX = Math.sin(angle) * radius;
         targetZ = Math.cos(angle) * radius;
-        targetY = 1.5 + endT * 0.5;
+        targetY = 1.3 + endT * 0.3;
       }
 
       camera.position.x += (targetX - camera.position.x) * 0.04;
       camera.position.y += (targetY - camera.position.y) * 0.04;
       camera.position.z += (targetZ - camera.position.z) * 0.04;
       camera.lookAt(0, 0, 0);
+
+      if (earth) earth.visible = earthVisible;
       earth.rotation.x = scrollProgress * 0.2;
 
       // ── SITREP section transition: darken earth ──
@@ -282,26 +287,25 @@
         dayMaterial.uniforms.nightMix.value = Math.max(0, sitrepProgress) * 0.6;
       }
 
-      // ── Final section: fade out 3D globe, show hologram ──
+      // ── Final section: fade out 3D globe, fade in hologram ──
       var hologramContainer = document.getElementById('hologram-container');
       var threeContainer = document.getElementById('sketchfab-container');
-      if (scrollProgress > 0.82) {
-        var holoT = (scrollProgress - 0.82) / 0.18; // 0 → 1
-        // Fade in hologram
-        if (hologramContainer) {
-          if (!hologramContainer.dataset.loaded) {
-            hologramContainer.dataset.loaded = '1';
-            var hologramFrame = document.getElementById('hologram-viewer');
-            if (hologramFrame && !hologramFrame.src) {
-              hologramFrame.src = 'https://sketchfab.com/models/7d9805604f744974baebbd9d6dcfd868/embed?autostart=1&preload=1&ui_infos=0&ui_controls=0&ui_watermark=0&ui_inspector=0&ui_settings=0&ui_help=0&ui_hints=0&ui_annotations=0&ui_stop=0&ui_start=0&ui_fullscreen=0&ui_collapse=0&autospin=0.5&transparent=1';
-            }
+      if (scrollProgress > 0.80) {
+        var holoT = Math.min((scrollProgress - 0.80) / 0.20, 1.0);
+
+        // Load hologram iframe early (at 75% progress)
+        if (hologramContainer && !hologramContainer.dataset.loaded) {
+          hologramContainer.dataset.loaded = '1';
+          var hologramFrame = document.getElementById('hologram-viewer');
+          if (hologramFrame) {
+            hologramFrame.src = 'https://sketchfab.com/models/7d9805604f744974baebbd9d6dcfd868/embed?autostart=1&preload=1&ui_infos=0&ui_controls=0&ui_watermark=0&ui_inspector=0&ui_settings=0&ui_help=0&ui_hints=0&ui_annotations=0&ui_stop=0&ui_start=0&ui_fullscreen=0&ui_collapse=0&autospin=0.5&transparent=1';
           }
-          hologramContainer.style.opacity = holoT;
         }
+
+        // Fade in hologram
+        if (hologramContainer) hologramContainer.style.opacity = holoT;
         // Fade out 3D globe
-        if (threeContainer) {
-          threeContainer.style.opacity = 1 - holoT;
-        }
+        if (threeContainer) threeContainer.style.opacity = 1 - holoT;
       } else {
         if (hologramContainer) hologramContainer.style.opacity = 0;
         if (threeContainer) threeContainer.style.opacity = 1;
