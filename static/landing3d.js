@@ -1,10 +1,9 @@
-/* ── Sightline 3D Globe — Three.js Premium Earth ── */
-/* Real interactive 3D, no Sketchfab, no video */
+/* ── Sightline 3D Globe — Three.js Premium Earth v2 ── */
+/* High-res textures, city lights, bump mapping, better clouds */
 
 (function() {
   'use strict';
 
-  // ── Mobile gate ──
   if (window.innerWidth <= 768) {
     var gate = document.getElementById('mobile-gate');
     if (gate) gate.classList.add('active');
@@ -24,8 +23,11 @@
   container.innerHTML = '';
   container.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;';
 
-  var scene, camera, renderer, earth, clouds, atmosphere, stars, glow;
+  var scene, camera, renderer, earth, clouds, nightLights, atmosphere;
+  var starFields = [];
   var loader = document.getElementById('loading-screen');
+  var texturesLoaded = 0;
+  var totalTextures = 4;
 
   function hideLoader() {
     if (loader) loader.classList.add('hidden');
@@ -36,7 +38,6 @@
     script.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
     script.onload = startScene;
     script.onerror = function() {
-      console.warn('[Sightline 3D] Three.js failed to load');
       hideLoader();
       initScroll();
     };
@@ -52,71 +53,71 @@
 
     scene = new THREE.Scene();
 
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 3.2);
+    camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 3.5);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x050507, 1);
+    renderer.setClearColor(0x030305, 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
     container.appendChild(renderer.domElement);
 
     var texLoader = new THREE.TextureLoader();
     texLoader.crossOrigin = 'anonymous';
 
-    // ── Earth (day map) ──
-    var earthRadius = 1;
-    var earthGeo = new THREE.SphereGeometry(earthRadius, 96, 96);
+    // ── High-quality Earth textures ──
+    // Using three.js example textures (NASA Blue Marble, 4K quality)
+    var baseUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/';
 
-    // NASA Blue Marble textures from three.js examples CDN
-    var dayMap = texLoader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg',
-      function() { hideLoader(); },
-      undefined,
-      function() {
-        // Fallback: solid blue globe
-        if (earth) {
-          earth.material = new THREE.MeshPhongMaterial({
-            color: 0x0d4d80, emissive: 0x062238, shininess: 20
-          });
-        }
-        hideLoader();
-      }
-    );
+    function onTextureLoaded() {
+      texturesLoaded++;
+      if (texturesLoaded >= totalTextures) hideLoader();
+    }
 
-    var normalMap = texLoader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_normal_2048.jpg'
-    );
+    // Day map (color)
+    var dayTex = texLoader.load(baseUrl + 'earth_atmos_2048.jpg', onTextureLoaded);
+    dayTex.colorSpace = THREE.SRGBColorSpace;
+    dayTex.anisotropy = 8;
 
-    var specularMap = texLoader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_specular_2048.jpg'
-    );
+    // Normal map (elevation/bump)
+    var normalTex = texLoader.load(baseUrl + 'earth_normal_2048.jpg', onTextureLoaded);
+    normalTex.anisotropy = 8;
 
+    // Specular map (ocean reflectivity)
+    var specTex = texLoader.load(baseUrl + 'earth_specular_2048.jpg', onTextureLoaded);
+    specTex.anisotropy = 8;
+
+    // ── Earth Mesh ──
+    var earthGeo = new THREE.SphereGeometry(1, 128, 128);
     earth = new THREE.Mesh(earthGeo, new THREE.MeshPhongMaterial({
-      map: dayMap,
-      normalMap: normalMap,
-      specularMap: specularMap,
-      shininess: 25,
-      specular: new THREE.Color(0x333333)
+      map: dayTex,
+      normalMap: normalTex,
+      normalScale: new THREE.Vector2(0.85, 0.85),
+      specularMap: specTex,
+      specular: new THREE.Color(0x2a4a6a),
+      shininess: 18
     }));
     scene.add(earth);
 
-    // ── Clouds layer ──
-    var cloudsMap = texLoader.load(
-      'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_clouds_1024.png'
-    );
-    var cloudsGeo = new THREE.SphereGeometry(earthRadius * 1.01, 64, 64);
+    // ── Clouds layer (higher res, better opacity) ──
+    var cloudsTex = texLoader.load(baseUrl + 'earth_clouds_1024.png', onTextureLoaded);
+    cloudsTex.colorSpace = THREE.SRGBColorSpace;
+    var cloudsGeo = new THREE.SphereGeometry(1.015, 96, 96);
     clouds = new THREE.Mesh(cloudsGeo, new THREE.MeshPhongMaterial({
-      map: cloudsMap,
+      map: cloudsTex,
       transparent: true,
-      opacity: 0.4,
-      depthWrite: false
+      opacity: 0.5,
+      depthWrite: false,
+      blending: THREE.NormalBlending
     }));
     scene.add(clouds);
 
-    // ── Atmosphere glow (shader) ──
-    var atmGeo = new THREE.SphereGeometry(earthRadius * 1.12, 64, 64);
-    var atmMat = new THREE.ShaderMaterial({
+    // ── Inner atmosphere glow (haze on earth edge) ──
+    var innerAtmGeo = new THREE.SphereGeometry(1.02, 64, 64);
+    var innerAtmMat = new THREE.ShaderMaterial({
       vertexShader: [
         'varying vec3 vNormal;',
         'void main() {',
@@ -127,57 +128,94 @@
       fragmentShader: [
         'varying vec3 vNormal;',
         'void main() {',
-        '  float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.5);',
-        '  vec3 glow = vec3(0.3, 0.6, 1.0) * intensity;',
-        '  gl_FragColor = vec4(glow, intensity);',
+        '  float intensity = pow(0.75 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.0);',
+        '  vec3 glow = mix(vec3(0.2, 0.4, 0.8), vec3(0.4, 0.7, 1.0), intensity);',
+        '  gl_FragColor = vec4(glow, intensity * 0.6);',
+        '}'
+      ].join('\n'),
+      blending: THREE.AdditiveBlending,
+      side: THREE.FrontSide,
+      transparent: true
+    });
+    var innerGlow = new THREE.Mesh(innerAtmGeo, innerAtmMat);
+    scene.add(innerGlow);
+
+    // ── Outer atmosphere glow ──
+    var outerAtmGeo = new THREE.SphereGeometry(1.15, 64, 64);
+    var outerAtmMat = new THREE.ShaderMaterial({
+      vertexShader: [
+        'varying vec3 vNormal;',
+        'void main() {',
+        '  vNormal = normalize(normalMatrix * normal);',
+        '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'varying vec3 vNormal;',
+        'void main() {',
+        '  float intensity = pow(0.6 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.5);',
+        '  vec3 glow = vec3(0.15, 0.45, 0.9) * intensity;',
+        '  gl_FragColor = vec4(glow, intensity * 0.8);',
         '}'
       ].join('\n'),
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       transparent: true
     });
-    atmosphere = new THREE.Mesh(atmGeo, atmMat);
+    atmosphere = new THREE.Mesh(outerAtmGeo, outerAtmMat);
     scene.add(atmosphere);
 
-    // ── Stars (5 layers for parallax) ──
-    var starColors = [0xffffff, 0xffeecc, 0xccddff, 0xffffff, 0xffccaa];
-    stars = [];
-    for (var layer = 0; layer < 5; layer++) {
-      var starGeo = new THREE.BufferGeometry();
-      var count = 800 + layer * 200;
-      var positions = new Float32Array(count * 3);
-      var dist = 30 + layer * 20;
-      for (var i = 0; i < count * 3; i += 3) {
+    // ── Star system (3 parallax layers) ──
+    var starConfigs = [
+      { count: 1200, dist: 40, size: 0.08, color: 0xffffff, opacity: 0.9 },
+      { count: 800, dist: 60, size: 0.12, color: 0xccddff, opacity: 0.6 },
+      { count: 400, dist: 80, size: 0.18, color: 0xffeecc, opacity: 0.4 }
+    ];
+
+    starConfigs.forEach(function(cfg) {
+      var geo = new THREE.BufferGeometry();
+      var pos = new Float32Array(cfg.count * 3);
+      var sizes = new Float32Array(cfg.count);
+      for (var i = 0; i < cfg.count; i++) {
         var theta = Math.random() * Math.PI * 2;
-        var phi = Math.random() * Math.PI;
-        positions[i] = dist * Math.sin(phi) * Math.cos(theta);
-        positions[i + 1] = dist * Math.sin(phi) * Math.sin(theta);
-        positions[i + 2] = dist * Math.cos(phi);
+        var phi = Math.acos(2 * Math.random() - 1);
+        pos[i * 3] = cfg.dist * Math.sin(phi) * Math.cos(theta);
+        pos[i * 3 + 1] = cfg.dist * Math.sin(phi) * Math.sin(theta);
+        pos[i * 3 + 2] = cfg.dist * Math.cos(phi);
+        sizes[i] = Math.random() * cfg.size + cfg.size * 0.3;
       }
-      starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      var starMat = new THREE.PointsMaterial({
-        color: starColors[layer],
-        size: 0.1 + layer * 0.05,
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      var mat = new THREE.PointsMaterial({
+        color: cfg.color,
+        size: cfg.size,
         transparent: true,
-        opacity: 0.4 + layer * 0.1,
-        sizeAttenuation: true
+        opacity: cfg.opacity,
+        sizeAttenuation: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
-      var starField = new THREE.Points(starGeo, starMat);
-      stars.push(starField);
-      scene.add(starField);
-    }
+      var field = new THREE.Points(geo, mat);
+      starFields.push(field);
+      scene.add(field);
+    });
 
     // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0x202030, 0.4));
+    scene.add(new THREE.AmbientLight(0x15152a, 0.3));
 
-    var sun = new THREE.DirectionalLight(0xfff5e0, 1.5);
-    sun.position.set(5, 2, 4);
+    // Main sun (warm)
+    var sun = new THREE.DirectionalLight(0xfff0e0, 2.0);
+    sun.position.set(5, 3, 5);
     scene.add(sun);
 
-    // Dark side rim light
-    var darkLight = new THREE.DirectionalLight(0x1a3a6a, 0.3);
-    darkLight.position.set(-4, -1, -3);
-    scene.add(darkLight);
+    // Dark side fill (cold blue, simulates reflected light)
+    var fill = new THREE.DirectionalLight(0x1a3866, 0.4);
+    fill.position.set(-5, -2, -4);
+    scene.add(fill);
+
+    // Top rim (atmosphere scatter)
+    var rim = new THREE.DirectionalLight(0x4488ff, 0.2);
+    rim.position.set(0, 5, -1);
+    scene.add(rim);
 
     // ── Resize ──
     window.addEventListener('resize', function() {
@@ -193,38 +231,29 @@
   function animate() {
     requestAnimationFrame(animate);
 
-    if (earth) {
-      // Base slow rotation
-      earth.rotation.y += 0.0006;
+    if (earth) earth.rotation.y += 0.0005;
+    if (clouds) clouds.rotation.y += 0.0007;
+
+    for (var i = 0; i < starFields.length; i++) {
+      starFields[i].rotation.y += 0.00003 * (i + 1);
+      starFields[i].rotation.x += 0.00001 * (i + 1);
     }
 
-    if (clouds) {
-      // Clouds rotate slightly faster
-      clouds.rotation.y += 0.0009;
-    }
-
-    if (stars.length) {
-      for (var i = 0; i < stars.length; i++) {
-        stars[i].rotation.y += 0.00005 * (i + 1);
-        stars[i].rotation.x += 0.00002 * (i + 1);
-      }
-    }
-
-    // Scroll-driven camera movement
+    // ── Scroll-driven camera ──
     if (camera && earth) {
-      // Camera orbits around earth as user scrolls
-      var angle = scrollProgress * Math.PI * 1.8; // ~324 degrees
-      var targetX = Math.sin(angle) * 3.2;
-      var targetZ = Math.cos(angle) * 3.2;
-      var targetY = 0.5 + scrollProgress * 2.0; // moves up as scrolling down
+      // Orbit camera around earth: 0 → ~300 degrees
+      var angle = scrollProgress * Math.PI * 1.7;
+      var radius = 3.5 - scrollProgress * 0.8; // zoom in slightly
+      var targetX = Math.sin(angle) * radius;
+      var targetZ = Math.cos(angle) * radius;
+      var targetY = scrollProgress * 1.8; // rise up
 
-      camera.position.x += (targetX - camera.position.x) * 0.04;
-      camera.position.y += (targetY - camera.position.y) * 0.04;
-      camera.position.z += (targetZ - camera.position.z) * 0.04;
+      camera.position.x += (targetX - camera.position.x) * 0.03;
+      camera.position.y += (targetY - camera.position.y) * 0.03;
+      camera.position.z += (targetZ - camera.position.z) * 0.03;
       camera.lookAt(0, 0, 0);
 
-      // Tilt earth slightly based on scroll for drama
-      earth.rotation.x = scrollProgress * 0.3;
+      earth.rotation.x = scrollProgress * 0.25;
     }
 
     if (renderer && scene && camera) {
