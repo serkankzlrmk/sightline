@@ -35,23 +35,24 @@
   var earthVisible = false;
 
   // Camera positions for each section
-  // Turkey is at ~35°E — camera should start at that angle
-  var turkeyAngle = 35 * Math.PI / 180;
-  // Offset earth rotation so Turkey faces camera at angle 0
-  var earthRotY = turkeyAngle;
+  // Camera starts at angle 0 (facing prime meridian / Greenwich)
+  // Earth texture is rotated -35° so Turkey (35°E) faces camera at start
+  // Earth rotates eastward (positive Y) = west to east (natural)
+  var turkeyOffset = -35 * Math.PI / 180; // negative = rotate texture so Turkey faces camera
+  var camAngle = 0; // camera starts at prime meridian
   var sectionCameras = [
-    // Section 0: Hero — looking up at stars, earth hidden (but camera closer for fast transition)
+    // Section 0: Hero — looking up at stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
-    // Section 1: Data sources — earth rises with Turkey facing, close
-    { pos: { x: Math.sin(turkeyAngle) * 2.5, y: 0, z: Math.cos(turkeyAngle) * 2.5 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 2: SITREP — orbit right, slight tilt
-    { pos: { x: Math.sin(turkeyAngle + 0.6) * 2.3, y: 0.4, z: Math.cos(turkeyAngle + 0.6) * 2.3 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 3: Proposals — orbit further
-    { pos: { x: Math.sin(turkeyAngle + 1.2) * 2.1, y: 0.8, z: Math.cos(turkeyAngle + 1.2) * 2.1 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 4: Bulletins — orbit left
-    { pos: { x: Math.sin(turkeyAngle + 1.8) * 2.0, y: 0.6, z: Math.cos(turkeyAngle + 1.8) * 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 1: Data sources — earth rises, Turkey facing camera
+    { pos: { x: 0, y: 0, z: 2.5 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 2: SITREP — orbit right (eastward)
+    { pos: { x: Math.sin(0.6) * 2.3, y: 0.4, z: Math.cos(0.6) * 2.3 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 3: Proposals — orbit further east
+    { pos: { x: Math.sin(1.2) * 2.1, y: 0.8, z: Math.cos(1.2) * 2.1 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 4: Bulletins — orbit further
+    { pos: { x: Math.sin(1.8) * 2.0, y: 0.6, z: Math.cos(1.8) * 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 5: M&E Quality — high angle
-    { pos: { x: Math.sin(turkeyAngle + 2.4) * 1.8, y: 1.4, z: Math.cos(turkeyAngle + 2.4) * 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: Math.sin(2.4) * 1.8, y: 1.4, z: Math.cos(2.4) * 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 6: CTA — back to stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false }
   ];
@@ -152,7 +153,7 @@
     });
 
     earth = new THREE.Mesh(earthGeo, dayMaterial);
-    earth.rotation.y = turkeyAngle; // Offset so Turkey faces camera in Section 1
+    earth.rotation.y = turkeyOffset; // -35° so Turkey faces camera
     earth.visible = false;
     scene.add(earth);
 
