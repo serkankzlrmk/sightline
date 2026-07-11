@@ -10,7 +10,7 @@
     return;
   }
 
-  var NUM_SECTIONS = 7;
+  var NUM_SECTIONS = 8;
   var currentSection = -1;
   var scrollProgress = 0;
 
@@ -46,9 +46,9 @@
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Hero: camera looking up at stars only, earth hidden below
-    camera.position.set(0, -3.0, 1.0);
-    camera.lookAt(0, 5, 0);
+    // Hero: camera looking up at stars only, earth completely hidden
+    camera.position.set(0, -8.0, 0.5);
+    camera.lookAt(0, 10, 0);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -235,21 +235,21 @@
       var earthVisible = true;
 
       if (scrollProgress < 0.12) {
-        // Hero: camera looking up at stars, earth not visible (below camera FOV)
-        var heroT = scrollProgress / 0.12; // 0 → 1
-        // Camera slowly pans down toward earth
+        // Hero: camera looking up at stars, earth not visible
+        var heroT = scrollProgress / 0.12;
         radius = 6.0;
         angle = startAngle;
         targetX = Math.sin(angle) * radius;
         targetZ = Math.cos(angle) * radius;
-        targetY = -4.0 + heroT * 2.5; // starts way below, slowly rises
-        // Keep earth invisible during hero
+        targetY = -8.0 + heroT * 5.5; // slowly pan down from deep below
         earthVisible = false;
         if (clouds) clouds.visible = false;
+        if (atmosphere) atmosphere.visible = false;
       } else if (scrollProgress < 0.85) {
         // Main orbit: earth rises into view, camera orbits
         earthVisible = true;
         if (clouds) clouds.visible = true;
+        if (atmosphere) atmosphere.visible = true;
         var mainT = (scrollProgress - 0.12) / 0.73; // 0 → 1
         angle = startAngle + mainT * Math.PI * 1.7;
         radius = 5.2 - mainT * 1.8; // zoom in

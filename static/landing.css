@@ -170,18 +170,32 @@ a { color: inherit; text-decoration: none; }
   font-weight: 800;
   font-size: 20px;
 }
-.lp-logo-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px; height: 30px;
-  background: var(--lp-accent);
-  color: #fff;
-  border-radius: 8px;
-  font-weight: 900;
-  font-size: 14px;
+.lp-nav-logo {
+  width: 28px; height: 28px;
+  border-radius: 6px;
 }
 .lp-nav-cta { display: flex; gap: 8px; }
+
+/* ── Hero Brand (Section 0) ── */
+.lp-hero-logo {
+  margin: 0 auto 24px;
+}
+.lp-hero-logo img {
+  width: 80px; height: 80px;
+  border-radius: 16px;
+  filter: drop-shadow(0 8px 24px rgba(232,54,78,0.3));
+}
+.lp-hero-brand {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 800;
+  letter-spacing: -2px;
+  background: linear-gradient(180deg, #ffffff 0%, #888888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 80px rgba(232,54,78,0.15);
+}
 
 /* ── Scroll Container ── */
 #scroll-container {
