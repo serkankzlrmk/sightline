@@ -2128,6 +2128,12 @@ async function loadCommandCenter() {
 }
 
 function ccStartSitrep() {
+  const role = window.__userRole || 'free';
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!tok || role === 'free') {
+    if (window.showLoginPanel) window.showLoginPanel();
+    return;
+  }
   const sel = document.getElementById('cc-sitrep-country');
   const country = sel ? sel.value : '';
   switchTab('sitrep');
