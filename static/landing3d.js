@@ -39,11 +39,10 @@
       ui_start: 0,
       ui_fullscreen: 0,
       ui_collapse: 0,
-      ui_watermark: 0,
       transparent: 1,
-      // Camera settings
       autospin: 0,
       restricted: 1,
+      success_cb: 'onSketchfabSuccess',
 
       success: function(_api) {
         api = _api;
@@ -51,25 +50,24 @@
 
         // Wait for model to load
         api.addEventListener('viewerready', function() {
-          // Hide loading screen
           if (loader) loader.classList.add('hidden');
 
           // Try to get annotations
-          api.getAnnotations(function(result) {
-            if (result && result.data && result.data.length > 0) {
-              annotations = result.data;
-            }
-          });
+          try {
+            api.getAnnotations(function(result) {
+              if (result && result.data && result.data.length > 0) {
+                annotations = result.data;
+              }
+            });
+          } catch(e) {}
 
-          // Initialize scroll
           initScroll();
         });
       },
 
       error: function() {
-        // Fallback: hide loader, show content without 3D
         if (loader) loader.classList.add('hidden');
-        console.warn('[Sightline 3D] Sketchfab failed, using static background');
+        console.warn('[Sightline 3D] Sketchfab API init failed, using embed without camera control');
         initScroll();
       }
     });
@@ -174,6 +172,15 @@
   }
 
   // ── Start ──
+  // Timeout: if model doesn't load in 12s, hide loader and proceed
+  setTimeout(function() {
+    if (loader && !loader.classList.contains('hidden')) {
+      loader.classList.add('hidden');
+      console.warn('[Sightline 3D] Loading timeout — proceeding without 3D');
+      initScroll();
+    }
+  }, 12000);
+
   if (typeof Sketchfab !== 'undefined') {
     initSketchfab();
   } else {
