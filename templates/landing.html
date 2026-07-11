@@ -15,7 +15,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/landing.css?v={{ v }}">
   <link rel="icon" href="/static/logo.png">
-  <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
 </head>
 <body>
 
@@ -31,17 +30,8 @@
     </div>
   </div>
 
-  <!-- 3D Background (Sketchfab) -->
-  <div id="sketchfab-container">
-    <iframe id="sketchfab-viewer"
-      src="https://sketchfab.com/models/17cf917d160645b6a57a09c420ed647d/embed?autostart=1&preload=1&ui_infos=0&ui_controls=0&ui_watermark=0&ui_inspector=0&ui_settings=0&ui_help=0&ui_hints=0&ui_annotations=0&ui_stop=0&ui_start=0&ui_fullscreen=0&ui_collapse=0&transparent=1&autospin=0&restricted=1"
-      allow="autoplay; fullscreen; xr-spatial-tracking"
-      allowxr="yes"
-      allowautoplay="yes"
-      frameborder="0"
-      title="3D Earth">
-    </iframe>
-  </div>
+  <!-- 3D Background (Three.js Canvas) -->
+  <div id="sketchfab-container"></div>
 
   <!-- Loading Screen -->
   <div id="loading-screen">
