@@ -62,30 +62,32 @@
     var texLoader = new THREE.TextureLoader();
     texLoader.crossOrigin = 'anonymous';
 
-    // 4K textures from turban/webgl-earth repo
-    var base = 'https://cdn.jsdelivr.net/gh/turban/webgl-earth@master/images/';
-    var threeBase = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/';
+    // Local high-quality textures from Sketchfab "59-earth" model
+    var base = '/static/textures/';
 
     function onTex() { texturesLoaded++; if (texturesLoaded >= totalTextures) hideLoader(); }
 
-    // ── Day map (4K no clouds) ──
-    var dayTex = texLoader.load(base + '2_no_clouds_4k.jpg', onTex);
+    // ── Day map (albedo) ──
+    var dayTex = texLoader.load(base + 'earth_albedo.jpg', onTex);
     dayTex.colorSpace = THREE.SRGBColorSpace;
     dayTex.anisotropy = 16;
 
-    // ── Night lights (2K from three.js) ──
-    var nightTex = texLoader.load(threeBase + 'earth_lights_2048.png', onTex);
+    // ── Night lights ──
+    var nightTex = texLoader.load(base + 'earth_night_lights.png', onTex);
     nightTex.colorSpace = THREE.SRGBColorSpace;
 
-    // ── Specular / water map (4K) ──
-    var specTex = texLoader.load(base + 'water_4k.png', onTex);
+    // ── Ocean mask (specular) ──
+    var specTex = texLoader.load(base + 'earth_ocean_mask.png', onTex);
     specTex.anisotropy = 8;
 
-    // ── Clouds (4K) ──
-    var cloudsTex = texLoader.load(base + 'fair_clouds_4k.png', onTex);
+    // ── Clouds ──
+    var cloudsTex = texLoader.load(base + 'earth_clouds.png', onTex);
     cloudsTex.colorSpace = THREE.SRGBColorSpace;
 
-    // ── Earth: Custom shader for day/night blend ──
+    // ── Bump map (terrain elevation) ──
+    var bumpTex = texLoader.load(base + 'earth_bump.jpg');
+
+    // ── Earth: Custom shader for day/night blend with bump ──
     var earthGeo = new THREE.SphereGeometry(1, 128, 128);
 
     dayMaterial = new THREE.ShaderMaterial({
@@ -93,8 +95,9 @@
         dayTexture: { value: dayTex },
         nightTexture: { value: nightTex },
         specularMap: { value: specTex },
+        bumpTexture: { value: bumpTex },
         sunDirection: { value: new THREE.Vector3(5, 3, 5).normalize() },
-        nightMix: { value: 0.0 } // 0 = day, 1 = full night (controlled by scroll)
+        nightMix: { value: 0.0 }
       },
       vertexShader: [
         'varying vec2 vUv;',
@@ -109,14 +112,19 @@
         'uniform sampler2D dayTexture;',
         'uniform sampler2D nightTexture;',
         'uniform sampler2D specularMap;',
+        'uniform sampler2D bumpTexture;',
         'uniform vec3 sunDirection;',
         'uniform float nightMix;',
         'varying vec2 vUv;',
         'varying vec3 vNormal;',
         'void main() {',
         '  vec3 dayColor = texture2D(dayTexture, vUv).rgb;',
-        '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 2.0;',
+        '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 2.5;',
         '  float specular = texture2D(specularMap, vUv).r;',
+        '  float bump = texture2D(bumpTexture, vUv).r;',
+        '',
+        '  // Bump affects day color (terrain shading)',
+        '  dayColor *= 0.8 + bump * 0.4;',
         '',
         '  // Day/night based on sun angle',
         '  float dayAmount = max(dot(vNormal, sunDirection), 0.0);',
@@ -129,7 +137,7 @@
         '  float specHighlight = pow(max(dot(reflect(-sunDirection, vNormal), vec3(0,0,1)), 0.0), 20.0) * specular * dayAmount;',
         '  color += vec3(0.8, 0.9, 1.0) * specHighlight * 0.5;',
         '',
-        '  // Scroll-driven night mix (when entering SITREP section, world darkens)',
+        '  // Scroll-driven night mix',
         '  color = mix(color, nightColor * 0.8, nightMix);',
         '',
         '  gl_FragColor = vec4(color, 1.0);',
