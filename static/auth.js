@@ -71,14 +71,13 @@ window.showLoginPanel = showLoginPanel;
 // ═══════════════════════════════════════════════════════════
 
 function showOverlay() {
-  // Anonymous visitor: app stays interactive, overlay hidden.
-  // Login panel only appears when user clicks a gated tab (chat/sitrep/bulletin/db/proposal).
-  document.body.classList.add("preview-mode");
-  document.body.classList.remove("auth-locked");
+  // No freemium preview — require login to access /app
+  document.body.classList.add("auth-locked");
+  document.body.classList.remove("preview-mode");
   const el = document.getElementById("auth-overlay");
   if (el) {
-    el.classList.add("hidden");
-    el.classList.remove("slide-in");
+    el.classList.remove("hidden");
+    el.classList.add("slide-in");
   }
   window.__authReady = false;
   window.dispatchEvent(new Event('preview-ready'));

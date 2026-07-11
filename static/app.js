@@ -2092,7 +2092,7 @@ async function loadCommandCenter() {
     const countries = await res.json();
     const sel = document.getElementById('cc-sitrep-country');
     if (sel && Array.isArray(countries)) {
-      sel.innerHTML = '<option value="">Ülke seç...</option>' +
+      sel.innerHTML = '<option value="">Select country...</option>' +
         countries.slice(0, 50).map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
     }
   } catch {}
@@ -3214,13 +3214,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let _previewInited = false;
 
   function initPreviewData() {
-    // Freemium preview: load public data without auth
+    // No freemium preview — redirect to landing page if not authed
     if (_previewInited) return;
     _previewInited = true;
-    console.log('[app] initPreviewData — loading public content for anonymous visitor');
-    switchTab('home');
-    // loadDashboard() will detect no token and use public endpoints
-    loadDashboard();
+    console.log('[app] initPreviewData — no token, forcing login');
+    // Show login panel immediately
+    if (typeof window.showLoginPanel === 'function') {
+      window.showLoginPanel();
+    }
+    // Also redirect to landing after 2s if still no login
+    setTimeout(() => {
+      if (!window.getIdToken || !window.getIdToken()) {
+        window.location.href = '/';
+      }
+    }, 2000);
   }
 
   function initAppData() {
@@ -3251,7 +3258,7 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     // Listen for preview-ready (anonymous visitor — show limited content)
     window.addEventListener('preview-ready', () => {
-      console.log('[app] preview-ready event — loading preview data');
+      console.log('[app] preview-ready event — forcing login');
       initPreviewData();
     }, { once: true });
     // Listen for auth-ready (user signed in — load full app)
