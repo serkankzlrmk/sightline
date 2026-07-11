@@ -3220,20 +3220,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let _previewInited = false;
 
   function initPreviewData() {
-    // No freemium preview — redirect to landing page if not authed
+    // Login required but app visible behind overlay
     if (_previewInited) return;
     _previewInited = true;
-    console.log('[app] initPreviewData — no token, forcing login');
-    // Show login panel immediately
-    if (typeof window.showLoginPanel === 'function') {
-      window.showLoginPanel();
-    }
-    // Also redirect to landing after 2s if still no login
-    setTimeout(() => {
-      if (!window.getIdToken || !window.getIdToken()) {
-        window.location.href = '/';
-      }
-    }, 2000);
+    console.log('[app] initPreviewData — showing app with login overlay');
+    // Load Command Center (visible behind login panel)
+    switchTab('home');
+    loadCommandCenter();
   }
 
   function initAppData() {
@@ -3504,19 +3497,9 @@ function viewBulletinSitrep(country) {
 // FREEMIUM PREVIEW — login panel controls
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Close button (X) — hide login panel, stay on dashboard
+// Close button removed — login is required, no dismiss option
 document.addEventListener('DOMContentLoaded', () => {
-  const closeBtn = document.getElementById('auth-panel-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      const el = document.getElementById('auth-overlay');
-      if (el) {
-        el.classList.add('hidden');
-        el.classList.remove('slide-in');
-        el.style.display = 'none';
-      }
-    });
-  }
+  // No close button — user must sign in
 });
 
 // Register buttons inside crisis panel (delegated — works for dynamically added elements)

@@ -1391,9 +1391,9 @@ body .nav {
 .auth-overlay.slide-in::before {
   content: '';
   position: fixed; inset: 0;
-  background: rgba(0,0,0,.3);
+  background: rgba(0,0,0,0);
   z-index: 10000;
-  pointer-events: auto;
+  pointer-events: none;
 }
 .auth-overlay .modal-overlay { z-index: 10002; }
 

@@ -71,7 +71,7 @@ window.showLoginPanel = showLoginPanel;
 // ═══════════════════════════════════════════════════════════
 
 function showOverlay() {
-  // No freemium preview — require login to access /app
+  // Login required — overlay stays visible, app loads behind it
   document.body.classList.add("auth-locked");
   document.body.classList.remove("preview-mode");
   const el = document.getElementById("auth-overlay");
