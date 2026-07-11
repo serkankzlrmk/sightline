@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Sightline — Humanitarian Data & Proposal Platform</title>
+  <title>Sightline — Humanitarian Intelligence Platform</title>
   <meta name="description" content="Generate situation reports, donor proposals, and weekly bulletins in minutes. 59 data sources, ECHO/USAID/OCHA templates, M&E quality scoring.">
   <meta property="og:title" content="Sightline — Humanitarian Intelligence Platform">
   <meta property="og:description" content="Secondary data analysis, report generation, and donor proposal writing for humanitarian professionals.">
@@ -11,193 +11,214 @@
   <meta property="og:type" content="website">
   <link rel="canonical" href="https://YOUR_PROJECT_ID.com/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/landing.css?v={{ v }}">
   <link rel="icon" href="/static/logo.png">
+  <script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
 </head>
 <body>
 
-  <!-- Nav -->
-  <nav class="ln-nav">
-    <div class="ln-nav-inner">
-      <a href="/" class="ln-logo">
-        <span class="ln-logo-mark">S</span>
-        <span class="ln-logo-text">Sightline</span>
-      </a>
-      <div class="ln-nav-links">
-        <a href="#features" class="ln-nav-link">Features</a>
-        <a href="#pricing" class="ln-nav-link">Pricing</a>
-        <a href="#showcase" class="ln-nav-link">Showcase</a>
+  <!-- Mobile Gate -->
+  <div id="mobile-gate">
+    <div class="mg-inner">
+      <div class="mg-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
       </div>
-      <div class="ln-nav-cta">
-        <a href="/app" class="ln-btn ln-btn-ghost">Login</a>
-        <a href="/app" class="ln-btn ln-btn-primary">Try Free</a>
+      <h1>Desktop Experience</h1>
+      <p>Sightline's 3D experience is designed for desktop browsers. Please visit us from a computer for the full interactive journey.</p>
+      <a href="/app" class="mg-link">Or continue to the app →</a>
+    </div>
+  </div>
+
+  <!-- 3D Background (Sketchfab) -->
+  <div id="sketchfab-container">
+    <iframe id="sketchfab-viewer"
+      src=""
+      allow="autoplay; fullscreen; xr-spatial-tracking"
+      allowxr="yes"
+      allowautoplay="yes"
+      frameborder="0"
+      title="3D Earth">
+    </iframe>
+  </div>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="ls-inner">
+      <div class="ls-spinner"></div>
+      <p>Loading 3D experience...</p>
+    </div>
+  </div>
+
+  <!-- Scroll Progress Indicator -->
+  <div class="scroll-progress">
+    <div class="sp-track">
+      <div class="sp-fill" id="sp-fill"></div>
+      <div class="sp-dots" id="sp-dots"></div>
+    </div>
+  </div>
+
+  <!-- Scroll Hint -->
+  <div class="scroll-hint" id="scroll-hint">
+    <span>Scroll to explore</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+  </div>
+
+  <!-- Nav -->
+  <nav class="lp-nav">
+    <div class="lp-nav-inner">
+      <a href="/" class="lp-logo">
+        <span class="lp-logo-mark">S</span>
+        <span class="lp-logo-text">Sightline</span>
+      </a>
+      <div class="lp-nav-cta">
+        <a href="/app" class="lp-btn lp-btn-ghost">Login</a>
+        <a href="/app" class="lp-btn lp-btn-primary">Try Free</a>
       </div>
     </div>
   </nav>
 
-  <!-- Hero -->
-  <section class="ln-hero">
-    <div class="ln-hero-inner">
-      <div class="ln-hero-tag">Humanitarian Intelligence Platform</div>
-      <h1 class="ln-hero-title">Write reports and proposals<br><span class="ln-accent">in minutes, not days</span></h1>
-      <p class="ln-hero-desc">Sightline aggregates data from 59 humanitarian sources — ReliefWeb, HDX, World Bank, GDACS — and uses AI to generate situation reports, donor proposals, and weekly bulletins automatically.</p>
-      <div class="ln-hero-actions">
-        <a href="/app" class="ln-btn ln-btn-primary ln-btn-lg">Start Free →</a>
-        <a href="#showcase" class="ln-btn ln-btn-ghost ln-btn-lg">See Examples</a>
-      </div>
-      <div class="ln-hero-stats">
-        <div class="ln-stat"><strong>89K+</strong><span>Reports indexed</span></div>
-        <div class="ln-stat"><strong>143</strong><span>Countries tracked</span></div>
-        <div class="ln-stat"><strong>59</strong><span>Data sources</span></div>
-        <div class="ln-stat"><strong>12-step</strong><span>Proposal wizard</span></div>
-      </div>
-    </div>
-  </section>
+  <!-- Content Sections (overlay on 3D) -->
+  <main id="scroll-container">
 
-  <!-- Features -->
-  <section class="ln-features" id="features">
-    <div class="ln-section-head">
-      <span class="ln-section-tag">What you can build</span>
-      <h2 class="ln-section-title">Three tools, one platform</h2>
-      <p class="ln-section-desc">Built for M&E professionals, humanitarian analysts, and NGO program staff who need quality outputs fast.</p>
-    </div>
-    <div class="ln-feature-grid">
-      <div class="ln-feature-card">
-        <div class="ln-feature-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <!-- Section 0: Hero -->
+    <section class="lp-section" data-section="0">
+      <div class="lp-section-inner">
+        <div class="lp-hero-tag">Humanitarian Intelligence Platform</div>
+        <h1 class="lp-hero-title">Write reports and proposals<br><span class="lp-accent">in minutes, not days</span></h1>
+        <p class="lp-hero-desc">Sightline aggregates data from 59 humanitarian sources and uses AI to generate situation reports, donor proposals, and weekly bulletins automatically.</p>
+        <div class="lp-hero-actions">
+          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg">Start Free →</a>
         </div>
-        <h3>Situation Reports</h3>
-        <p>10-stage AI pipeline: ingests reports, clusters by geography, generates questions, answers from RAG, writes narrative with citations.</p>
-        <ul class="ln-feature-list">
-          <li>Auto-geo-clustering</li>
-          <li>RAG-based Q&A</li>
-          <li>Cited narrative output</li>
-        </ul>
-      </div>
-      <div class="ln-feature-card ln-feature-featured">
-        <div class="ln-feature-badge">Most Popular</div>
-        <div class="ln-feature-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <div class="lp-hero-stats">
+          <div class="lp-stat"><strong>89K+</strong><span>Reports</span></div>
+          <div class="lp-stat"><strong>143</strong><span>Countries</span></div>
+          <div class="lp-stat"><strong>59</strong><span>Sources</span></div>
         </div>
-        <h3>Donor Proposals</h3>
-        <p>12-step wizard generates ECHO HIP, USAID/BHA, or OCHA CBPF proposals. M&E quality scoring on every section. SMART indicator checker.</p>
-        <ul class="ln-feature-list">
-          <li>ECHO / USAID / OCHA templates</li>
-          <li>SMART indicator validation</li>
-          <li>Cross-section consistency checks</li>
-          <li>PDF + Markdown export</li>
-        </ul>
       </div>
-      <div class="ln-feature-card">
-        <div class="ln-feature-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M16 8h2m-6 4h6m-6 4h6M6 8h4v8H6z"/></svg>
+    </section>
+
+    <!-- Section 1: Data Sources -->
+    <section class="lp-section" data-section="1">
+      <div class="lp-section-inner lp-section-right">
+        <span class="lp-section-num">01</span>
+        <h2>59 Data Sources<br>One Platform</h2>
+        <p>ReliefWeb, HDX, World Bank, GDACS, NewsAPI, Open-Meteo — all aggregated, indexed, and searchable through a single interface. No more jumping between tabs.</p>
+        <div class="lp-source-grid">
+          <span class="lp-source-chip">ReliefWeb</span>
+          <span class="lp-source-chip">HDX</span>
+          <span class="lp-source-chip">World Bank</span>
+          <span class="lp-source-chip">GDACS</span>
+          <span class="lp-source-chip">NewsAPI</span>
+          <span class="lp-source-chip">Open-Meteo</span>
+          <span class="lp-source-chip">Brave Search</span>
+          <span class="lp-source-chip">ArXiv</span>
         </div>
-        <h3>Weekly Bulletins</h3>
-        <p>Every Monday: auto-generated global humanitarian brief with 30+ country summaries, crisis trends, and funding gaps.</p>
-        <ul class="ln-feature-list">
-          <li>Auto-generated weekly</li>
-          <li>30+ country intelligence cards</li>
-          <li>Funding & displacement data</li>
-        </ul>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Showcase -->
-  <section class="ln-showcase" id="showcase">
-    <div class="ln-section-head">
-      <span class="ln-section-tag">Real outputs</span>
-      <h2 class="ln-section-title">See what Sightline produces</h2>
-      <p class="ln-section-desc">This is not a demo. These are real reports generated from live humanitarian data.</p>
-    </div>
-    <div class="ln-showcase-grid">
-      <div class="ln-showcase-card" onclick="window.location='/app'">
-        <div class="ln-showcase-type">Weekly Bulletin</div>
-        <div class="ln-showcase-title">Global Humanitarian Brief — Week 26</div>
-        <p class="ln-showcase-desc">Syria, Sudan, Ukraine, DRC — 8 crises analyzed, 1,200+ reports synthesized into a single brief with displacement figures and funding gaps.</p>
+    <!-- Section 2: Situation Reports -->
+    <section class="lp-section" data-section="2">
+      <div class="lp-section-inner lp-section-left">
+        <span class="lp-section-num">02</span>
+        <h2>Situation Reports<br>Generated Automatically</h2>
+        <p>A 10-stage AI pipeline ingests incoming reports, clusters events geographically, generates questions, answers them from RAG, and writes a cited narrative — in minutes.</p>
+        <div class="lp-feature-bullets">
+          <div class="lp-bullet">10-stage pipeline</div>
+          <div class="lp-bullet">Auto geo-clustering</div>
+          <div class="lp-bullet">RAG-based Q&A</div>
+          <div class="lp-bullet">Source-cited output</div>
+        </div>
       </div>
-      <div class="ln-showcase-card" onclick="window.location='/app'">
-        <div class="ln-showcase-type">Donor Proposal</div>
-        <div class="ln-showcase-title">ECHO HIP — Cash Assistance Syria</div>
-        <p class="ln-showcase-desc">12-section proposal with full logical framework, SMART indicators, budget by category (7% indirect max), risk matrix, and sustainability plan.</p>
-      </div>
-      <div class="ln-showcase-card" onclick="window.location='/app'">
-        <div class="ln-showcase-type">Country Intelligence</div>
-        <div class="ln-showcase-title">Sudan — Crisis Overview</div>
-        <p class="ln-showcase-desc">ReliefWeb + HDX + World Bank + GDACS data combined into a single country card with severity, displacement, and economic baseline.</p>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Pricing -->
-  <section class="ln-pricing" id="pricing">
-    <div class="ln-section-head">
-      <span class="ln-section-tag">Simple pricing</span>
-      <h2 class="ln-section-title">Start free, upgrade when you need</h2>
-    </div>
-    <div class="ln-pricing-grid">
-      <div class="ln-pricing-card">
-        <div class="ln-price-name">Free</div>
-        <div class="ln-price-amount">$0<span>/month</span></div>
-        <p class="ln-price-desc">For trying it out</p>
-        <ul class="ln-price-features">
-          <li>10 AI chat messages/day</li>
-          <li>1 proposal per month</li>
-          <li>Read-only bulletins & SITREPs</li>
-          <li>Database search (3 days)</li>
-        </ul>
-        <a href="/app" class="ln-btn ln-btn-ghost ln-btn-block">Start Free</a>
+    <!-- Section 3: Donor Proposals -->
+    <section class="lp-section" data-section="3">
+      <div class="lp-section-inner lp-section-right">
+        <span class="lp-section-num">03</span>
+        <h2>Donor Proposals<br>Step by Step</h2>
+        <p>12-step wizard generates ECHO HIP, USAID/BHA, or OCHA CBPF proposals. M&E quality scoring on every section. SMART indicator checker. Cross-section consistency validation.</p>
+        <div class="lp-feature-bullets">
+          <div class="lp-bullet">ECHO / USAID / OCHA templates</div>
+          <div class="lp-bullet">SMART indicator validation</div>
+          <div class="lp-bullet">Cross-section consistency checks</div>
+          <div class="lp-bullet">PDF + Markdown export</div>
+        </div>
       </div>
-      <div class="ln-pricing-card ln-pricing-featured">
-        <div class="ln-price-badge">Recommended</div>
-        <div class="ln-price-name">Premium</div>
-        <div class="ln-price-amount">$19<span>/month</span></div>
-        <p class="ln-price-desc">For M&E professionals</p>
-        <ul class="ln-price-features">
-          <li>100 AI chat messages/day</li>
-          <li>Unlimited proposals</li>
-          <li>SITREP generation + PDF export</li>
-          <li>Full database access</li>
-          <li>AI Proposal Advisor</li>
-          <li>M&E quality scoring</li>
-        </ul>
-        <a href="mailto:contact@YOUR_PROJECT_ID.com?subject=Premium%20Access" class="ln-btn ln-btn-primary ln-btn-block">Get Premium</a>
+    </section>
+
+    <!-- Section 4: Weekly Bulletins -->
+    <section class="lp-section" data-section="4">
+      <div class="lp-section-inner lp-section-left">
+        <span class="lp-section-num">04</span>
+        <h2>Weekly Intelligence<br>Bulletins</h2>
+        <p>Every Monday: auto-generated global humanitarian brief with 30+ country summaries, crisis trends, funding gaps, and displacement data — curated from thousands of sources.</p>
+        <div class="lp-feature-bullets">
+          <div class="lp-bullet">Auto-generated weekly</div>
+          <div class="lp-bullet">30+ country intelligence cards</div>
+          <div class="lp-bullet">Funding & displacement data</div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Stats Bar -->
-  <section class="ln-stats-bar">
-    <div class="ln-stats-inner">
-      <div class="ln-bar-stat"><strong>59</strong><span>data sources</span></div>
-      <div class="ln-bar-stat"><strong>89K</strong><span>reports indexed</span></div>
-      <div class="ln-bar-stat"><strong>143</strong><span>countries tracked</span></div>
-      <div class="ln-bar-stat"><strong>ECHO</strong><span>USAID · OCHA</span></div>
-      <div class="ln-bar-stat"><strong>SMART</strong><span>indicator checks</span></div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="ln-cta">
-    <div class="ln-cta-inner">
-      <h2>Ready to write your next report<br>in minutes?</h2>
-      <p>Free tier — no credit card. Start generating situation reports and donor proposals today.</p>
-      <a href="/app" class="ln-btn ln-btn-primary ln-btn-lg">Start Free →</a>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="ln-footer">
-    <div class="ln-footer-inner">
-      <div class="ln-footer-brand">
-        <span class="ln-logo-mark">S</span>
-        <span>Sightline</span>
+    <!-- Section 5: M&E Quality -->
+    <section class="lp-section" data-section="5">
+      <div class="lp-section-inner lp-section-right">
+        <span class="lp-section-num">05</span>
+        <h2>M&E Quality<br>Built In</h2>
+        <p>Every section is scored by an automated M&E reviewer. SMART indicators checked. Logical flow validated. Source quality assessed. Completeness verified. Cross-section consistency enforced.</p>
+        <div class="lp-feature-bullets">
+          <div class="lp-bullet">SMART indicator scoring</div>
+          <div class="lp-bullet">Logical flow validation</div>
+          <div class="lp-bullet">Source quality assessment</div>
+          <div class="lp-bullet">0-100 quality score</div>
+        </div>
       </div>
-      <p class="ln-footer-text">Humanitarian data platform — ReliefWeb · HDX · World Bank · GDACS · NewsAPI · Open-Meteo</p>
-      <p class="ln-footer-copy">© 2026 Sightline. All data from public humanitarian sources.</p>
-    </div>
-  </footer>
+    </section>
 
+    <!-- Section 6: CTA + Pricing -->
+    <section class="lp-section" data-section="6">
+      <div class="lp-section-inner lp-section-center">
+        <span class="lp-section-num">06</span>
+        <h2>Ready to write your next<br>report in minutes?</h2>
+        <p>Free tier — no credit card. Start generating situation reports and donor proposals today.</p>
+
+        <div class="lp-pricing-grid">
+          <div class="lp-pricing-card">
+            <div class="lp-price-name">Free</div>
+            <div class="lp-price-amount">$0<span>/mo</span></div>
+            <ul class="lp-price-features">
+              <li>10 AI messages/day</li>
+              <li>1 proposal/month</li>
+              <li>Read-only reports</li>
+            </ul>
+            <a href="/app" class="lp-btn lp-btn-ghost lp-btn-block">Start Free</a>
+          </div>
+          <div class="lp-pricing-card lp-pricing-featured">
+            <div class="lp-price-badge">Recommended</div>
+            <div class="lp-price-name">Premium</div>
+            <div class="lp-price-amount">$19<span>/mo</span></div>
+            <ul class="lp-price-features">
+              <li>100 AI messages/day</li>
+              <li>Unlimited proposals</li>
+              <li>SITREP + PDF export</li>
+              <li>M&E quality scoring</li>
+            </ul>
+            <a href="mailto:contact@YOUR_PROJECT_ID.com?subject=Premium" class="lp-btn lp-btn-primary lp-btn-block">Get Premium</a>
+          </div>
+        </div>
+
+        <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg lp-cta-final">Start Free →</a>
+
+        <footer class="lp-footer">
+          <p>© 2026 Sightline · ReliefWeb · HDX · World Bank · GDACS</p>
+        </footer>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/landing3d.js?v={{ v }}"></script>
 </body>
 </html>
