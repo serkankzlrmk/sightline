@@ -322,7 +322,7 @@
 
     sections.forEach(function(s) { observer.observe(s); });
 
-    // Progress bar + nav hide on scroll
+    // Progress bar + nav hide + scroll hint hide
     if (scrollContainer) {
       scrollContainer.addEventListener('scroll', function() {
         var max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
@@ -337,6 +337,15 @@
           } else {
             nav.style.opacity = '1';
             nav.style.pointerEvents = 'auto';
+          }
+        }
+        // Hide "Explore" hint after scrolling
+        var hint = document.getElementById('scroll-hint-hero');
+        if (hint) {
+          if (scrollContainer.scrollTop > 50) {
+            hint.style.opacity = '0';
+          } else {
+            hint.style.opacity = '1';
           }
         }
       }, { passive: true });
