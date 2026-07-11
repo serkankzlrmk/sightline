@@ -29,19 +29,19 @@
   var texturesLoaded = 0;
   var totalTextures = 4;
   var dayMaterial;
-  var targetCameraPos = { x: 0, y: -10, z: 0.5 };
-  var targetLookAt = { x: 0, y: 10, z: 0 };
-  var currentLookAt = { x: 0, y: 10, z: 0 };
+  var targetCameraPos = { x: 0, y: -4, z: 0.5 };
+  var targetLookAt = { x: 0, y: 5, z: 0 };
+  var currentLookAt = { x: 0, y: 5, z: 0 };
   var earthVisible = false;
 
   // Camera positions for each section
   // Turkey is at ~35°E — camera should start at that angle
-  // Earth texture: 0° = prime meridian (Greenwich), positive = east
-  // To face Turkey: camera at angle = 35° from center
   var turkeyAngle = 35 * Math.PI / 180;
+  // Offset earth rotation so Turkey faces camera at angle 0
+  var earthRotY = turkeyAngle;
   var sectionCameras = [
-    // Section 0: Hero — looking up at stars, earth hidden
-    { pos: { x: 0, y: -10, z: 0.5 }, look: { x: 0, y: 10, z: 0 }, earth: false },
+    // Section 0: Hero — looking up at stars, earth hidden (but camera closer for fast transition)
+    { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
     // Section 1: Data sources — earth rises with Turkey facing, close
     { pos: { x: Math.sin(turkeyAngle) * 2.5, y: 0, z: Math.cos(turkeyAngle) * 2.5 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 2: SITREP — orbit right, slight tilt
@@ -53,7 +53,7 @@
     // Section 5: M&E Quality — high angle
     { pos: { x: Math.sin(turkeyAngle + 2.4) * 1.8, y: 1.4, z: Math.cos(turkeyAngle + 2.4) * 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 6: CTA — back to stars, earth hidden
-    { pos: { x: 0, y: -10, z: 0.5 }, look: { x: 0, y: 10, z: 0 }, earth: false }
+    { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false }
   ];
 
   function hideLoader() {
@@ -73,8 +73,8 @@
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, -10, 0.5);
-    camera.lookAt(0, 10, 0);
+    camera.position.set(0, -4, 0.5);
+    camera.lookAt(0, 5, 0);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -152,6 +152,7 @@
     });
 
     earth = new THREE.Mesh(earthGeo, dayMaterial);
+    earth.rotation.y = turkeyAngle; // Offset so Turkey faces camera in Section 1
     earth.visible = false;
     scene.add(earth);
 
@@ -295,10 +296,10 @@
     // Section 0 is already active
     currentSection = 0;
 
-    // IntersectionObserver for section detection
+    // IntersectionObserver for section detection — trigger early for smooth transitions
     var observer = new IntersectionObserver(function(entries) {
       entries.forEach(function(entry) {
-        if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+        if (entry.isIntersecting && entry.intersectionRatio > 0.25) {
           var section = parseInt(entry.target.dataset.section);
           if (section !== currentSection) {
             activateSection(section, sections, dots);
@@ -307,7 +308,7 @@
       });
     }, {
       root: scrollContainer,
-      threshold: 0.5
+      threshold: [0, 0.25, 0.5, 0.75, 1]
     });
 
     sections.forEach(function(s) { observer.observe(s); });
