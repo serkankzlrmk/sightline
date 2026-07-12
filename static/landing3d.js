@@ -36,7 +36,7 @@
   // Camera starts at angle 0 (facing prime meridian / Greenwich)
   // Earth texture is rotated -35° so Turkey (35°E) faces camera at start
   // Earth rotates eastward (positive Y) = west to east (natural)
-  var turkeyOffset = -35 * Math.PI / 180;
+  var turkeyOffset = -120 * Math.PI / 180; // Turkey/Europe faces camera (rotate ~120° east)
   var sectionCameras = [
     // Section 0: Hero — looking up at stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
