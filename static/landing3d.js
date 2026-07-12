@@ -73,10 +73,10 @@
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x030305, 1);
+    renderer.setClearColor(0x0a0515, 1); // Deep purple-black (milky way)
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.3;
+    renderer.toneMappingExposure = 1.8;
     container.appendChild(renderer.domElement);
 
     var texLoader = new THREE.TextureLoader();
@@ -139,16 +139,16 @@
         'varying vec2 vUv;',
         'varying vec3 vNormal;',
         'void main() {',
-        '  vec3 dayColor = texture2D(dayTexture, vUv).rgb;',
-        '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 1.5;',
+        '  vec3 dayColor = texture2D(dayTexture, vUv).rgb * 1.3;',
+        '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 1.2;',
         '  float specular = texture2D(specularMap, vUv).r;',
         '  float bump = texture2D(bumpTexture, vUv).r;',
         '  dayColor *= 0.8 + bump * 0.4;',
         '  float dayAmount = max(dot(vNormal, sunDirection), 0.0);',
-        '  vec3 color = mix(nightColor, dayColor, smoothstep(0.0, 0.5, dayAmount));',
+        '  vec3 color = mix(nightColor, dayColor, smoothstep(0.0, 0.7, dayAmount));',
         '  float specHighlight = pow(max(dot(reflect(-sunDirection, vNormal), vec3(0,0,1)), 0.0), 20.0) * specular * dayAmount;',
         '  color += vec3(0.8, 0.9, 1.0) * specHighlight * 0.5;',
-        '  color = mix(color, nightColor * 0.6, nightMix);',
+        '  color = mix(color, nightColor * 0.5, nightMix);',
         '  gl_FragColor = vec4(color, 1.0);',
         '}'
       ].join('\n')
@@ -192,11 +192,47 @@
     innerGlow.name = 'innerGlow';
     scene.add(innerGlow);
 
-    // ── Stars (3 parallax layers) ──
+    // ── Nebula cloud (purple/magenta diffuse particles) ──
+    var nebulaGeo = new THREE.BufferGeometry();
+    var nebulaCount = 800;
+    var nebulaPos = new Float32Array(nebulaCount * 3);
+    var nebulaColors = new Float32Array(nebulaCount * 3);
+    for (var i = 0; i < nebulaCount; i++) {
+      // Spread in a band (galactic plane)
+      var theta = Math.random() * Math.PI * 2;
+      var radius = 30 + Math.random() * 40;
+      var height = (Math.random() - 0.5) * 15;
+      nebulaPos[i*3] = radius * Math.cos(theta);
+      nebulaPos[i*3+1] = height;
+      nebulaPos[i*3+2] = radius * Math.sin(theta);
+      // Purple to pink to blue gradient
+      var t = Math.random();
+      if (t < 0.4) { // purple
+        nebulaColors[i*3] = 0.5; nebulaColors[i*3+1] = 0.2; nebulaColors[i*3+2] = 0.8;
+      } else if (t < 0.7) { // pink/magenta
+        nebulaColors[i*3] = 0.9; nebulaColors[i*3+1] = 0.3; nebulaColors[i*3+2] = 0.7;
+      } else { // blue
+        nebulaColors[i*3] = 0.3; nebulaColors[i*3+1] = 0.4; nebulaColors[i*3+2] = 0.9;
+      }
+    }
+    nebulaGeo.setAttribute('position', new THREE.BufferAttribute(nebulaPos, 3));
+    nebulaGeo.setAttribute('color', new THREE.BufferAttribute(nebulaColors, 3));
+    var nebulaMat = new THREE.PointsMaterial({
+      size: 3.0,
+      transparent: true,
+      opacity: 0.08,
+      sizeAttenuation: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      vertexColors: true
+    });
+    var nebula = new THREE.Points(nebulaGeo, nebulaMat);
+    starFields.push(nebula);
+    scene.add(nebula);
     var starConfigs = [
       { count: 1500, dist: 40, size: 0.08, color: 0xffffff, opacity: 0.9 },
-      { count: 1000, dist: 60, size: 0.12, color: 0xccddff, opacity: 0.6 },
-      { count: 500, dist: 80, size: 0.18, color: 0xffeecc, opacity: 0.4 }
+      { count: 1000, dist: 60, size: 0.12, color: 0xddccff, opacity: 0.6 }, // purple tint
+      { count: 500, dist: 80, size: 0.18, color: 0xffaadd, opacity: 0.4 }   // pink/magenta
     ];
     starConfigs.forEach(function(cfg) {
       var geo = new THREE.BufferGeometry();
@@ -219,11 +255,11 @@
     });
 
     // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0x404060, 0.6));
-    var sun = new THREE.DirectionalLight(0xfff5e0, 2.5);
+    scene.add(new THREE.AmbientLight(0x606080, 1.0));
+    var sun = new THREE.DirectionalLight(0xfff5e0, 3.5);
     sun.position.set(5, 3, 5);
     scene.add(sun);
-    var fill = new THREE.DirectionalLight(0x4488ff, 0.5);
+    var fill = new THREE.DirectionalLight(0x6699ff, 0.8);
     fill.position.set(-5, -2, -4);
     scene.add(fill);
 
@@ -239,9 +275,10 @@
     targetLookAt = { x: 0, y: 5, z: 0 };
     currentSection = 0;
 
-    // Show intro image on first load
+    // Show intro image on LAST section (section 6), not first
+    // First section: stars + galaxy colors (purple/milky way)
     var introImg = document.getElementById('intro-bg');
-    if (introImg) introImg.style.opacity = '1';
+    if (introImg) introImg.style.opacity = '0'; // hidden on first load
 
     // Start animation loop immediately (renders stars while textures load)
     animate();
@@ -415,10 +452,10 @@
       earthVisible = cam.earth;
     }
 
-    // Fade intro image out when leaving Section 0
+    // Fade intro image in on LAST section, out on others
     var introImg = document.getElementById('intro-bg');
     if (introImg) {
-      if (index === 0) {
+      if (index === 6) {
         introImg.style.opacity = '1';
       } else {
         introImg.style.opacity = '0';
