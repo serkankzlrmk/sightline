@@ -147,7 +147,7 @@
         '  float dayAmount = max(dot(vNormal, sunDirection), 0.0);',
         '  vec3 color = mix(nightColor, dayColor, smoothstep(0.0, 0.7, dayAmount));',
         '  float specHighlight = pow(max(dot(reflect(-sunDirection, vNormal), vec3(0,0,1)), 0.0), 20.0) * specular * dayAmount;',
-        '  color += vec3(0.8, 0.9, 1.0) * specHighlight * 0.5;',
+        '  color += vec3(0.6, 0.7, 0.9) * specHighlight * 0.2;',
         '  color = mix(color, nightColor * 0.5, nightMix);',
         '  gl_FragColor = vec4(color, 1.0);',
         '}'
@@ -162,7 +162,7 @@
     // ── Clouds ──
     var cloudsGeo = new THREE.SphereGeometry(1.015, 96, 96);
     clouds = new THREE.Mesh(cloudsGeo, new THREE.MeshPhongMaterial({
-      map: cloudsTex, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.NormalBlending
+      map: cloudsTex, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.NormalBlending
     }));
     clouds.visible = false;
     scene.add(clouds);
@@ -172,7 +172,7 @@
       new THREE.SphereGeometry(1.15, 64, 64),
       new THREE.ShaderMaterial({
         vertexShader: 'varying vec3 vNormal; void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying vec3 vNormal; void main() { float i = pow(0.6 - dot(vNormal, vec3(0,0,1)), 2.5); gl_FragColor = vec4(vec3(0.15,0.45,0.9)*i, i*0.8); }',
+        fragmentShader: 'varying vec3 vNormal; void main() { float i = pow(0.4 - dot(vNormal, vec3(0,0,1)), 3.0); gl_FragColor = vec4(vec3(0.1,0.3,0.7)*i, i*0.5); }',
         blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true
       })
     );
@@ -184,7 +184,7 @@
       new THREE.SphereGeometry(1.02, 64, 64),
       new THREE.ShaderMaterial({
         vertexShader: 'varying vec3 vNormal; void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying vec3 vNormal; void main() { float i = pow(0.75 - dot(vNormal, vec3(0,0,1)), 3.0); gl_FragColor = vec4(vec3(0.2,0.4,0.8)*i + vec3(0.4,0.7,1.0)*i, i*0.6); }',
+        fragmentShader: 'varying vec3 vNormal; void main() { float i = pow(0.5 - dot(vNormal, vec3(0,0,1)), 3.5); gl_FragColor = vec4(vec3(0.1,0.3,0.6)*i, i*0.4); }',
         blending: THREE.AdditiveBlending, side: THREE.FrontSide, transparent: true
       })
     );
