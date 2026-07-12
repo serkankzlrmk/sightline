@@ -290,7 +290,7 @@ _user_active_chat_lock = threading.Lock()
 _user_agent_busy = {}  # uid → bool  (per-user agent busy flag)
 _user_agent_busy_since = {}  # uid → timestamp
 _user_agent_busy_lock = threading.Lock()  # guards _user_agent_busy + _user_agent_busy_since
-_AGENT_BUSY_TIMEOUT = int(os.getenv("AGENT_BUSY_TIMEOUT", "600"))  # 10 min max — auto-unlock if stuck
+_AGENT_BUSY_TIMEOUT = int(os.getenv("AGENT_BUSY_TIMEOUT", "120"))  # 2 min max — auto-unlock if stuck
 
 # Simple per-IP rate limiter for unauthenticated endpoints
 _api_rate_lock = threading.Lock()
@@ -1590,6 +1590,42 @@ def api_agent_chat():
     if not user_message:
         return jsonify({"error": "empty message"}), 400
 
+    # ── Pre-flight checks (BEFORE setting busy flag) ──────────────────────
+    # Do all validation that can return early here so we never leave the
+    # busy flag stuck if a later step returns/throws before generate() runs.
+
+    # Agent mode: analyst (default), proposal, me_reviewer
+    agent_mode = data.get("mode", "analyst")
+    if agent_mode not in ("analyst", "proposal", "me_reviewer"):
+        agent_mode = "analyst"
+
+    # Model selection for chat
+    requested_model = data.get("model", "thinking")
+    model_key = requested_model if requested_model in CHAT_MODELS else "thinking"
+    model_config = CHAT_MODELS[model_key]
+    # Premium model check — done before busy lock so we don't lock out on 403
+    if model_config["premium"] and role not in ("premium", "admin"):
+        return jsonify({"error": "Premium model requires a premium account", "premium_required": True}), 403
+
+    # Deep Think: sequential reasoning flag
+    use_sequential = model_config.get("sequential", False)
+
+    # If proposal/review mode, attach proposal_id to config
+    proposal_id = data.get("proposal_id", "")
+    if agent_mode in ("proposal", "me_reviewer") and not proposal_id:
+        try:
+            _pconn = _chats_db()
+            _prow = _pconn.execute(
+                "SELECT id FROM proposals WHERE uid = ? ORDER BY created_at DESC LIMIT 1",
+                (uid,)
+            ).fetchone()
+            _pconn.close()
+            if _prow:
+                proposal_id = _prow["id"]
+        except Exception:
+            pass
+
+    # ── Busy flag + rate limit (atomic) ───────────────────────────────────
     # Rate limit check + busy flag check must be atomic to prevent TOCTOU races
     # where two concurrent requests for the same user both pass the checks.
     with _user_agent_busy_lock:
@@ -1618,40 +1654,17 @@ def api_agent_chat():
         _user_agent_busy[uid] = True
         _user_agent_busy_since[uid] = _time.time()
 
-    _log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking"), "mode": agent_mode})
-    chat_id = _ensure_active_chat(uid)
-
-    # Model selection for chat
-    requested_model = data.get("model", "thinking")
-    model_key = requested_model if requested_model in CHAT_MODELS else "thinking"
-    model_config = CHAT_MODELS[model_key]
-    # Premium model check
-    if model_config["premium"] and role not in ("premium", "admin"):
-        return jsonify({"error": "Premium model requires a premium account", "premium_required": True}), 403
-
-    # Deep Think: sequential reasoning flag
-    use_sequential = model_config.get("sequential", False)
-
-    # Agent mode: analyst (default), proposal, me_reviewer
-    agent_mode = data.get("mode", "analyst")
-    if agent_mode not in ("analyst", "proposal", "me_reviewer"):
-        agent_mode = "analyst"
-
-    # If proposal/review mode, attach proposal_id to config
-    proposal_id = data.get("proposal_id", "")
-    if agent_mode in ("proposal", "me_reviewer") and not proposal_id:
-        # Try to find user's most recent proposal
-        try:
-            _pconn = _chats_db()
-            _prow = _pconn.execute(
-                "SELECT id FROM proposals WHERE uid = ? ORDER BY created_at DESC LIMIT 1",
-                (uid,)
-            ).fetchone()
-            _pconn.close()
-            if _prow:
-                proposal_id = _prow["id"]
-        except Exception:
-            pass
+    # ── Post-busy setup (wrapped in try/finally — clears busy on failure) ─
+    chat_id = None
+    try:
+        _log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking"), "mode": agent_mode})
+        chat_id = _ensure_active_chat(uid)
+    except Exception:
+        # If setup fails before generate() starts, free the busy flag
+        with _user_agent_busy_lock:
+            _user_agent_busy[uid] = False
+        logger.exception("Agent chat pre-stream setup failed for uid=%s", uid)
+        return jsonify({"error": "Failed to start chat session"}), 500
 
 
     def generate():

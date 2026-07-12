@@ -3906,6 +3906,20 @@ body.auth-locked .mobile-tab-bar { display: none !important; }
 .msg-error { color: #dc2626; }
 .msg-muted { color: var(--text-muted); }
 .msg-placeholder { color: #94a3b8; }
+.btn-retry {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 12px;
+  font-size: 12px;
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.btn-retry:hover { opacity: .85; }
+.btn-retry:active { transform: scale(.97); }
 .no-qa-msg { font-size: 13px; }
 .no-clusters-msg { font-size: 14px; padding: 20px; }
 .loading-placeholder { color: var(--text-muted); padding: 20px; }

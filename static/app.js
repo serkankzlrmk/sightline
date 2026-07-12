@@ -467,6 +467,18 @@ async function sendMessage() {
       } catch {
         chatState.currentAiEl.innerHTML = '<span class="msg-warn">Agent is busy, please wait.</span>';
       }
+      // Show a retry button so the user can re-send the message
+      if (text) {
+        const retryEl = document.createElement('button');
+        retryEl.className = 'btn btn-sm btn-retry';
+        retryEl.textContent = 'Retry';
+        retryEl.onclick = () => {
+          retryEl.remove();
+          chatInput.value = text;
+          sendChatMessage();
+        };
+        chatState.currentAiEl.appendChild(retryEl);
+      }
       return;
     }
 

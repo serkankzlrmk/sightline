@@ -4,6 +4,104 @@
 (function() {
   'use strict';
 
+  // ── Rose Curve Loading Animation ──
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var roseConfig = {
+    rotate: true,
+    particleCount: 64,
+    trailSpan: 0.38,
+    durationMs: 4600,
+    rotationDurationMs: 28000,
+    pulseDurationMs: 4200,
+    strokeWidth: 5.5,
+    baseRadius: 7,
+    detailAmplitude: 3,
+    petalCount: 7,
+    curveScale: 3.9,
+    point: function(progress, detailScale, config) {
+      var t = progress * Math.PI * 2;
+      var petals = Math.round(config.petalCount);
+      var x = config.baseRadius * Math.cos(t) - config.detailAmplitude * detailScale * Math.cos(petals * t);
+      var y = config.baseRadius * Math.sin(t) - config.detailAmplitude * detailScale * Math.sin(petals * t);
+      return { x: 50 + x * config.curveScale, y: 50 + y * config.curveScale };
+    }
+  };
+
+  var roseGroup = document.querySelector('#ls-group');
+  var rosePath = document.querySelector('#ls-path');
+  var roseParticles = [];
+  var roseStartedAt = 0;
+  var roseActive = true;
+
+  if (rosePath) {
+    rosePath.setAttribute('stroke-width', String(roseConfig.strokeWidth));
+    for (var i = 0; i < roseConfig.particleCount; i++) {
+      var circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('fill', 'currentColor');
+      roseGroup.appendChild(circle);
+      roseParticles.push(circle);
+    }
+    roseStartedAt = performance.now();
+    requestAnimationFrame(renderRose);
+  }
+
+  function normalizeProgress(progress) {
+    return ((progress % 1) + 1) % 1;
+  }
+
+  function getDetailScale(time) {
+    var pulseProgress = (time % roseConfig.pulseDurationMs) / roseConfig.pulseDurationMs;
+    var pulseAngle = pulseProgress * Math.PI * 2;
+    return 0.52 + ((Math.sin(pulseAngle + 0.55) + 1) / 2) * 0.48;
+  }
+
+  function getRoseRotation(time) {
+    if (!roseConfig.rotate) return 0;
+    return -((time % roseConfig.rotationDurationMs) / roseConfig.rotationDurationMs) * 360;
+  }
+
+  function buildRosePath(detailScale, steps) {
+    steps = steps || 480;
+    var points = [];
+    for (var i = 0; i <= steps; i++) {
+      var p = roseConfig.point(i / steps, detailScale, roseConfig);
+      points.push((i === 0 ? 'M' : 'L') + ' ' + p.x.toFixed(2) + ' ' + p.y.toFixed(2));
+    }
+    return points.join(' ');
+  }
+
+  function getRoseParticle(index, progress, detailScale) {
+    var tailOffset = index / (roseConfig.particleCount - 1);
+    var p = roseConfig.point(normalizeProgress(progress - tailOffset * roseConfig.trailSpan), detailScale, roseConfig);
+    var fade = Math.pow(1 - tailOffset, 0.56);
+    return {
+      x: p.x, y: p.y,
+      radius: 0.9 + fade * 2.7,
+      opacity: 0.04 + fade * 0.96
+    };
+  }
+
+  function renderRose(now) {
+    if (!roseActive) return;
+    var time = now - roseStartedAt;
+    var progress = (time % roseConfig.durationMs) / roseConfig.durationMs;
+    var detailScale = getDetailScale(time);
+    roseGroup.setAttribute('transform', 'rotate(' + getRoseRotation(time) + ' 50 50)');
+    rosePath.setAttribute('d', buildRosePath(detailScale));
+    for (var i = 0; i < roseParticles.length; i++) {
+      var p = getRoseParticle(i, progress, detailScale);
+      roseParticles[i].setAttribute('cx', p.x.toFixed(2));
+      roseParticles[i].setAttribute('cy', p.y.toFixed(2));
+      roseParticles[i].setAttribute('r', p.radius.toFixed(2));
+      roseParticles[i].setAttribute('opacity', p.opacity.toFixed(3));
+    }
+    requestAnimationFrame(renderRose);
+  }
+
+  function stopRose() {
+    roseActive = false;
+  }
+
   // ── Mobile gate ──
   if (window.innerWidth <= 768) {
     var gate = document.getElementById('mobile-gate');
@@ -52,6 +150,7 @@
 
   function hideLoader() {
     if (loader) loader.classList.add('hidden');
+    stopRose();
   }
 
   function initThree() {
