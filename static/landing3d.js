@@ -399,10 +399,11 @@
     targetLookAt = { x: 0, y: 5, z: 0 };
     currentSection = 0;
 
-    // Show intro image on LAST section (section 6), not first
-    // First section: stars + galaxy colors (purple/milky way)
+    // Show hero-bg (milky way) on first load, intro on last section
+    var heroBg = document.getElementById('hero-bg');
     var introImg = document.getElementById('intro-bg');
-    if (introImg) introImg.style.opacity = '0'; // hidden on first load
+    if (heroBg) heroBg.style.opacity = '1'; // visible on load
+    if (introImg) introImg.style.opacity = '0'; // hidden on load
 
     // Start animation loop immediately (renders stars while textures load)
     animate();
@@ -576,14 +577,14 @@
       earthVisible = cam.earth;
     }
 
-    // Fade intro image in on LAST section, out on others
+    // Fade hero-bg (milky way) out after Section 0, intro image in on Section 6
+    var heroBg = document.getElementById('hero-bg');
     var introImg = document.getElementById('intro-bg');
+    if (heroBg) {
+      heroBg.style.opacity = (index === 0) ? '1' : '0';
+    }
     if (introImg) {
-      if (index === 6) {
-        introImg.style.opacity = '1';
-      } else {
-        introImg.style.opacity = '0';
-      }
+      introImg.style.opacity = (index === 6) ? '1' : '0';
     }
 
     currentSection = index;
