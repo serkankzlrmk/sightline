@@ -102,15 +102,16 @@
     nightTex.colorSpace = THREE.SRGBColorSpace;
 
     var specTex = texLoader.load(base + 'earth_ocean_mask.png', onTex);
-    specTex.anisotropy = 8;
+    specTex.anisotropy = 16;
 
     var cloudsTex = texLoader.load(base + 'earth_clouds.jpg', onTex);
     cloudsTex.colorSpace = THREE.SRGBColorSpace;
 
     var bumpTex = texLoader.load(base + 'earth_bump.jpg', onTex);
+    bumpTex.anisotropy = 16;
 
-    // ── Earth shader ──
-    var earthGeo = new THREE.SphereGeometry(1, 128, 128);
+    // ── Earth shader — high detail with proper bump mapping ──
+    var earthGeo = new THREE.SphereGeometry(1, 256, 256);
     dayMaterial = new THREE.ShaderMaterial({
       uniforms: {
         dayTexture: { value: dayTex },
@@ -123,9 +124,12 @@
       vertexShader: [
         'varying vec2 vUv;',
         'varying vec3 vNormal;',
+        'varying vec3 vWorldPosition;',
         'void main() {',
         '  vUv = uv;',
         '  vNormal = normalize(normalMatrix * normal);',
+        '  vec4 worldPos = modelMatrix * vec4(position, 1.0);',
+        '  vWorldPosition = worldPos.xyz;',
         '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
         '}'
       ].join('\n'),
@@ -138,16 +142,37 @@
         'uniform float nightMix;',
         'varying vec2 vUv;',
         'varying vec3 vNormal;',
+        'varying vec3 vWorldPosition;',
+        '',
+        'vec3 perturbNormal(vec3 normal, vec2 uv, vec3 viewDir) {',
+        '  vec2 texelSize = vec2(1.0 / 4096.0, 1.0 / 4096.0);',
+        '  float b0 = texture2D(bumpTexture, uv).r;',
+        '  float bx = texture2D(bumpTexture, uv + vec2(texelSize.x, 0.0)).r;',
+        '  float by = texture2D(bumpTexture, uv + vec2(0.0, texelSize.y)).r;',
+        '  vec3 perturbed = normal + vec3((b0 - bx) * 2.0, (b0 - by) * 2.0, 0.0);',
+        '  return normalize(perturbed);',
+        '}',
+        '',
         'void main() {',
+        '  vec3 viewDir = normalize(cameraPosition - vWorldPosition);',
+        '',
+        '  // Perturb normal with bump map for terrain detail',
+        '  vec3 perturbedNormal = perturbNormal(vNormal, vUv, viewDir);',
+        '',
         '  vec3 dayColor = texture2D(dayTexture, vUv).rgb * 1.3;',
         '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 1.2;',
         '  float specular = texture2D(specularMap, vUv).r;',
         '  float bump = texture2D(bumpTexture, vUv).r;',
-        '  dayColor *= 0.8 + bump * 0.4;',
-        '  float dayAmount = max(dot(vNormal, sunDirection), 0.0);',
+        '  dayColor *= 0.85 + bump * 0.3;',
+        '',
+        '  // Day/night based on perturbed normal',
+        '  float dayAmount = max(dot(perturbedNormal, sunDirection), 0.0);',
         '  vec3 color = mix(nightColor, dayColor, smoothstep(0.0, 0.7, dayAmount));',
-        '  float specHighlight = pow(max(dot(reflect(-sunDirection, vNormal), vec3(0,0,1)), 0.0), 20.0) * specular * dayAmount;',
+        '',
+        '  // Ocean specular highlight with perturbed normal',
+        '  float specHighlight = pow(max(dot(reflect(-sunDirection, perturbedNormal), viewDir), 0.0), 20.0) * specular * dayAmount;',
         '  color += vec3(0.6, 0.7, 0.9) * specHighlight * 0.2;',
+        '',
         '  color = mix(color, nightColor * 0.5, nightMix);',
         '  gl_FragColor = vec4(color, 1.0);',
         '}'
@@ -160,7 +185,7 @@
     scene.add(earth);
 
     // ── Clouds ──
-    var cloudsGeo = new THREE.SphereGeometry(1.015, 96, 96);
+    var cloudsGeo = new THREE.SphereGeometry(1.015, 192, 192);
     clouds = new THREE.Mesh(cloudsGeo, new THREE.MeshPhongMaterial({
       map: cloudsTex, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.NormalBlending
     }));
