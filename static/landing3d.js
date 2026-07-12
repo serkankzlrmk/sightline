@@ -291,72 +291,14 @@
     clouds.visible = false;
     scene.add(clouds);
 
-    // ── Atmosphere ──
-    atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(1.15, 64, 64),
-      new THREE.ShaderMaterial({
-        vertexShader: 'varying vec3 vNormal; void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying vec3 vNormal; void main() { float i = pow(0.4 - dot(vNormal, vec3(0,0,1)), 3.0); gl_FragColor = vec4(vec3(0.1,0.3,0.7)*i, i*0.5); }',
-        blending: THREE.AdditiveBlending, side: THREE.BackSide, transparent: true
-      })
-    );
-    atmosphere.visible = false;
-    scene.add(atmosphere);
+    // ── No atmosphere glow (removed — was causing artifacts) ──
+    // ── No nebula (removed — was causing square artifacts) ──
 
-    // Inner atmosphere haze
-    var innerGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(1.02, 64, 64),
-      new THREE.ShaderMaterial({
-        vertexShader: 'varying vec3 vNormal; void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'varying vec3 vNormal; void main() { float i = pow(0.5 - dot(vNormal, vec3(0,0,1)), 3.5); gl_FragColor = vec4(vec3(0.1,0.3,0.6)*i, i*0.4); }',
-        blending: THREE.AdditiveBlending, side: THREE.FrontSide, transparent: true
-      })
-    );
-    innerGlow.visible = false;
-    innerGlow.name = 'innerGlow';
-    scene.add(innerGlow);
-
-    // ── Nebula cloud (purple/magenta diffuse particles) ──
-    var nebulaGeo = new THREE.BufferGeometry();
-    var nebulaCount = 800;
-    var nebulaPos = new Float32Array(nebulaCount * 3);
-    var nebulaColors = new Float32Array(nebulaCount * 3);
-    for (var i = 0; i < nebulaCount; i++) {
-      // Spread in a band (galactic plane)
-      var theta = Math.random() * Math.PI * 2;
-      var radius = 30 + Math.random() * 40;
-      var height = (Math.random() - 0.5) * 15;
-      nebulaPos[i*3] = radius * Math.cos(theta);
-      nebulaPos[i*3+1] = height;
-      nebulaPos[i*3+2] = radius * Math.sin(theta);
-      // Purple to pink to blue gradient
-      var t = Math.random();
-      if (t < 0.4) { // purple
-        nebulaColors[i*3] = 0.5; nebulaColors[i*3+1] = 0.2; nebulaColors[i*3+2] = 0.8;
-      } else if (t < 0.7) { // pink/magenta
-        nebulaColors[i*3] = 0.9; nebulaColors[i*3+1] = 0.3; nebulaColors[i*3+2] = 0.7;
-      } else { // blue
-        nebulaColors[i*3] = 0.3; nebulaColors[i*3+1] = 0.4; nebulaColors[i*3+2] = 0.9;
-      }
-    }
-    nebulaGeo.setAttribute('position', new THREE.BufferAttribute(nebulaPos, 3));
-    nebulaGeo.setAttribute('color', new THREE.BufferAttribute(nebulaColors, 3));
-    var nebulaMat = new THREE.PointsMaterial({
-      size: 3.0,
-      transparent: true,
-      opacity: 0.08,
-      sizeAttenuation: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      vertexColors: true
-    });
-    var nebula = new THREE.Points(nebulaGeo, nebulaMat);
-    starFields.push(nebula);
-    scene.add(nebula);
+    // ── Stars (3 parallax layers — simple, clean) ──
     var starConfigs = [
       { count: 1500, dist: 40, size: 0.08, color: 0xffffff, opacity: 0.9 },
-      { count: 1000, dist: 60, size: 0.12, color: 0xddccff, opacity: 0.6 }, // purple tint
-      { count: 500, dist: 80, size: 0.18, color: 0xffaadd, opacity: 0.4 }   // pink/magenta
+      { count: 1000, dist: 60, size: 0.12, color: 0xaabbff, opacity: 0.5 },
+      { count: 500, dist: 80, size: 0.15, color: 0xffeecc, opacity: 0.3 }
     ];
     starConfigs.forEach(function(cfg) {
       var geo = new THREE.BufferGeometry();
@@ -432,9 +374,6 @@
     // Earth visibility
     if (earth) earth.visible = earthVisible;
     if (clouds) clouds.visible = earthVisible;
-    if (atmosphere) atmosphere.visible = earthVisible;
-    var ig = scene.getObjectByName('innerGlow');
-    if (ig) ig.visible = earthVisible;
 
     // SITREP section darken
     if (dayMaterial && dayMaterial.uniforms && currentSection === 2) {
