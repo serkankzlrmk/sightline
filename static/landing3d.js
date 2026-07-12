@@ -234,10 +234,14 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // ── Set initial camera (Section 0: stars only) ──
+    // ── Set initial camera (Section 0: intro image + stars) ──
     targetCameraPos = { x: 0, y: -4, z: 0.5 };
     targetLookAt = { x: 0, y: 5, z: 0 };
     currentSection = 0;
+
+    // Show intro image on first load
+    var introImg = document.getElementById('intro-bg');
+    if (introImg) introImg.style.opacity = '1';
 
     // Start animation loop immediately (renders stars while textures load)
     animate();
@@ -409,6 +413,16 @@
       targetCameraPos = { x: cam.pos.x, y: cam.pos.y, z: cam.pos.z };
       targetLookAt = { x: cam.look.x, y: cam.look.y, z: cam.look.z };
       earthVisible = cam.earth;
+    }
+
+    // Fade intro image out when leaving Section 0
+    var introImg = document.getElementById('intro-bg');
+    if (introImg) {
+      if (index === 0) {
+        introImg.style.opacity = '1';
+      } else {
+        introImg.style.opacity = '0';
+      }
     }
 
     currentSection = index;
