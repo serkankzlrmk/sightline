@@ -794,20 +794,23 @@
           </div>
         </div>
 
-        <!-- AI Advisor / Revision Panel -->
+        <!-- AI Advisor / Live Chat Panel -->
         <div class="proposal-advisor-panel" id="proposal-advisor-panel">
           <div class="critique-header">
-            <span>AI Advisor</span>
-            <span class="status-indicator-green" id="advisor-status">Ready</span>
+            <span>Proposal Chat</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button class="btn btn-xs btn-secondary btn-revise-section" id="btn-revise-section" title="Revise current section with AI" style="display:none; font-size:11px; padding:2px 8px;">Revise Section</button>
+              <span class="status-indicator-green" id="advisor-status">Ready</span>
+            </div>
           </div>
           <div class="critique-messages" id="critique-messages">
             <div class="critique-msg system">
-              <strong>Sightline Advisor</strong>
-              <p>Select a proposal and generate a section, then ask me for revisions.</p>
+              <strong>Sightline Proposal Assistant</strong>
+              <p>Ask me anything about your proposal, humanitarian data, or request revisions. I have full context of your active proposal.</p>
             </div>
           </div>
           <div class="critique-input-wrap">
-            <textarea class="critique-textarea" id="critique-input" placeholder="Ask for revisions or feedback..." rows="1"></textarea>
+            <textarea class="critique-textarea" id="critique-input" placeholder="Ask about this proposal, request section revisions, or humanitarian data..." rows="1"></textarea>
             <button class="send-btn" id="btn-send-critique">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
             </button>

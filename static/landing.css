@@ -249,7 +249,7 @@ a { color: inherit; text-decoration: none; }
   min-height: 100vh;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 60px 24px;
   opacity: 0;
   transition: opacity 0.8s ease;
@@ -262,15 +262,22 @@ a { color: inherit; text-decoration: none; }
   pointer-events: auto;
 }
 .lp-section-inner {
-  max-width: 600px;
+  max-width: 460px;
   pointer-events: auto;
+  margin-left: 8%;
 }
 .lp-section-right .lp-section-inner {
   margin-left: auto;
+  margin-right: 8%;
   text-align: right;
 }
 .lp-section-left .lp-section-inner {
+  margin-left: 8%;
   margin-right: auto;
+  text-align: left;
+}
+.lp-section-center {
+  justify-content: center;
 }
 .lp-section-center .lp-section-inner {
   margin: 0 auto;

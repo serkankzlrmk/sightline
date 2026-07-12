@@ -4692,52 +4692,110 @@ function wizardSelectStep(step) {
 async function sendProposalCritique() {
   const inp = document.getElementById('critique-input');
   const msgs = document.getElementById('critique-messages');
-  if (!inp || !msgs || !proposalState.activeProposalId) return;
+  if (!inp || !msgs) return;
   const text = inp.value.trim();
+  if (!text) return;
+  if (!proposalState.activeProposalId) {
+    showAdvisorMessage('System', 'Please select or create a proposal first.');
+    return;
+  }
+
   inp.value = '';
+
+  // Render user message
   const userBubble = document.createElement('div');
   userBubble.className = 'critique-msg user';
   userBubble.innerHTML = `<strong>You</strong><p>${escHtml(text)}</p>`;
   msgs.appendChild(userBubble);
-  const thinkingBubble = document.createElement('div');
-  thinkingBubble.className = 'critique-msg system';
-  thinkingBubble.innerHTML = `<strong>Sightline Advisor</strong><p class="msg-placeholder">Revising section...</p>`;
-  msgs.appendChild(thinkingBubble);
+
+  // Create assistant bubble with streaming content
+  const aiBubble = document.createElement('div');
+  aiBubble.className = 'critique-msg system';
+  aiBubble.innerHTML = `<strong>Sightline</strong><div class="critique-content"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  msgs.appendChild(aiBubble);
   msgs.scrollTop = msgs.scrollHeight;
 
-  const step = proposalState.currentStep;
+  const contentEl = aiBubble.querySelector('.critique-content');
+
+  const setStatus = (s) => {
+    const el = document.getElementById('advisor-status');
+    if (el) { el.textContent = s; }
+  };
+  setStatus('Thinking...');
+
+  const btnSend = document.getElementById('btn-send-critique');
+  if (btnSend) btnSend.disabled = true;
+
   try {
-    const res = await fetch(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/revise`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ feedback: text }),
+    const resp = await api('/api/agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        mode: 'proposal',
+        proposal_id: proposalState.activeProposalId,
+      }),
     });
-    thinkingBubble.querySelector('p').textContent = '';
-    const replyP = thinkingBubble.querySelector('p');
-    const reader = res.body.getReader();
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      contentEl.innerHTML = `<span class="msg-error">${escHtml(errData.error || 'Request failed')}</span>`;
+      setStatus('Error');
+      return;
+    }
+
+    const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', fullText = '';
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
+
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        try {
-          const event = JSON.parse(line.slice(6));
-          if (event.type === 'token') { fullText += event.text || ''; replyP.textContent = fullText; msgs.scrollTop = msgs.scrollHeight; }
-          else if (event.type === 'saved') {
-            const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
-            const prop = await refreshed.json();
-            if (!prop.error) proposalState.activeProposal = prop;
-            renderSectionContent(step);
-          }
-          else if (event.type === 'error') replyP.textContent = `Error: ${event.text || 'Revision failed'}`;
-        } catch(e) {}
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (evt.type === 'token') {
+          if (!fullText) contentEl.innerHTML = '';
+          fullText += evt.text || '';
+          contentEl.innerHTML = sanitizeHtml(md(fullText));
+          msgs.scrollTop = msgs.scrollHeight;
+        } else if (evt.type === 'tool_start') {
+          if (!fullText) contentEl.innerHTML = '';
+          const toolEl = document.createElement('div');
+          toolEl.className = 'critique-tool-ind';
+          toolEl.textContent = `🔧 ${evt.name}`;
+          contentEl.appendChild(toolEl);
+          msgs.scrollTop = msgs.scrollHeight;
+        } else if (evt.type === 'tool_done') {
+          // visually noted by tool_start
+        } else if (evt.type === 'error') {
+          contentEl.innerHTML = `<span class="msg-error">Error: ${escHtml(evt.text || 'Unknown error')}</span>`;
+        } else if (evt.type === 'done') {
+          if (!fullText) contentEl.innerHTML = '<span class="msg-placeholder">—</span>';
+        }
       }
     }
-  } catch (err) { thinkingBubble.querySelector('p').textContent = "Revision failed: " + err.message; }
+
+    // Refresh proposal state in case tools modified it
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) {
+      proposalState.activeProposal = prop;
+      renderSectionContent(proposalState.currentStep);
+    }
+    setStatus('Ready');
+  } catch (err) {
+    contentEl.innerHTML = `<span class="msg-error">Connection error: ${escHtml(err.message)}</span>`;
+    setStatus('Error');
+  } finally {
+    if (btnSend) btnSend.disabled = false;
+  }
 }
 
 function showAdvisorMessage(sender, text) {

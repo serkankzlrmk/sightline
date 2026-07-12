@@ -138,12 +138,12 @@
   var sectionCameras = [
     // Section 0: Hero — looking up at stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
-    // Section 1-5: Earth visible, camera slightly above equator looking at northern hemisphere
-    { pos: { x: 0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    { pos: { x: 0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    { pos: { x: 0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    { pos: { x: 0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    { pos: { x: 0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 1-5: Earth visible, camera offset right so earth is on right side
+    { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 6: CTA — back to stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false }
   ];
