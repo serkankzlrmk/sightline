@@ -36,20 +36,20 @@
   // Camera starts at angle 0 (facing prime meridian / Greenwich)
   // Earth texture is rotated -35° so Turkey (35°E) faces camera at start
   // Earth rotates eastward (positive Y) = west to east (natural)
-  var turkeyOffset = -35 * Math.PI / 180; // negative = rotate texture so Turkey faces camera
+  var turkeyOffset = -35 * Math.PI / 180;
   var sectionCameras = [
     // Section 0: Hero — looking up at stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
-    // Section 1: Data sources — earth rises, Turkey facing camera
-    { pos: { x: 0, y: 0, z: 2.5 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 2: SITREP — orbit east (Mediterranean)
-    { pos: { x: Math.sin(0.5) * 2.3, y: 0.4, z: Math.cos(0.5) * 2.3 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 3: Proposals — orbit further east (Middle East)
-    { pos: { x: Math.sin(1.0) * 2.1, y: 0.8, z: Math.cos(1.0) * 2.1 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 4: Bulletins — orbit further (East Asia)
-    { pos: { x: Math.sin(1.5) * 2.0, y: 0.6, z: Math.cos(1.5) * 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 5: M&E Quality — back to Turkey area, then orbit west
-    { pos: { x: Math.sin(-0.3) * 1.8, y: 1.4, z: Math.cos(-0.3) * 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 1: Data sources — earth appears, close, Turkey facing
+    { pos: { x: 0, y: 0, z: 2.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 2: SITREP — camera rises slightly, zoom in
+    { pos: { x: 0, y: 0.5, z: 2.4 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 3: Proposals — higher angle, closer
+    { pos: { x: 0, y: 1.0, z: 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 4: Bulletins — pull back slightly, lower
+    { pos: { x: 0, y: 0.6, z: 2.6 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 5: M&E Quality — highest angle, closest zoom
+    { pos: { x: 0, y: 1.5, z: 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 6: CTA — back to stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false }
   ];
@@ -102,13 +102,13 @@
     dayTex.colorSpace = THREE.SRGBColorSpace;
     dayTex.anisotropy = 16;
 
-    var nightTex = texLoader.load(base + 'earth_night_lights.png', onTex);
+    var nightTex = texLoader.load(base + 'earth_night_lights.jpg', onTex);
     nightTex.colorSpace = THREE.SRGBColorSpace;
 
-    var specTex = texLoader.load(base + 'earth_ocean_mask.png', onTex);
+    var specTex = texLoader.load(base + 'earth_ocean_mask.jpg', onTex);
     specTex.anisotropy = 8;
 
-    var cloudsTex = texLoader.load(base + 'earth_clouds.png', onTex);
+    var cloudsTex = texLoader.load(base + 'earth_clouds.jpg', onTex);
     cloudsTex.colorSpace = THREE.SRGBColorSpace;
 
     var bumpTex = texLoader.load(base + 'earth_bump.jpg', onTex);
