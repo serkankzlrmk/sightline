@@ -76,7 +76,7 @@
     renderer.setClearColor(0x030305, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.3;
     container.appendChild(renderer.domElement);
 
     var texLoader = new THREE.TextureLoader();
@@ -140,15 +140,15 @@
         'varying vec3 vNormal;',
         'void main() {',
         '  vec3 dayColor = texture2D(dayTexture, vUv).rgb;',
-        '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 2.5;',
+        '  vec3 nightColor = texture2D(nightTexture, vUv).rgb * 1.5;',
         '  float specular = texture2D(specularMap, vUv).r;',
         '  float bump = texture2D(bumpTexture, vUv).r;',
         '  dayColor *= 0.8 + bump * 0.4;',
         '  float dayAmount = max(dot(vNormal, sunDirection), 0.0);',
-        '  vec3 color = mix(nightColor, dayColor, smoothstep(0.0, 0.3, dayAmount));',
+        '  vec3 color = mix(nightColor, dayColor, smoothstep(0.0, 0.5, dayAmount));',
         '  float specHighlight = pow(max(dot(reflect(-sunDirection, vNormal), vec3(0,0,1)), 0.0), 20.0) * specular * dayAmount;',
         '  color += vec3(0.8, 0.9, 1.0) * specHighlight * 0.5;',
-        '  color = mix(color, nightColor * 0.8, nightMix);',
+        '  color = mix(color, nightColor * 0.6, nightMix);',
         '  gl_FragColor = vec4(color, 1.0);',
         '}'
       ].join('\n')
@@ -219,11 +219,11 @@
     });
 
     // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0x12121f, 0.2));
-    var sun = new THREE.DirectionalLight(0xfff0e0, 1.8);
+    scene.add(new THREE.AmbientLight(0x404060, 0.6));
+    var sun = new THREE.DirectionalLight(0xfff5e0, 2.5);
     sun.position.set(5, 3, 5);
     scene.add(sun);
-    var fill = new THREE.DirectionalLight(0x1a3866, 0.35);
+    var fill = new THREE.DirectionalLight(0x4488ff, 0.5);
     fill.position.set(-5, -2, -4);
     scene.add(fill);
 
