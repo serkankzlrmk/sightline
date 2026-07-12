@@ -40,16 +40,12 @@
   var sectionCameras = [
     // Section 0: Hero — looking up at stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
-    // Section 1: Data sources — earth appears, close, Turkey facing
-    { pos: { x: 0, y: 0, z: 2.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 2: SITREP — camera rises slightly, zoom in
-    { pos: { x: 0, y: 0.5, z: 2.4 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 3: Proposals — higher angle, closer
-    { pos: { x: 0, y: 1.0, z: 2.0 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 4: Bulletins — pull back slightly, lower
-    { pos: { x: 0, y: 0.6, z: 2.6 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 5: M&E Quality — highest angle, closest zoom
-    { pos: { x: 0, y: 1.5, z: 1.8 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    // Section 1-5: Earth visible, camera fixed looking at earth, it keeps spinning
+    { pos: { x: 0, y: 0, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 0, y: 0, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 0, y: 0, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 0, y: 0, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
+    { pos: { x: 0, y: 0, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     // Section 6: CTA — back to stars, earth hidden
     { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false }
   ];
@@ -102,10 +98,10 @@
     dayTex.colorSpace = THREE.SRGBColorSpace;
     dayTex.anisotropy = 16;
 
-    var nightTex = texLoader.load(base + 'earth_night_lights.jpg', onTex);
+    var nightTex = texLoader.load(base + 'earth_night_lights.png', onTex);
     nightTex.colorSpace = THREE.SRGBColorSpace;
 
-    var specTex = texLoader.load(base + 'earth_ocean_mask.jpg', onTex);
+    var specTex = texLoader.load(base + 'earth_ocean_mask.png', onTex);
     specTex.anisotropy = 8;
 
     var cloudsTex = texLoader.load(base + 'earth_clouds.jpg', onTex);
