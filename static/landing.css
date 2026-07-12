@@ -114,7 +114,7 @@ a { color: inherit; text-decoration: none; }
 #loading-screen.hidden { opacity: 0; visibility: hidden; }
 .ls-inner { text-align: center; }
 .ls-frame {
-  width: min(72vmin, 360px);
+  width: min(50vmin, 240px);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
