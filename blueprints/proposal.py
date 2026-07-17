@@ -501,7 +501,7 @@ def api_pin_source(prop_id):
         pinned = []
         if row["pinned_sources"]:
             try: pinned = json.loads(row["pinned_sources"])
-            except: pass
+            except (json.JSONDecodeError, TypeError): pass  # json parse
 
         pinned.append({
             "id": data.get("id", str(uuid.uuid4())),
@@ -529,7 +529,7 @@ def api_delete_pinned_source(prop_id, index):
         pinned = []
         if row["pinned_sources"]:
             try: pinned = json.loads(row["pinned_sources"])
-            except: pass
+            except (json.JSONDecodeError, TypeError): pass  # json parse
 
         if 0 <= index < len(pinned):
             pinned.pop(index)
@@ -576,7 +576,7 @@ def api_update_logframe(prop_id):
         lf = {}
         if row["logframe_data"]:
             try: lf = json.loads(row["logframe_data"])
-            except: pass
+            except (json.JSONDecodeError, TypeError): pass  # json parse
 
         section = data.get("section")
         index = data.get("index")
@@ -657,7 +657,7 @@ def api_apply_suggestion(prop_id):
             lf = {}
             if row["logframe_data"]:
                 try: lf = json.loads(row["logframe_data"])
-                except: pass
+                except (json.JSONDecodeError, TypeError): pass  # json parse
             sec, idx, fld, val = payload.get("section"), payload.get("index"), payload.get("field"), payload.get("value")
             if sec and fld and idx is not None:
                 if sec not in lf: lf[sec] = []

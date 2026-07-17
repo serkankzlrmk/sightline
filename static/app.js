@@ -9,7 +9,7 @@
 // ── Constants ──────────────────────────────────────────────────────────────
 const ADMIN_EMAIL = 'serkankizilirmak@gmail.com';
 const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
-const DEFAULT_MODEL = 'thinking';
+const DEFAULT_MODEL = 'flash';
 const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
   thinking: { name: 'Thinking', desc: 'Balanced', premium: false },
@@ -118,25 +118,25 @@ const escHtml = esc;
 
 // LaTeX notation → Unicode cleanup (runs before markdown parse)
 const _latexMap = {
-  '\\rightarrow':  '→', '\\leftarrow':   '←', '\\leftrightarrow': '↔',
-  '\\Rightarrow':  '⇒', '\\Leftarrow':   '⇐', '\\Leftrightarrow': '⇔',
-  '\\uparrow':     '↑', '\\downarrow':   '↓', '\\updownarrow': '↕',
-  '\\Uparrow':     '⇑', '\\Downarrow':   '⇓',
-  '\\geq':         '≥', '\\leq':         '≤', '\\neq':  '≠',
-  '\\approx':      '≈', '\\pm':          '±', '\\times': '×',
-  '\\div':         '÷', '\\infty':       '∞', '\\sum':  '∑',
-  '\\prod':        '∏', '\\sqrt':        '√', '\\alpha': 'α',
-  '\\beta':        'β', '\\gamma':       'γ', '\\delta': 'δ',
-  '\\lambda':      'λ', '\\mu':          'μ', '\\pi':    'π',
-  '\\sigma':       'σ', '\\omega':       'ω', '\\theta': 'θ',
-  '\\cdot':        '·', '\\dots':        '…', '\\ldots': '…',
-  '\\degree':      '°', '\\checkmark':   '✓', '\\star':  '★',
-  '\\triangle':    '△', '\\bullet':      '•', '\\circ':  '○',
-  '\\sim':         '∼', '\\cong':        '≅', '\\propto': '∝',
-  '\\in':          '∈', '\\notin':       '∉', '\\subset': '⊂',
-  '\\supset':      '⊃', '\\cup':         '∪', '\\cap':   '∩',
-  '\\forall':      '∀', '\\exists':      '∃', '\\nabla':  '∇',
-  '\\partial':     '∂', '\\emptyset':    '∅',
+  '\\rightarrow': '→', '\\leftarrow': '←', '\\leftrightarrow': '↔',
+  '\\Rightarrow': '⇒', '\\Leftarrow': '⇐', '\\Leftrightarrow': '⇔',
+  '\\uparrow': '↑', '\\downarrow': '↓', '\\updownarrow': '↕',
+  '\\Uparrow': '⇑', '\\Downarrow': '⇓',
+  '\\geq': '≥', '\\leq': '≤', '\\neq': '≠',
+  '\\approx': '≈', '\\pm': '±', '\\times': '×',
+  '\\div': '÷', '\\infty': '∞', '\\sum': '∑',
+  '\\prod': '∏', '\\sqrt': '√', '\\alpha': 'α',
+  '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
+  '\\lambda': 'λ', '\\mu': 'μ', '\\pi': 'π',
+  '\\sigma': 'σ', '\\omega': 'ω', '\\theta': 'θ',
+  '\\cdot': '·', '\\dots': '…', '\\ldots': '…',
+  '\\degree': '°', '\\checkmark': '✓', '\\star': '★',
+  '\\triangle': '△', '\\bullet': '•', '\\circ': '○',
+  '\\sim': '∼', '\\cong': '≅', '\\propto': '∝',
+  '\\in': '∈', '\\notin': '∉', '\\subset': '⊂',
+  '\\supset': '⊃', '\\cup': '∪', '\\cap': '∩',
+  '\\forall': '∀', '\\exists': '∃', '\\nabla': '∇',
+  '\\partial': '∂', '\\emptyset': '∅',
 };
 function cleanLatex(text) {
   // First: expand $...$ blocks (may contain multiple commands + text)
@@ -154,7 +154,7 @@ function cleanLatex(text) {
 
 // Configure marked to open links in new tab
 const _markedRenderer = new marked.Renderer();
-_markedRenderer.link = function(href, title, text) {
+_markedRenderer.link = function (href, title, text) {
   // marked v5+ passes an object; v4 passes positional args
   if (typeof href === 'object') { title = href.title; text = href.text; href = href.href; }
   const t = title ? ` title="${esc(title)}"` : '';
@@ -162,7 +162,7 @@ _markedRenderer.link = function(href, title, text) {
 };
 
 function md(text) {
-  try   { return marked.parse(cleanLatex(text), { breaks: true, gfm: true, renderer: _markedRenderer }); }
+  try { return marked.parse(cleanLatex(text), { breaks: true, gfm: true, renderer: _markedRenderer }); }
   catch { return esc(text).replace(/\n/g, '<br>'); }
 }
 
@@ -436,11 +436,11 @@ async function sendMessage() {
   addMsg('user', esc(text));
 
   chatState.isStreaming = true;
-  sendBtn.disabled    = true;
-  sendBtn.innerHTML   = '<div class="spin spin-lg"></div>';
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = '<div class="spin spin-lg"></div>';
   busyDot.classList.add('visible');
 
-  chatState.currentAiEl   = addMsg('assistant',
+  chatState.currentAiEl = addMsg('assistant',
     '<div class="typing-dots"><span></span><span></span><span></span></div>');
   chatState.currentAiText = '';
 
@@ -449,9 +449,9 @@ async function sendMessage() {
     if (chatState.proposalId) body.proposal_id = chatState.proposalId;
 
     const resp = await api('/api/agent/chat', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
+      body: JSON.stringify(body),
     });
 
     if (resp.status === 429) {
@@ -483,8 +483,8 @@ async function sendMessage() {
     }
 
     const reader = resp.body.getReader();
-    const dec    = new TextDecoder();
-    let   buf    = '';
+    const dec = new TextDecoder();
+    let buf = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -522,12 +522,12 @@ async function sendMessage() {
     }
     clearToolInds();
   } finally {
-    chatState.isStreaming          = false;
-    sendBtn.disabled     = false;
-    sendBtn.innerHTML    = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>';
+    chatState.isStreaming = false;
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>';
     busyDot.classList.remove('visible');
-    chatState.currentAiEl          = null;
-    chatDiv.scrollTop    = chatDiv.scrollHeight;
+    chatState.currentAiEl = null;
+    chatDiv.scrollTop = chatDiv.scrollHeight;
     // Only update sidebar — do NOT re-render messages (causes layout shift)
     loadChatSidebar();
     // Refresh chat list after delay to pick up auto-generated title (full reload)
@@ -817,7 +817,7 @@ async function loadStats() {
     const r = await api('/api/db/stats');
     const d = await r.json();
     document.getElementById('s-reports').textContent = (d.report_count || 0).toLocaleString();
-    document.getElementById('s-chunks').textContent  = (d.chunk_count  || 0).toLocaleString();
+    document.getElementById('s-chunks').textContent = (d.chunk_count || 0).toLocaleString();
   } catch { /* ignore */ }
 }
 
@@ -853,8 +853,8 @@ async function loadRecentReports() {
 async function loadFilterOptions() {
   try {
     const [cRes, sRes] = await Promise.all([api('/api/db/countries'), api('/api/db/sources')]);
-    const countries    = await cRes.json();
-    const sources      = await sRes.json();
+    const countries = await cRes.json();
+    const sources = await sRes.json();
 
     const cSel = document.getElementById('f-country');
     const prevC = cSel.value;
@@ -877,21 +877,21 @@ async function loadFilterOptions() {
 }
 
 async function applyFilters() {
-  const search   = document.getElementById('f-search').value.trim();
-  const country  = document.getElementById('f-country').value;
-  const source   = document.getElementById('f-source').value;
-  const from     = document.getElementById('f-from').value;
-  const to       = document.getElementById('f-to').value;
+  const search = document.getElementById('f-search').value.trim();
+  const country = document.getElementById('f-country').value;
+  const source = document.getElementById('f-source').value;
+  const from = document.getElementById('f-from').value;
+  const to = document.getElementById('f-to').value;
 
   const p = new URLSearchParams();
-  if (search) p.set('search',    search);
-  if (source) p.set('source',    source);
-  if (from)   p.set('date_from', from);
-  if (to)     p.set('date_to',   to);
+  if (search) p.set('search', search);
+  if (source) p.set('source', source);
+  if (from) p.set('date_from', from);
+  if (to) p.set('date_to', to);
 
   try {
-    const res  = await api('/api/db/reports?' + p);
-    let   data = await res.json();
+    const res = await api('/api/db/reports?' + p);
+    let data = await res.json();
     if (country) {
       data = data.filter(r => (r.all_countries || []).includes(country));
     }
@@ -922,8 +922,8 @@ function renderTable() {
   const data = [...dbState.allReports].sort((a, b) => {
     const va = String(a[dbState.sortKey] ?? '');
     const vb = String(b[dbState.sortKey] ?? '');
-    if (va < vb) return dbState.sortAsc ? -1 :  1;
-    if (va > vb) return dbState.sortAsc ?  1 : -1;
+    if (va < vb) return dbState.sortAsc ? -1 : 1;
+    if (va > vb) return dbState.sortAsc ? 1 : -1;
     return 0;
   });
 
@@ -936,7 +936,7 @@ function renderTable() {
 
   body.innerHTML = data.map((r, index) => {
     const fmtBadge = r.format_type
-      ? `<span class="badge b-blue">${esc(r.format_type.replace('Situation Report','Sit.Rep').replace('News and Press Release','News'))}</span>`
+      ? `<span class="badge b-blue">${esc(r.format_type.replace('Situation Report', 'Sit.Rep').replace('News and Press Release', 'News'))}</span>`
       : '';
     const pdfBadge = r.has_pdf
       ? '<span class="badge b-green">PDF</span>'
@@ -959,20 +959,20 @@ async function openDbReport(id) {
   dbState.currentReportId = id;
   try {
     const res = await api('/api/db/reports/' + id);
-    const r   = await res.json();
+    const r = await res.json();
     dbState.currentReportTitle = r.title || '';
 
-    document.getElementById('m-title').textContent     = r.title || '—';
-    document.getElementById('m-id').textContent        = r.report_id;
-    document.getElementById('m-date').textContent      = r.date || '—';
+    document.getElementById('m-title').textContent = r.title || '—';
+    document.getElementById('m-id').textContent = r.report_id;
+    document.getElementById('m-date').textContent = r.date || '—';
     document.getElementById('m-countries').textContent = (r.all_countries || []).join(', ') || '—';
-    document.getElementById('m-source').textContent    = r.source || '—';
-    document.getElementById('m-format').textContent    = r.format_type || '—';
-    document.getElementById('m-pdf').textContent       = r.has_pdf ? `Available (${r.pdf_pages} pages)` : 'None';
-    document.getElementById('m-chunks').textContent    = r.has_content ? `Available (${r.total_chunks} chunks)` : 'None';
+    document.getElementById('m-source').textContent = r.source || '—';
+    document.getElementById('m-format').textContent = r.format_type || '—';
+    document.getElementById('m-pdf').textContent = r.has_pdf ? `Available (${r.pdf_pages} pages)` : 'None';
+    document.getElementById('m-chunks').textContent = r.has_content ? `Available (${r.total_chunks} chunks)` : 'None';
 
     let themes = r.themes_list || [];
-    if (!themes.length) { try { themes = JSON.parse(r.themes || '[]'); } catch {} }
+    if (!themes.length) { try { themes = JSON.parse(r.themes || '[]'); } catch { } }
     document.getElementById('m-themes').textContent = themes.join(', ') || '—';
     document.getElementById('m-link').href = r.url || '#';
 
@@ -1003,19 +1003,19 @@ function askAbout() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const STEPS = [
-  { id: 0,  name: "Chroma Connection",   icon: "1" },
-  { id: 1,  name: "Chunk Loading",       icon: "2" },
-  { id: 2,  name: "Clustering",          icon: "3" },
-  { id: 3,  name: "Question Generation", icon: "4" },
-  { id: 4,  name: "Question Filtering",  icon: "5" },
-  { id: 5,  name: "RAG Answering",       icon: "6" },
-  { id: 6,  name: "Citation Validation", icon: "7" },
-  { id: 7,  name: "Cluster Summary",     icon: "8" },
-  { id: 8,  name: "Exec + Narrative",    icon: "9" },
-  { id: 9,  name: "Report Assembly",     icon: "10" },
+  { id: 0, name: "Chroma Connection", icon: "1" },
+  { id: 1, name: "Chunk Loading", icon: "2" },
+  { id: 2, name: "Clustering", icon: "3" },
+  { id: 3, name: "Question Generation", icon: "4" },
+  { id: 4, name: "Question Filtering", icon: "5" },
+  { id: 5, name: "RAG Answering", icon: "6" },
+  { id: 6, name: "Citation Validation", icon: "7" },
+  { id: 7, name: "Cluster Summary", icon: "8" },
+  { id: 8, name: "Exec + Narrative", icon: "9" },
+  { id: 9, name: "Report Assembly", icon: "10" },
 ];
 
-const STEP_RE  = /\[INFO\]\s+pipeline:\s+\[(\d)\]/;
+const STEP_RE = /\[INFO\]\s+pipeline:\s+\[(\d)\]/;
 const CACHE_RE = /\[CHECKPOINT\]/;
 
 function buildStepsGrid() {
@@ -1052,13 +1052,13 @@ function advanceToStep(n) {
 }
 
 function logClass(line) {
-  if (/^\[GPU_WARN\]/i.test(line))                          return 'gpu-warn';
-  if (STEP_RE.test(line))                                   return 'step';
-  if (/completed successfully|pipeline.*done/i.test(line))  return 'done-line';
-  if (CACHE_RE.test(line))                                  return 'cached';
-  if (/\[warning\]/i.test(line))                            return 'warn';
-  if (/\[error\]/i.test(line) || /traceback/i.test(line))   return 'error';
-  if (/\[info\]/i.test(line))                               return 'info';
+  if (/^\[GPU_WARN\]/i.test(line)) return 'gpu-warn';
+  if (STEP_RE.test(line)) return 'step';
+  if (/completed successfully|pipeline.*done/i.test(line)) return 'done-line';
+  if (CACHE_RE.test(line)) return 'cached';
+  if (/\[warning\]/i.test(line)) return 'warn';
+  if (/\[error\]/i.test(line) || /traceback/i.test(line)) return 'error';
+  if (/\[info\]/i.test(line)) return 'info';
   return 'debug';
 }
 
@@ -1088,7 +1088,7 @@ function appendLog(line) {
 
 function connectSSE(jobId, nonce) {
   sitrepState.activeJobId = jobId;
-  const es  = new EventSource(`/api/sitrep/stream/${jobId}?nonce=${encodeURIComponent(nonce || '')}`);
+  const es = new EventSource(`/api/sitrep/stream/${jobId}?nonce=${encodeURIComponent(nonce || '')}`);
   const dot = document.getElementById('log-dot');
 
   es.onmessage = (e) => {
@@ -1126,7 +1126,7 @@ function connectSSE(jobId, nonce) {
 
 async function runPipeline() {
   const country = document.getElementById('inp-country').value.trim();
-  const event   = document.getElementById('inp-event').value.trim();
+  const event = document.getElementById('inp-event').value.trim();
   if (!country) { alert('Country name is required.'); return; }
 
   // Check chunk preview warning
@@ -1135,15 +1135,15 @@ async function runPipeline() {
     if (!confirm('No matching data found for the selected filters. Run anyway?')) return;
   }
 
-  const dateFrom  = document.getElementById('inp-date-from').value || '';
-  const dateTo    = document.getElementById('inp-date-to').value || '';
+  const dateFrom = document.getElementById('inp-date-from').value || '';
+  const dateTo = document.getElementById('inp-date-to').value || '';
   const skipCache = document.getElementById('chk-skip-cache').checked;
 
   document.getElementById('btn-run').disabled = true;
 
   // Reset progress
   sitrepState.currentStep = -1;
-  sitrepState.stepStates  = new Array(STEPS.length).fill('waiting');
+  sitrepState.stepStates = new Array(STEPS.length).fill('waiting');
   buildStepsGrid();
   const cons = document.getElementById('log-console');
   if (cons) cons.innerHTML = '';
@@ -1159,9 +1159,9 @@ async function runPipeline() {
 
   try {
     const resp = await api('/api/sitrep/run', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ country, event, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
+      body: JSON.stringify({ country, event, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
     });
     const { job_id, stream_nonce, error } = await resp.json();
     if (error) { alert('Error: ' + error); document.getElementById('btn-run').disabled = false; return; }
@@ -1176,7 +1176,7 @@ async function loadSitrepReportsList() {
   const list = document.getElementById('sitrep-reports-list');
   if (!list) return;
   try {
-    const resp  = await api('/api/sitrep/reports');
+    const resp = await api('/api/sitrep/reports');
     const items = await resp.json();
     if (!items.length) {
       list.innerHTML = '<div class="empty-state">No reports yet.</div>';
@@ -1212,7 +1212,7 @@ async function openSitrepReport(filename, itemEl) {
     '<div class="loading-placeholder">Loading…</div>';
 
   try {
-    const resp   = await api(`/api/sitrep/report?file=${encodeURIComponent(filename)}`);
+    const resp = await api(`/api/sitrep/report?file=${encodeURIComponent(filename)}`);
     const report = await resp.json();
     if (report.error) throw new Error(report.error);
     renderSitrepReport(report, filename);
@@ -1226,15 +1226,15 @@ function renderSitrepReport(report, filename) {
   _currentReportData = report;
   _currentReportFile = filename;
 
-  const raw     = report.file_name || filename.replace(/_report\.json$/, '');
-  const parts   = raw.replace(/_/g, ' ').split(/\s+/);
+  const raw = report.file_name || filename.replace(/_report\.json$/, '');
+  const parts = raw.replace(/_/g, ' ').split(/\s+/);
   const country = parts[0];
-  const evt     = parts.slice(1).join(' ');
+  const evt = parts.slice(1).join(' ');
 
   const hasNarrative = !!(report.narrative_html && report.narrative_html.trim());
   const rThemes = report.themes || [];
   const rDateFrom = report.date_from || '';
-  const rDateTo   = report.date_to   || '';
+  const rDateTo = report.date_to || '';
   const clusters = report.clusters || [];
   const narrSources = hasNarrative ? (report.narrative_sources || {}) : {};
   const sourceCount = Object.entries(narrSources).filter(([k, v]) => !isNaN(Number(k)) && v && typeof v === 'object' && (v.url || v.title)).length;
@@ -1337,14 +1337,14 @@ function renderSitrepReport(report, filename) {
   const clusterList = report.clusters || [];
   clusterList.forEach((cluster, ci) => {
     const headline = cluster.cluster_headline || `Cluster ${cluster.cluster_id}`;
-    const qas      = cluster.questions_and_answers || [];
+    const qas = cluster.questions_and_answers || [];
     const { qaRemaps, sources } = buildClusterContextIndex(cluster);
 
     let qaHtml = '';
     qas.forEach((qa, qi) => {
-      const answer    = qa.updated_retrieved_answer || qa.retrieved_answer || '';
-      const remap     = qaRemaps[qi];
-      const isNoAns   = /no clear answer|do not contain information/i.test(answer);
+      const answer = qa.updated_retrieved_answer || qa.retrieved_answer || '';
+      const remap = qaRemaps[qi];
+      const isNoAns = /no clear answer|do not contain information/i.test(answer);
       qaHtml += `
         <div class="qa-item">
           <div class="qa-question">Q${qi + 1}. ${escHtml(qa.question)}</div>
@@ -1466,17 +1466,17 @@ function renderCitations(escapedText, contexts) {
 }
 
 function showCitation(num, ctxEnc, titleEnc, urlEnc) {
-  const ctx   = decodeURIComponent(ctxEnc);
+  const ctx = decodeURIComponent(ctxEnc);
   const title = decodeURIComponent(titleEnc);
-  const url   = decodeURIComponent(urlEnc);
+  const url = decodeURIComponent(urlEnc);
 
   document.getElementById('sitrep-modal-heading').textContent = `Source [${num}]`;
   document.getElementById('sitrep-modal-context').textContent = ctx || '(no content)';
-  document.getElementById('sitrep-modal-title').textContent   = title || '(no title)';
+  document.getElementById('sitrep-modal-title').textContent = title || '(no title)';
 
   const linkEl = document.getElementById('sitrep-modal-source-link');
   if (url) { linkEl.href = url; linkEl.removeAttribute('data-no-url'); }
-  else     { linkEl.href = '#'; linkEl.setAttribute('data-no-url', '1'); }
+  else { linkEl.href = '#'; linkEl.setAttribute('data-no-url', '1'); }
 
   document.getElementById('sitrep-modal-overlay').classList.remove('hidden');
 }
@@ -1500,7 +1500,7 @@ function buildSourcesList(sources, { cardStyle = false } = {}) {
   let items = '';
   valid.forEach(src => {
     let domain = '';
-    try { domain = new URL(src.url || '').hostname.replace(/^www\./, ''); } catch {}
+    try { domain = new URL(src.url || '').hostname.replace(/^www\./, ''); } catch { }
     const href = src.url ? escHtml(src.url) : '#';
     const noUrl = src.url ? '' : (cardStyle ? 'class="source-no-url"' : 'class="source-no-url"');
     const icon = cardStyle ? getSourceIcon(domain, src.url) : null;
@@ -1636,7 +1636,7 @@ async function refreshChunkPreview() {
   if (!country) { el.classList.add('hidden'); return; }
 
   const dateFrom = document.getElementById('inp-date-from')?.value || '';
-  const dateTo   = document.getElementById('inp-date-to')?.value || '';
+  const dateTo = document.getElementById('inp-date-to')?.value || '';
 
   try {
     const resp = await api('/api/sitrep/chunk-preview', {
@@ -1652,7 +1652,7 @@ async function refreshChunkPreview() {
       el.classList.add('err');
       const filterParts = [];
       if (dateFrom) filterParts.push(`from: ${dateFrom}`);
-      if (dateTo)   filterParts.push(`to: ${dateTo}`);
+      if (dateTo) filterParts.push(`to: ${dateTo}`);
       el.innerHTML = `<div class="cp-count"><svg class="inline-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-1.5px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>No matching data found</div>` +
         (filterParts.length ? `<div class="cp-themes">Filters: ${escHtml(filterParts.join(' · '))}. Try adjusting your selection.</div>` : '');
     } else if (data.count < 20) {
@@ -1677,7 +1677,7 @@ function switchReportView(mode) {
   document.querySelectorAll('.report-view-btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`.report-view-btn[data-mode="${mode}"]`)?.classList.add('active');
 
-  const qaView   = document.getElementById('report-qa-view');
+  const qaView = document.getElementById('report-qa-view');
   const narrView = document.getElementById('report-narrative-view');
   if (!qaView || !narrView) return;
 
@@ -1837,7 +1837,7 @@ function tagRender(field) {
 
 function tagReset() {
   _tags.country = [];
-  _tags.theme   = [];
+  _tags.theme = [];
   tagRender('country');
   tagRender('theme');
 }
@@ -1854,13 +1854,13 @@ function submitUpload(e) {
     return false;
   }
   const fd = new FormData();
-  fd.append('title',    document.getElementById('up-title').value.trim());
-  fd.append('source',   document.getElementById('up-source').value.trim());
-  fd.append('format',   document.getElementById('up-format').value.trim());
+  fd.append('title', document.getElementById('up-title').value.trim());
+  fd.append('source', document.getElementById('up-source').value.trim());
+  fd.append('format', document.getElementById('up-format').value.trim());
   fd.append('language', document.getElementById('up-language').value);
-  fd.append('date',     document.getElementById('up-date').value);
-  fd.append('country',  JSON.stringify(_tags.country));
-  fd.append('theme',    JSON.stringify(_tags.theme));
+  fd.append('date', document.getElementById('up-date').value);
+  fd.append('country', JSON.stringify(_tags.country));
+  fd.append('theme', JSON.stringify(_tags.theme));
   const pdfFile = document.getElementById('up-pdf').files[0];
   if (!pdfFile) { toast('Please select a PDF file.', 'warning'); return false; }
   fd.append('pdf', pdfFile);
@@ -1870,19 +1870,19 @@ function submitUpload(e) {
   toast('Uploading and ingesting…', 'info');
 
   api('/api/ingest/upload', { method: 'POST', body: fd })
-  .then(r => r.json())
-  .then(data => {
-    btn.disabled = false;
-    if (data.error) { toast(data.error, 'error'); return; }
-    toast(`✓ Ingested as ${data.tr_id} — ${data.pdf_pages} page(s), ${data.chunks_added} chunks added.`, 'success', 5000);
-    clearUploadForm();
-    hideUploadModal();
-    if (currentTab === 'db') reloadReports();
-  })
-  .catch(err => {
-    btn.disabled = false;
-    toast('Error: ' + err.message, 'error');
-  });
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      if (data.error) { toast(data.error, 'error'); return; }
+      toast(`✓ Ingested as ${data.tr_id} — ${data.pdf_pages} page(s), ${data.chunks_added} chunks added.`, 'success', 5000);
+      clearUploadForm();
+      hideUploadModal();
+      if (currentTab === 'db') reloadReports();
+    })
+    .catch(err => {
+      btn.disabled = false;
+      toast('Error: ' + err.message, 'error');
+    });
   return false;
 }
 
@@ -1977,21 +1977,21 @@ async function loadAnalytics() {
 
     // DAU Trend Chart
     renderLineChart('chart-dau', data.dau_trend.map(d => d.day).reverse(),
-                    data.dau_trend.map(d => d.users).reverse(), 'DAU');
+      data.dau_trend.map(d => d.users).reverse(), 'DAU');
 
     // Event Timeline Chart
     renderBarChart('chart-events', data.events.timeline.map(d => d.day).reverse(),
-                   data.events.timeline.map(d => d.count).reverse(), 'Events');
+      data.events.timeline.map(d => d.count).reverse(), 'Events');
 
     // Top Events Chart
     renderDoughnutChart('chart-top-events',
-                        data.events.top_events.map(e => e.event),
-                        data.events.top_events.map(e => e.count));
+      data.events.top_events.map(e => e.event),
+      data.events.top_events.map(e => e.count));
 
     // SITREP Runs Chart
     renderBarChart('chart-sitrep',
-                   data.sitrep_runs.map(s => s.country),
-                   data.sitrep_runs.map(s => s.count), 'Runs');
+      data.sitrep_runs.map(s => s.country),
+      data.sitrep_runs.map(s => s.count), 'Runs');
 
     // Recent Users Table
     const tbody = document.querySelector('#analytics-recent-users tbody');
@@ -2046,7 +2046,7 @@ function renderDoughnutChart(canvasId, labels, data) {
   if (!ctx) return;
   window._analyticsCharts[canvasId] = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: ['#4f9eff','#ff6b6b','#4ecdc4','#f7df1e','#a55eea','#fd7e14','#26de81','#fc5c65','#45aaf2','#fd9644'] }] },
+    data: { labels, datasets: [{ data, backgroundColor: ['#4f9eff', '#ff6b6b', '#4ecdc4', '#f7df1e', '#a55eea', '#fd7e14', '#26de81', '#fc5c65', '#45aaf2', '#fd9644'] }] },
     options: { responsive: true }
   });
 }
@@ -2082,8 +2082,8 @@ function humanizeWeekLabel(label) {
   const [_, ys, ms, ds, ye, me, de] = isoMatch.map(Number);
   const sd = new Date(ys, ms - 1, ds);
   const ed = new Date(ye, me - 1, de);
-  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const ordinals = ['First','Second','Third','Fourth','Fifth'];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const ordinals = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
   if (sd.getMonth() === ed.getMonth() && sd.getFullYear() === ed.getFullYear()) {
     const weekOfMonth = Math.floor((ds - 1) / 7);
     return `${ordinals[Math.min(weekOfMonth, 4)]} week of ${monthNames[sd.getMonth()]} ${sd.getFullYear()}`;
@@ -2114,7 +2114,7 @@ async function loadCommandCenter() {
       sel.innerHTML = '<option value="">Select country...</option>' +
         countries.slice(0, 50).map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
     }
-  } catch {}
+  } catch { }
 
   // Recent proposals (authed only)
   if (isAuthed) {
@@ -2128,7 +2128,7 @@ async function loadCommandCenter() {
             `<div class="cc-recent-item" data-action="cc-open-proposal" data-id="${p.id}" style="font-size:12px; padding:4px 0; cursor:pointer; color:var(--blue);">${escHtml(p.title)}</div>`
           ).join('');
       }
-    } catch {}
+    } catch { }
   }
 
   // Latest bulletin preview
@@ -2143,7 +2143,7 @@ async function loadCommandCenter() {
         preview.innerHTML = `<div style="font-size:13px;"><strong>${escHtml(latest.week_label || 'Latest')}</strong><br><span style="color:var(--text-muted)">${latest.crisis_count || ''} crises analyzed</span></div>`;
       }
     }
-  } catch {}
+  } catch { }
 }
 
 function ccStartSitrep() {
@@ -2197,7 +2197,7 @@ async function loadDashboard() {
               summary: c.narrative || '',
               severity: c.severity || 'low',
               report_count: c.report_count || 0,
-              coords: c.coords || {lat: 0, lng: 0},
+              coords: c.coords || { lat: 0, lng: 0 },
               has_sitrep: c.has_sitrep || false,
               iso3: c.iso3 || '',
               last_updated: c.last_updated || '',
@@ -2255,7 +2255,7 @@ function renderDashOverview(b) {
   // Key figures for Floating Hero Stats (First 3)
   const heroStatsEl = document.getElementById('dash-hero-stats');
   const bentoStatsEl = document.getElementById('dash-overview-stats');
-  
+
   if (b.key_figures && b.key_figures.length > 0) {
     // 3 Floating glass panels over map (no longer hidden on mobile, just flex)
     if (heroStatsEl) {
@@ -2272,7 +2272,7 @@ function renderDashOverview(b) {
     if (bentoStatsEl) {
       const highSeverityCount = b.crises ? b.crises.filter(c => c.severity === 'high').length : 0;
       const highSeverityReports = b.crises ? b.crises.filter(c => c.severity === 'high').reduce((acc, c) => acc + (c.report_count || 0), 0) : 0;
-      
+
       const topCountries = b.crises ? [...b.crises].sort((x, y) => (y.report_count || 0) - (x.report_count || 0)).slice(0, 3) : [];
       const topCountriesStr = topCountries.map(c => `${c.country} (${c.report_count})`).join(', ');
 
@@ -2634,10 +2634,10 @@ function closeCrisisPanel() {
 function viewCrisisSitrep(country) {
   closeCrisisPanel();
   switchTab('sitrep');
-   setTimeout(() => {
-     const sel = document.getElementById('inp-country');
-     if (sel) sel.value = country;
-   }, 100);
+  setTimeout(() => {
+    const sel = document.getElementById('inp-country');
+    if (sel) sel.value = country;
+  }, 100);
 }
 
 
@@ -2726,7 +2726,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!query || !leafletMap) return;
         for (const [country, data] of Object.entries(crisisMapData)) {
           if (country.toLowerCase().includes(query)) {
-            const coords = data.coords || {lat: 0, lng: 0};
+            const coords = data.coords || { lat: 0, lng: 0 };
             if (coords.lat && coords.lng) {
               leafletMap.setView([coords.lat, coords.lng], 5);
               openCountryCard(data);
@@ -2755,9 +2755,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Agent DOM refs
   chatInput = document.getElementById('chat-input');
-  sendBtn   = document.getElementById('send-btn');
-  chatDiv   = document.getElementById('chat-messages');
-  busyDot   = document.getElementById('busy-dot');
+  sendBtn = document.getElementById('send-btn');
+  chatDiv = document.getElementById('chat-messages');
+  busyDot = document.getElementById('busy-dot');
 
   // Model selector
   const modelToggle = document.getElementById('model-selector-toggle');
@@ -3106,12 +3106,12 @@ document.addEventListener('DOMContentLoaded', () => {
         selectProposal(target.dataset.id);
         break;
       case 'go-sitrep-country':
-         switchTab('sitrep');
-         setTimeout(() => {
-           const sel = document.getElementById('inp-country');
-           if (sel) { sel.value = target.dataset.country || ''; }
-         }, 100);
-         break;
+        switchTab('sitrep');
+        setTimeout(() => {
+          const sel = document.getElementById('inp-country');
+          if (sel) { sel.value = target.dataset.country || ''; }
+        }, 100);
+        break;
       case 'go-bulletin':
         switchTab('bulletin');
         break;
@@ -3243,10 +3243,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof window.updateVisibility === 'function') {
       window.updateVisibility();
     } else {
-       const role = window.__userRole || 'free';
-       const isPremium = role === 'premium' || role === 'admin';
-       const sitrepFormBar = document.getElementById('sitrep-form-bar');
-       if (sitrepFormBar) sitrepFormBar.style.display = isPremium ? '' : 'none';
+      const role = window.__userRole || 'free';
+      const isPremium = role === 'premium' || role === 'admin';
+      const sitrepFormBar = document.getElementById('sitrep-form-bar');
+      if (sitrepFormBar) sitrepFormBar.style.display = isPremium ? '' : 'none';
     }
     updateUploadBtnVisibility();
   }
@@ -3401,7 +3401,7 @@ function renderBulletin(b, container) {
 
   const severityBadge = (s) => {
     const labels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
-    return `<span class="severity-badge severity-${s}">${labels[s]||s.toUpperCase()}</span>`;
+    return `<span class="severity-badge severity-${s}">${labels[s] || s.toUpperCase()}</span>`;
   };
 
   const keyFigures = (b.key_figures || []).map(f => `
@@ -3422,7 +3422,8 @@ function renderBulletin(b, container) {
       ${c.summary ? `<div class="crisis-card-summary">${esc(c.summary)}</div>` : ''}
       ${c.has_sitrep ? `<button class="crisis-sitrep-btn" data-action="view-bulletin-sitrep" data-country="${esc(c.country)}">View SITREP →</button>` : ''}
     </div>
-  `;}).join('');
+  `;
+  }).join('');
 
   const counts = { high: 0, medium: 0, low: 0 };
   allCrises.forEach(c => { if (counts[c.severity] !== undefined) counts[c.severity]++; });
@@ -3520,18 +3521,18 @@ document.addEventListener('click', (e) => {
 const OPTIONAL_STEPS = ['budget', 'risk_matrix', 'mne_framework', 'sustainability', 'coordination'];
 
 const PROPOSAL_STEPS = [
-  { key: 'cover',           label: 'Cover Page',             num: 1 },
-  { key: 'background',      label: 'Context & Background',   num: 2 },
-  { key: 'needs_assessment',label: 'Needs Assessment',       num: 3 },
-  { key: 'toc',             label: 'Theory of Change',       num: 4 },
-  { key: 'logframe',       label: 'Logical Framework',      num: 5 },
-  { key: 'methodology',    label: 'Methodology',             num: 6 },
-  { key: 'budget',         label: 'Budget Summary',          num: 7 },
-  { key: 'mne_framework',  label: 'Monitoring & Evaluation', num: 8 },
-  { key: 'risk_matrix',    label: 'Risk Matrix',             num: 9 },
-  { key: 'sustainability', label: 'Sustainability & Exit',   num: 10 },
-  { key: 'coordination',   label: 'Coordination',            num: 11 },
-  { key: 'final_review',   label: 'Final Review & Export',   num: 12 },
+  { key: 'cover', label: 'Cover Page', num: 1 },
+  { key: 'background', label: 'Context & Background', num: 2 },
+  { key: 'needs_assessment', label: 'Needs Assessment', num: 3 },
+  { key: 'toc', label: 'Theory of Change', num: 4 },
+  { key: 'logframe', label: 'Logical Framework', num: 5 },
+  { key: 'methodology', label: 'Methodology', num: 6 },
+  { key: 'budget', label: 'Budget Summary', num: 7 },
+  { key: 'mne_framework', label: 'Monitoring & Evaluation', num: 8 },
+  { key: 'risk_matrix', label: 'Risk Matrix', num: 9 },
+  { key: 'sustainability', label: 'Sustainability & Exit', num: 10 },
+  { key: 'coordination', label: 'Coordination', num: 11 },
+  { key: 'final_review', label: 'Final Review & Export', num: 12 },
 ];
 
 let proposalState = {
@@ -3593,28 +3594,28 @@ async function initProposalPipeline() {
     workspace.addEventListener('input', (e) => {
       if (!proposalState.activeProposal) return;
       const target = e.target;
-      
+
       if (target.classList.contains('cover-input')) {
         const field = target.dataset.field;
         if (!proposalState.activeProposal.cover_page) proposalState.activeProposal.cover_page = {};
         proposalState.activeProposal.cover_page[field] = target.value;
         debouncedSaveProposal();
       }
-      
+
       if (target.classList.contains('logframe-input')) {
         const field = target.dataset.field;
         if (!proposalState.activeProposal.logframe) proposalState.activeProposal.logframe = {};
         proposalState.activeProposal.logframe[field] = target.value;
         debouncedSaveProposal();
       }
-      
+
       if (target.classList.contains('budget-meta-input')) {
         const meta = target.dataset.meta;
         if (!proposalState.activeProposal.budget) proposalState.activeProposal.budget = {};
         proposalState.activeProposal.budget[meta] = target.value;
         debouncedSaveProposal();
       }
-      
+
       if (target.classList.contains('budget-line-input')) {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3624,13 +3625,13 @@ async function initProposalPipeline() {
           debouncedSaveProposal();
         }
       }
-      
+
       if (target.classList.contains('mne-approach-input')) {
         if (!proposalState.activeProposal.mne_framework) proposalState.activeProposal.mne_framework = {};
         proposalState.activeProposal.mne_framework.framework_approach = target.value;
         debouncedSaveProposal();
       }
-      
+
       if (target.classList.contains('mne-indicator-input') && target.tagName !== 'SELECT') {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3640,7 +3641,7 @@ async function initProposalPipeline() {
           debouncedSaveProposal();
         }
       }
-      
+
       if (target.classList.contains('risk-item-input') && target.tagName !== 'SELECT') {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3650,7 +3651,7 @@ async function initProposalPipeline() {
           debouncedSaveProposal();
         }
       }
-      
+
       if (target.classList.contains('toc-node-input') && target.tagName !== 'SELECT') {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3665,7 +3666,7 @@ async function initProposalPipeline() {
     workspace.addEventListener('change', (e) => {
       if (!proposalState.activeProposal) return;
       const target = e.target;
-      
+
       if (target.classList.contains('mne-indicator-input') && target.tagName === 'SELECT') {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3673,7 +3674,7 @@ async function initProposalPipeline() {
         proposalState.activeProposal.mne_framework.indicators[idx][field] = target.value;
         debouncedSaveProposal();
       }
-      
+
       if (target.classList.contains('risk-item-input') && target.tagName === 'SELECT') {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3681,7 +3682,7 @@ async function initProposalPipeline() {
         proposalState.activeProposal.risk_matrix[idx][field] = target.value;
         debouncedSaveProposal();
       }
-      
+
       if (target.classList.contains('toc-node-input') && target.tagName === 'SELECT') {
         const tr = target.closest('tr');
         const idx = parseInt(tr.dataset.index);
@@ -3697,7 +3698,7 @@ async function initProposalPipeline() {
       if (!target) return;
       const action = target.dataset.action;
       const step = proposalState.currentStep;
-      
+
       if (action === 'add-budget-line') {
         if (!proposalState.activeProposal.budget) proposalState.activeProposal.budget = {};
         if (!Array.isArray(proposalState.activeProposal.budget.lines)) proposalState.activeProposal.budget.lines = [];
@@ -3705,14 +3706,14 @@ async function initProposalPipeline() {
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'delete-budget-line') {
         const idx = parseInt(target.dataset.index);
         proposalState.activeProposal.budget.lines.splice(idx, 1);
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'add-mne-indicator') {
         if (!proposalState.activeProposal.mne_framework) proposalState.activeProposal.mne_framework = {};
         if (!Array.isArray(proposalState.activeProposal.mne_framework.indicators)) proposalState.activeProposal.mne_framework.indicators = [];
@@ -3720,28 +3721,28 @@ async function initProposalPipeline() {
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'delete-mne-indicator') {
         const idx = parseInt(target.dataset.index);
         proposalState.activeProposal.mne_framework.indicators.splice(idx, 1);
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'add-risk') {
         if (!Array.isArray(proposalState.activeProposal.risk_matrix)) proposalState.activeProposal.risk_matrix = [];
         proposalState.activeProposal.risk_matrix.push({ risk: '', probability: 'Medium', impact: 'Medium', mitigation: '' });
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'delete-risk') {
         const idx = parseInt(target.dataset.index);
         proposalState.activeProposal.risk_matrix.splice(idx, 1);
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'add-toc-node' || action === 'add-toc-node-svg') {
         if (!Array.isArray(proposalState.activeProposal.toc)) proposalState.activeProposal.toc = [];
         let level = 'output';
@@ -3753,7 +3754,7 @@ async function initProposalPipeline() {
         renderSectionContent(step);
         await saveActiveProposal();
       }
-      
+
       if (action === 'delete-toc-node') {
         const idx = parseInt(target.dataset.index);
         proposalState.activeProposal.toc.splice(idx, 1);
@@ -3922,7 +3923,7 @@ function renderProposalList() {
   list.innerHTML = proposalState.proposals.map(p => {
     const activeClass = p.id === proposalState.activeProposalId ? 'active' : '';
     const stepIdx = PROPOSAL_STEPS.findIndex(s => s.key === (p.current_step || 'cover'));
-    const statusIcon = p.completed_at ? '\u2713' : `${stepIdx+1}/12`;
+    const statusIcon = p.completed_at ? '\u2713' : `${stepIdx + 1}/12`;
     const deleteBtn = isAdmin ? `
       <button class="proposal-delete-btn" data-action="delete-proposal" data-id="${p.id}" title="Delete proposal"
         style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; opacity:0.5; transition:opacity 0.2s;"
@@ -3932,7 +3933,7 @@ function renderProposalList() {
     return `
       <div class="report-item ${activeClass}" data-action="select-proposal" data-id="${p.id}" style="cursor:pointer; padding:10px; padding-right:36px; border-bottom:1px solid var(--border-light); position:relative;">
         <div class="report-item-title" style="font-weight:600; font-size:13px">${escHtml(p.title)}</div>
-        <div class="report-item-meta" style="font-size:11px; color:var(--text-muted)">${escHtml(p.country||'')} | ${escHtml(p.donor||'')} | ${statusIcon}</div>
+        <div class="report-item-meta" style="font-size:11px; color:var(--text-muted)">${escHtml(p.country || '')} | ${escHtml(p.donor || '')} | ${statusIcon}</div>
         ${deleteBtn}
       </div>`;
   }).join('');
@@ -4040,7 +4041,7 @@ function renderSectionContent(step) {
   const stepInfo = PROPOSAL_STEPS.find(s => s.key === step) || {};
   const canEdit = prop.can_edit !== false;
   const sectionContent = getSectionContent(prop, step);
-  const isMarkdownSection = ['background','needs_assessment','methodology','sustainability','coordination','final_review'].includes(step);
+  const isMarkdownSection = ['background', 'needs_assessment', 'methodology', 'sustainability', 'coordination', 'final_review'].includes(step);
 
   contentEl.innerHTML = `
     <div class="wizard-section-inner">
@@ -4062,10 +4063,10 @@ function renderSectionContent(step) {
 
       <div class="wizard-section-body" id="wizard-section-body">
         ${sectionContent
-          ? (isMarkdownSection
-            ? `<textarea id="wizard-editor-${step}" class="wizard-content-editor" style="width:100%; min-height:300px; font-family:var(--font-mono, monospace); font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical; line-height:1.6;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</textarea>`
-            : `<pre class="wizard-json-view" style="white-space:pre-wrap; font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); max-height:400px; overflow:auto;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</pre>`)
-          : '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)">No content yet. Write instructions above and click Generate, or just click Generate to let AI create this section.</div>'}
+      ? (isMarkdownSection
+        ? `<textarea id="wizard-editor-${step}" class="wizard-content-editor" style="width:100%; min-height:300px; font-family:var(--font-mono, monospace); font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical; line-height:1.6;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</textarea>`
+        : `<pre class="wizard-json-view" style="white-space:pre-wrap; font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); max-height:400px; overflow:auto;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</pre>`)
+      : '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)">No content yet. Write instructions above and click Generate, or just click Generate to let AI create this section.</div>'}
       </div>
 
       <div class="wizard-section-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px 0; border-top:1px solid var(--border-light);">
@@ -4104,7 +4105,7 @@ function renderSectionContent(step) {
 }
 
 function getSectionContent(prop, step) {
-  const fieldMap = { cover:'cover_page', background:'background', needs_assessment:'needs_assessment', toc:'toc', logframe:'logframe', methodology:'methodology', budget:'budget', mne_framework:'mne_framework', risk_matrix:'risk_matrix', sustainability:'sustainability', coordination:'coordination', final_review:'narrative' };
+  const fieldMap = { cover: 'cover_page', background: 'background', needs_assessment: 'needs_assessment', toc: 'toc', logframe: 'logframe', methodology: 'methodology', budget: 'budget', mne_framework: 'mne_framework', risk_matrix: 'risk_matrix', sustainability: 'sustainability', coordination: 'coordination', final_review: 'narrative' };
   return prop[fieldMap[step]] || '';
 }
 
@@ -4112,7 +4113,7 @@ function renderSectionMarkdown(content, step) {
   if (!content) return '';
   if (typeof content === 'object') return renderJsonSection(content, step);
   if (typeof content === 'string' && (content.startsWith('{') || content.startsWith('['))) {
-    try { return renderJsonSection(JSON.parse(content), step); } catch(e) { return renderMarkdown(content); }
+    try { return renderJsonSection(JSON.parse(content), step); } catch (e) { return renderMarkdown(content); }
   }
   return renderMarkdown(content);
 }
@@ -4127,17 +4128,17 @@ function formatLabel(key) {
 function renderTocSvg(nodes, canEdit) {
   const levels = ['impact', 'outcome', 'output', 'activity'];
   let html = `<div class="toc-svg-mapper" style="display:flex; justify-content:space-between; position:relative; overflow-x:auto; padding: 20px; background:var(--bg-light); border-radius:12px; gap: 24px; user-select:none;">`;
-  
+
   levels.forEach((lvl, colIdx) => {
-    const colNodes = nodes.map((n, i) => ({...n, origIdx: i})).filter(n => n.level === lvl);
-    
+    const colNodes = nodes.map((n, i) => ({ ...n, origIdx: i })).filter(n => n.level === lvl);
+
     html += `<div class="toc-column" style="flex: 1; min-width: 200px; display:flex; flex-direction:column; gap:16px; position:relative;">
       <div style="text-transform:uppercase; font-size:11px; font-weight:700; color:var(--text-muted); letter-spacing:1px; margin-bottom:8px; border-bottom:1px solid var(--border-color); padding-bottom:4px;">${lvl}</div>`;
-      
+
     if (colNodes.length === 0) {
-       html += `<div style="opacity:0.4; font-size:12px; font-style:italic;">No nodes</div>`;
+      html += `<div style="opacity:0.4; font-size:12px; font-style:italic;">No nodes</div>`;
     }
-      
+
     colNodes.forEach(node => {
       html += `<div class="toc-node-card" data-index="${node.origIdx}" style="background:#fff; border:1px solid #d1d5db; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.03); position:relative; transition:all 0.2s ease;">`;
       if (canEdit) {
@@ -4148,7 +4149,7 @@ function renderTocSvg(nodes, canEdit) {
       }
       html += `</div>`;
     });
-    
+
     html += `</div>`;
     if (colIdx < levels.length - 1) {
       html += `<div style="display:flex; align-items:center; color:#9ca3af;">
@@ -4174,42 +4175,42 @@ function renderTocSvg(nodes, canEdit) {
 function renderRiskHeatmap(risks, canEdit) {
   const levels = ['High', 'Medium', 'Low'];
   let html = `<div class="risk-heatmap-container" style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">`;
-  
+
   html += `<div class="heatmap-grid" style="display:grid; grid-template-columns: 24px 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 24px; gap:8px; width:400px; height:400px; flex-shrink:0;">`;
   html += `<div style="grid-row: 1 / 4; grid-column: 1; writing-mode: vertical-rl; transform: rotate(180deg); text-align:center; font-weight:700; font-size:11px; color:var(--text-muted); letter-spacing:1px;">PROBABILITY</div>`;
-  
+
   levels.forEach((prob, rIdx) => {
     levels.toReversed().forEach((imp, cIdx) => {
-      const cellRisks = risks.map((r,i) => ({...r, origIdx: i})).filter(r => r.probability === prob && r.impact === imp);
+      const cellRisks = risks.map((r, i) => ({ ...r, origIdx: i })).filter(r => r.probability === prob && r.impact === imp);
       let bg = '#f8f9fa';
-      if (prob==='High' && imp==='High') bg = '#fee2e2'; // Light Red
-      else if (prob==='High' && imp==='Low') bg = '#fef3c7'; // Light Yellow
-      else if (prob==='Low' && imp==='High') bg = '#fef3c7'; // Light Yellow
-      else if (prob==='Medium' && imp==='Medium') bg = '#fef3c7'; // Light Yellow
-      else if (prob==='Low' && imp==='Low') bg = '#dcfce7'; // Light Green
-      
+      if (prob === 'High' && imp === 'High') bg = '#fee2e2'; // Light Red
+      else if (prob === 'High' && imp === 'Low') bg = '#fef3c7'; // Light Yellow
+      else if (prob === 'Low' && imp === 'High') bg = '#fef3c7'; // Light Yellow
+      else if (prob === 'Medium' && imp === 'Medium') bg = '#fef3c7'; // Light Yellow
+      else if (prob === 'Low' && imp === 'Low') bg = '#dcfce7'; // Light Green
+
       html += `<div class="heatmap-cell" data-prob="${prob}" data-imp="${imp}" style="background:${bg}; border:1px solid rgba(0,0,0,0.05); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;" ${canEdit ? 'ondragover="event.preventDefault()" ondrop="window.handleRiskDrop(event)"' : ''}>`;
       html += `<div style="font-size:10px; color:rgba(0,0,0,0.4); text-transform:uppercase; text-align:right; font-weight:600;">${prob} / ${imp}</div>`;
-      
+
       cellRisks.forEach(r => {
         html += `<div class="risk-card-mini" draggable="${canEdit}" ondragstart="event.dataTransfer.setData('text/plain', ${r.origIdx})" data-index="${r.origIdx}" style="background:white; border:1px solid #d1d5db; border-radius:4px; padding:6px 8px; font-size:11px; cursor:${canEdit ? 'grab' : 'default'}; box-shadow:0 1px 2px rgba(0,0,0,0.05); color:var(--text-main); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">`;
         html += `${escHtml(r.risk)}`;
         html += `</div>`;
       });
-      
+
       html += `</div>`;
     });
   });
   html += `<div style="grid-row: 4; grid-column: 2 / 5; text-align:center; font-weight:700; font-size:11px; color:var(--text-muted); align-self:end; letter-spacing:1px;">IMPACT</div>`;
-  html += `</div>`; 
-  
+  html += `</div>`;
+
   html += `<div class="risk-details-list" style="flex:1; min-width:300px; display:flex; flex-direction:column; gap:12px;">`;
   html += `<h4 style="margin:0; font-size:13px; text-transform:uppercase; color:var(--text-muted); letter-spacing:1px; border-bottom:1px solid var(--border-color); padding-bottom:6px;">Risk Actions</h4>`;
-  
+
   if (risks.length === 0) {
     html += `<div style="font-size:13px; color:var(--text-muted); font-style:italic;">No risks identified.</div>`;
   }
-  
+
   risks.forEach((r, idx) => {
     html += `<div class="risk-detail-card" data-index="${idx}" style="background:white; border:1px solid var(--border-color); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">`;
     if (canEdit) {
@@ -4224,24 +4225,24 @@ function renderRiskHeatmap(risks, canEdit) {
     }
     html += `</div>`;
   });
-  
+
   if (canEdit) {
     html += `<div style="margin-top:8px;"><button type="button" class="btn btn-xs btn-secondary" data-action="add-risk">+ Add New Risk</button></div>`;
   }
-  
+
   html += `</div></div>`;
   return html;
 }
 
-window.handleRiskDrop = function(e) {
+window.handleRiskDrop = function (e) {
   e.preventDefault();
   const idx = parseInt(e.dataTransfer.getData('text/plain'));
   const cell = e.target.closest('.heatmap-cell');
   if (!cell || isNaN(idx)) return;
-  
+
   const prob = cell.dataset.prob;
   const imp = cell.dataset.imp;
-  
+
   if (proposalState.activeProposal && Array.isArray(proposalState.activeProposal.risk_matrix)) {
     proposalState.activeProposal.risk_matrix[idx].probability = prob;
     proposalState.activeProposal.risk_matrix[idx].impact = imp;
@@ -4342,7 +4343,7 @@ function renderJsonSection(obj, step) {
       if (currency) html += `<div class="budget-meta-card"><strong>Currency</strong><span>${escHtml(currency)}</span></div>`;
       if (duration) html += `<div class="budget-meta-card"><strong>Duration</strong><span>${escHtml(duration)}</span></div>`;
       html += '</div>';
-      
+
       if (lines.length > 0) {
         html += `
           <table class="budget-table">
@@ -4791,7 +4792,7 @@ function showAdvisorMessage(sender, text) {
   if (!msgs) return;
   const bubble = document.createElement('div');
   bubble.className = 'critique-msg system';
-  
+
   let formatted = escHtml(text);
   formatted = formatted.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, (match, title, url) => {
     return `<div class="advisor-source-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-light); padding:8px 12px; border:1px solid var(--border-color); border-radius:6px; margin:4px 0;">
@@ -4799,13 +4800,13 @@ function showAdvisorMessage(sender, text) {
       <button class="btn btn-xs" onclick="window.pinSource('${url}', '${title.replace(/'/g, "\\'")}')" style="background:var(--primary); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:600;">📌 Pin</button>
     </div>`;
   });
-  
+
   bubble.innerHTML = `<strong>${escHtml(sender)}</strong><p>${formatted}</p>`;
   msgs.appendChild(bubble);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-window.pinSource = async function(url, title) {
+window.pinSource = async function (url, title) {
   if (!proposalState.activeProposalId) return;
   try {
     const res = await api(`/api/proposals/${proposalState.activeProposalId}/pin-source`, {
@@ -4815,20 +4816,20 @@ window.pinSource = async function(url, title) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     showAdvisorMessage('System', `✓ Pinned: ${title}`);
-    
+
     // Refresh proposal to get pinned_sources
     const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
     const prop = await refreshed.json();
     if (!prop.error) {
       proposalState.activeProposal = prop;
-      renderPinnedSourcesList(); 
+      renderPinnedSourcesList();
     }
   } catch (err) {
     showAdvisorMessage('System', `Failed to pin source: ${err.message}`);
   }
 }
 
-window.renderPinnedSourcesList = function() {
+window.renderPinnedSourcesList = function () {
   const panel = document.getElementById('proposal-advisor-panel');
   if (!panel) return;
   let listEl = document.getElementById('pinned-sources-list');
@@ -4839,19 +4840,19 @@ window.renderPinnedSourcesList = function() {
     const header = panel.querySelector('.critique-header');
     if (header) header.insertAdjacentElement('afterend', listEl);
   }
-  
+
   const sources = proposalState.activeProposal?.pinned_sources;
   let parsed = [];
   try {
     if (typeof sources === 'string') parsed = JSON.parse(sources);
     else if (Array.isArray(sources)) parsed = sources;
-  } catch(e){}
-  
+  } catch (e) { }
+
   if (!parsed || parsed.length === 0) {
     listEl.innerHTML = `<div style="font-size:12px; color:var(--text-muted); font-style:italic;">No pinned sources yet.</div>`;
     return;
   }
-  
+
   let html = `<div style="font-weight:700; font-size:11px; text-transform:uppercase; color:var(--text-muted); margin-bottom:12px; letter-spacing:1px;">Pinned Sources (${parsed.length})</div>`;
   html += `<div style="display:flex; flex-direction:column; gap:8px;">`;
   parsed.forEach((s, idx) => {
@@ -4867,19 +4868,19 @@ window.renderPinnedSourcesList = function() {
   listEl.innerHTML = html;
 }
 
-window.unpinSource = async function(index) {
+window.unpinSource = async function (index) {
   if (!proposalState.activeProposalId) return;
   try {
     const res = await api(`/api/proposals/${proposalState.activeProposalId}/pin-source/${index}`, { method: 'DELETE' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    
+
     // Refresh proposal to get pinned_sources
     const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
     const prop = await refreshed.json();
     if (!prop.error) {
       proposalState.activeProposal = prop;
-      renderPinnedSourcesList(); 
+      renderPinnedSourcesList();
     }
   } catch (err) {
     showAdvisorMessage('System', `Failed to unpin source: ${err.message}`);
@@ -4908,10 +4909,10 @@ function renderProposalToHtml(markdown) {
   let inList = false;
   let inTable = false;
   let tableHeaderDone = false;
-  
+
   for (let line of lines) {
     line = line.trim();
-    
+
     // Handle tables
     if (line.startsWith('|')) {
       if (line.includes('---|')) {
@@ -4923,7 +4924,7 @@ function renderProposalToHtml(markdown) {
         inTable = true;
         tableHeaderDone = false;
       }
-      
+
       const cells = line.split('|').map(c => c.trim()).filter((c, i, a) => i > 0 && i < a.length - 1);
       html += '<tr>';
       for (const cell of cells) {
@@ -4943,7 +4944,7 @@ function renderProposalToHtml(markdown) {
       html += '</table>';
       inTable = false;
     }
-    
+
     // Handle lists
     if (line.startsWith('- ')) {
       if (!inList) {
@@ -4958,7 +4959,7 @@ function renderProposalToHtml(markdown) {
       html += '</ul>';
       inList = false;
     }
-    
+
     // Handle headers
     if (line.startsWith('# ')) {
       html += `<h1>${escHtml(line.substring(2))}</h1>`;
@@ -4972,10 +4973,10 @@ function renderProposalToHtml(markdown) {
       html += `<p>${content}</p>`;
     }
   }
-  
+
   if (inList) html += '</ul>';
   if (inTable) html += '</table>';
-  
+
   return html;
 }
 
@@ -5334,7 +5335,7 @@ async function loadAndRenderAdvisorHistory(propId, propTitle) {
 async function saveActiveProposal() {
   if (!proposalState.activeProposalId || !proposalState.activeProposal) return;
   try { await api(`/api/proposals/${proposalState.activeProposalId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposalState.activeProposal) }); }
-  catch(err) { console.warn("Save proposal failed:", err); }
+  catch (err) { console.warn("Save proposal failed:", err); }
 }
 
 
