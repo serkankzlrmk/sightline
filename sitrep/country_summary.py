@@ -17,6 +17,7 @@ Output: output/country_summaries/{Country}.json
 import json
 import logging
 import os
+import re
 import time
 from collections import Counter
 from datetime import UTC, datetime
@@ -26,6 +27,7 @@ logger = logging.getLogger("country_summary")
 # Reuse from shared countries module
 from config import OUTPUT_DIR
 from sitrep.countries import COUNTRY_COORDS, COUNTRY_ALIASES, get_country_coords
+from sitrep.utils import safe_filename, parse_themes
 from sitrep.weekly_bulletin import _determine_severity
 
 COUNTRY_SUMMARY_DIR = OUTPUT_DIR / "country_summaries"
@@ -235,11 +237,8 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
     for chunk in chunks:
         # Themes
         raw_themes = chunk.get("themes", "")
-        if raw_themes:
-            for t in raw_themes.split(","):
-                t = t.strip()
-                if t:
-                    theme_counter[t] += 1
+        for t in parse_themes(raw_themes):
+            theme_counter[t] += 1
         # Sources
         source = chunk.get("source", "")
         if source:
@@ -313,7 +312,7 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
     }
 
     # Save to JSON file
-    safe_name = country.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    safe_name = safe_filename(country)
     output_path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"
     output_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Country summary saved: %s (%d reports, %s)", country, report_count, severity)
@@ -355,7 +354,7 @@ def generate_all_country_summaries(max_countries: int = 80) -> dict:
         count = entry.get("count", 0)
 
         # Check if we should skip (unchanged since last summary)
-        safe_name = country.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        safe_name = safe_filename(country)
         existing_path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"
         if existing_path.exists():
             try:
@@ -413,7 +412,7 @@ def list_country_summaries() -> list[dict]:
 
 def get_country_summary(country: str) -> dict | None:
     """Load a country summary from JSON file."""
-    safe_name = country.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    safe_name = safe_filename(country)
     path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"
     if not path.exists():
         return None

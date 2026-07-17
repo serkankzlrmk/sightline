@@ -65,7 +65,7 @@ def api_agent_chats_new_with_context():
     uid = current_uid()
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "New Chat")[:120]
-    context_text = (data.get("context") or "").strip()
+    context_text = (data.get("context") or "").strip()[:10000]  # Cap at 10K chars to prevent oversized LLM prompts
     if not context_text:
         return jsonify({"error": "context required"}), 400
     cid = server._new_chat_id()

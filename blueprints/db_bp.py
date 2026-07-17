@@ -55,14 +55,12 @@ def api_db_stats():
         source_rows = conn.execute(
             "SELECT source, COUNT(*) AS cnt FROM reports GROUP BY source ORDER BY cnt DESC LIMIT 10"
         ).fetchall()
-        # Countries are stored as JSON array text — still need Python-side parse,
-        # but cap the number of rows we load to avoid unbounded memory.
-        country_rows = conn.execute("SELECT countries FROM reports LIMIT 2000").fetchall()
+        # Countries — SQL json_each aggregation (much faster than Python parsing)
+        country_rows = conn.execute(
+            "SELECT je.value, COUNT(*) as cnt FROM reports, json_each(countries) je "
+            "GROUP BY je.value ORDER BY cnt DESC LIMIT 15"
+        ).fetchall()
     except Exception:
-        try:
-            conn.close()
-        except Exception:
-            pass
         return jsonify({"report_count": 0, "chunk_count": 0, "top_countries": [], "top_sources": []})
     finally:
         try:
@@ -70,15 +68,10 @@ def api_db_stats():
         except Exception:
             pass
 
-    country_counts: dict = {}
-    for r in country_rows:
-        for c in _parse_countries(r[0]):
-            country_counts[c] = country_counts.get(c, 0) + 1
-
     return jsonify({
         "report_count": report_count,
         "chunk_count":  chunk_count,
-        "top_countries": sorted(country_counts.items(), key=lambda x: -x[1])[:15],
+        "top_countries": [[r[0], r[1]] for r in country_rows],
         "top_sources":   [(r[0] or "?", r[1]) for r in source_rows],
     })
 

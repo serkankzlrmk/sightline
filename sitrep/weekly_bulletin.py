@@ -719,7 +719,8 @@ def generate_weekly_bulletin(
 
 
 def _save_bulletin(bulletin: dict, date_from: str, date_to: str) -> Path:
-    """Save bulletin JSON to output/bulletins/ directory."""
+    """Save bulletin JSON to output/bulletins/ directory.
+    Uses atomic write (temp + rename) to prevent corruption from concurrent writes."""
     # Use ISO week format for filename
     try:
         dt = datetime.strptime(date_from, "%Y-%m-%d")
@@ -730,8 +731,20 @@ def _save_bulletin(bulletin: dict, date_from: str, date_to: str) -> Path:
     filename = f"{week_label}_bulletin.json"
     path = BULLETINS_DIR / filename
 
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(bulletin, f, indent=2, ensure_ascii=False)
+    # Atomic write: write to temp file, then rename (prevents corruption)
+    import tempfile
+    tmp_path = path.with_suffix(".tmp")
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(bulletin, f, indent=2, ensure_ascii=False)
+        tmp_path.replace(path)  # Atomic on POSIX
+    except Exception:
+        # Clean up temp file on failure
+        try:
+            tmp_path.unlink()
+        except Exception:
+            pass
+        raise
 
     logger.info("Bulletin saved: %s", path)
     logger.info("  %d crises, %d total reports", len(bulletin["crises"]), bulletin["total_reports"])

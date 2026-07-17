@@ -81,12 +81,44 @@ from reliefweb_api.worldbank_tools import WORLDBANK_TOOLS, init_worldbank_tools
 # ============================================================================
 # MODEL INITIALIZATION
 # ============================================================================
-logger.info(f"Initializing model: {config.OLLAMA_MODEL}")
+# ── Lazy model initialization ──────────────────────────────────────────────
+# Model is initialized on first use, not at import time.
+# This prevents sys.exit(1) from killing the process when the module is imported
+# for testing or when only helpers are needed.
+_model_instance = None
+_model_lock = __import__('threading').Lock()
 
-model = get_model()
-if model is None:
-    logger.critical("Failed to initialize model. System cannot start.")
-    sys.exit(1)
+
+def _get_model():
+    """Lazy-initialize the LLM model on first use (thread-safe)."""
+    global _model_instance
+    if _model_instance is not None:
+        return _model_instance
+    with _model_lock:
+        if _model_instance is not None:
+            return _model_instance
+        logger.info("Initializing model: %s", config.OLLAMA_MODEL)
+        _model_instance = get_model()
+        if _model_instance is None:
+            logger.critical("Failed to initialize model. Chat features will be unavailable.")
+            return None
+        return _model_instance
+
+
+# Backward-compatible property: `model` still works but lazy-loads
+class _LazyModel:
+    """Descriptor that lazy-loads the LLM model on first attribute access."""
+    def __getattr__(self, name):
+        m = _get_model()
+        if m is None:
+            raise RuntimeError("Model not initialized — LLM unavailable")
+        return getattr(m, name)
+
+    def __bool__(self):
+        return _get_model() is not None
+
+
+model = _LazyModel()
 
 # Initialize HDX client (graceful fallback if key not set)
 _hdx_initialized = init_hdx_tools(

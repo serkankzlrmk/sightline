@@ -42,6 +42,19 @@ def _get_agent():
     return _srv._get_agent()
 
 
+def _check_rate_limit(uid, role="user"):
+    """Proxy for server._check_and_increment_rate_limit – daily rate limit check."""
+    import server as _srv
+    return _srv._check_and_increment_rate_limit(uid, role)
+
+
+# ── Per-user busy flag for advisor chat (prevents concurrent requests) ──────
+import threading as _threading
+_advisor_busy = {}
+_advisor_busy_lock = _threading.Lock()
+_ADVISOR_BUSY_TIMEOUT = 120  # seconds – auto-clear stuck flags
+
+
 # ── Module-level time ref (same as server.py: import time as _time) ────────
 import time as _time
 
@@ -625,6 +638,23 @@ def api_budget_calc(prop_id):
         if not row: return jsonify({"error": "Proposal not found"}), 404
 
         lines = data.get("lines", [])
+        # Validate lines structure
+        if not isinstance(lines, list):
+            return jsonify({"error": "lines must be an array"}), 400
+        if len(lines) > 200:
+            return jsonify({"error": "Too many budget lines (max 200)"}), 400
+        for line in lines:
+            if not isinstance(line, dict):
+                return jsonify({"error": "Each line must be an object"}), 400
+            if "category" not in line or "amount" not in line:
+                return jsonify({"error": "Each line must have 'category' and 'amount'"}), 400
+            try:
+                amt = float(line.get("amount", 0))
+                if amt < 0:
+                    return jsonify({"error": "Amount cannot be negative"}), 400
+            except (ValueError, TypeError):
+                return jsonify({"error": "Amount must be a number"}), 400
+
         total = sum(float(line.get("amount", 0)) for line in lines)
         percentages = {}
         if total > 0:
@@ -773,12 +803,8 @@ def api_proposal_generate_toc(prop_id):
             {"role": "user", "content": user_prompt}
         ])
 
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("```")[1]
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:]
-        cleaned = cleaned.strip()
+        from sitrep.utils import clean_json_response
+        cleaned = clean_json_response(response)
 
         toc_nodes = json.loads(cleaned)
 
@@ -839,12 +865,8 @@ def api_proposal_generate_logframe(prop_id):
             {"role": "user", "content": user_prompt}
         ])
 
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("```")[1]
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:]
-        cleaned = cleaned.strip()
+        from sitrep.utils import clean_json_response
+        cleaned = clean_json_response(response)
 
         logframe_data = json.loads(cleaned)
 
@@ -979,14 +1001,32 @@ def api_proposal_chunks(prop_id):
 @require_auth
 def api_proposal_advisor_chat(prop_id):
     uid = current_uid()
+    role = current_role()
     data = request.json or {}
     message = data.get("message", "").strip()
 
     if not message:
         return jsonify({"error": "Message is required"}), 400
 
-    conn = _chats_db()
+    # ── Per-user busy flag (prevents concurrent advisor requests) ──────────
+    with _advisor_busy_lock:
+        # Auto-clear stuck busy flags (older than timeout)
+        if uid in _advisor_busy and (_time.time() - _advisor_busy.get(uid + "_since", 0)) > _ADVISOR_BUSY_TIMEOUT:
+            _advisor_busy[uid] = False
+        if _advisor_busy.get(uid, False):
+            return jsonify({"error": "Advisor is busy processing your previous request. Please wait."}), 429
+
+        # Daily rate limit check
+        rate = _check_rate_limit(uid, role)
+        if not rate["allowed"]:
+            _log_event(uid, "rate_limit_hit", {"reason": "daily_limit", "endpoint": "advisor_chat", "limit": rate["limit"]})
+            return jsonify({"error": "Daily limit reached", "limit": rate["limit"], "used": rate["used"]}), 429
+
+        _advisor_busy[uid] = True
+        _advisor_busy[uid + "_since"] = _time.time()
+
     try:
+        conn = _chats_db()
         # Verify proposal ownership
         row = conn.execute(
             "SELECT country, event, donor, toc, logframe FROM proposals WHERE id = ? AND uid = ?",
@@ -1148,10 +1188,16 @@ Provide specific, constructive feedback and suggestions. Use your tools (edit_pr
             "command": command_data
         })
     except Exception as e:
-        logger.error(f"api_proposal_advisor_chat error: {prop_id}, {e}")
-        return jsonify({"error": f"Agent Advisor failed: {str(e)}"}), 500
+        logger.error("api_proposal_advisor_chat error: %s, %s", prop_id, e)
+        return jsonify({"error": "Advisor failed. Please try again."}), 500
     finally:
-        conn.close()
+        with _advisor_busy_lock:
+            _advisor_busy.pop(uid, None)
+            _advisor_busy.pop(uid + "_since", None)
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @proposal_bp.route("/proposals/<prop_id>/advisor/background-review", methods=["POST"])
