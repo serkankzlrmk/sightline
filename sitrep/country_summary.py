@@ -23,9 +23,10 @@ from datetime import UTC, datetime
 
 logger = logging.getLogger("country_summary")
 
-# Reuse from weekly_bulletin
+# Reuse from shared countries module
 from config import OUTPUT_DIR
-from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
+from sitrep.countries import COUNTRY_COORDS, COUNTRY_ALIASES, get_country_coords
+from sitrep.weekly_bulletin import _determine_severity
 
 COUNTRY_SUMMARY_DIR = OUTPUT_DIR / "country_summaries"
 COUNTRY_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
@@ -71,27 +72,9 @@ def _country_to_iso3(country: str) -> str:
             return iso3.upper()
     except Exception:
         pass
-    # Manual fallbacks for common humanitarian country names
-    manual = {
-        "Syrian Arab Republic": "SYR",
-        "occupied Palestinian territory": "PSE",
-        "oPt": "PSE",
-        "Democratic Republic of the Congo": "COD",
-        "DR Congo": "COD",
-        "Türkiye": "TUR",
-        "Turkey": "TUR",
-        "Iran": "IRN",
-        "Iran (Islamic Republic of)": "IRN",
-        "Venezuela": "VEN",
-        "Bolivia": "BOL",
-        "Tanzania": "TZA",
-        "Czechia": "CZE",
-        "Republic of Korea": "KOR",
-        "Republic of Moldova": "MDA",
-        "Russia": "RUS",
-        "Russian Federation": "RUS",
-    }
-    return manual.get(country, "")
+    # Use shared countries module fallback
+    from sitrep.countries import country_to_iso3
+    return country_to_iso3(country)
 
 
 def _fetch_hdx_data(country: str, iso3: str) -> dict:

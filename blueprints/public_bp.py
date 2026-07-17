@@ -328,16 +328,12 @@ def api_map_countries():
 def api_public_countries():
     """Public: all countries with chunk counts + coordinates (for map markers)."""
     try:
-        from sitrep.weekly_bulletin import COUNTRY_COORDS
+        from sitrep.countries import COUNTRY_COORDS, get_country_coords
         db = _get_chroma_adapter()
         countries = db.list_countries_with_counts()
         for c in countries:
             name = c.get("name", "")
-            coords = COUNTRY_COORDS.get(name, {})
-            if not coords:
-                aliases = {"Syrian Arab Republic": "Syria", "Türkiye": "Turkey", "oPt": "occupied Palestinian territory",
-                       "DR Congo": "Democratic Republic of the Congo", "Iran (Islamic Republic of)": "Iran"}
-                coords = COUNTRY_COORDS.get(aliases.get(name, ""), {})
+            coords = get_country_coords(name)
             c["coords"] = coords if coords else {"lat": 0, "lng": 0}
         return jsonify(countries)
     except Exception as exc:
