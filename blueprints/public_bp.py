@@ -11,7 +11,6 @@ Register in server.py with:
 import json
 import logging
 import sqlite3
-import threading
 import time as _time
 from pathlib import Path
 
@@ -67,23 +66,15 @@ def _trim_bulletin_for_preview(bulletin: dict) -> dict:
     return trimmed
 
 
-# ── ChromaDB adapter singleton (lazily initialised) ──────────────────────────
-_chroma_adapter = None
-_chroma_adapter_lock = threading.Lock()
+# ── Shared state for map endpoint ──────────────────────────────────────────
 _map_countries_cache = None
 _map_countries_cache_time = 0.0
 
 
 def _get_chroma_adapter():
-    global _chroma_adapter
-    if _chroma_adapter is not None:
-        return _chroma_adapter
-    with _chroma_adapter_lock:
-        if _chroma_adapter is not None:
-            return _chroma_adapter
-        from sitrep.chroma_adapter import ChromaAdapter
-        _chroma_adapter = ChromaAdapter()
-        return _chroma_adapter
+    """Proxy for server._get_chroma_adapter — uses the shared singleton."""
+    import server as _srv
+    return _srv._get_chroma_adapter()
 
 
 # =============================================================================
