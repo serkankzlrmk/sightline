@@ -27,7 +27,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from queue import Empty, Queue
+
 
 # ── Suppress ONNX / TensorRT log noise before any onnxruntime import ─────────
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")

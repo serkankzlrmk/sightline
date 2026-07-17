@@ -2107,7 +2107,7 @@ async function loadCommandCenter() {
 
   // 1. Fetch and render existing SITREPs
   try {
-    const res = await api('/api/sitrep/reports');
+    const res = await api('/api/public/sitrep/reports');
     const sitreps = await res.json();
     const container = document.getElementById('cc-recent-sitreps');
     if (container && Array.isArray(sitreps)) {
