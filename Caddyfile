@@ -4,6 +4,13 @@
 
 # Production domains — Caddy gets TLS certs automatically
 YOUR_DOMAIN, YOUR_PROJECT_ID.com {
+    encode zstd gzip
+
+    @static_assets {
+        path /static/*
+    }
+    header @static_assets Cache-Control "public, max-age=604800"
+
     # Security headers
     header {
         X-Frame-Options DENY
@@ -58,5 +65,10 @@ YOUR_DOMAIN, YOUR_PROJECT_ID.com {
 
 # Local dev (HTTP only — no TLS)
 :80 {
+    encode zstd gzip
+    @static_assets {
+        path /static/*
+    }
+    header @static_assets Cache-Control "public, max-age=604800"
     reverse_proxy app:5001
 }

@@ -12,11 +12,11 @@
   <link rel="canonical" href="https://YOUR_PROJECT_ID.com/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/landing.css?v={{ v }}">
-  <link rel="icon" href="/static/logo.png">
+  <link rel="icon" href="/static/logo-signal-horizon.png">
 </head>
-<body>
+<body class="hero-light">
 
   <!-- 3D Background (Three.js Canvas) -->
   <div id="sketchfab-container"></div>
@@ -48,20 +48,10 @@
     </div>
   </div>
 
-  <!-- Nav -->
-  <nav class="lp-nav">
-    <div class="lp-nav-inner">
-      <a href="/" class="lp-logo" aria-label="Sightline home">
-        <img src="/static/logo.png" alt="" class="lp-nav-logo">
-        <span>Sightline</span>
-      </a>
-    </div>
-  </nav>
-
   <!-- Video Overlay (Start Free → intro video → /app) -->
   <div id="video-overlay">
-    <video id="intro-video" muted>
-      <source src="/static/videos/intro.mp4" type="video/mp4">
+    <video id="intro-video" muted playsinline preload="none">
+      <source data-src="/static/videos/intro.mp4" type="video/mp4">
     </video>
   </div>
 
@@ -72,13 +62,30 @@
     <section class="lp-section lp-hero-section active" data-section="0">
       <div class="lp-hero-shell">
         <div class="lp-hero-copy">
+          <div class="hero-brand-lockup" aria-label="Sightline, Humanitarian intelligence">
+            <img src="/static/logo-signal-horizon.webp" alt="" class="hero-brand-mark">
+            <span class="hero-brand-wordmark">
+              <strong>Sightline</strong>
+              <small>Humanitarian intelligence</small>
+            </span>
+          </div>
           <h1>Turn crisis data into decisive action.</h1>
           <p>Generate cited SITREPs, donor proposals and weekly intelligence briefs from trusted humanitarian sources.</p>
-          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg">Open Sightline</a>
+          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg">Login</a>
         </div>
 
+        <button id="hero-world-trigger" class="hero-world-trigger" type="button" aria-label="Explore by selecting the world"></button>
         <button id="hero-portal" class="hero-portal" type="button" aria-label="Explore the Sightline system">
-          <span>Explore the system</span>
+          <span class="hero-portal-brand" aria-hidden="true">
+            <span class="hero-portal-logo-wrap">
+              <img src="/static/logo-signal-horizon.webp" alt="" class="hero-portal-logo">
+            </span>
+            <span class="hero-portal-copy">
+              <strong>Sightline</strong>
+              <span>Explore the system</span>
+            </span>
+          </span>
+          <span class="hero-portal-arrow" aria-hidden="true"></span>
         </button>
       </div>
     </section>
@@ -161,39 +168,19 @@
       </div>
     </section>
 
-    <!-- Section 6: CTA — Stars only, earth hidden, video redirect -->
-    <section class="lp-section" data-section="6">
-      <div class="lp-section-inner lp-section-center">
-        <div class="lp-hero-logo">
-          <img src="/static/logo.png" alt="Sightline">
+    <!-- Section 6: Signal Convergence finale -->
+    <section class="lp-section lp-section-center lp-final-section" data-section="6">
+      <div class="lp-section-inner lp-final-inner">
+        <div class="lp-final-brand" aria-label="Sightline">
+          <img src="/static/logo-signal-horizon.webp" alt="">
+          <span>Sightline</span>
         </div>
-        <h2>Ready to write your next<br>report in minutes?</h2>
-        <p>Start generating situation reports and donor proposals today.</p>
-
-        <div class="lp-pricing-grid">
-          <div class="lp-pricing-card">
-            <div class="lp-price-name">Free</div>
-            <div class="lp-price-amount">$0<span>/mo</span></div>
-            <ul class="lp-price-features">
-              <li>10 AI messages/day</li>
-              <li>1 proposal/month</li>
-              <li>Read-only reports</li>
-            </ul>
-            <button class="lp-btn lp-btn-primary lp-btn-block lp-cta-start">Start free</button>
-          </div>
-          <div class="lp-pricing-card lp-pricing-featured">
-            <div class="lp-price-badge">Recommended</div>
-            <div class="lp-price-name">Premium</div>
-            <ul class="lp-price-features">
-              <li>100 AI messages/day</li>
-              <li>Unlimited proposals</li>
-              <li>SITREP + PDF export</li>
-              <li>M&E quality scoring</li>
-            </ul>
-            <button class="lp-btn lp-btn-primary lp-btn-block" onclick="return false;">Get Premium</button>
-          </div>
+        <h2>See the crisis clearly.<br>Shape the response faster.</h2>
+        <p>Turn global humanitarian data into cited intelligence, reports and actionable decisions.</p>
+        <div class="lp-final-actions">
+          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg lp-cta-start">Start free</a>
+          <a href="/app" class="lp-btn lp-btn-ghost lp-btn-lg">Login</a>
         </div>
-
       </div>
     </section>
 
