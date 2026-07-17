@@ -233,15 +233,16 @@
     <div class="absolute inset-0 z-0" id="dash-map-wrap" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
       <div id="world-map" class="h-full w-full" style="width: 100%; height: 100%; background: #e5e7eb;"></div>
       
-      <!-- Top Right Search and Sources -->
-      <div style="position: absolute; top: 24px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 400; pointer-events: none;">
-        <!-- Search Box -->
-        <div class="relative pointer-events-auto">
-          <input type="text" id="map-search-input" class="search-input-glass text-zinc-900 placeholder-zinc-400 pl-10 pr-4 py-2.5 rounded-full text-sm w-72 focus:outline-none transition-all" placeholder="Search country..." autocomplete="off">
+      <!-- Top Center Search -->
+      <div style="position: absolute; top: 24px; left: 50%; transform: translateX(-50%); z-index: 400; pointer-events: auto;">
+        <div class="relative">
+          <input type="text" id="map-search-input" class="search-input-glass text-zinc-900 placeholder-zinc-400 pl-10 pr-4 py-2.5 rounded-full text-sm w-80 focus:outline-none transition-all" placeholder="Search country..." autocomplete="off">
           <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
-        
-        <!-- Sources -->
+      </div>
+      
+      <!-- Top Right Sources -->
+      <div style="position: absolute; top: 24px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 400; pointer-events: none;">
         <div class="pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[420px]">
           <!-- ReliefWeb -->
           <span class="source-badge-glass text-zinc-700" title="ReliefWeb Feed: Active">
