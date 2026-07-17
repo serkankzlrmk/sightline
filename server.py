@@ -1463,7 +1463,8 @@ def api_map_countries():
         db = _get_chroma_adapter()
         all_countries = db.list_countries_with_counts()
 
-        # Sort by count, take top 60
+        # Sort by count, take top 60 (exclude non-country entries)
+        all_countries = [c for c in all_countries if c.get("name", c.get("country", "")).lower() not in ("world", "global", "international", "region", "unknown")]
         all_countries.sort(key=lambda x: x.get("count", 0), reverse=True)
         top_countries = all_countries[:60]
 
