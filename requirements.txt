@@ -60,3 +60,4 @@ firebase-admin>=6.0
 langchain-mcp-adapters>=0.3.0
 mcp>=1.0.0
 flask-compress
+flask-limiter>=3.5

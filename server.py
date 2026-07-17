@@ -39,6 +39,8 @@ import urllib3
 from flask import Flask, Response, g, jsonify, render_template, request
 from flask_cors import CORS
 from flask_compress import Compress
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from config import (
     _LLM_API_KEY,
@@ -128,6 +130,17 @@ app.register_blueprint(news_bp)
 app.register_blueprint(db_bp)
 app.register_blueprint(ingest_bp)
 
+# ── Per-blueprint rate limits ────────────────────────────────────────────────
+# Agent chat: 30/min (expensive LLM calls)
+limiter.limit("30/minute")(agent_bp)
+# Proposal advisor: 20/min (even more expensive)
+limiter.limit("20/minute")(proposal_bp)
+# Ingest: 10/min (very heavy — PDF upload + processing)
+limiter.limit("10/minute")(ingest_bp)
+# Admin: 60/min (light queries)
+limiter.limit("60/minute")(admin_bp)
+# Public/DB/HDX/News/Sitrep: default 120/min (already set)
+
 # ── Initialize HDX client ────────────────────────────────────────────────────
 _hdx_ok = init_hdx_tools(
     app_identifier=HDX_APP_IDENTIFIER,
@@ -213,6 +226,16 @@ logger.info("MCP: Background init started — arxiv/sequential/brave tools will 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
 Compress(app)
+
+# ── Global rate limiting ──────────────────────────────────────────────────────
+# Default: 120/minute per IP. Blueprint-specific overrides below.
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["120/minute"],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
 
 # ProxyFix: behind nginx, request.remote_addr is 127.0.0.1 for everyone.
 # This makes the per-IP rate limiter see the real client IP from X-Forwarded-For.

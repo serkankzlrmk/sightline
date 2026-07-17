@@ -261,26 +261,37 @@ def get_tools_for_mode(mode: str = "analyst") -> list:
 
 # Background MCP tool loader — when MCP tools finish loading, add them to the agent
 def _register_mcp_tools_when_ready():
-    """Poll for MCP tools in background and register them when available."""
+    """Poll for MCP tools in background and register them when available.
+    Uses a threading.Event for synchronization instead of busy-waiting."""
     import time as _t
-    for _ in range(60):  # Wait up to 5 minutes (60 × 5s)
-        _t.sleep(5)
+    _mcp_event = getattr(mcp_integration, '_mcp_ready_event', None)
+    if _mcp_event:
+        # Wait up to 5 minutes for the event
+        _mcp_event.wait(timeout=300)
+
+    # Try up to 3 times with 10s gaps (instead of 60 × 5s = 300s busy-wait)
+    for attempt in range(3):
         if mcp_integration.MCP_TOOLS:
+            new_count = 0
             for t in mcp_integration.MCP_TOOLS:
                 if t.name not in tools_by_name:
                     tools_by_name[t.name] = t
                     all_tools.append(t)
+                    new_count += 1
                     logger.info("✓ MCP tool registered: %s", t.name)
-            # Rebind tools to model
-            try:
-                global model_with_tools
-                model_with_tools = model.bind_tools(all_tools)
-                logger.info("✓ Model re-bound with MCP tools (%d total tools)", len(all_tools))
-            except Exception as e:
-                logger.warning("Failed to rebind MCP tools: %s", e)
+            if new_count > 0:
+                # Rebind tools to model (thread-safe via _LazyModel)
+                try:
+                    global model_with_tools
+                    with _model_lock:
+                        model_with_tools = _get_model().bind_tools(all_tools) if _get_model() else None
+                    logger.info("✓ Model re-bound with MCP tools (%d total tools)", len(all_tools))
+                except Exception as e:
+                    logger.warning("Failed to rebind MCP tools: %s", e)
             break
+        _t.sleep(10)
     else:
-        logger.warning("MCP tools did not become ready within 5 minutes — giving up")
+        logger.warning("MCP tools did not become ready after 3 attempts — running without MCP tools")
 
 import threading as _threading2
 

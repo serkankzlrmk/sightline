@@ -47,6 +47,7 @@ def _parse_countries(json_str):
 @db_bp.route("/stats")
 @require_auth
 def api_db_stats():
+    """DB stats with SQL-level aggregation for performance."""
     conn = _db_conn()
     try:
         report_count = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
@@ -81,26 +82,21 @@ def api_db_stats():
 @db_bp.route("/countries")
 @require_auth
 def api_db_countries():
+    """All distinct countries using SQL json_each for efficiency."""
     conn = _db_conn()
     try:
-        # Cap rows loaded into memory (countries stored as JSON text, needs Python parse)
-        rows = conn.execute("SELECT countries FROM reports LIMIT 2000").fetchall()
+        rows = conn.execute(
+            "SELECT DISTINCT je.value FROM reports, json_each(countries) je ORDER BY je.value"
+        ).fetchall()
     except Exception:
-        try:
-            conn.close()
-        except Exception:
-            pass
         return jsonify([])
     finally:
         try:
             conn.close()
         except Exception:
             pass
-    all_countries = set()
-    for r in rows:
-        for c in _parse_countries(r[0]):
-            all_countries.add(c)
-    return jsonify(sorted(all_countries))
+
+    return jsonify([r[0] for r in rows if r[0]])
 
 
 # ─── Sources list ────────────────────────────────────────────────────────────
@@ -114,7 +110,11 @@ def api_db_sources():
     except Exception:
         return jsonify([])
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
+
     return jsonify([r[0] for r in rows if r[0]])
 
 
@@ -160,20 +160,26 @@ def api_db_reports():
             query += " AND date >= date('now', '-7 days')"
         if role not in ("premium", "admin"):
             query += " AND date >= date('now', '-3 days')"
+
+        # Whitelist sort/order to prevent SQL injection
         order_dir = "ASC" if order.upper() == "ASC" else "DESC"
         sort_col = "date" if sort == "date" else "report_id"
         query += f" ORDER BY {sort_col} {order_dir}"
 
         if limit and limit.isdigit():
-            query += f" LIMIT {int(limit)}"
+            query += f" LIMIT {min(int(limit), 200)}"
         else:
             query += " LIMIT 50"
 
         rows = conn.execute(query, params).fetchall()
-    except Exception:
+    except Exception as e:
+        logger.error("api_db_reports error: %s", e, exc_info=True)
         return jsonify([])
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     results = []
     for r in rows:
@@ -222,6 +228,9 @@ def api_db_report_detail(report_id):
         logger.error("api_db_report_detail error: %s", e, exc_info=True)
         return jsonify({"error": "Failed to load report detail"}), 500
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     return jsonify(d)
