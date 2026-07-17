@@ -966,22 +966,34 @@ button:active,
   100% { opacity: .7; transform: scale(1); }
 }
 
-/* Welcome mode — full background pulse */
+/* Welcome mode — premium aurora breathing backdrop */
 .chat-main.welcome-mode::after {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle 500px at 50% 55%, rgba(0,122,255,.10), transparent 70%),
-    radial-gradient(circle 700px at 30% 40%, rgba(0,122,255,.06), transparent 70%),
-    radial-gradient(circle 600px at 70% 60%, rgba(90,160,255,.05), transparent 70%);
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(225, 29, 72, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 40%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
+    radial-gradient(circle at 40% 80%, rgba(244, 63, 94, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+  filter: blur(40px);
   pointer-events: none;
   z-index: 0;
-  animation: bgPulse 4s ease-in-out infinite;
+  animation: auroraBreathe 12s ease-in-out infinite alternate;
 }
-@keyframes bgPulse {
-  0%, 100% { opacity: 0; transform: scale(.97); }
-  50% { opacity: 1; transform: scale(1.02); }
+@keyframes auroraBreathe {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.08) rotate(5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.02) rotate(-3deg);
+    opacity: 0.8;
+  }
 }
 
 /* ── Welcome mode — centered Gemini-style ── */
@@ -6150,6 +6162,87 @@ body.auth-locked .mobile-tab-bar { display: none !important; }
   margin-bottom: 16px;
 }
 @media (max-width: 768px) {
-  .cc-doors { grid-template-columns: 1fr; gap: 16px; }
   .command-center { padding: 40px 16px; justify-content: flex-start; }
+}
+
+/* ── Command Center Accordion Styling ── */
+.cc-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 800px;
+  width: 100%;
+  margin: 24px auto;
+}
+.cc-acc-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all var(--transition);
+  box-shadow: var(--shadow-sm), var(--glass-inner);
+}
+.cc-acc-card:hover {
+  border-color: rgba(225, 29, 72, 0.2);
+}
+.cc-acc-header {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+.cc-acc-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.cc-acc-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: rgba(225, 29, 72, 0.06);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+.cc-acc-header:hover .cc-acc-icon {
+  background: var(--primary);
+  color: var(--white);
+}
+.cc-acc-text h3 {
+  margin: 0 0 2px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.cc-acc-text p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.cc-acc-chevron {
+  color: var(--text-muted);
+  transition: transform var(--transition);
+}
+.cc-acc-card.open .cc-acc-chevron {
+  transform: rotate(180deg);
+}
+.cc-acc-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+  padding: 0 24px;
+  border-top: 1px solid transparent;
+}
+.cc-acc-card.open .cc-acc-body {
+  max-height: 300px;
+  padding: 12px 24px 20px 24px;
+  border-top-color: var(--border);
 }

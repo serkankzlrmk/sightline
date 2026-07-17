@@ -426,19 +426,31 @@ def api_update_proposal(prop_id):
         if "step_status" in data:
             fields_to_update["step_status"] = json.dumps(data["step_status"])
 
-        if not fields_to_update:
+        # Validate field names against whitelist (prevent SQL injection)
+        set_parts = []
+        params = []
+        for k in allowed_fields:
+            if k in data:
+                set_parts.append(f"{k} = ?")
+                params.append(data[k])
+        for k in json_fields:
+            if k in data:
+                set_parts.append(f"{k} = ?")
+                params.append(json.dumps(data[k]))
+
+        if not set_parts:
             return jsonify({"message": "No changes made"})
 
+        set_clause = ", ".join(set_parts)
+
         if role == "admin":
-            set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
-            params = list(fields_to_update.values()) + [prop_id]
+            params.append(prop_id)
             conn.execute(
                 f"UPDATE proposals SET {set_clause} WHERE id = ?",
                 params
             )
         else:
-            set_clause = ", ".join([f"{k} = ?" for k in fields_to_update.keys()])
-            params = list(fields_to_update.values()) + [prop_id, uid]
+            params.extend([prop_id, uid])
             conn.execute(
                 f"UPDATE proposals SET {set_clause} WHERE id = ? AND uid = ?",
                 params
@@ -779,7 +791,7 @@ def api_proposal_generate_toc(prop_id):
         return jsonify(toc_nodes)
     except Exception as e:
         logger.error(f"api_proposal_generate_toc error: {prop_id}, {e}")
-        return jsonify({"error": f"LLM generation failed: {str(e)}"}), 500
+        return jsonify({"error": "Generation failed. Please try again."}), 500
     finally:
         conn.close()
 
@@ -845,7 +857,7 @@ def api_proposal_generate_logframe(prop_id):
         return jsonify(logframe_data)
     except Exception as e:
         logger.error(f"api_proposal_generate_logframe error: {prop_id}, {e}")
-        return jsonify({"error": f"LLM generation failed: {str(e)}"}), 500
+        return jsonify({"error": "Generation failed. Please try again."}), 500
     finally:
         conn.close()
 
@@ -900,7 +912,7 @@ def api_proposal_generate_narrative(prop_id):
         return jsonify({"narrative": response})
     except Exception as e:
         logger.error(f"api_proposal_generate_narrative error: {prop_id}, {e}")
-        return jsonify({"error": f"LLM Narrative generation failed: {str(e)}"}), 500
+        return jsonify({"error": "Narrative generation failed. Please try again."}), 500
     finally:
         conn.close()
 

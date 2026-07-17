@@ -223,10 +223,10 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
             logframe_data = proposal_row.get("logframe", {})
             if isinstance(toc_data, str):
                 try: toc_data = json.loads(toc_data)
-                except: pass
+                except (json.JSONDecodeError, TypeError): pass
             if isinstance(logframe_data, str):
                 try: logframe_data = json.loads(logframe_data)
-                except: pass
+                except (json.JSONDecodeError, TypeError): pass
 
             review = review_section(
                 content=result.get("content", ""),

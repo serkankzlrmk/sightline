@@ -105,7 +105,7 @@ app = Flask(
     static_url_path="/static",
 )
 app.secret_key = SECRET_KEY
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit (PDF reports)
 
 # ── Register Blueprints ──────────────────────────────────────────────────────
 from blueprints.proposal import proposal_bp

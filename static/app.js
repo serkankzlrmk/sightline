@@ -259,17 +259,10 @@ function switchTab(name) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const QUICK_PROMPTS = [
-  // Search & Discovery
   { label: "Latest Headlines", text: "What are the latest humanitarian headlines?", cat: "search" },
-  { label: "Country Search", text: "Search for recent situation reports about Sudan", cat: "search" },
   { label: "Theme Filter", text: "Find health reports from WHO in the last month", cat: "search" },
   { label: "Disaster Tracker", text: "What ongoing disasters are there in Southeast Asia?", cat: "search" },
-  // Knowledge Base
-  { label: "Ask a Question", text: "What is the current food security situation in East Africa?", cat: "kb" },
-  { label: "Summarize Topic", text: "Summarize displacement trends in the Middle East", cat: "kb" },
-  // Deep Analysis
-  { label: "Full Report", text: "Show me the full content of report 12345", cat: "analysis" },
-  { label: "Convert to MD", text: "Convert report 12345 to markdown format", cat: "analysis" },
+  { label: "Displacement Trends", text: "Summarize displacement trends in the Middle East", cat: "kb" },
 ];
 
 function getWelcomeHTML() {
@@ -420,6 +413,7 @@ async function sendMessage() {
     }
     chatMain.classList.remove('welcome-mode');
     if (footer) footer.style.animation = '';
+    chatDiv.innerHTML = '';
   }
   // Block sending when rate limit is exhausted
   const rl = window.__rateLimit;
@@ -651,10 +645,10 @@ async function newChat() {
     if (sb) sb.classList.remove('open');
     if (ov) ov.classList.remove('open');
 
-    // Check if there's an empty chat we can reuse
+    // Check if there's an empty chat we can reuse (using msg_count)
     const listR = await api('/api/agent/chats');
     const listD = await listR.json();
-    const emptyChat = listD.chats.find(c => c.title === 'New Chat' || c.title.startsWith('New Chat'));
+    const emptyChat = listD.chats.find(c => c.msg_count === 0);
     if (emptyChat) {
       await selectChat(emptyChat.id);
       return;
@@ -3168,6 +3162,17 @@ document.addEventListener('DOMContentLoaded', () => {
             openBulletin(bFile);
           }
         }, 150);
+        break;
+      case 'toggle-cc-acc':
+        const targetId = target.dataset.target;
+        const targetCard = document.getElementById(targetId);
+        if (targetCard) {
+          const isOpen = targetCard.classList.contains('open');
+          document.querySelectorAll('.cc-acc-card').forEach(card => card.classList.remove('open'));
+          if (!isOpen) {
+            targetCard.classList.add('open');
+          }
+        }
         break;
       case 'go-sitrep-country':
         switchTab('sitrep');
