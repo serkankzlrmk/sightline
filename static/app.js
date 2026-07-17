@@ -2403,10 +2403,16 @@ function initWorldMap() {
   updateMapMarkers();
 }
 
+let leafletMarkerGroup = null;   // L.FeatureGroup for all markers (efficient batch ops)
+
 function updateMapMarkers() {
   if (!leafletMap || typeof L === 'undefined') return;
 
-  leafletMarkers.forEach(m => leafletMap.removeLayer(m));
+  // Remove previous marker group in one shot
+  if (leafletMarkerGroup) {
+    leafletMap.removeLayer(leafletMarkerGroup);
+  }
+  leafletMarkerGroup = L.featureGroup();
   leafletMarkers = [];
 
   const crises = Object.values(crisisMapData);
@@ -2430,15 +2436,19 @@ function updateMapMarkers() {
     });
 
     const marker = L.marker([lat, lng], { icon })
-      .addTo(leafletMap)
       .on('click', () => openCountryCard(c));
 
+    leafletMarkerGroup.addLayer(marker);
     leafletMarkers.push(marker);
   });
 
-  if (leafletMarkers.length > 0) {
-    const group = L.featureGroup(leafletMarkers);
-    leafletMap.fitBounds(group.getBounds().pad(0.3));
+  // Add entire group to map at once
+  leafletMarkerGroup.addTo(leafletMap);
+
+  // Only fit bounds on first load, not on zoom/pan
+  if (!window._mapBoundsSet) {
+    leafletMap.fitBounds(leafletMarkerGroup.getBounds().pad(0.3));
+    window._mapBoundsSet = true;
   }
 }
 
@@ -2466,8 +2476,8 @@ function openCountryCard(crisis) {
   // Show loading state
   bodyEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Loading country intelligence...</div>';
   panel.classList.add('open');
-  if (mapEl) mapEl.classList.add('panel-open');
-  if (leafletMap) setTimeout(() => { leafletMap.invalidateSize(); }, 400);
+  // Note: don't add panel-open class to map — it causes resize/marker lag
+  // The crisis panel overlays the map absolutely, no layout shift needed
 
   // If we have full summary data from /api/map/countries, render immediately
   if (hasSummary && fullData.narrative) {
@@ -2618,10 +2628,7 @@ function closeCrisisPanel() {
   const panel = document.getElementById('dash-crisis-panel');
   const mapEl = document.getElementById('world-map');
   if (panel) panel.classList.remove('open');
-  if (mapEl) mapEl.classList.remove('panel-open');
-  if (leafletMap) {
-    setTimeout(() => { leafletMap.invalidateSize(); }, 400);
-  }
+  // No panel-open class to remove — map stays full-screen
 }
 
 function viewCrisisSitrep(country) {
