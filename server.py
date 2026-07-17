@@ -130,17 +130,6 @@ app.register_blueprint(news_bp)
 app.register_blueprint(db_bp)
 app.register_blueprint(ingest_bp)
 
-# ── Per-blueprint rate limits ────────────────────────────────────────────────
-# Agent chat: 30/min (expensive LLM calls)
-limiter.limit("30/minute")(agent_bp)
-# Proposal advisor: 20/min (even more expensive)
-limiter.limit("20/minute")(proposal_bp)
-# Ingest: 10/min (very heavy — PDF upload + processing)
-limiter.limit("10/minute")(ingest_bp)
-# Admin: 60/min (light queries)
-limiter.limit("60/minute")(admin_bp)
-# Public/DB/HDX/News/Sitrep: default 120/min (already set)
-
 # ── Initialize HDX client ────────────────────────────────────────────────────
 _hdx_ok = init_hdx_tools(
     app_identifier=HDX_APP_IDENTIFIER,
@@ -236,6 +225,13 @@ limiter = Limiter(
     storage_uri="memory://",
     strategy="fixed-window",
 )
+
+# Per-blueprint rate limits
+limiter.limit("30/minute")(agent_bp)     # Expensive LLM calls
+limiter.limit("20/minute")(proposal_bp)  # Even more expensive
+limiter.limit("10/minute")(ingest_bp)    # Very heavy — PDF upload + processing
+limiter.limit("60/minute")(admin_bp)     # Light queries
+# Public/DB/HDX/News/Sitrep: default 120/min (already set)
 
 # ProxyFix: behind nginx, request.remote_addr is 127.0.0.1 for everyone.
 # This makes the per-IP rate limiter see the real client IP from X-Forwarded-For.
