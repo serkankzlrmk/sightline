@@ -2064,6 +2064,13 @@ window.renderDoughnutChart = renderDoughnutChart;
 
 let dashboardLoaded = false;
 let latestBulletinData = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CRISIS MAP DATA (loaded from /api/map/countries — single endpoint)
+// ═══════════════════════════════════════════════════════════════════════════
+
+let mapCountries = {};   // { country_name: { ...all data } }
+let mapDataLoaded = false;
 let crisisMapData = {};
 let leafletMap = null;
 let leafletMarkers = [];
@@ -2173,12 +2180,47 @@ async function loadDashboard() {
   // Freemium preview: check if user is authenticated
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
-  const statsUrl = isAuthed ? '/api/db/stats' : '/api/public/stats';
-  const bulletinsUrl = isAuthed ? '/api/sitrep/bulletins' : '/api/public/bulletins';
-  const bulletinDetailUrl = isAuthed ? '/api/sitrep/bulletin/' : '/api/public/bulletin/';
 
-  // Load stats
+  // ── Load map data: single endpoint for all 60 countries ──
   try {
+    const r = await api('/api/map/countries');
+    if (r.ok) {
+      const countries = await r.json();
+      if (Array.isArray(countries)) {
+        countries.forEach(c => {
+          if (c.country) {
+            mapCountries[c.country] = c;
+            // Also populate legacy crisisMapData for marker rendering
+            crisisMapData[c.country] = {
+              country: c.country,
+              headline: c.headline || '',
+              summary: c.narrative || '',
+              severity: c.severity || 'low',
+              report_count: c.report_count || 0,
+              coords: c.coords || {lat: 0, lng: 0},
+              has_sitrep: c.has_sitrep || false,
+              iso3: c.iso3 || '',
+              last_updated: c.last_updated || '',
+              recent_reports: c.recent_reports || [],
+              top_themes: c.top_themes || [],
+              hdx_key_figures: c.hdx_key_figures || {},
+              gdacs_alerts: c.gdacs_alerts || [],
+              has_summary: c.has_summary || false,
+              date_range: c.date_range || {},
+            };
+          }
+        });
+        mapDataLoaded = true;
+      }
+    }
+  } catch (e) { console.warn('[dashboard] map/countries load failed:', e); }
+
+  // Initialize map after data is loaded
+  setTimeout(() => { initWorldMap(); }, 200);
+
+  // ── Load basic stats ──
+  try {
+    const statsUrl = isAuthed ? '/api/db/stats' : '/api/public/stats';
     const r = await api(statsUrl);
     const d = await r.json();
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
@@ -2186,13 +2228,14 @@ async function loadDashboard() {
     el('dash-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '—');
   } catch { /* ignore */ }
 
-  // Load bulletins + latest bulletin detail
+  // ── Load bulletin overview (authed) or preview (public) ──
+  const bulletinsUrl = isAuthed ? '/api/sitrep/bulletins' : '/api/public/bulletins';
+  const bulletinDetailUrl = isAuthed ? '/api/sitrep/bulletin/' : '/api/public/bulletin/';
   try {
     const r = await api(bulletinsUrl);
     const d = await r.json();
     const bulletins = d.bulletins || d || [];
 
-    // Render weekly overview from latest bulletin
     if (Array.isArray(bulletins) && bulletins.length > 0) {
       const latest = bulletins[0];
       const elDate = document.getElementById('dash-weekly-date');
@@ -2204,14 +2247,6 @@ async function loadDashboard() {
         if (br.ok) {
           latestBulletinData = await br.json();
           renderDashOverview(latestBulletinData);
-          // Store crisis data for map markers
-          if (latestBulletinData.crises) {
-            latestBulletinData.crises.forEach(c => {
-              if (c.country) crisisMapData[c.country] = c;
-            });
-          }
-          // Update map markers after data is loaded
-          setTimeout(() => updateMapMarkers(), 300);
         }
       } catch { /* ignore */ }
 
@@ -2220,7 +2255,6 @@ async function loadDashboard() {
         linkBtn.style.display = '';
         linkBtn.addEventListener('click', () => {
            if (!isAuthed) {
-             // Preview mode: show login panel
              if (window.showLoginPanel) window.showLoginPanel();
              return;
            }
@@ -2232,70 +2266,10 @@ async function loadDashboard() {
         });
       }
     } else {
-      document.getElementById('dash-overview-stats').innerHTML = '<div class="dash-weekly-loading">No bulletins available yet.</div>';
+      const overviewEl = document.getElementById('dash-overview-stats');
+      if (overviewEl) overviewEl.innerHTML = '<div class="dash-weekly-loading">No bulletins available yet.</div>';
     }
   } catch { /* ignore */ }
-
-  // Load country summaries for map markers (all countries, not just bulletin)
-  try {
-    const tok2 = window.getIdToken ? window.getIdToken() : '';
-    const isAuthed2 = !!tok2;
-    const summariesUrl = isAuthed2 ? '/api/country/summaries' : '/api/public/country/summaries';
-    const sr = await api(summariesUrl);
-    if (sr.ok) {
-      const summaries = await sr.json();
-      if (Array.isArray(summaries) && summaries.length > 0) {
-        summaries.forEach(s => {
-          if (s.country) {
-            crisisMapData[s.country] = {
-              country: s.country,
-              headline: s.headline || '',
-              severity: s.severity || 'low',
-              report_count: s.report_count || 0,
-              coords: s.coords || {lat: 0, lng: 0},
-              has_sitrep: s.has_sitrep || false,
-              iso3: s.iso3 || '',
-            };
-          }
-        });
-        setTimeout(() => updateMapMarkers(), 300);
-      }
-    }
-  } catch { /* ignore — bulletin data already loaded some markers */ }
-
-  // Load ALL countries (including those without summaries) for map markers
-  // Uses /api/sitrep/countries (authed) or /api/public/countries (public)
-  try {
-    const countriesUrl = isAuthed2 ? '/api/sitrep/countries' : '/api/public/countries';
-    const cr = await api(countriesUrl);
-    if (cr.ok) {
-      const allCountries = await cr.json();
-      if (Array.isArray(allCountries)) {
-        allCountries.forEach(c => {
-          const name = c.name || c.country || c;
-          if (name && !crisisMapData[name]) {
-            const count = c.count || c.chunk_count || 0;
-            const severity = count >= 10 ? 'medium' : 'low';
-            const coords = c.coords || {lat: 0, lng: 0};
-            crisisMapData[name] = {
-              country: name,
-              headline: '',
-              severity: severity,
-              report_count: count,
-              coords: coords,
-              has_sitrep: false,
-              iso3: '',
-            };
-          }
-        });
-        // Update markers with all countries
-        setTimeout(() => updateMapMarkers(), 200);
-      }
-    }
-  } catch { /* ignore */ }
-
-  // Initialize map after a short delay to ensure container has height
-  setTimeout(() => { initWorldMap(); }, 200);
 }
 
 function renderDashOverview(b) {
@@ -2509,6 +2483,11 @@ function openCountryCard(crisis) {
   const sevLabels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
   const color = sevColors[crisis.severity] || '#007AFF';
 
+  // Look up full data from mapCountries
+  const fullData = mapCountries[country] || {};
+  const lastUpdated = fullData.last_updated || crisis.last_updated || '';
+  const hasSummary = fullData.has_summary || crisis.has_summary || false;
+
   countryEl.textContent = country;
 
   // Show loading state
@@ -2517,8 +2496,11 @@ function openCountryCard(crisis) {
   if (mapEl) mapEl.classList.add('panel-open');
   if (leafletMap) setTimeout(() => { leafletMap.invalidateSize(); }, 400);
 
-  // If authed, fetch full country card
-  if (isAuthed) {
+  // If we have full summary data from /api/map/countries, render immediately
+  if (hasSummary && fullData.narrative) {
+    renderCountryCard(bodyEl, fullData, color, sevLabels);
+  } else if (isAuthed) {
+    // Authed: fetch full country summary
     api('/api/country/' + encodeURIComponent(country) + '/summary')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -2532,7 +2514,7 @@ function openCountryCard(crisis) {
         renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
       });
   } else {
-    // Preview mode: show what we have from bulletin + register prompt
+    // Preview mode: show what we have from map data + register prompt
     renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
   }
 }
@@ -2542,6 +2524,15 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
   const severity = data.severity || 'low';
 
   html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[severity] || ''}</span>`;
+
+  // Last updated date
+  const lastUpdated = data.last_updated || (data.date_range && data.date_range.max_date) || '';
+  if (lastUpdated) {
+    const dateStr = lastUpdated.length > 10 ? lastUpdated.substring(0, 10) : lastUpdated;
+    html += `<div class="crisis-meta" style="margin-bottom:8px;"><span class="crisis-meta-item" style="color:var(--text-muted);font-size:11px;">Updated ${esc(dateStr)}</span>`;
+    if (data.report_count) html += `<span class="crisis-meta-item" style="font-size:11px;"><strong>${data.report_count}</strong> reports</span>`;
+    html += `</div>`;
+  }
 
   if (data.headline) {
     html += `<div class="crisis-headline">${esc(data.headline)}</div>`;
@@ -2618,12 +2609,29 @@ function renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels) {
   let html = '';
   html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[crisis.severity] || ''}</span>`;
   if (crisis.headline) html += `<div class="crisis-headline">${esc(crisis.headline)}</div>`;
-  if (crisis.summary) html += `<div class="crisis-summary">${esc(crisis.summary)}</div>`;
+  if (crisis.summary || crisis.narrative) html += `<div class="crisis-summary">${esc(crisis.summary || crisis.narrative)}</div>`;
   html += `<div class="crisis-meta">`;
   if (crisis.report_count) html += `<span class="crisis-meta-item"><strong>${crisis.report_count}</strong> reports</span>`;
+  // Show last updated date
+  const lastUpdated = crisis.last_updated || (crisis.date_range && crisis.date_range.max_date) || '';
+  if (lastUpdated) {
+    const dateStr = lastUpdated.length > 10 ? lastUpdated.substring(0, 10) : lastUpdated;
+    html += `<span class="crisis-meta-item" style="color:var(--text-muted);">Updated ${esc(dateStr)}</span>`;
+  }
   html += `</div>`;
   if (crisis.themes && crisis.themes.length) {
     html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+  } else if (crisis.top_themes && crisis.top_themes.length) {
+    html += `<div class="crisis-themes">${crisis.top_themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+  }
+  // Show recent reports (from map data)
+  if (crisis.recent_reports && crisis.recent_reports.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Latest Reports</div>`;
+    html += `<div class="country-card-reports">`;
+    crisis.recent_reports.slice(0, 3).forEach(r => {
+      html += `<div class="country-card-report"><a href="${esc(r.url || '#')}" target="_blank" rel="noopener">${esc(r.title || '')}</a><span class="country-card-report-meta">${esc(r.date || '')} · ${esc(r.source || '')}</span></div>`;
+    });
+    html += `</div></div>`;
   }
   if (!isAuthed) {
     html += `<div class="preview-lock-msg"><div class="preview-lock-text">Register to view report sources and full SITREP analysis.</div><button class="preview-lock-btn">Register</button></div>`;

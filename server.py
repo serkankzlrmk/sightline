@@ -264,7 +264,7 @@ def _apply_api_rate_limit():
     if not path.startswith("/api/"):
         return None
     # Exempt: health (Docker healthcheck), stream (long-lived SSE), public endpoints
-    if path == "/api/health" or path.startswith("/api/sitrep/stream") or path.startswith("/api/public/"):
+    if path == "/api/health" or path.startswith("/api/sitrep/stream") or path.startswith("/api/public/") or path.startswith("/api/map/") or path.startswith("/api/country/summaries"):
         return None
     ok, remaining = _check_api_rate_limit()
     if not ok:
@@ -1414,6 +1414,8 @@ def api_country_summaries():
 
 _chroma_adapter = None
 _chroma_adapter_lock = threading.Lock()
+_map_countries_cache = None
+_map_countries_cache_time = 0.0
 
 
 def _get_chroma_adapter():
@@ -1426,6 +1428,172 @@ def _get_chroma_adapter():
         from sitrep.chroma_adapter import ChromaAdapter
         _chroma_adapter = ChromaAdapter()
         return _chroma_adapter
+
+
+# =============================================================================
+# ROUTES — /api/map/* (Crisis Map — all-in-one data endpoint)
+# =============================================================================
+
+@app.route("/api/map/countries")
+def api_map_countries():
+    """Public: Top 60 countries with rich data for the crisis map.
+
+    Returns an array of country objects, sorted by report_count descending,
+    each containing:
+      - Basic: country, iso3, coords, severity, report_count, last_updated
+      - Summary: headline, narrative (from country_summary if available, else generated from chunks)
+      - Reports: recent_reports (last 3), date_range
+      - Extras: hdx_key_figures, gdacs_alerts, has_sitrep, top_themes
+
+    This replaces the previous 3-call pattern (bulletin + summaries + countries).
+    The data is cached in-memory for 5 minutes.
+    """
+    global _map_countries_cache, _map_countries_cache_time
+    import time as _time
+
+    # Cache for 5 minutes
+    if _map_countries_cache is not None and (_time.time() - _map_countries_cache_time) < 300:
+        return jsonify(_map_countries_cache)
+
+    try:
+        from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
+        from sitrep.country_summary import (
+            get_country_summary, COUNTRY_SUMMARY_DIR, _country_to_iso3,
+        )
+        db = _get_chroma_adapter()
+        all_countries = db.list_countries_with_counts()
+
+        # Sort by count, take top 60
+        all_countries.sort(key=lambda x: x.get("count", 0), reverse=True)
+        top_countries = all_countries[:60]
+
+        # Alias mapping for country name variants
+        aliases = {
+            "Syrian Arab Republic": "Syria",
+            "Türkiye": "Turkey",
+            "oPt": "occupied Palestinian territory",
+            "DR Congo": "Democratic Republic of the Congo",
+            "Iran (Islamic Republic of)": "Iran",
+        }
+        reverse_aliases = {v: k for k, v in aliases.items()}
+
+        results = []
+        for entry in top_countries:
+            country = entry.get("name", "")
+            count = entry.get("count", 0)
+            if not country:
+                continue
+
+            # Resolve coords — try direct, then alias, then reverse alias
+            coords = COUNTRY_COORDS.get(country, {})
+            if not coords:
+                coords = COUNTRY_COORDS.get(aliases.get(country, ""), {})
+            if not coords:
+                coords = COUNTRY_COORDS.get(reverse_aliases.get(country, ""), {})
+            if not coords:
+                coords = {"lat": 0, "lng": 0}
+
+            # Try to load existing country summary JSON
+            safe_name = country.replace(" ", "_").replace("/", "_").replace("\\", "_")
+            summary_path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"
+            summary_data = None
+            if summary_path.exists():
+                try:
+                    import json as _json
+                    summary_data = _json.loads(summary_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+            # Build the response object
+            iso3 = (summary_data or {}).get("iso3", "") or _country_to_iso3(country) if country else ""
+
+            # Get date range from summary or compute from DB
+            date_range = (summary_data or {}).get("date_range", {})
+            last_updated = (summary_data or {}).get("generated_at", "")
+
+            # Severity from summary or compute
+            severity = (summary_data or {}).get("severity", "")
+            if not severity:
+                top_themes_raw = (summary_data or {}).get("top_themes", [])
+                severity = _determine_severity(count, top_themes_raw)
+
+            # Headline + narrative from summary
+            headline = (summary_data or {}).get("headline", "")
+            narrative = (summary_data or {}).get("narrative", "")
+
+            # Recent reports from summary or compute
+            recent_reports = (summary_data or {}).get("recent_reports", [])
+            if not recent_reports:
+                try:
+                    chunks = db.get_chunks_by_country(country, limit=30)
+                    seen_titles = set()
+                    for chunk in chunks:
+                        title = chunk.get("title", "")
+                        if title and title not in seen_titles and len(recent_reports) < 3:
+                            seen_titles.add(title)
+                            recent_reports.append({
+                                "title": title,
+                                "date": chunk.get("date", ""),
+                                "source": chunk.get("source", ""),
+                                "url": chunk.get("url", ""),
+                            })
+                except Exception:
+                    pass
+
+            # Top themes from summary or compute
+            top_themes = (summary_data or {}).get("top_themes", [])
+            chunks = None  # Will be loaded from DB if needed
+            if not top_themes:
+                try:
+                    chunks = db.get_chunks_by_country(country, limit=50)
+                    from collections import Counter as _Counter
+                    theme_counter = _Counter()
+                    for chunk in chunks:
+                        raw_themes = chunk.get("themes", "")
+                        if raw_themes:
+                            for t in raw_themes.split(","):
+                                t = t.strip()
+                                if t:
+                                    theme_counter[t] += 1
+                    top_themes = [t for t, _ in theme_counter.most_common(5)]
+                except Exception:
+                    pass
+
+            # HDX key figures + GDACS alerts from summary
+            hdx_key_figures = (summary_data or {}).get("hdx_key_figures", {})
+            gdacs_alerts = (summary_data or {}).get("gdacs_alerts", [])
+            has_sitrep = (summary_data or {}).get("has_sitrep", False)
+
+            # If no generated_at date, use date_range max_date
+            if not last_updated and date_range:
+                last_updated = date_range.get("max_date", "")
+
+            result = {
+                "country": country,
+                "iso3": iso3,
+                "coords": coords,
+                "severity": severity,
+                "report_count": count,
+                "headline": headline,
+                "narrative": narrative,
+                "date_range": date_range,
+                "last_updated": last_updated,
+                "recent_reports": recent_reports[:3],
+                "top_themes": top_themes[:5],
+                "hdx_key_figures": hdx_key_figures,
+                "gdacs_alerts": gdacs_alerts,
+                "has_sitrep": has_sitrep,
+                "has_summary": summary_data is not None,
+            }
+            results.append(result)
+
+        _map_countries_cache = results
+        _map_countries_cache_time = _time.time()
+
+        return jsonify(results)
+    except Exception as exc:
+        logger.error("api_map_countries error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load map data"}), 500
 
 
 @app.route("/api/public/countries")
