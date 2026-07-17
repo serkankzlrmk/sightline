@@ -38,6 +38,7 @@ os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecuti
 import urllib3
 from flask import Flask, Response, g, jsonify, render_template, request
 from flask_cors import CORS
+from flask_compress import Compress
 
 from config import (
     _LLM_API_KEY,
@@ -211,6 +212,7 @@ logger.info("MCP: Background init started — arxiv/sequential/brave tools will 
 
 _cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
 CORS(app, origins=_cors_origins, supports_credentials=False)
+Compress(app)
 
 # ProxyFix: behind nginx, request.remote_addr is 127.0.0.1 for everyone.
 # This makes the per-IP rate limiter see the real client IP from X-Forwarded-For.
