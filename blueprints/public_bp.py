@@ -17,26 +17,12 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from auth import current_uid, require_admin, require_auth
+from blueprints.helpers import _db_conn, _log_event, _get_chroma_adapter
 from config import DB_PATH, OUTPUT_REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
 public_bp = Blueprint('public', __name__, url_prefix='/api')
-
-# ── Late import helpers from server.py ──────────────────────────────────────
-# These are defined in server.py and accessed via `import server` to avoid
-# circular-import issues at module-load time.
-
-def _db_conn():
-    """Proxy for server._db_conn – connects to the reliefweb SQLite database."""
-    import server as _srv
-    return _srv._db_conn()
-
-
-def _log_event(uid, event, props=None, session=""):
-    """Proxy for server._log_event – logs analytics events."""
-    import server as _srv
-    return _srv._log_event(uid, event, props, session)
 
 
 def _parse_countries(json_str):
@@ -69,12 +55,6 @@ def _trim_bulletin_for_preview(bulletin: dict) -> dict:
 # ── Shared state for map endpoint ──────────────────────────────────────────
 _map_countries_cache = None
 _map_countries_cache_time = 0.0
-
-
-def _get_chroma_adapter():
-    """Proxy for server._get_chroma_adapter — uses the shared singleton."""
-    import server as _srv
-    return _srv._get_chroma_adapter()
 
 
 # =============================================================================

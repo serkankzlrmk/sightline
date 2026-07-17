@@ -15,38 +15,11 @@ import uuid
 from flask import Blueprint, Response, jsonify, request
 
 from auth import current_role, current_uid, require_auth, require_role
+from blueprints.helpers import _chats_db, _log_event, _get_agent, _check_rate_limit
 
 logger = logging.getLogger(__name__)
 
 proposal_bp = Blueprint('proposal', __name__, url_prefix='/api')
-
-# ── Late import helpers from server.py ──────────────────────────────────────
-# These are defined in server.py and accessed via `import server` to avoid
-# circular-import issues at module-load time.
-
-def _chats_db():
-    """Proxy for server._chats_db – connects to the chats SQLite database."""
-    import server as _srv
-    return _srv._chats_db()
-
-
-def _log_event(uid, event, props=None, session=""):
-    """Proxy for server._log_event – logs analytics events."""
-    import server as _srv
-    return _srv._log_event(uid, event, props, session)
-
-
-def _get_agent():
-    """Proxy for server._get_agent – returns the LangGraph agent instance."""
-    import server as _srv
-    return _srv._get_agent()
-
-
-def _check_rate_limit(uid, role="user"):
-    """Proxy for server._check_and_increment_rate_limit – daily rate limit check."""
-    import server as _srv
-    return _srv._check_and_increment_rate_limit(uid, role)
-
 
 # ── Per-user busy flag for advisor chat (prevents concurrent requests) ──────
 import threading as _threading

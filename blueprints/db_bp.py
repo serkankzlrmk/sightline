@@ -13,6 +13,7 @@ import sqlite3
 from flask import Blueprint, jsonify, request
 
 from auth import current_role, current_uid, require_auth
+from blueprints.helpers import _db_conn
 from config import DB_PATH
 
 logger = logging.getLogger(__name__)
@@ -21,15 +22,6 @@ db_bp = Blueprint("db", __name__, url_prefix="/api/db")
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
-
-def _db_conn():
-    """Return a connection to the reliefweb SQLite database with WAL mode."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
-
 
 def _row_to_dict(row):
     return dict(row)

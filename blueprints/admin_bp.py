@@ -17,27 +17,12 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from auth import _admins, current_uid, require_admin
+from blueprints.helpers import _chats_db, _log_event
 from config import OUTPUT_REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
-
-
-# ── Late import helpers from server.py ──────────────────────────────────────
-# These are defined in server.py and accessed via `import server` to avoid
-# circular-import issues at module-load time.
-
-def _chats_db():
-    """Proxy for server._chats_db – connects to the chats SQLite database."""
-    import server as _srv
-    return _srv._chats_db()
-
-
-def _log_event(uid, event, props=None, session=""):
-    """Proxy for server._log_event – logs analytics events."""
-    import server as _srv
-    return _srv._log_event(uid, event, props, session)
 
 
 # =============================================================================
