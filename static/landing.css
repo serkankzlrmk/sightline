@@ -648,6 +648,11 @@ body.hero-light.portal-armed .hero-portal::before {
   opacity: 1;
   pointer-events: auto;
 }
+.lp-section.lp-hero-section {
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: 0;
+}
 .lp-section-inner {
   max-width: 460px;
   pointer-events: auto;
@@ -956,9 +961,9 @@ body.final-quiet::before {
   .lp-logo-copy strong { font-size: 20px; }
   .lp-logo-copy small { margin-top: 4px; font-size: 8px; letter-spacing: 0.04em; }
   .lp-nav .lp-btn { padding: 8px 14px; font-size: 13px; }
-  .lp-hero-section { padding-top: 0; }
   .lp-hero-shell {
-    min-height: 100dvh;
+    height: 100%;
+    min-height: 0;
     padding: 32px 18px 112px;
   }
   .lp-hero-copy { max-width: 100%; }

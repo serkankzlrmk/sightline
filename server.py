@@ -106,6 +106,27 @@ app = Flask(
 app.secret_key = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 
+# ── Register Blueprints ──────────────────────────────────────────────────────
+from blueprints.proposal import proposal_bp
+from blueprints.admin_bp import admin_bp
+from blueprints.sitrep import sitrep_bp
+from blueprints.agent_bp import agent_bp
+from blueprints.public_bp import public_bp
+from blueprints.hdx_bp import hdx_bp
+from blueprints.news_bp import news_bp
+from blueprints.db_bp import db_bp
+from blueprints.ingest_bp import ingest_bp
+
+app.register_blueprint(proposal_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(sitrep_bp)
+app.register_blueprint(agent_bp)
+app.register_blueprint(public_bp)
+app.register_blueprint(hdx_bp)
+app.register_blueprint(news_bp)
+app.register_blueprint(db_bp)
+app.register_blueprint(ingest_bp)
+
 # ── Initialize HDX client ────────────────────────────────────────────────────
 _hdx_ok = init_hdx_tools(
     app_identifier=HDX_APP_IDENTIFIER,
