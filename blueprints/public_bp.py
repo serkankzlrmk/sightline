@@ -90,10 +90,6 @@ def api_public_stats():
         chunk_count  = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         country_rows = conn.execute("SELECT countries FROM reports LIMIT 2000").fetchall()
     except Exception:
-        try:
-            conn.close()
-        except Exception:
-            pass
         return jsonify({"report_count": 0, "chunk_count": 0, "top_countries": []})
     finally:
         try:
