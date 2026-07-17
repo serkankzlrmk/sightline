@@ -2228,7 +2228,7 @@ async function loadDashboard() {
     el('dash-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '—');
   } catch { /* ignore */ }
 
-  // ── Load bulletin overview (authed) or preview (public) ──
+  // ── Load latest bulletin data (for map markers, not displayed on map page) ──
   const bulletinsUrl = isAuthed ? '/api/sitrep/bulletins' : '/api/public/bulletins';
   const bulletinDetailUrl = isAuthed ? '/api/sitrep/bulletin/' : '/api/public/bulletin/';
   try {
@@ -2238,36 +2238,13 @@ async function loadDashboard() {
 
     if (Array.isArray(bulletins) && bulletins.length > 0) {
       const latest = bulletins[0];
-      const elDate = document.getElementById('dash-weekly-date');
-      if (elDate) elDate.textContent = humanizeWeekLabel(latest.week_label || '');
-
-      // Load bulletin detail for overview
+      // Load bulletin detail (used for severity data, etc.)
       try {
         const br = await api(bulletinDetailUrl + latest.filename);
         if (br.ok) {
           latestBulletinData = await br.json();
-          renderDashOverview(latestBulletinData);
         }
       } catch { /* ignore */ }
-
-      const linkBtn = document.getElementById('dash-weekly-link');
-      if (linkBtn) {
-        linkBtn.style.display = '';
-        linkBtn.addEventListener('click', () => {
-           if (!isAuthed) {
-             if (window.showLoginPanel) window.showLoginPanel();
-             return;
-           }
-           switchTab('bulletin');
-           setTimeout(() => {
-             const pills = document.querySelectorAll('.bulletin-tab-pill');
-             if (pills.length > 0) pills[0].click();
-           }, 300);
-        });
-      }
-    } else {
-      const overviewEl = document.getElementById('dash-overview-stats');
-      if (overviewEl) overviewEl.innerHTML = '<div class="dash-weekly-loading">No bulletins available yet.</div>';
     }
   } catch { /* ignore */ }
 }
@@ -2397,13 +2374,15 @@ function initWorldMap() {
     leafletMap = L.map(container, {
       center: [20, 15],
       zoom: 2,
-      minZoom: 1,
-      maxZoom: 10,
+      minZoom: 2,
+      maxZoom: 8,
       zoomControl: true,
-      attributionControl: true,
+      attributionControl: false,
       worldCopyJump: true,
-      scrollWheelZoom: false,
+      scrollWheelZoom: true,
       doubleClickZoom: true,
+      dragging: true,
+      touchZoom: true,
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -2412,13 +2391,7 @@ function initWorldMap() {
       maxZoom: 19,
     }).addTo(leafletMap);
 
-    // Forward scroll wheel events from map container to panel-home
-    container.addEventListener('wheel', (e) => {
-      const panel = document.getElementById('panel-home');
-      if (panel) {
-        panel.scrollTop += e.deltaY;
-      }
-    }, { passive: true });
+    // No scroll interception — let Leaflet handle zoom natively
 
     setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 500);
   } catch (err) {
