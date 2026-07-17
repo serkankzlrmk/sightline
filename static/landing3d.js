@@ -233,9 +233,9 @@
     horizonGroup.add(horizonWorld);
 
     var textureLoader = new THREE.TextureLoader();
-    var oceanMap = textureLoader.load('/static/textures/earth_ocean_mask.png');
+    var oceanMap = textureLoader.load('/static/textures/earth_ocean_mask_2k.webp');
     oceanMap.anisotropy = 8;
-    var bumpMap = textureLoader.load('/static/textures/earth_bump.jpg');
+    var bumpMap = textureLoader.load('/static/textures/earth_bump_2k.webp');
     bumpMap.anisotropy = 8;
     var globeSegments = window.innerWidth <= 600 ? 72 : 144;
     var globeGeometry = new THREE.SphereGeometry(1.58, globeSegments, globeSegments);

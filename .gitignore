@@ -76,3 +76,7 @@ static/ne_*_countries.geojson
 .gstack/
 _archive/
 static/.DS_Store
+static/videos/intro_orig.mp4
+static/textures/earth_albedo_opt.webp
+static/textures/earth_bump_opt.webp
+static/textures/earth_clouds_opt.webp

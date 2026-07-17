@@ -2105,45 +2105,84 @@ async function loadCommandCenter() {
   const authCta = document.getElementById('cc-auth-cta');
   if (authCta) authCta.style.display = isAuthed ? 'none' : 'block';
 
-  // Country dropdown
+  // 1. Fetch and render existing SITREPs
   try {
-    const res = await api('/api/public/countries');
-    const countries = await res.json();
-    const sel = document.getElementById('cc-sitrep-country');
-    if (sel && Array.isArray(countries)) {
-      sel.innerHTML = '<option value="">Select country...</option>' +
-        countries.slice(0, 50).map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
-    }
-  } catch { }
-
-  // Recent proposals (authed only)
-  if (isAuthed) {
-    try {
-      const res = await api('/api/proposals');
-      const proposals = await res.json();
-      const container = document.getElementById('cc-recent-proposals');
-      if (container && Array.isArray(proposals) && proposals.length > 0) {
-        container.innerHTML = '<div style="font-size:11px; color:var(--text-muted); margin-top:8px;">Recent:</div>' +
-          proposals.slice(0, 3).map(p =>
-            `<div class="cc-recent-item" data-action="cc-open-proposal" data-id="${p.id}" style="font-size:12px; padding:4px 0; cursor:pointer; color:var(--blue);">${escHtml(p.title)}</div>`
-          ).join('');
+    const res = await api('/api/sitrep/reports');
+    const sitreps = await res.json();
+    const container = document.getElementById('cc-recent-sitreps');
+    if (container && Array.isArray(sitreps)) {
+      if (sitreps.length > 0) {
+        container.innerHTML = sitreps.slice(0, 5).map(item => {
+          const country = item.filename.split('_')[0].replace(/\(/g, ' ').replace(/\)/g, '').trim();
+          return `<div class="cc-recent-item" data-action="cc-open-sitrep" data-file="${esc(item.filename)}" style="font-size:13px; padding:6px 0; cursor:pointer; color:var(--primary); font-weight:500;">
+            <span style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              ${escHtml(country)}
+            </span>
+          </div>`;
+        }).join('');
+      } else {
+        container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">No reports yet</div>';
       }
-    } catch { }
+    }
+  } catch {
+    const container = document.getElementById('cc-recent-sitreps');
+    if (container) container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
   }
 
-  // Latest bulletin preview
+  // 2. Recent proposals
+  const proposalsContainer = document.getElementById('cc-recent-proposals');
+  if (proposalsContainer) {
+    if (isAuthed) {
+      try {
+        const res = await api('/api/proposals');
+        const proposals = await res.json();
+        if (Array.isArray(proposals)) {
+          if (proposals.length > 0) {
+            proposalsContainer.innerHTML = proposals.slice(0, 5).map(p =>
+              `<div class="cc-recent-item" data-action="cc-open-proposal" data-id="${p.id}" style="font-size:13px; padding:6px 0; cursor:pointer; color:var(--primary); font-weight:500;">
+                <span style="display:inline-flex; align-items:center; gap:6px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  ${escHtml(p.title)}
+                </span>
+              </div>`
+            ).join('');
+          } else {
+            proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">No proposals yet</div>';
+          }
+        }
+      } catch {
+        proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
+      }
+    } else {
+      proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Sign in to view proposals</div>';
+    }
+  }
+
+  // 3. Bulletins list
   try {
     const res = await api('/api/public/bulletins');
     const data = await res.json();
     const bulletins = data.bulletins || data || [];
-    if (Array.isArray(bulletins) && bulletins.length > 0) {
-      const latest = bulletins[0];
-      const preview = document.getElementById('cc-bulletin-preview');
-      if (preview) {
-        preview.innerHTML = `<div style="font-size:13px;"><strong>${escHtml(latest.week_label || 'Latest')}</strong><br><span style="color:var(--text-muted)">${latest.crisis_count || ''} crises analyzed</span></div>`;
+    const container = document.getElementById('cc-recent-bulletins');
+    if (container && Array.isArray(bulletins)) {
+      if (bulletins.length > 0) {
+        container.innerHTML = bulletins.slice(0, 5).map(b =>
+          `<div class="cc-recent-item" data-action="cc-open-bulletin" data-file="${esc(b.filename)}" style="font-size:13px; padding:6px 0; cursor:pointer; color:var(--primary); font-weight:500;">
+            <span style="display:inline-flex; align-items:center; gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M16 8h2m-6 4h6m-6 4h6M6 8h4v8H6z"/></svg>
+              ${escHtml(humanizeWeekLabel(b.week_label))}
+            </span>
+          </div>`
+        ).join('');
+      } else {
+        container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">No bulletins yet</div>';
       }
     }
-  } catch { }
+  } catch {
+    const container = document.getElementById('cc-recent-bulletins');
+    if (container) container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
+  }
 }
 
 function ccStartSitrep() {
@@ -3104,6 +3143,31 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'cc-open-proposal':
         selectProposal(target.dataset.id);
+        switchTab('proposal');
+        break;
+      case 'cc-open-sitrep':
+        const file = target.dataset.file;
+        switchTab('sitrep');
+        setTimeout(() => {
+          const itemEl = document.querySelector(`#sitrep-reports-list .report-item[data-file="${file}"]`);
+          if (itemEl) {
+            itemEl.click();
+          } else {
+            openSitrepReport(file);
+          }
+        }, 150);
+        break;
+      case 'cc-open-bulletin':
+        const bFile = target.dataset.file;
+        switchTab('bulletin');
+        setTimeout(() => {
+          const itemEl = document.querySelector(`#bulletin-tabs .bulletin-tab-pill[data-filename="${bFile}"]`);
+          if (itemEl) {
+            itemEl.click();
+          } else {
+            openBulletin(bFile);
+          }
+        }, 150);
         break;
       case 'go-sitrep-country':
         switchTab('sitrep');
