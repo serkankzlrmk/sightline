@@ -102,15 +102,10 @@
     roseActive = false;
   }
 
-  // ── Mobile gate ──
-  if (window.innerWidth <= 768) {
-    var gate = document.getElementById('mobile-gate');
-    if (gate) gate.classList.add('active');
-    return;
-  }
-
   var NUM_SECTIONS = 7;
   var currentSection = -1;
+  var scrollInitialized = false;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var container = document.getElementById('sketchfab-container');
   if (!container) {
@@ -119,15 +114,31 @@
     document.body.insertBefore(container, document.body.firstChild);
   }
   container.innerHTML = '';
-  container.style.cssText = 'position:fixed;inset:0;z-index:0;pointer-events:none;transition:opacity 1s ease;';
+  container.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;transition:opacity 1s ease;';
 
-  var scene, camera, renderer, earth, clouds, atmosphere;
+  var scene, camera, renderer, earth, clouds, horizonGroup, horizonSurface;
+  var horizonChromeLight, horizonSignalSegments = [];
+  var horizonContourLines = [];
+  var horizonMaterials = [];
+  var horizonBaseScale = 1;
+  var horizonOpacity = 1;
+  var horizonTargetOpacity = 1;
+  var horizonHover = 0;
+  var horizonHoverTarget = 0;
+  var portalProximity = 0;
+  var portalProximityTarget = 0;
+  var pointerTarget = { x: 0, y: 0 };
+  var pointerCurrent = { x: 0, y: 0 };
+  var pointerVelocity = { x: 0, y: 0 };
+  var pointerVelocityTarget = { x: 0, y: 0 };
+  var lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2, time: performance.now() };
+  var portalButton = null;
   var starFields = [];
   var loader = document.getElementById('loading-screen');
   var dayMaterial;
-  var targetCameraPos = { x: 0, y: -4, z: 0.5 };
-  var targetLookAt = { x: 0, y: 5, z: 0 };
-  var currentLookAt = { x: 0, y: 5, z: 0 };
+  var targetCameraPos = { x: 0, y: 0, z: 7.2 };
+  var targetLookAt = { x: 0, y: 0, z: 0 };
+  var currentLookAt = { x: 0, y: 0, z: 0 };
   var earthVisible = false;
 
   // Camera positions for each section
@@ -136,16 +147,16 @@
   // Earth rotates eastward (positive Y) = west to east (natural)
   var turkeyOffset = -120 * Math.PI / 180; // Turkey/Europe faces camera (rotate ~120° east)
   var sectionCameras = [
-    // Section 0: Hero — looking up at stars, earth hidden
-    { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false },
+    // Section 0: Signal Horizon, earth hidden
+    { pos: { x: 0, y: 0, z: 7.2 }, look: { x: 0, y: 0, z: 0 }, earth: false },
     // Section 1-5: Earth visible, camera offset right so earth is on right side
     { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
     { pos: { x: 1.0, y: 0.8, z: 2.2 }, look: { x: 0, y: 0, z: 0 }, earth: true },
-    // Section 6: CTA — back to stars, earth hidden
-    { pos: { x: 0, y: -4, z: 0.5 }, look: { x: 0, y: 5, z: 0 }, earth: false }
+    // Section 6: quiet wide camera, earth hidden
+    { pos: { x: 0, y: 0, z: 7.2 }, look: { x: 0, y: 0, z: 0 }, earth: false }
   ];
 
   function hideLoader() {
@@ -154,11 +165,250 @@
   }
 
   function initThree() {
+    if (window.THREE) {
+      startScene();
+      return;
+    }
     var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
+    script.src = '/static/vendor/three.min.js';
     script.onload = startScene;
     script.onerror = function() { hideLoader(); initScroll(); };
     document.head.appendChild(script);
+  }
+
+  function rememberHorizonMaterial(material, baseOpacity) {
+    material.transparent = true;
+    material.opacity = baseOpacity;
+    material.userData.baseOpacity = baseOpacity;
+    horizonMaterials.push(material);
+    return material;
+  }
+
+  function terrainHeight(x, z) {
+    var longWave = Math.sin(x * 1.12 + z * 0.7) * 0.16;
+    var detail = Math.sin(x * 2.55 - z * 1.9) * 0.055;
+    var ridgeA = Math.exp(-Math.pow(x + 0.65, 2) * 1.7) * 0.34;
+    var ridgeB = Math.exp(-Math.pow(x - 1.45, 2) * 3.1) * 0.24;
+    var depthSlope = (z + 0.72) * 0.09;
+    return longWave + detail + ridgeA + ridgeB + depthSlope - 0.18;
+  }
+
+  function createTerrainGeometry(xSegments, zSegments) {
+    var positions = [];
+    var indices = [];
+    var base = [];
+    for (var zIndex = 0; zIndex <= zSegments; zIndex++) {
+      var zRatio = zIndex / zSegments;
+      var z = -0.72 + zRatio * 1.44;
+      for (var xIndex = 0; xIndex <= xSegments; xIndex++) {
+        var xRatio = xIndex / xSegments;
+        var x = -2.75 + xRatio * 5.5;
+        var taperedZ = z * (0.76 + xRatio * 0.24);
+        var y = terrainHeight(x, taperedZ);
+        positions.push(x, y, taperedZ);
+        base.push(x, y, taperedZ);
+      }
+    }
+    for (var row = 0; row < zSegments; row++) {
+      for (var column = 0; column < xSegments; column++) {
+        var a = row * (xSegments + 1) + column;
+        var b = a + 1;
+        var c = a + xSegments + 1;
+        var d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+    var geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.userData.basePositions = new Float32Array(base);
+    return geometry;
+  }
+
+  function createHorizon() {
+    horizonGroup = new THREE.Group();
+    horizonGroup.name = 'sightline-signal-horizon';
+    scene.add(horizonGroup);
+
+    var titanium = rememberHorizonMaterial(new THREE.MeshPhysicalMaterial({
+      color: 0x747982,
+      metalness: 0.96,
+      roughness: 0.2,
+      clearcoat: 0.72,
+      clearcoatRoughness: 0.12
+    }), 0.98);
+    var darkMetal = rememberHorizonMaterial(new THREE.MeshPhysicalMaterial({
+      color: 0x1a1e25,
+      metalness: 0.82,
+      roughness: 0.26,
+      clearcoat: 0.78,
+      clearcoatRoughness: 0.16,
+      side: THREE.DoubleSide
+    }), 0.96);
+    var glass = rememberHorizonMaterial(new THREE.MeshPhysicalMaterial({
+      color: 0x2a3340,
+      metalness: 0.08,
+      roughness: 0.2,
+      transmission: 0.12,
+      thickness: 0.42,
+      clearcoat: 1,
+      clearcoatRoughness: 0.08,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    }), 0.52);
+    var contourMaterial = rememberHorizonMaterial(new THREE.LineBasicMaterial({
+      color: 0xd2d6de,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    }), 0.34);
+    contourMaterial.userData.hoverBoost = 0.14;
+    var underlay = new THREE.Mesh(createTerrainGeometry(72, 18), darkMetal);
+    underlay.position.y = -0.085;
+    underlay.scale.set(1.012, 1, 1.045);
+    horizonGroup.add(underlay);
+
+    horizonSurface = new THREE.Mesh(createTerrainGeometry(72, 18), glass);
+    horizonSurface.position.y = 0.015;
+    horizonGroup.add(horizonSurface);
+
+    for (var contourIndex = 0; contourIndex < 10; contourIndex++) {
+      var z = -0.61 + contourIndex * 0.135;
+      var contourPoints = [];
+      for (var pointIndex = 0; pointIndex <= 92; pointIndex++) {
+        var ratio = pointIndex / 92;
+        var x = -2.72 + ratio * 5.44;
+        var taperedZ = z * (0.76 + ratio * 0.24);
+        contourPoints.push(new THREE.Vector3(x, terrainHeight(x, taperedZ) + 0.045, taperedZ));
+      }
+      var contourGeometry = new THREE.BufferGeometry().setFromPoints(contourPoints);
+      contourGeometry.userData.basePositions = new Float32Array(contourGeometry.attributes.position.array);
+      var contour = new THREE.Line(contourGeometry, contourMaterial);
+      contour.renderOrder = 4;
+      horizonContourLines.push(contour);
+      horizonGroup.add(contour);
+    }
+
+    for (var ribIndex = 0; ribIndex < 9; ribIndex++) {
+      var ribRatio = (ribIndex + 1) / 10;
+      var ribX = -2.72 + ribRatio * 5.44;
+      var ribPoints = [];
+      for (var ribPointIndex = 0; ribPointIndex <= 26; ribPointIndex++) {
+        var ribDepthRatio = ribPointIndex / 26;
+        var ribZ = (-0.64 + ribDepthRatio * 1.28) * (0.76 + ribRatio * 0.24);
+        ribPoints.push(new THREE.Vector3(ribX, terrainHeight(ribX, ribZ) + 0.046, ribZ));
+      }
+      var ribGeometry = new THREE.BufferGeometry().setFromPoints(ribPoints);
+      ribGeometry.userData.basePositions = new Float32Array(ribGeometry.attributes.position.array);
+      var rib = new THREE.Line(ribGeometry, contourMaterial);
+      rib.renderOrder = 4;
+      horizonContourLines.push(rib);
+      horizonGroup.add(rib);
+    }
+
+    var frontPoints = [];
+    for (var edgeIndex = 0; edgeIndex <= 96; edgeIndex++) {
+      var edgeRatio = edgeIndex / 96;
+      var edgeX = -2.78 + edgeRatio * 5.56;
+      var edgeZ = 0.72 * (0.76 + edgeRatio * 0.24);
+      frontPoints.push(new THREE.Vector3(edgeX, terrainHeight(edgeX, edgeZ) - 0.01, edgeZ));
+    }
+    var frontCurve = new THREE.CatmullRomCurve3(frontPoints);
+    horizonGroup.add(new THREE.Mesh(new THREE.TubeGeometry(frontCurve, 128, 0.032, 8, false), titanium));
+
+    var signalPoints = [];
+    for (var signalIndex = 0; signalIndex <= 88; signalIndex++) {
+      var signalRatio = signalIndex / 88;
+      var signalX = -2.6 + signalRatio * 5.2;
+      var signalZ = 0.42 + Math.sin(signalX * 0.72) * 0.045;
+      signalPoints.push(new THREE.Vector3(signalX, terrainHeight(signalX, signalZ) + 0.078, signalZ));
+    }
+    for (var segmentIndex = 0; segmentIndex < signalPoints.length - 1; segmentIndex++) {
+      var segmentGeometry = new THREE.BufferGeometry().setFromPoints([signalPoints[segmentIndex], signalPoints[segmentIndex + 1]]);
+      var segmentMaterial = rememberHorizonMaterial(new THREE.LineBasicMaterial({
+        color: 0xec5b70,
+        depthTest: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      }), 0.32);
+      segmentMaterial.userData.hoverBoost = 0.08;
+      segmentMaterial.userData.isSignal = true;
+      var segment = new THREE.Line(segmentGeometry, segmentMaterial);
+      segment.renderOrder = 5;
+      segment.userData.index = segmentIndex;
+      horizonSignalSegments.push(segment);
+      horizonGroup.add(segment);
+    }
+
+    horizonChromeLight = new THREE.PointLight(0xe9edf5, 6.2, 8, 2);
+    horizonChromeLight.position.set(-1.8, 1.6, 2.4);
+    horizonGroup.add(horizonChromeLight);
+
+    var roseLight = new THREE.PointLight(0xb93349, 0.55, 5, 2);
+    roseLight.position.set(0.8, 0.15, 1.1);
+    horizonGroup.add(roseLight);
+
+    layoutHorizon();
+  }
+
+  function layoutHorizon() {
+    if (!horizonGroup) return;
+    if (window.innerWidth <= 900) {
+      horizonGroup.position.set(0.22, -1.12, 0.08);
+      horizonBaseScale = window.innerWidth <= 600 ? 0.54 : 0.68;
+    } else {
+      horizonGroup.position.set(2.25, 0.02, 0);
+      horizonBaseScale = 0.88;
+    }
+    horizonGroup.scale.setScalar(horizonBaseScale);
+    horizonGroup.rotation.x = -0.62;
+    horizonGroup.rotation.y = -0.08;
+    horizonGroup.rotation.z = -0.025;
+  }
+
+  function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+  }
+
+  function updatePointerInteraction(clientX, clientY) {
+    var horizonCenterX = window.innerWidth <= 900 ? window.innerWidth * 0.54 : window.innerWidth * 0.76;
+    var horizonCenterY = window.innerWidth <= 900 ? window.innerHeight * 0.7 : window.innerHeight * 0.49;
+    var normalizedX = (clientX - horizonCenterX) / (window.innerWidth <= 900 ? window.innerWidth * 0.48 : window.innerWidth * 0.34);
+    var normalizedY = (clientY - horizonCenterY) / (window.innerHeight * 0.31);
+    var horizonDistance = Math.sqrt(normalizedX * normalizedX + normalizedY * normalizedY);
+    horizonHoverTarget = currentSection === 0 ? clamp01(1 - horizonDistance) : 0;
+
+    if (!portalButton || currentSection !== 0) {
+      portalProximityTarget = 0;
+      return;
+    }
+
+    var portalRect = portalButton.getBoundingClientRect();
+    var portalCenterX = portalRect.left + portalRect.width / 2;
+    var portalCenterY = portalRect.top + portalRect.height / 2;
+    var portalDeltaX = clientX - portalCenterX;
+    var portalDeltaY = clientY - portalCenterY;
+    var portalDistance = Math.hypot(portalDeltaX, portalDeltaY);
+    portalProximityTarget = clamp01(1 - portalDistance / 260);
+
+    var pullX = Math.max(-9, Math.min(9, portalDeltaX * 0.04 * portalProximityTarget));
+    var pullY = Math.max(-5, Math.min(5, portalDeltaY * 0.03 * portalProximityTarget));
+    portalButton.style.setProperty('--portal-shift-x', pullX.toFixed(2) + 'px');
+    portalButton.style.setProperty('--portal-shift-y', pullY.toFixed(2) + 'px');
+    document.body.classList.toggle('portal-armed', portalProximityTarget > 0.18);
+  }
+
+  function resetPointerInteraction() {
+    horizonHoverTarget = 0;
+    portalProximityTarget = 0;
+    pointerVelocityTarget.x = 0;
+    pointerVelocityTarget.y = 0;
+    if (portalButton) {
+      portalButton.style.setProperty('--portal-shift-x', '0px');
+      portalButton.style.setProperty('--portal-shift-y', '0px');
+    }
+    document.body.classList.remove('portal-armed');
   }
 
   function startScene() {
@@ -166,17 +416,21 @@
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, -4, 0.5);
-    camera.lookAt(0, 5, 0);
+    camera.position.set(0, 0, 7.2);
+    camera.lookAt(0, 0, 0);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x0a0515, 1); // Deep purple-black (milky way)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setClearColor(0x050607, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.8;
+    renderer.toneMappingExposure = 1.28;
     container.appendChild(renderer.domElement);
+
+    createHorizon();
+    hideLoader();
+    initScroll();
 
     var texLoader = new THREE.TextureLoader();
     texLoader.crossOrigin = 'anonymous';
@@ -187,10 +441,7 @@
 
     function onTex() {
       texturesLoaded++;
-      if (texturesLoaded >= totalTextures) {
-        hideLoader();
-        initScroll();
-      }
+      if (texturesLoaded >= totalTextures) texturesLoaded = totalTextures;
     }
 
     var dayTex = texLoader.load(base + 'earth_albedo.jpg', onTex);
@@ -210,7 +461,8 @@
     bumpTex.anisotropy = 16;
 
     // ── Earth shader — high detail with proper bump mapping ──
-    var earthGeo = new THREE.SphereGeometry(1, 256, 256);
+    var earthSegments = window.innerWidth <= 600 ? 96 : 192;
+    var earthGeo = new THREE.SphereGeometry(1, earthSegments, earthSegments);
     dayMaterial = new THREE.ShaderMaterial({
       uniforms: {
         dayTexture: { value: dayTex },
@@ -284,7 +536,7 @@
     scene.add(earth);
 
     // ── Clouds ──
-    var cloudsGeo = new THREE.SphereGeometry(1.015, 192, 192);
+    var cloudsGeo = new THREE.SphereGeometry(1.015, window.innerWidth <= 600 ? 64 : 128, window.innerWidth <= 600 ? 64 : 128);
     clouds = new THREE.Mesh(cloudsGeo, new THREE.MeshPhongMaterial({
       map: cloudsTex, transparent: true, opacity: 0.25, depthWrite: false, blending: THREE.NormalBlending
     }));
@@ -296,9 +548,8 @@
 
     // ── Stars (3 parallax layers — simple, clean) ──
     var starConfigs = [
-      { count: 1500, dist: 40, size: 0.08, color: 0xffffff, opacity: 0.9 },
-      { count: 1000, dist: 60, size: 0.12, color: 0xaabbff, opacity: 0.5 },
-      { count: 500, dist: 80, size: 0.15, color: 0xffeecc, opacity: 0.3 }
+      { count: 360, dist: 40, size: 0.04, color: 0xd8d9dd, opacity: 0.16 },
+      { count: 120, dist: 62, size: 0.055, color: 0x8f939b, opacity: 0.07 }
     ];
     starConfigs.forEach(function(cfg) {
       var geo = new THREE.BufferGeometry();
@@ -321,24 +572,44 @@
     });
 
     // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0x606080, 1.0));
-    var sun = new THREE.DirectionalLight(0xfff5e0, 3.5);
+    scene.add(new THREE.AmbientLight(0x6f7582, 1.2));
+    var sun = new THREE.DirectionalLight(0xf4f5f7, 4.2);
     sun.position.set(5, 3, 5);
     scene.add(sun);
-    var fill = new THREE.DirectionalLight(0x6699ff, 0.8);
+    var fill = new THREE.DirectionalLight(0x7d8390, 1.1);
     fill.position.set(-5, -2, -4);
     scene.add(fill);
+    var edge = new THREE.DirectionalLight(0xa72b3d, 0.28);
+    edge.position.set(1, -3, 4);
+    scene.add(edge);
 
     // ── Resize ──
     window.addEventListener('resize', function() {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      layoutHorizon();
     });
 
+    window.addEventListener('pointermove', function(event) {
+      if (reduceMotion) return;
+      var now = performance.now();
+      var elapsed = Math.max(8, now - lastPointer.time);
+      pointerTarget.x = (event.clientX / window.innerWidth - 0.5) * 2;
+      pointerTarget.y = (event.clientY / window.innerHeight - 0.5) * 2;
+      pointerVelocityTarget.x = Math.max(-1, Math.min(1, ((event.clientX - lastPointer.x) / elapsed) * 0.16));
+      pointerVelocityTarget.y = Math.max(-1, Math.min(1, ((event.clientY - lastPointer.y) / elapsed) * 0.16));
+      lastPointer.x = event.clientX;
+      lastPointer.y = event.clientY;
+      lastPointer.time = now;
+      updatePointerInteraction(event.clientX, event.clientY);
+    }, { passive: true });
+    document.documentElement.addEventListener('pointerleave', resetPointerInteraction, { passive: true });
+
     // ── Set initial camera (Section 0: intro image + stars) ──
-    targetCameraPos = { x: 0, y: -4, z: 0.5 };
-    targetLookAt = { x: 0, y: 5, z: 0 };
+    targetCameraPos = { x: 0, y: 0, z: 7.2 };
+    targetLookAt = { x: 0, y: 0, z: 0 };
     currentSection = 0;
 
     // Show hero-bg (milky way) on first load, intro on last section
@@ -347,9 +618,8 @@
     if (heroBg) heroBg.style.opacity = '1'; // visible on load
     if (introImg) introImg.style.opacity = '0'; // hidden on load
 
-    // Start animation loop immediately (renders stars while textures load)
+    // Start animation immediately. Earth textures continue loading in the background.
     animate();
-    // initScroll() is called when all textures finish loading (onTex callback)
   }
 
   function animate() {
@@ -359,6 +629,79 @@
     if (clouds) clouds.rotation.y += 0.0007;
     for (var i = 0; i < starFields.length; i++) {
       starFields[i].rotation.y += 0.00003 * (i + 1);
+    }
+
+    if (horizonGroup) {
+      pointerCurrent.x += (pointerTarget.x - pointerCurrent.x) * 0.035;
+      pointerCurrent.y += (pointerTarget.y - pointerCurrent.y) * 0.035;
+      pointerVelocity.x += (pointerVelocityTarget.x - pointerVelocity.x) * 0.09;
+      pointerVelocity.y += (pointerVelocityTarget.y - pointerVelocity.y) * 0.09;
+      pointerVelocityTarget.x *= 0.88;
+      pointerVelocityTarget.y *= 0.88;
+      horizonHover += (horizonHoverTarget - horizonHover) * 0.08;
+      portalProximity += (portalProximityTarget - portalProximity) * 0.1;
+
+      horizonGroup.rotation.y = -0.08 + pointerCurrent.x * 0.035 + pointerVelocity.x * 0.018;
+      horizonGroup.rotation.x = -0.62 - pointerCurrent.y * 0.026 - pointerVelocity.y * 0.014 + portalProximity * 0.018;
+      horizonGroup.rotation.z = -0.025 + pointerVelocity.x * -0.006;
+      horizonGroup.scale.setScalar(horizonBaseScale * (1 + horizonHover * 0.012 + portalProximity * 0.008));
+
+      if (horizonSurface && !reduceMotion && window.innerWidth > 900) {
+        var positions = horizonSurface.geometry.attributes.position;
+        var basePositions = horizonSurface.geometry.userData.basePositions;
+        var bendCenterX = pointerCurrent.x * 2.5;
+        var bendCenterZ = -pointerCurrent.y * 0.55;
+        for (var vertexIndex = 0; vertexIndex < positions.count; vertexIndex++) {
+          var baseOffset = vertexIndex * 3;
+          var deltaX = basePositions[baseOffset] - bendCenterX;
+          var deltaZ = basePositions[baseOffset + 2] - bendCenterZ;
+          var influence = Math.exp(-(deltaX * deltaX * 0.7 + deltaZ * deltaZ * 3.2));
+          var targetY = basePositions[baseOffset + 1] + influence * horizonHover * 0.11;
+          positions.array[baseOffset + 1] += (targetY - positions.array[baseOffset + 1]) * 0.14;
+        }
+        positions.needsUpdate = true;
+        if (Math.round(performance.now() / 16) % 3 === 0) horizonSurface.geometry.computeVertexNormals();
+
+        for (var contourIndex = 0; contourIndex < horizonContourLines.length; contourIndex++) {
+          var contourGeometry = horizonContourLines[contourIndex].geometry;
+          var contourPositions = contourGeometry.attributes.position;
+          var contourBase = contourGeometry.userData.basePositions;
+          for (var contourPointIndex = 0; contourPointIndex < contourPositions.count; contourPointIndex++) {
+            var contourOffset = contourPointIndex * 3;
+            var contourDeltaX = contourBase[contourOffset] - bendCenterX;
+            var contourDeltaZ = contourBase[contourOffset + 2] - bendCenterZ;
+            var contourInfluence = Math.exp(-(contourDeltaX * contourDeltaX * 0.7 + contourDeltaZ * contourDeltaZ * 3.2));
+            var contourTargetY = contourBase[contourOffset + 1] + contourInfluence * horizonHover * 0.11;
+            contourPositions.array[contourOffset + 1] += (contourTargetY - contourPositions.array[contourOffset + 1]) * 0.14;
+          }
+          contourPositions.needsUpdate = true;
+        }
+      }
+
+      var signalProgress = reduceMotion ? 0.55 : (performance.now() * 0.00012) % 1;
+      for (var signalSegmentIndex = 0; signalSegmentIndex < horizonSignalSegments.length; signalSegmentIndex++) {
+        var signalSegment = horizonSignalSegments[signalSegmentIndex];
+        var segmentRatio = signalSegmentIndex / Math.max(1, horizonSignalSegments.length - 1);
+        var distanceToSignal = Math.abs(segmentRatio - signalProgress);
+        distanceToSignal = Math.min(distanceToSignal, 1 - distanceToSignal);
+        var signalFocus = Math.exp(-distanceToSignal * distanceToSignal * 520);
+        signalSegment.material.opacity = (0.3 + signalFocus * (0.62 + horizonHover * 0.08)) * horizonOpacity;
+      }
+
+      if (horizonChromeLight) {
+        horizonChromeLight.position.x += (pointerCurrent.x * 2.7 - horizonChromeLight.position.x) * 0.06;
+        horizonChromeLight.position.y += (-pointerCurrent.y * 1.7 + 0.8 - horizonChromeLight.position.y) * 0.06;
+        horizonChromeLight.intensity = 6.2 + horizonHover * 1.5 + portalProximity * 0.6;
+      }
+
+      horizonOpacity += (horizonTargetOpacity - horizonOpacity) * 0.09;
+      horizonGroup.visible = horizonOpacity > 0.01;
+      for (var materialIndex = 0; materialIndex < horizonMaterials.length; materialIndex++) {
+        var horizonMaterial = horizonMaterials[materialIndex];
+        if (horizonMaterial.userData.isSignal) continue;
+        var hoverBoost = horizonMaterial.userData.hoverBoost || 0;
+        horizonMaterial.opacity = Math.min(1, horizonMaterial.userData.baseOpacity + hoverBoost * horizonHover) * horizonOpacity;
+      }
     }
 
     // Smooth camera lerp — faster for responsive feel
@@ -387,10 +730,28 @@
 
   // ── Scroll + IntersectionObserver ──
   function initScroll() {
+    if (scrollInitialized) return;
+    scrollInitialized = true;
+
     var sections = document.querySelectorAll('.lp-section');
     var spFill = document.getElementById('sp-fill');
     var spDotsContainer = document.getElementById('sp-dots');
     var scrollContainer = document.getElementById('scroll-container');
+    var scrollProgress = document.querySelector('.scroll-progress');
+
+    portalButton = document.getElementById('hero-portal');
+    if (portalButton && scrollContainer && sections[1]) {
+      portalButton.addEventListener('click', function() {
+        document.body.classList.add('portal-opening');
+        horizonTargetOpacity = 0;
+        setTimeout(function() {
+          sections[1].scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        }, reduceMotion ? 0 : 180);
+        setTimeout(function() {
+          document.body.classList.remove('portal-opening');
+        }, reduceMotion ? 20 : 1200);
+      });
+    }
 
     // Create progress dots
     if (spDotsContainer) {
@@ -428,6 +789,7 @@
         var max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
         var progress = max > 0 ? scrollContainer.scrollTop / max : 0;
         if (spFill) spFill.style.height = (progress * 100) + '%';
+        if (scrollProgress) scrollProgress.style.opacity = scrollContainer.scrollTop > scrollContainer.clientHeight * 0.45 ? '1' : '0';
         // Hide nav login button after scrolling past hero
         var nav = document.querySelector('.lp-nav');
         if (nav) {
@@ -490,13 +852,6 @@
       });
     });
 
-    // Nav login
-    var navLogin = document.querySelector('.lp-nav-cta a');
-    if (navLogin) {
-      navLogin.addEventListener('click', function(e) {
-        // Normal link behavior — go to /app
-      });
-    }
   }
 
   function activateSection(index, sections, dots) {
@@ -515,6 +870,8 @@
       targetLookAt = { x: cam.look.x, y: cam.look.y, z: cam.look.z };
       earthVisible = cam.earth;
     }
+    horizonTargetOpacity = index === 0 ? 1 : 0;
+    if (index !== 0) resetPointerInteraction();
 
     // Fade hero-bg (milky way) out after Section 0, intro image in on Section 6
     var heroBg = document.getElementById('hero-bg');
@@ -530,13 +887,11 @@
   }
 
   // ── Start ──
-  // Fallback: if textures don't load in 15s, proceed anyway
+  // Keep the landing usable even if WebGL or a texture fails.
   setTimeout(function() {
     hideLoader();
-    if (currentSection === 0 && typeof THREE !== 'undefined') {
-      initScroll();
-    }
-  }, 15000);
+    initScroll();
+  }, 1400);
 
   initThree();
 
