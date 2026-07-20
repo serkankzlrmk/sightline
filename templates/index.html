@@ -594,15 +594,20 @@
 
   <!-- ─── TAB: PROPOSAL DESIGN PIPELINE ────────── -->
   <div class="panel" id="panel-proposal">
-    <div class="proposal-page">
+    <div class="proposal-page" id="proposal-page">
       <!-- Sidebar: Proposal List -->
-      <div class="proposal-sidebar">
+      <div class="proposal-sidebar" id="proposal-sidebar">
         <div class="proposal-sidebar-head">
           <span class="proposal-sidebar-title">Proposals</span>
-          <button class="btn btn-xs btn-primary btn-with-icon" id="btn-new-proposal">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>New</span>
-          </button>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="btn btn-xs btn-primary btn-with-icon" id="btn-new-proposal">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>New</span>
+            </button>
+            <button class="btn-icon-ghost" id="btn-toggle-proposal-sidebar" title="Collapse Proposal List Sidebar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+            </button>
+          </div>
         </div>
         <div class="proposal-list" id="proposal-list">
           <div class="empty-state">No proposals yet</div>
@@ -613,6 +618,12 @@
       <div class="proposal-workspace" id="proposal-workspace">
         <!-- Step Sidebar (left of content) -->
         <div class="wizard-steps-sidebar" id="wizard-steps-sidebar">
+          <div class="steps-sidebar-head">
+            <span>Wizard Steps</span>
+            <button class="btn-icon-ghost" id="btn-toggle-steps-sidebar" title="Collapse Steps Sidebar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+          </div>
           <div class="wizard-progress-bar">
             <div class="wizard-progress-fill" id="wizard-progress-fill" style="width:0%"></div>
           </div>
@@ -622,13 +633,35 @@
         </div>
 
         <!-- Content Area -->
-        <div class="wizard-content-area">
+        <div class="wizard-content-area" id="wizard-content-area">
+          <div class="proposal-topbar">
+            <div class="proposal-breadcrumbs" id="proposal-breadcrumbs">
+              <span class="bc-item bc-proposal-name" id="bc-proposal-name">No Active Proposal</span>
+              <span class="bc-sep">/</span>
+              <span class="bc-item bc-step-name" id="bc-step-name">Cover Page</span>
+            </div>
+            <div class="workspace-view-controls">
+              <button class="btn btn-xs btn-secondary btn-with-icon" id="btn-toggle-left-sidebars" title="Toggle Proposals & Steps Sidebars" aria-pressed="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+                <span>Sidebars</span>
+              </button>
+              <button class="btn btn-xs btn-secondary btn-with-icon" id="btn-toggle-right-chat" title="Toggle Chat Advisor Panel" aria-pressed="false">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>Chat</span>
+              </button>
+              <button class="btn btn-xs btn-secondary btn-with-icon" id="btn-focus-mode" title="Full Screen Document Focus Mode" aria-pressed="false">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                <span>Focus Mode</span>
+              </button>
+            </div>
+          </div>
+
           <div class="wizard-section-header">
             <div>
               <h2 id="proposal-project-title">Select or Create a Proposal</h2>
               <p id="proposal-project-context" class="text-muted">Step-by-step AI-assisted donor proposal wizard</p>
             </div>
-            <div class="proposal-actions" style="display:flex; gap: 8px;">
+            <div class="proposal-actions">
               <button class="btn btn-secondary btn-sm btn-with-icon" id="btn-proposal-export" disabled>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 <span>Export MD</span>
@@ -656,11 +689,21 @@
         <!-- AI Advisor / Live Chat Panel -->
         <div class="proposal-advisor-panel" id="proposal-advisor-panel">
           <div class="critique-header">
-            <span>Proposal Chat</span>
+            <div class="critique-header-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Proposal Chat</span>
+            </div>
             <div style="display:flex; gap:6px; align-items:center;">
               <button class="btn btn-xs btn-secondary btn-revise-section" id="btn-revise-section" title="Revise current section with AI" style="display:none; font-size:11px; padding:2px 8px;">Revise Section</button>
               <span class="status-indicator-green" id="advisor-status">Ready</span>
+              <button class="btn-icon-ghost" id="btn-toggle-proposal-chat" title="Collapse Chat Panel">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
             </div>
+          </div>
+          <div class="proposal-chat-collapsed-bar" id="proposal-chat-collapsed-bar" title="Expand Proposal Chat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>Proposal Chat</span>
           </div>
           <div class="critique-messages" id="critique-messages">
             <div class="critique-msg system">
@@ -1019,6 +1062,10 @@
   <button class="mobile-tab" data-tab="db">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
     <span>DB</span>
+  </button>
+  <button class="mobile-tab" data-tab="proposal">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h6"/></svg>
+    <span>Proposal</span>
   </button>
   <button class="mobile-tab mobile-user-tab" id="mobile-user-btn" style="display:none">
     <img id="mobile-user-photo" src="" alt="" width="22" height="22" style="border-radius:50%;">

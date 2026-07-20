@@ -263,6 +263,15 @@ function switchTab(name) {
     }
   }
 
+  // Proposal is a dense authoring workspace. Give it the full canvas while
+  // keeping the global navigation available from the hamburger button.
+  if (name === 'proposal') {
+    if (sidebar) sidebar.classList.add('hidden');
+    document.body.classList.add('sidebar-hidden');
+    document.body.classList.remove('sidebar-collapsed');
+    if (main) main.style.marginLeft = '0';
+  }
+
   if (name === 'home') loadCommandCenter();
   if (name === 'crisis-map') {
     // Build and measure Leaflet only after its panel is visible.
@@ -3150,6 +3159,9 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'wizard-select-step':
         wizardSelectStep(target.dataset.step);
         break;
+      case 'proposal-view-mode':
+        window.toggleProposalViewMode(target.dataset.step, target.dataset.mode);
+        break;
       case 'open-diff-modal':
         openDiffModal();
         break;
@@ -3689,6 +3701,147 @@ async function initProposalPipeline() {
     });
   }
 
+  // Sidebar Toggles & Focus Mode
+  const btnTogglePropSidebar = document.getElementById('btn-toggle-proposal-sidebar');
+  const btnToggleStepsSidebar = document.getElementById('btn-toggle-steps-sidebar');
+  const btnTogglePropChat = document.getElementById('btn-toggle-proposal-chat');
+  const btnToggleRightChat = document.getElementById('btn-toggle-right-chat');
+  const btnToggleLeftSidebars = document.getElementById('btn-toggle-left-sidebars');
+  const btnFocusMode = document.getElementById('btn-focus-mode');
+  const chatCollapsedBar = document.getElementById('proposal-chat-collapsed-bar');
+
+  const propSidebar = document.getElementById('proposal-sidebar');
+  const stepsSidebar = document.getElementById('wizard-steps-sidebar');
+  const chatPanel = document.getElementById('proposal-advisor-panel');
+  const propPage = document.getElementById('proposal-page');
+  const propWorkspace = document.getElementById('proposal-workspace');
+  let proposalPreChatState = null;
+
+  if (btnTogglePropSidebar && propSidebar) {
+    btnTogglePropSidebar.addEventListener('click', () => {
+      propSidebar.classList.toggle('collapsed');
+    });
+  }
+
+  if (btnToggleStepsSidebar && stepsSidebar) {
+    btnToggleStepsSidebar.addEventListener('click', () => {
+      stepsSidebar.classList.toggle('collapsed');
+    });
+  }
+
+  const syncProposalControls = () => {
+    const chatOpen = !!chatPanel && !chatPanel.classList.contains('collapsed');
+    const leftOpen = (!!propSidebar && !propSidebar.classList.contains('collapsed')) ||
+      (!!stepsSidebar && !stepsSidebar.classList.contains('collapsed'));
+    btnToggleRightChat?.classList.toggle('active', chatOpen);
+    btnToggleRightChat?.setAttribute('aria-pressed', String(chatOpen));
+    btnToggleLeftSidebars?.classList.toggle('active', leftOpen);
+    btnToggleLeftSidebars?.setAttribute('aria-pressed', String(leftOpen));
+  };
+
+  const toggleChatPanel = () => {
+    if (!chatPanel) return;
+    const willOpen = chatPanel.classList.contains('collapsed');
+    const isCompact = window.matchMedia('(max-width: 760px)').matches;
+    if (willOpen && !isCompact) {
+      proposalPreChatState = {
+        proposalCollapsed: !!propSidebar?.classList.contains('collapsed'),
+        stepsCollapsed: !!stepsSidebar?.classList.contains('collapsed'),
+      };
+      propSidebar?.classList.add('collapsed');
+      stepsSidebar?.classList.add('collapsed');
+    }
+    chatPanel.classList.toggle('collapsed', !willOpen);
+    propWorkspace?.classList.toggle('chat-open', willOpen);
+    if (!willOpen && proposalPreChatState && !isCompact) {
+      propSidebar?.classList.toggle('collapsed', proposalPreChatState.proposalCollapsed);
+      stepsSidebar?.classList.toggle('collapsed', proposalPreChatState.stepsCollapsed);
+      proposalPreChatState = null;
+    }
+    syncProposalControls();
+  };
+
+  if (btnTogglePropChat) btnTogglePropChat.addEventListener('click', toggleChatPanel);
+  if (btnToggleRightChat) btnToggleRightChat.addEventListener('click', toggleChatPanel);
+  if (chatCollapsedBar) chatCollapsedBar.addEventListener('click', toggleChatPanel);
+
+  if (btnToggleLeftSidebars) {
+    btnToggleLeftSidebars.addEventListener('click', () => {
+      if (window.matchMedia('(max-width: 760px)').matches) {
+        propSidebar?.classList.toggle('collapsed');
+        syncProposalControls();
+        return;
+      }
+      const isAnyOpen = !propSidebar?.classList.contains('collapsed') || !stepsSidebar?.classList.contains('collapsed');
+      if (isAnyOpen) {
+        propSidebar?.classList.add('collapsed');
+        stepsSidebar?.classList.add('collapsed');
+      } else {
+        propSidebar?.classList.remove('collapsed');
+        stepsSidebar?.classList.remove('collapsed');
+      }
+      syncProposalControls();
+    });
+  }
+
+  let proposalPreFocusState = null;
+  const setFocusButtonState = (focused) => {
+    btnFocusMode?.classList.toggle('active', focused);
+    btnFocusMode?.setAttribute('aria-pressed', String(focused));
+    const label = btnFocusMode?.querySelector('span');
+    if (label) label.textContent = focused ? 'Exit Focus' : 'Focus Mode';
+    if (btnFocusMode) btnFocusMode.title = focused ? 'Exit Full Screen Focus Mode' : 'Full Screen Document Focus Mode';
+  };
+
+  const leaveProposalFocus = ({ exitFullscreen = true } = {}) => {
+    if (!propPage?.classList.contains('focus-mode')) return;
+    propPage.classList.remove('focus-mode');
+    if (proposalPreFocusState) {
+      propSidebar?.classList.toggle('collapsed', proposalPreFocusState.proposalCollapsed);
+      stepsSidebar?.classList.toggle('collapsed', proposalPreFocusState.stepsCollapsed);
+      chatPanel?.classList.toggle('collapsed', proposalPreFocusState.chatCollapsed);
+    }
+    proposalPreFocusState = null;
+    setFocusButtonState(false);
+    syncProposalControls();
+    if (exitFullscreen && document.fullscreenElement === propPage) {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  if (btnFocusMode) {
+    btnFocusMode.addEventListener('click', async () => {
+      const isFocused = propPage?.classList.contains('focus-mode');
+      if (isFocused) {
+        leaveProposalFocus();
+      } else {
+        proposalPreFocusState = {
+          proposalCollapsed: !!propSidebar?.classList.contains('collapsed'),
+          stepsCollapsed: !!stepsSidebar?.classList.contains('collapsed'),
+          chatCollapsed: !!chatPanel?.classList.contains('collapsed'),
+        };
+        propPage?.classList.add('focus-mode');
+        setFocusButtonState(true);
+        if (propPage?.requestFullscreen && !document.fullscreenElement) {
+          try { await propPage.requestFullscreen(); } catch (_) { /* CSS focus mode remains available. */ }
+        }
+      }
+    });
+  }
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && propPage?.classList.contains('focus-mode')) {
+      leaveProposalFocus({ exitFullscreen: false });
+    }
+  });
+
+  // Keep the document wide by default. The advisor stays one click away as an
+  // overlay and compact screens start with the proposal drawer tucked away.
+  chatPanel?.classList.add('collapsed');
+  propWorkspace?.classList.remove('chat-open');
+  if (window.matchMedia('(max-width: 760px)').matches) propSidebar?.classList.add('collapsed');
+  syncProposalControls();
+
   const createModal = document.getElementById('proposal-create-modal');
   const closeBtn = document.getElementById('proposal-create-modal-close-btn');
   const createForm = document.getElementById('proposal-create-form');
@@ -4028,6 +4181,9 @@ async function selectProposal(id) {
     proposalState.currentStep = prop.current_step || 'cover';
     renderProposalList();
     renderProposalWorkspace();
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      document.getElementById('proposal-sidebar')?.classList.add('collapsed');
+    }
     if (window.renderPinnedSourcesList) window.renderPinnedSourcesList();
   } catch (err) { alert("Could not load proposal: " + err.message); }
 }
@@ -4123,9 +4279,27 @@ function renderProposalWorkspace() {
 
   renderWizardSteps();
   renderSectionContent(proposalState.currentStep);
+  updateProposalBreadcrumbs();
+}
+
+function updateProposalBreadcrumbs() {
+  const bcProp = document.getElementById('bc-proposal-name');
+  const bcStep = document.getElementById('bc-step-name');
+  if (proposalState.activeProposal) {
+    if (bcProp) bcProp.textContent = proposalState.activeProposal.title || 'Untitled Proposal';
+  } else {
+    if (bcProp) bcProp.textContent = 'No Active Proposal';
+  }
+  if (proposalState.currentStep) {
+    const stepInfo = PROPOSAL_STEPS.find(s => s.key === proposalState.currentStep);
+    if (bcStep && stepInfo) {
+      bcStep.textContent = `${stepInfo.num}. ${stepInfo.label}`;
+    }
+  }
 }
 
 function renderWizardSteps() {
+  updateProposalBreadcrumbs();
   const stepsEl = document.getElementById('wizard-steps-list');
   if (!stepsEl || !proposalState.activeProposal) return;
   const stepStatus = proposalState.activeProposal.step_status || {};
@@ -4166,8 +4340,22 @@ function renderSectionContent(step) {
   contentEl.innerHTML = `
     <div class="wizard-section-inner">
       <div class="wizard-section-header-row">
-        <h3>${stepInfo.num || ''}. ${stepInfo.label || step}</h3>
-        <span class="wizard-status-badge wizard-status-${status}">${status}</span>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <h3>${stepInfo.num || ''}. ${stepInfo.label || step}</h3>
+          <span class="wizard-status-badge wizard-status-${status}">${status}</span>
+        </div>
+        ${sectionContent && isMarkdownSection ? `
+          <div class="report-view-toggle proposal-view-toggle">
+            <button id="btn-view-formatted-${step}" class="view-toggle-btn active" data-action="proposal-view-mode" data-step="${step}" data-mode="formatted">
+              <svg class="icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span>Document View</span>
+            </button>
+            <button id="btn-view-editor-${step}" class="view-toggle-btn" data-action="proposal-view-mode" data-step="${step}" data-mode="editor">
+              <svg class="icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Markdown Editor</span>
+            </button>
+          </div>
+        ` : ''}
       </div>
 
       ${canEdit ? `
@@ -4184,7 +4372,16 @@ function renderSectionContent(step) {
       <div class="wizard-section-body" id="wizard-section-body">
         ${sectionContent
       ? (isMarkdownSection
-        ? `<textarea id="wizard-editor-${step}" class="wizard-content-editor" style="width:100%; min-height:300px; font-family:var(--font-mono, monospace); font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical; line-height:1.6;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</textarea>`
+        ? `
+          <div id="narrative-formatted-${step}" class="proposal-narrative-doc">
+            <div class="proposal-narrative-card">
+              ${md(sanitizeHtml((typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2)).replace(/<\/h[1-6]>/gi, '$&\n\n')))}
+            </div>
+          </div>
+          <div id="narrative-editor-${step}" class="proposal-narrative-editor-wrap" style="display:none;">
+            <textarea id="wizard-editor-${step}" class="wizard-content-editor" style="width:100%; min-height:320px; font-family:var(--font-mono, monospace); font-size:13px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical; line-height:1.6;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</textarea>
+          </div>
+        `
         : renderJsonSection(typeof sectionContent === 'string' ? (() => { try { return JSON.parse(sectionContent); } catch(e) { return sectionContent; } })() : sectionContent, step))
       : '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)">No content yet. Write instructions above and click Generate, or just click Generate to let AI create this section.</div>'}
       </div>
@@ -4223,6 +4420,25 @@ function renderSectionContent(step) {
       ` : ''}
     </div>`;
 }
+
+window.toggleProposalViewMode = function(step, mode) {
+  const formattedEl = document.getElementById(`narrative-formatted-${step}`);
+  const editorEl = document.getElementById(`narrative-editor-${step}`);
+  const btnFormatted = document.getElementById(`btn-view-formatted-${step}`);
+  const btnEditor = document.getElementById(`btn-view-editor-${step}`);
+
+  if (mode === 'formatted') {
+    if (formattedEl) formattedEl.style.display = 'block';
+    if (editorEl) editorEl.style.display = 'none';
+    if (btnFormatted) btnFormatted.classList.add('active');
+    if (btnEditor) btnEditor.classList.remove('active');
+  } else {
+    if (formattedEl) formattedEl.style.display = 'none';
+    if (editorEl) editorEl.style.display = 'block';
+    if (btnFormatted) btnFormatted.classList.remove('active');
+    if (btnEditor) btnEditor.classList.add('active');
+  }
+};
 
 function getSectionContent(prop, step) {
   const fieldMap = { cover: 'cover_page', background: 'background', needs_assessment: 'needs_assessment', toc: 'toc', logframe: 'logframe', methodology: 'methodology', budget: 'budget', mne_framework: 'mne_framework', risk_matrix: 'risk_matrix', sustainability: 'sustainability', coordination: 'coordination', final_review: 'narrative' };
@@ -4374,27 +4590,77 @@ window.handleRiskDrop = function (e) {
 function renderJsonSection(obj, step) {
   const canEdit = proposalState.activeProposal && proposalState.activeProposal.can_edit !== false;
   const disabledAttr = canEdit ? '' : 'disabled';
+  if (!obj || typeof obj !== 'object') return `<pre>${escHtml(String(obj))}</pre>`;
 
   if (step === 'cover') {
-    let html = '<div class="cover-editor-grid">';
-    for (const [k, v] of Object.entries(obj)) {
-      const label = formatLabel(k);
-      const isLong = typeof v === 'string' && v.length > 60;
-      html += `
-        <div class="editor-field-wrap ${isLong ? 'full-width' : ''}">
-          <label class="field-label">${escHtml(label)}</label>
-          ${canEdit ? (isLong ? `
-            <textarea class="field-input cover-input" data-field="${escHtml(k)}" rows="3">${escHtml(v)}</textarea>
-          ` : `
-            <input type="text" class="field-input cover-input" data-field="${escHtml(k)}" value="${escHtml(v)}">
-          `) : (isLong ? `
-            <div class="field-input-readonly textarea-style">${escHtml(v)}</div>
-          ` : `
-            <div class="field-input-readonly">${escHtml(v)}</div>
-          `)}
-        </div>`;
-    }
-    return html + '</div>';
+    const title = obj.project_title || obj.title || (proposalState.activeProposal ? proposalState.activeProposal.title : '') || '';
+    const country = obj.country || (proposalState.activeProposal ? proposalState.activeProposal.country : '') || '';
+    const event = obj.crisis_event || obj.event || (proposalState.activeProposal ? proposalState.activeProposal.event : '') || '';
+    const donor = obj.donor || (proposalState.activeProposal ? proposalState.activeProposal.donor : '') || '';
+    const budget = obj.budget_summary || obj.budget || '';
+    const duration = obj.duration_months || obj.duration || '';
+    const partner = obj.implementing_partner || obj.partner || '';
+    const beneficiaries = obj.target_beneficiaries || obj.beneficiaries || '';
+    const sectors = obj.sectors || (proposalState.activeProposal && Array.isArray(proposalState.activeProposal.themes) ? proposalState.activeProposal.themes.join(', ') : '');
+    const summary = obj.summary || '';
+
+    return `
+      <div class="proposal-cover-card">
+        <div class="cover-card-header">
+          <div class="cover-card-badges">
+            ${donor ? `<span class="cover-badge donor-badge"><svg class="icon-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px; margin-right:4px;"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>${escHtml(donor)}</span>` : ''}
+            ${country ? `<span class="cover-badge country-badge"><svg class="icon-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px; margin-right:4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${escHtml(country)}</span>` : ''}
+            ${event ? `<span class="cover-badge event-badge">${escHtml(event)}</span>` : ''}
+          </div>
+          <div class="cover-card-title-wrap">
+            <label class="field-label">Official Project Title</label>
+            ${canEdit ? `
+              <input type="text" class="cover-input cover-title-input" data-field="project_title" value="${escHtml(title)}" placeholder="Enter project title...">
+            ` : `<h2 class="cover-title-display">${escHtml(title)}</h2>`}
+          </div>
+        </div>
+
+        <div class="cover-card-stats-grid">
+          <div class="cover-stat-box">
+            <div class="stat-label">Estimated Budget</div>
+            ${canEdit ? `<input type="text" class="cover-input stat-input" data-field="budget_summary" value="${escHtml(budget)}" placeholder="e.g. $500,000">` : `<div class="stat-val">${escHtml(budget || 'TBD')}</div>`}
+          </div>
+          <div class="cover-stat-box">
+            <div class="stat-label">Project Duration</div>
+            ${canEdit ? `<input type="text" class="cover-input stat-input" data-field="duration_months" value="${escHtml(duration)}" placeholder="e.g. 12 months">` : `<div class="stat-val">${escHtml(duration || 'TBD')}</div>`}
+          </div>
+          <div class="cover-stat-box">
+            <div class="stat-label">Target Beneficiaries</div>
+            ${canEdit ? `<input type="text" class="cover-input stat-input" data-field="target_beneficiaries" value="${escHtml(beneficiaries)}" placeholder="Targeted population">` : `<div class="stat-val">${escHtml(beneficiaries || 'TBD')}</div>`}
+          </div>
+          <div class="cover-stat-box">
+            <div class="stat-label">Sectors / Themes</div>
+            ${canEdit ? `<input type="text" class="cover-input stat-input" data-field="sectors" value="${escHtml(sectors)}" placeholder="WASH, Protection...">` : `<div class="stat-val">${escHtml(sectors || 'TBD')}</div>`}
+          </div>
+        </div>
+
+        <div class="cover-card-summary-wrap">
+          <label class="field-label">Executive Project Summary</label>
+          ${canEdit ? `
+            <textarea class="cover-input summary-textarea" data-field="summary" rows="3" placeholder="2-3 sentence executive project summary...">${escHtml(summary)}</textarea>
+          ` : `<div class="summary-display">${escHtml(summary)}</div>`}
+        </div>
+
+        <div class="cover-card-footer-grid">
+          <div class="footer-field">
+            <label class="field-label">Implementing Partner</label>
+            ${canEdit ? `<input type="text" class="cover-input footer-input" data-field="implementing_partner" value="${escHtml(partner)}" placeholder="Partner Organization Name">` : `<div class="footer-val">${escHtml(partner || 'TBD')}</div>`}
+          </div>
+          <div class="footer-field">
+            <label class="field-label">Donor Agency</label>
+            ${canEdit ? `<input type="text" class="cover-input footer-input" data-field="donor" value="${escHtml(donor)}" placeholder="Donor Agency">` : `<div class="footer-val">${escHtml(donor || 'TBD')}</div>`}
+          </div>
+          <div class="footer-field">
+            <label class="field-label">Crisis Event</label>
+            ${canEdit ? `<input type="text" class="cover-input footer-input" data-field="crisis_event" value="${escHtml(event)}" placeholder="Crisis Event Description">` : `<div class="footer-val">${escHtml(event || 'TBD')}</div>`}
+          </div>
+        </div>
+      </div>`;
   }
 
   if (step === 'budget') {
@@ -4589,25 +4855,96 @@ function renderJsonSection(obj, step) {
   }
 
   if (step === 'logframe') {
-    if (canEdit) {
-      let html = '<div class="logframe-editor-grid">';
-      for (const [k, v] of Object.entries(obj)) {
-        const label = formatLabel(k);
-        html += `
-          <div class="editor-field-wrap full-width">
-            <label class="field-label" style="text-transform: uppercase; color: var(--primary); font-weight:700;">${escHtml(label)}</label>
-            <textarea class="field-input logframe-input" data-field="${escHtml(k)}" rows="3" placeholder="Statement...">${escHtml(v)}</textarea>
-          </div>`;
+    const rows = [
+      {
+        level: 'Impact / Goal',
+        badge: 'impact',
+        color: 'var(--primary)',
+        stmtKey: 'goal',
+        indKey: 'goal_indicator',
+        assumpKey: 'goal_assumptions',
+        assumpLabel: 'Assumptions'
+      },
+      {
+        level: 'Outcomes',
+        badge: 'outcome',
+        color: 'var(--blue)',
+        stmtKey: 'outcomes',
+        indKey: 'outcomes_indicator',
+        assumpKey: 'outcomes_assumptions',
+        assumpLabel: 'Assumptions'
+      },
+      {
+        level: 'Outputs',
+        badge: 'output',
+        color: 'var(--purple)',
+        stmtKey: 'outputs',
+        indKey: 'outputs_indicator',
+        assumpKey: 'outputs_sources',
+        assumpLabel: 'Sources & Means'
+      },
+      {
+        level: 'Activities',
+        badge: 'activity',
+        color: 'var(--green)',
+        stmtKey: 'activities',
+        indKey: 'activities_inputs',
+        assumpKey: 'activities_budget',
+        assumpLabel: 'Inputs & Budget'
       }
-      return html + '</div>';
-    } else {
-      let html = '<div class="logframe-view">';
-      for (const [k, v] of Object.entries(obj)) {
-        const label = formatLabel(k);
-        html += `<div class="lf-row"><span class="lf-key">${escHtml(label.toUpperCase())}</span><span class="lf-val">${escHtml(String(v))}</span></div>`;
-      }
-      return html + '</div>';
-    }
+    ];
+
+    let html = `
+      <div class="logframe-matrix-container">
+        <table class="logframe-matrix-table">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Results Level</th>
+              <th>Intervention Logic</th>
+              <th>SMART Indicators</th>
+              <th>Means of Verification &amp; Assumptions</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    rows.forEach(r => {
+      const stmtVal = obj[r.stmtKey] || '';
+      const indVal = obj[r.indKey] || '';
+      const assumpVal = obj[r.assumpKey] || '';
+
+      html += `
+        <tr class="logframe-matrix-row row-${r.badge}">
+          <td class="cell-level">
+            <span class="logframe-level-badge badge-${r.badge}">${escHtml(r.level)}</span>
+          </td>
+          <td class="cell-stmt">
+            ${canEdit ? `
+              <textarea class="logframe-input table-textarea" data-field="${r.stmtKey}" rows="3" placeholder="Intervention logic statement...">${escHtml(stmtVal)}</textarea>
+            ` : `<div class="cell-display">${escHtml(stmtVal)}</div>`}
+          </td>
+          <td class="cell-ind">
+            ${canEdit ? `
+              <textarea class="logframe-input table-textarea" data-field="${r.indKey}" rows="3" placeholder="Indicator statement...">${escHtml(indVal)}</textarea>
+            ` : `<div class="cell-display">${escHtml(indVal)}</div>`}
+          </td>
+          <td class="cell-assump">
+            <div class="cell-label-tag">${r.assumpLabel}</div>
+            ${canEdit ? `
+              <textarea class="logframe-input table-textarea" data-field="${r.assumpKey}" rows="3" placeholder="${r.assumpLabel}...">${escHtml(assumpVal)}</textarea>
+            ` : `<div class="cell-display">${escHtml(assumpVal)}</div>`}
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    return html;
   }
   return `<pre>${escHtml(JSON.stringify(obj, null, 2))}</pre>`;
 }
