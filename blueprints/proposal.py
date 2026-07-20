@@ -1738,34 +1738,6 @@ def api_donor_templates():
         return jsonify([]), 500
 
 
-# =============================================================================
-# Proposal review
-# =============================================================================
-
-@proposal_bp.route("/proposals/<prop_id>/review", methods=["POST"])
-@require_role("premium")
-def api_proposal_review(prop_id):
-    """Run comprehensive M&E review on the entire proposal."""
-    uid = current_uid()
-    role = current_role()
-    conn = _chats_db()
-    try:
-        if role == "admin":
-            row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
-        else:
-            row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
-        if not row:
-            return jsonify({"error": "Proposal not found"}), 404
-
-        from agent.me_reviewer import review_proposal
-        result = review_proposal(dict(row))
-        _log_event(uid, "proposal_reviewed", {"prop_id": prop_id, "score": result.get("overall_score", 0)})
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"api_proposal_review error: {prop_id}, {e}")
-        return jsonify({"error": "Internal server error"}), 500
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -1795,30 +1767,20 @@ def api_proposal_export(prop_id):
             if not row:
                 return jsonify({"error": "Proposal not found"}), 404
 
-        try:
-            cover = json.loads(row["cover_page"]) if row["cover_page"] else {}
-        except Exception:
-            cover = {}
-        try:
-            toc = json.loads(row["toc"]) if row["toc"] else []
-        except Exception:
-            toc = []
-        try:
-            logframe = json.loads(row["logframe"]) if row["logframe"] else {}
-        except Exception:
-            logframe = {}
-        try:
-            budget = json.loads(row["budget"]) if row["budget"] else {}
-        except Exception:
-            budget = {}
-        try:
-            mne = json.loads(row["mne_framework"]) if row["mne_framework"] else {}
-        except Exception:
-            mne = {}
-        try:
-            risks = json.loads(row["risk_matrix"]) if row["risk_matrix"] else []
-        except Exception:
-            risks = []
+        # Helper for parsing JSON safely
+        def safe_json(val, default):
+            if not val or val in ("", "{}", "[]", "null"): return default
+            try: return json.loads(val)
+            except Exception: return val if isinstance(val, (dict, list, str)) else default
+
+        cover = safe_json(row.get("cover_page"), {})
+        toc = safe_json(row.get("toc"), []) or safe_json(row.get("toc_nodes"), [])
+        logframe = safe_json(row.get("logframe"), {}) or safe_json(row.get("logframe_data"), {})
+        budget = safe_json(row.get("budget"), {}) or safe_json(row.get("budget_details"), {})
+        mne = safe_json(row.get("mne_framework"), {}) or safe_json(row.get("mne_plan"), [])
+        risks = safe_json(row.get("risk_matrix"), []) or safe_json(row.get("risk_details"), [])
+        b_data = safe_json(row.get("beneficiary_data"), {})
+        pinned_sources = safe_json(row.get("pinned_sources"), [])
 
         try:
             themes_list = json.loads(row["themes"])
@@ -1827,55 +1789,165 @@ def api_proposal_export(prop_id):
 
         md_parts = []
         md_parts.append(f"# {row['title']}\n")
-        md_parts.append(f"**Country:** {row['country']}  \n**Donor:** {row['donor']}  \n**Themes:** {', '.join(themes_list)}\n")
+        
+        meta_lines = [
+            f"**Country of Operation:** {row['country']}",
+            f"**Target Donor:** {row['donor']}",
+            f"**Focus Sector / Event:** {row['event']}",
+            f"**Themes:** {', '.join(themes_list) if themes_list else 'Humanitarian Response'}"
+        ]
+        if row.get("date_from") or row.get("date_to"):
+            meta_lines.append(f"**Timeline:** {row.get('date_from', '')} to {row.get('date_to', '')}")
+        md_parts.append("  \n".join(meta_lines) + "\n")
 
-        if cover:
-            md_parts.append(f"\n## Cover Page\n")
+        if cover and isinstance(cover, dict) and any(cover.values()):
+            md_parts.append("\n## Project Overview\n")
             for k, v in cover.items():
-                md_parts.append(f"**{k.replace('_', ' ').title()}:** {v}  \n")
+                if v:
+                    label = k.replace('_', ' ').title()
+                    md_parts.append(f"**{label}:** {v}  \n")
+        elif isinstance(cover, str):
+            md_parts.append(f"\n## Project Overview\n\n{cover}\n")
 
-        if row["background"]:
+        if b_data and isinstance(b_data, dict) and any(b_data.values()):
+            md_parts.append("\n## Target Beneficiaries\n")
+            md_parts.append("| Category / Group | Direct Beneficiaries | Indirect Beneficiaries | Details |\n|---|---|---|---|\n")
+            direct = b_data.get("direct", {})
+            indirect = b_data.get("indirect", "N/A")
+            if isinstance(direct, dict):
+                md_parts.append(f"| Women | {direct.get('women', '-')} | - | Targeted female beneficiaries |\n")
+                md_parts.append(f"| Men | {direct.get('men', '-')} | - | Targeted male beneficiaries |\n")
+                md_parts.append(f"| Children | {direct.get('children', '-')} | - | Targeted boys & girls |\n")
+                total_dir = b_data.get("total_direct") or direct.get("total") or "Sum of categories"
+                md_parts.append(f"| **TOTAL DIRECT** | **{total_dir}** | **{indirect}** | Total projected reach |\n")
+            elif isinstance(b_data, list):
+                for item in b_data:
+                    if isinstance(item, dict):
+                        md_parts.append(f"| {item.get('group', 'Group')} | {item.get('direct', '-')} | {item.get('indirect', '-')} | {item.get('notes', '')} |\n")
+        elif isinstance(b_data, str):
+            md_parts.append(f"\n## Target Beneficiaries\n\n{b_data}\n")
+
+        if row.get("background"):
             md_parts.append(f"\n## Context & Background\n\n{row['background']}\n")
-        if row["needs_assessment"]:
+        if row.get("needs_assessment"):
             md_parts.append(f"\n## Needs Assessment\n\n{row['needs_assessment']}\n")
 
         if toc:
-            md_parts.append(f"\n## Theory of Change\n")
-            for node in toc:
-                md_parts.append(f"- **{node.get('level', '').title()}:** {node.get('text', '')}\n")
+            md_parts.append("\n## Theory of Change\n")
+            if isinstance(toc, list):
+                md_parts.append("| Level | Summary / Intervention Node | Causal Relationship / Notes |\n|---|---|---|\n")
+                for node in toc:
+                    if isinstance(node, dict):
+                        lvl = node.get("level", "Node").title()
+                        txt = node.get("text") or node.get("label") or str(node)
+                        parents = ", ".join(node.get("parent_ids", []))
+                        note = f"Contributes to: {parents}" if parents else "Core Intervention Step"
+                        md_parts.append(f"| {lvl} | {txt} | {note} |\n")
+                    else:
+                        md_parts.append(f"| Step | {str(node)} | Strategic Flow |\n")
+            elif isinstance(toc, str):
+                md_parts.append(f"\n{toc}\n")
 
         if logframe:
-            md_parts.append(f"\n## Logical Framework\n")
-            for k, v in logframe.items():
-                md_parts.append(f"- **{k.replace('_', ' ').title()}:** {v}\n")
+            md_parts.append("\n## Logical Framework (Logframe)\n")
+            if isinstance(logframe, dict):
+                md_parts.append("| Level | Objective / Summary | Performance Indicators | Means of Verification | Risks & Assumptions |\n|---|---|---|---|---|\n")
+                levels = [("goal", "Overall Goal / Impact"), ("outcomes", "Outcomes"), ("outputs", "Outputs"), ("activities", "Activities")]
+                has_levels = False
+                for key, label in levels:
+                    val = logframe.get(key)
+                    if val:
+                        has_levels = True
+                        if isinstance(val, list):
+                            for idx, item in enumerate(val):
+                                if isinstance(item, dict):
+                                    md_parts.append(f"| {label} #{idx+1} | {item.get('text', item.get('description', ''))} | {item.get('indicators', '-')} | {item.get('verification', '-')} | {item.get('assumptions', '-')} |\n")
+                                else:
+                                    md_parts.append(f"| {label} #{idx+1} | {str(item)} | Key indicator TBD | Progress reports | Assumptions valid |\n")
+                        elif isinstance(val, dict):
+                            md_parts.append(f"| {label} | {val.get('text', val.get('description', ''))} | {val.get('indicators', '-')} | {val.get('verification', '-')} | {val.get('assumptions', '-')} |\n")
+                        else:
+                            md_parts.append(f"| {label} | {str(val)} | Standard Indicators | Verification Records | Core Assumptions |\n")
+                if not has_levels:
+                    for k, v in logframe.items():
+                        lbl = k.replace('_', ' ').title()
+                        md_parts.append(f"| {lbl} | {str(v)} | Specified in M&E | Field Audits | Low Risk |\n")
+            elif isinstance(logframe, str):
+                md_parts.append(f"\n{logframe}\n")
 
-        if row["methodology"]:
-            md_parts.append(f"\n## Methodology\n\n{row['methodology']}\n")
+        if row.get("methodology"):
+            md_parts.append(f"\n## Implementation Methodology\n\n{row['methodology']}\n")
 
         if budget:
-            md_parts.append(f"\n## Budget Summary\n")
-            if budget.get("total"):
-                md_parts.append(f"**Total:** {budget['total']}\n")
-            for line in budget.get("lines", []):
-                md_parts.append(f"- {line.get('category', '')}: {line.get('amount', '')} — {line.get('description', '')}\n")
+            md_parts.append("\n## Budget Summary\n")
+            if isinstance(budget, (dict, list)):
+                md_parts.append("| Category | Line Item / Description | Amount ($) | Share / Notes |\n|---|---|---|---|\n")
+                lines = budget.get("lines", []) if isinstance(budget, dict) else budget
+                total_val = budget.get("total") if isinstance(budget, dict) else None
+
+                calc_total = 0.0
+                for line in lines:
+                    if isinstance(line, dict):
+                        cat = line.get("category", "General").title()
+                        desc = line.get("description", line.get("item", "-"))
+                        amt = line.get("amount", 0)
+                        try:
+                            amt_num = float(str(amt).replace('$', '').replace(',', ''))
+                            calc_total += amt_num
+                            amt_str = f"${amt_num:,.2f}"
+                        except Exception:
+                            amt_str = str(amt)
+                        md_parts.append(f"| {cat} | {desc} | {amt_str} | Standard operational expense |\n")
+
+                disp_total = total_val if total_val else (f"${calc_total:,.2f}" if calc_total > 0 else "N/A")
+                md_parts.append(f"| **TOTAL PROJECT BUDGET** | **Grand Total** | **{disp_total}** | **100% Allocated** |\n")
+            elif isinstance(budget, str):
+                md_parts.append(f"\n{budget}\n")
 
         if mne:
-            md_parts.append(f"\n## Monitoring & Evaluation\n")
-            for ind in mne.get("indicators", []):
-                md_parts.append(f"- **{ind.get('name', '')}** — Baseline: {ind.get('baseline', '')}, Target: {ind.get('target', '')}, Source: {ind.get('source', '')}\n")
+            md_parts.append("\n## Monitoring & Evaluation Framework\n")
+            if isinstance(mne, (dict, list)):
+                md_parts.append("| Indicator Name | Baseline | Target | Means of Verification | Frequency & Lead |\n|---|---|---|---|---|\n")
+                indicators = mne.get("indicators", []) if isinstance(mne, dict) else mne
+                for ind in indicators:
+                    if isinstance(ind, dict):
+                        name = ind.get("name", ind.get("indicator", "Indicator"))
+                        base = ind.get("baseline", "0")
+                        tgt = ind.get("target", "100%")
+                        src = ind.get("source", ind.get("verification", "Field Reports"))
+                        freq = ind.get("frequency", ind.get("owner", "Monthly / M&E Officer"))
+                        md_parts.append(f"| {name} | {base} | {tgt} | {src} | {freq} |\n")
+            elif isinstance(mne, str):
+                md_parts.append(f"\n{mne}\n")
 
         if risks:
-            md_parts.append(f"\n## Risk Matrix\n")
-            md_parts.append(f"| Risk | Probability | Impact | Mitigation |\n|------|------------|--------|------------|\n")
-            for r in risks:
-                md_parts.append(f"| {r.get('risk', '')} | {r.get('probability', '')} | {r.get('impact', '')} | {r.get('mitigation', '')} |\n")
+            md_parts.append("\n## Risk Matrix & Mitigation Strategy\n")
+            if isinstance(risks, list):
+                md_parts.append("| Risk Category / Threat | Severity / Category | Probability | Impact | Mitigation Strategy |\n|---|---|---|---|---|\n")
+                for r in risks:
+                    if isinstance(r, dict):
+                        risk_txt = r.get("risk", r.get("name", "Identified Risk"))
+                        cat = r.get("category", "Operational").title()
+                        prob = r.get("probability", "Medium").title()
+                        imp = r.get("impact", "Medium").title()
+                        mit = r.get("mitigation", r.get("strategy", "Continuous monitoring"))
+                        md_parts.append(f"| {risk_txt} | {cat} | {prob} | {imp} | {mit} |\n")
+            elif isinstance(risks, str):
+                md_parts.append(f"\n{risks}\n")
 
-        if row["sustainability"]:
-            md_parts.append(f"\n## Sustainability & Exit Strategy\n\n{row['sustainability']}\n")
-        if row["coordination"]:
-            md_parts.append(f"\n## Coordination\n\n{row['coordination']}\n")
-        if row["narrative"]:
-            md_parts.append(f"\n## Full Narrative\n\n{row['narrative']}\n")
+        if pinned_sources:
+            md_parts.append("\n## Data Sources & Operational Evidence\n")
+            if isinstance(pinned_sources, list):
+                md_parts.append("| Source Title | Reference URL / ID | Context Snippet |\n|---|---|---|\n")
+                for src in pinned_sources:
+                    if isinstance(src, dict):
+                        stitle = src.get("title", "ReliefWeb/HDX Report")
+                        surl = src.get("url", "#")
+                        ssnip = src.get("snippet", "-")[:120] + "..." if len(src.get("snippet", "")) > 120 else src.get("snippet", "-")
+                        md_parts.append(f"| {stitle} | [{surl}]({surl}) | {ssnip} |\n")
+            elif isinstance(pinned_sources, str):
+                md_parts.append(f"\n{pinned_sources}\n")
+
 
         full_md = "\n".join(md_parts)
         _log_event(uid, "proposal_exported", {"prop_id": prop_id})
@@ -1890,6 +1962,7 @@ def api_proposal_export(prop_id):
         return jsonify({"error": "Internal server error"}), 500
     finally:
         conn.close()
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

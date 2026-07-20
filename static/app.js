@@ -5405,80 +5405,58 @@ async function exportProposalMarkdown() {
 }
 
 function renderProposalToHtml(markdown) {
-  const lines = markdown.split('\n');
-  let html = '';
-  let inList = false;
-  let inTable = false;
-  let tableHeaderDone = false;
-
-  for (let line of lines) {
-    line = line.trim();
-
-    // Handle tables
-    if (line.startsWith('|')) {
-      if (line.includes('---|')) {
-        continue;
-      }
-      if (!inTable) {
-        if (inList) { html += '</ul>'; inList = false; }
-        html += '<table>';
-        inTable = true;
-        tableHeaderDone = false;
-      }
-
-      const cells = line.split('|').map(c => c.trim()).filter((c, i, a) => i > 0 && i < a.length - 1);
-      html += '<tr>';
-      for (const cell of cells) {
-        const cellContent = cell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        if (!tableHeaderDone) {
-          html += `<th>${cellContent}</th>`;
-        } else {
-          html += `<td>${cellContent}</td>`;
-        }
-      }
-      html += '</tr>';
-      if (inTable && !tableHeaderDone) {
-        tableHeaderDone = true;
-      }
-      continue;
-    } else if (inTable) {
-      html += '</table>';
-      inTable = false;
-    }
-
-    // Handle lists
-    if (line.startsWith('- ')) {
-      if (!inList) {
-        html += '<ul>';
-        inList = true;
-      }
-      let content = line.substring(2);
-      content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      html += `<li>${content}</li>`;
-      continue;
-    } else if (inList) {
-      html += '</ul>';
-      inList = false;
-    }
-
-    // Handle headers
-    if (line.startsWith('# ')) {
-      html += `<h1>${escHtml(line.substring(2))}</h1>`;
-    } else if (line.startsWith('## ')) {
-      html += `<h2>${escHtml(line.substring(3))}</h2>`;
-    } else if (line.startsWith('### ')) {
-      html += `<h3>${escHtml(line.substring(4))}</h3>`;
-    } else if (line.length > 0) {
-      let content = escHtml(line);
-      content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      html += `<p>${content}</p>`;
-    }
+  if (!markdown) return '';
+  let parsed = '';
+  try {
+    parsed = typeof marked !== 'undefined' ? marked.parse(markdown, { breaks: true, gfm: true }) : markdown;
+  } catch (e) {
+    parsed = esc(markdown).replace(/\n/g, '<br>');
   }
 
-  if (inList) html += '</ul>';
-  if (inTable) html += '</table>';
+  const container = document.createElement('div');
+  container.innerHTML = parsed;
 
-  return html;
+  // 1. Post-process Tables
+  const tables = container.querySelectorAll('table');
+  tables.forEach(table => {
+    table.classList.add('pdf-table');
+    const rows = Array.from(table.querySelectorAll('tr'));
+    rows.forEach(tr => {
+      const cells = Array.from(tr.children);
+      cells.forEach(cell => {
+        const txt = cell.textContent.trim();
+        // Detect total rows
+        if (/total|grand total|toplam/i.test(txt) && (cell.tagName === 'TH' || cell.tagName === 'TD')) {
+          tr.classList.add('total-row');
+        }
+        // Risk badges
+        if (/^(high|yüksek)$/i.test(txt)) {
+          cell.innerHTML = `<span class="pdf-badge pdf-badge-high">${escHtml(txt)}</span>`;
+        } else if (/^(medium|orta)$/i.test(txt)) {
+          cell.innerHTML = `<span class="pdf-badge pdf-badge-medium">${escHtml(txt)}</span>`;
+        } else if (/^(low|düşük)$/i.test(txt)) {
+          cell.innerHTML = `<span class="pdf-badge pdf-badge-low">${escHtml(txt)}</span>`;
+        }
+        // Right-align currency / numeric values
+        if (/^\$?\d{1,3}(,\d{3})*(\.\d{2})?%?$/.test(txt)) {
+          cell.classList.add('col-num');
+        }
+      });
+    });
+  });
+
+  // 2. Add Section Numbers to H2 elements
+  let sectionIndex = 0;
+  const h2s = container.querySelectorAll('h2');
+  h2s.forEach(h2 => {
+    const text = h2.textContent.toLowerCase();
+    if (text.includes('cover page') || text.includes('overview')) return;
+    sectionIndex++;
+    const num = sectionIndex < 10 ? `0${sectionIndex}` : `${sectionIndex}`;
+    h2.setAttribute('data-section-num', num);
+  });
+
+  return container.innerHTML;
 }
 
 async function exportProposalPDF() {
@@ -5496,40 +5474,66 @@ async function exportProposalPDF() {
       return;
     }
 
-    const prop = proposalState.activeProposal;
+    const prop = proposalState.activeProposal || {};
     const compiledHtml = renderProposalToHtml(data.markdown);
+
+    // Extract KPI summary values if available
+    let bData = {};
+    try { bData = typeof prop.beneficiary_data === 'string' ? JSON.parse(prop.beneficiary_data) : (prop.beneficiary_data || {}); } catch(e){}
+    let totalDirectReach = "N/A";
+    if (bData.total_direct) totalDirectReach = bData.total_direct;
+    else if (bData.direct && typeof bData.direct === 'object') {
+      const sum = (parseInt(bData.direct.women)||0) + (parseInt(bData.direct.men)||0) + (parseInt(bData.direct.children)||0);
+      if (sum > 0) totalDirectReach = sum.toLocaleString();
+    }
+
+    let budgetVal = "N/A";
+    try {
+      const bObj = typeof prop.budget === 'string' ? JSON.parse(prop.budget) : (prop.budget || {});
+      if (bObj.total) budgetVal = bObj.total;
+    } catch(e){}
+
+    const currentDateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>${escHtml(data.title || 'Proposal')}</title>
+        <title>${escHtml(data.title || 'Proposal Document')}</title>
         <meta charset="utf-8">
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap');
           
           @page {
-            size: A4;
-            margin: 25mm 20mm 25mm 20mm;
-            @bottom-right {
-              content: counter(page);
+            size: A4 portrait;
+            margin: 20mm 15mm 20mm 15mm;
+            @top-right {
+              content: "Sightline Project Proposal";
               font-family: 'Inter', sans-serif;
-              font-size: 10px;
+              font-size: 8pt;
+              font-weight: 500;
               color: #94a3b8;
             }
             @bottom-left {
-              content: "Sightline Advisor Studio - Confidential Draft";
+              content: "Sightline Advisor Studio • Confidential Operational Proposal";
               font-family: 'Inter', sans-serif;
-              font-size: 10px;
+              font-size: 8pt;
               color: #94a3b8;
+            }
+            @bottom-right {
+              content: "Page " counter(page);
+              font-family: 'Inter', sans-serif;
+              font-size: 8pt;
+              font-weight: 600;
+              color: #64748b;
             }
           }
           
           body {
             font-family: 'Inter', -apple-system, sans-serif;
             color: #1e293b;
-            line-height: 1.7;
-            font-size: 12px;
+            line-height: 1.65;
+            font-size: 11px;
             margin: 0;
             padding: 0;
             background: #fff;
@@ -5539,112 +5543,125 @@ async function exportProposalPDF() {
           
           /* Cover Page */
           .print-cover-page {
-            height: 90vh; /* Fill exactly one printed page minus margins */
+            height: 93vh;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             page-break-after: always;
-            padding: 20px 0;
+            padding: 15px 5px;
             box-sizing: border-box;
             position: relative;
           }
 
-          /* Subtle Watermark for Cover */
           .cover-watermark {
             position: absolute;
-            top: 40%;
+            top: 45%;
             left: 50%;
-            transform: translate(-50%, -50%) rotate(-45deg);
-            font-size: 150px;
-            color: rgba(226, 232, 240, 0.4);
+            transform: translate(-50%, -50%) rotate(-35deg);
+            font-size: 130px;
+            color: rgba(226, 232, 240, 0.45);
             font-weight: 800;
             font-family: 'Inter', sans-serif;
             z-index: -1;
             pointer-events: none;
-            letter-spacing: 20px;
+            letter-spacing: 16px;
           }
           
           .cover-header {
-            border-top: 4px solid #e8364e;
-            padding-top: 30px;
+            border-top: 5px solid #e8364e;
+            padding-top: 24px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
           }
           
           .cover-logo {
             font-weight: 800;
-            font-size: 28px;
+            font-size: 26px;
             color: #e8364e;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
             font-family: 'Inter', sans-serif;
           }
           
           .cover-logo span {
             color: #0f172a;
           }
+
+          .cover-badge {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+          }
           
           .cover-body {
-            margin-top: 80px;
+            margin-top: 60px;
             flex-grow: 1;
           }
           
           .cover-tagline {
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 3px;
             color: #e8364e;
             font-weight: 700;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             display: block;
           }
           
           .cover-title {
             font-family: 'Playfair Display', serif;
-            font-size: 46px;
+            font-size: 40px;
             font-weight: 800;
-            line-height: 1.15;
+            line-height: 1.18;
             color: #0f172a;
-            margin: 0 0 40px 0;
-            max-width: 90%;
+            margin: 0 0 35px 0;
+            max-width: 95%;
             letter-spacing: -0.5px;
           }
           
           .cover-metadata-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 30px 40px;
-            border-top: 1px solid #cbd5e1;
-            padding-top: 40px;
-            margin-top: 60px;
-            max-width: 80%;
+            gap: 20px 30px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #0f172a;
+            border-radius: 8px;
+            padding: 24px;
+            margin-top: 40px;
           }
           
           .cover-meta-item {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
           }
           
           .cover-meta-item strong {
-            font-size: 10px;
+            font-size: 9.5px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: #64748b;
-            font-weight: 600;
+            font-weight: 700;
           }
           
           .cover-meta-item span {
-            font-size: 14px;
+            font-size: 13px;
             color: #0f172a;
-            font-weight: 500;
+            font-weight: 600;
           }
           
           .cover-footer {
-            font-size: 11px;
+            font-size: 10.5px;
             color: #64748b;
             border-top: 1px solid #e2e8f0;
-            padding-top: 24px;
+            padding-top: 20px;
             display: flex;
             justify-content: space-between;
             font-weight: 500;
@@ -5652,106 +5669,208 @@ async function exportProposalPDF() {
 
           .cover-footer .confidential {
             color: #e8364e;
-            font-weight: 600;
+            font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
           }
           
-          /* Document Sections */
-          .proposal-content {
-            padding-top: 20px;
+          /* Executive KPI Grid Box */
+          .pdf-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 15px 0 25px 0;
+            page-break-inside: avoid;
           }
 
-          h1, h2, h3, h4 {
+          .pdf-kpi-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-top: 3px solid #e8364e;
+            border-radius: 6px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+
+          .pdf-kpi-card .kpi-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #64748b;
+            font-weight: 700;
+          }
+
+          .pdf-kpi-card .kpi-val {
+            font-size: 14px;
+            font-weight: 800;
             color: #0f172a;
           }
-          
+
+          /* Document Content & Headings */
+          .proposal-content {
+            padding-top: 10px;
+          }
+
           h1 {
             font-family: 'Playfair Display', serif;
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 700;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             color: #0f172a;
             border-bottom: 2px solid #0f172a;
-            padding-bottom: 12px;
+            padding-bottom: 10px;
           }
 
           h2 {
             font-family: 'Inter', sans-serif;
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 700;
-            border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 8px;
-            margin-top: 48px;
-            margin-bottom: 16px;
             color: #0f172a;
+            border-bottom: 1.5px solid #e2e8f0;
+            padding-bottom: 6px;
+            margin-top: 36px;
+            margin-bottom: 14px;
+            position: relative;
+            padding-left: 12px;
+            border-left: 4px solid #e8364e;
             page-break-after: avoid;
+            page-break-inside: avoid;
+          }
+
+          h2[data-section-num]::before {
+            content: attr(data-section-num) ". ";
+            color: #e8364e;
+            font-weight: 800;
           }
           
-          /* Specifically force page breaks for major sections except the very first one */
-          .proposal-content > h2:not(:first-child) {
+          .proposal-content > h2:not(:first-of-type) {
             page-break-before: always;
           }
 
           h3 {
             font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            font-weight: 600;
-            margin-top: 24px;
-            margin-bottom: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            margin-top: 20px;
+            margin-bottom: 10px;
             color: #1e293b;
             page-break-after: avoid;
           }
           
           p {
-            margin: 0 0 16px 0;
+            margin: 0 0 14px 0;
             text-align: justify;
             color: #334155;
           }
           
-          /* Table style - Premium Minimalist */
-          table {
+          /* Table Styles - Modern & Structured */
+          table, .pdf-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 24px 0;
+            margin: 18px 0 24px 0;
+            font-size: 10.5px;
             page-break-inside: auto;
+            border-radius: 4px;
+            box-shadow: 0 0 0 1px #e2e8f0;
           }
-          
+
+          thead {
+            display: table-header-group;
+          }
+
           tr {
             page-break-inside: avoid;
             page-break-after: auto;
           }
 
           th {
-            background-color: #f1f5f9;
-            color: #0f172a;
+            background-color: #0f172a;
+            color: #f8fafc;
             font-weight: 700;
-            font-size: 10px;
+            font-size: 9.5px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.8px;
             text-align: left;
-            padding: 12px 14px;
-            border-bottom: 2px solid #cbd5e1;
+            padding: 9px 12px;
+            border-bottom: 3px solid #e8364e;
           }
           
           td {
-            padding: 12px 14px;
+            padding: 9px 12px;
             border-bottom: 1px solid #e2e8f0;
-            font-size: 11.5px;
             color: #334155;
             vertical-align: top;
+            line-height: 1.5;
           }
           
-          /* Timeline / Theory of Change Lists */
-          ul, ol {
+          tr:nth-child(even) td {
+            background-color: #f8fafc;
+          }
+
+          tr.total-row td {
+            background-color: #f1f5f9 !important;
+            font-weight: 800;
+            color: #0f172a;
+            border-top: 2px solid #0f172a;
+            border-bottom: 2px double #0f172a;
+          }
+
+          td.col-num, th.col-num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+          }
+
+          /* Badges */
+          .pdf-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .pdf-badge-high {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+          }
+
+          .pdf-badge-medium {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+          }
+
+          .pdf-badge-low {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+          }
+
+          /* Callouts & Quotes */
+          blockquote {
             margin: 16px 0;
-            padding-left: 24px;
+            padding: 12px 16px;
+            background: #fff5f5;
+            border-left: 4px solid #e8364e;
+            border-radius: 0 6px 6px 0;
+            color: #1e293b;
+            font-style: italic;
+            page-break-inside: avoid;
+          }
+          
+          ul, ol {
+            margin: 12px 0;
+            padding-left: 20px;
             color: #334155;
           }
           
           li {
-            margin-bottom: 8px;
-            padding-left: 4px;
+            margin-bottom: 6px;
           }
           
           li::marker {
@@ -5776,10 +5895,10 @@ async function exportProposalPDF() {
           <div class="cover-watermark">DRAFT</div>
           <div class="cover-header">
             <div class="cover-logo">Sight<span>line</span></div>
-            <div style="text-align: right; font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Project Design Document</div>
+            <div class="cover-badge">Project Design Document</div>
           </div>
           <div class="cover-body">
-            <span class="cover-tagline">Humanitarian Intervention Proposal</span>
+            <span class="cover-tagline">Humanitarian Action Proposal</span>
             <h1 class="cover-title">${escHtml(prop.title || 'Untitled Proposal')}</h1>
             
             <div class="cover-metadata-grid">
@@ -5797,13 +5916,33 @@ async function exportProposalPDF() {
               </div>
               <div class="cover-meta-item">
                 <strong>Date Generated</strong>
-                <span>${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                <span>${currentDateStr}</span>
               </div>
             </div>
           </div>
           <div class="cover-footer">
             <span>Prepared by Sightline Advisor Studio</span>
             <span class="confidential">Confidential Draft</span>
+          </div>
+        </div>
+
+        <!-- Executive Dashboard Banner -->
+        <div class="pdf-kpi-grid">
+          <div class="pdf-kpi-card">
+            <span class="kpi-label">Target Country</span>
+            <span class="kpi-val">${escHtml(prop.country || 'N/A')}</span>
+          </div>
+          <div class="pdf-kpi-card">
+            <span class="kpi-label">Target Donor</span>
+            <span class="kpi-val">${escHtml(prop.donor || 'N/A')}</span>
+          </div>
+          <div class="pdf-kpi-card">
+            <span class="kpi-label">Direct Reach</span>
+            <span class="kpi-val">${escHtml(totalDirectReach)}</span>
+          </div>
+          <div class="pdf-kpi-card">
+            <span class="kpi-label">Proposed Budget</span>
+            <span class="kpi-val">${escHtml(budgetVal)}</span>
           </div>
         </div>
         
