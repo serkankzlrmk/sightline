@@ -1772,6 +1772,23 @@ def api_proposal_export(prop_id):
             try: return json.loads(val)
             except Exception: return val if isinstance(val, (dict, list, str)) else default
 
+        # Helper to sanitize markdown table cell content
+        def md_cell(text):
+            """Escape pipe chars and newlines so markdown tables render correctly."""
+            if text is None:
+                return "-"
+            s = str(text).strip()
+            if not s:
+                return "-"
+            # Replace pipe chars that would break table formatting
+            s = s.replace("|", "│")
+            # Replace newlines with <br> for multi-line content
+            s = s.replace("\n", "<br>")
+            # Trim to reasonable length for table cells
+            if len(s) > 300:
+                s = s[:297] + "..."
+            return s
+
         cover = safe_json(row.get("cover_page"), {})
         toc = safe_json(row.get("toc"), []) or safe_json(row.get("toc_nodes"), [])
         logframe = safe_json(row.get("logframe"), {}) or safe_json(row.get("logframe_data"), {})
@@ -1820,15 +1837,15 @@ def api_proposal_export(prop_id):
             direct = b_data.get("direct", {})
             indirect = b_data.get("indirect", "N/A")
             if isinstance(direct, dict):
-                md_parts.append(f"| Women | {direct.get('women', '-')} | - | Targeted female beneficiaries |\n")
-                md_parts.append(f"| Men | {direct.get('men', '-')} | - | Targeted male beneficiaries |\n")
-                md_parts.append(f"| Children | {direct.get('children', '-')} | - | Targeted boys & girls |\n")
+                md_parts.append(f"| Women | {md_cell(direct.get('women', '-'))} | - | Targeted female beneficiaries |\n")
+                md_parts.append(f"| Men | {md_cell(direct.get('men', '-'))} | - | Targeted male beneficiaries |\n")
+                md_parts.append(f"| Children | {md_cell(direct.get('children', '-'))} | - | Targeted boys & girls |\n")
                 total_dir = b_data.get("total_direct") or direct.get("total") or "Sum of categories"
-                md_parts.append(f"| **TOTAL DIRECT** | **{total_dir}** | **{indirect}** | Total projected reach |\n")
+                md_parts.append(f"| **TOTAL DIRECT** | **{md_cell(total_dir)}** | **{md_cell(indirect)}** | Total projected reach |\n")
             elif isinstance(b_data, list):
                 for item in b_data:
                     if isinstance(item, dict):
-                        md_parts.append(f"| {item.get('group', 'Group')} | {item.get('direct', '-')} | {item.get('indirect', '-')} | {item.get('notes', '')} |\n")
+                        md_parts.append(f"| {md_cell(item.get('group', 'Group'))} | {md_cell(item.get('direct', '-'))} | {md_cell(item.get('indirect', '-'))} | {md_cell(item.get('notes', ''))} |\n")
         elif isinstance(b_data, str):
             md_parts.append(f"\n## Target Beneficiaries\n\n{b_data}\n")
 
@@ -1843,13 +1860,13 @@ def api_proposal_export(prop_id):
                 md_parts.append("| Level | Summary / Intervention Node | Causal Relationship / Notes |\n|---|---|---|\n")
                 for node in toc:
                     if isinstance(node, dict):
-                        lvl = node.get("level", "Node").title()
-                        txt = node.get("text") or node.get("label") or str(node)
+                        lvl = md_cell(node.get("level", "Node").title())
+                        txt = md_cell(node.get("text") or node.get("label") or str(node))
                         parents = ", ".join(node.get("parent_ids", []))
                         note = f"Contributes to: {parents}" if parents else "Core Intervention Step"
-                        md_parts.append(f"| {lvl} | {txt} | {note} |\n")
+                        md_parts.append(f"| {lvl} | {txt} | {md_cell(note)} |\n")
                     else:
-                        md_parts.append(f"| Step | {str(node)} | Strategic Flow |\n")
+                        md_parts.append(f"| Step | {md_cell(str(node))} | Strategic Flow |\n")
             elif isinstance(toc, str):
                 md_parts.append(f"\n{toc}\n")
 
@@ -1866,17 +1883,17 @@ def api_proposal_export(prop_id):
                         if isinstance(val, list):
                             for idx, item in enumerate(val):
                                 if isinstance(item, dict):
-                                    md_parts.append(f"| {label} #{idx+1} | {item.get('text', item.get('description', ''))} | {item.get('indicators', '-')} | {item.get('verification', '-')} | {item.get('assumptions', '-')} |\n")
+                                    md_parts.append(f"| {md_cell(label + ' #' + str(idx+1))} | {md_cell(item.get('text', item.get('description', '')))} | {md_cell(item.get('indicators', '-'))} | {md_cell(item.get('verification', '-'))} | {md_cell(item.get('assumptions', '-'))} |\n")
                                 else:
-                                    md_parts.append(f"| {label} #{idx+1} | {str(item)} | Key indicator TBD | Progress reports | Assumptions valid |\n")
+                                    md_parts.append(f"| {md_cell(label + ' #' + str(idx+1))} | {md_cell(str(item))} | Key indicator TBD | Progress reports | Assumptions valid |\n")
                         elif isinstance(val, dict):
-                            md_parts.append(f"| {label} | {val.get('text', val.get('description', ''))} | {val.get('indicators', '-')} | {val.get('verification', '-')} | {val.get('assumptions', '-')} |\n")
+                            md_parts.append(f"| {md_cell(label)} | {md_cell(val.get('text', val.get('description', '')))} | {md_cell(val.get('indicators', '-'))} | {md_cell(val.get('verification', '-'))} | {md_cell(val.get('assumptions', '-'))} |\n")
                         else:
-                            md_parts.append(f"| {label} | {str(val)} | Standard Indicators | Verification Records | Core Assumptions |\n")
+                            md_parts.append(f"| {md_cell(label)} | {md_cell(str(val))} | Standard Indicators | Verification Records | Core Assumptions |\n")
                 if not has_levels:
                     for k, v in logframe.items():
                         lbl = k.replace('_', ' ').title()
-                        md_parts.append(f"| {lbl} | {str(v)} | Specified in M&E | Field Audits | Low Risk |\n")
+                        md_parts.append(f"| {md_cell(lbl)} | {md_cell(str(v))} | Specified in M&E | Field Audits | Low Risk |\n")
             elif isinstance(logframe, str):
                 md_parts.append(f"\n{logframe}\n")
 
@@ -1893,8 +1910,8 @@ def api_proposal_export(prop_id):
                 calc_total = 0.0
                 for line in lines:
                     if isinstance(line, dict):
-                        cat = line.get("category", "General").title()
-                        desc = line.get("description", line.get("item", "-"))
+                        cat = md_cell(line.get("category", "General").title())
+                        desc = md_cell(line.get("description", line.get("item", "-")))
                         amt = line.get("amount", 0)
                         try:
                             amt_num = float(str(amt).replace('$', '').replace(',', ''))
@@ -1916,11 +1933,11 @@ def api_proposal_export(prop_id):
                 indicators = mne.get("indicators", []) if isinstance(mne, dict) else mne
                 for ind in indicators:
                     if isinstance(ind, dict):
-                        name = ind.get("name", ind.get("indicator", "Indicator"))
-                        base = ind.get("baseline", "0")
-                        tgt = ind.get("target", "100%")
-                        src = ind.get("source", ind.get("verification", "Field Reports"))
-                        freq = ind.get("frequency", ind.get("owner", "Monthly / M&E Officer"))
+                        name = md_cell(ind.get("name", ind.get("indicator", "Indicator")))
+                        base = md_cell(ind.get("baseline", "0"))
+                        tgt = md_cell(ind.get("target", "100%"))
+                        src = md_cell(ind.get("source", ind.get("verification", "Field Reports")))
+                        freq = md_cell(ind.get("frequency", ind.get("owner", "Monthly / M&E Officer")))
                         md_parts.append(f"| {name} | {base} | {tgt} | {src} | {freq} |\n")
             elif isinstance(mne, str):
                 md_parts.append(f"\n{mne}\n")
@@ -1931,11 +1948,11 @@ def api_proposal_export(prop_id):
                 md_parts.append("| Risk Category / Threat | Severity / Category | Probability | Impact | Mitigation Strategy |\n|---|---|---|---|---|\n")
                 for r in risks:
                     if isinstance(r, dict):
-                        risk_txt = r.get("risk", r.get("name", "Identified Risk"))
-                        cat = r.get("category", "Operational").title()
-                        prob = r.get("probability", "Medium").title()
-                        imp = r.get("impact", "Medium").title()
-                        mit = r.get("mitigation", r.get("strategy", "Continuous monitoring"))
+                        risk_txt = md_cell(r.get("risk", r.get("name", "Identified Risk")))
+                        cat = md_cell(r.get("category", "Operational").title())
+                        prob = md_cell(r.get("probability", "Medium").title())
+                        imp = md_cell(r.get("impact", "Medium").title())
+                        mit = md_cell(r.get("mitigation", r.get("strategy", "Continuous monitoring")))
                         md_parts.append(f"| {risk_txt} | {cat} | {prob} | {imp} | {mit} |\n")
             elif isinstance(risks, str):
                 md_parts.append(f"\n{risks}\n")
@@ -1946,10 +1963,12 @@ def api_proposal_export(prop_id):
                 md_parts.append("| Source Title | Reference URL / ID | Context Snippet |\n|---|---|---|\n")
                 for src in pinned_sources:
                     if isinstance(src, dict):
-                        stitle = src.get("title", "ReliefWeb/HDX Report")
+                        stitle = md_cell(src.get("title", "ReliefWeb/HDX Report"))
                         surl = src.get("url", "#")
-                        ssnip = src.get("snippet", "-")[:120] + "..." if len(src.get("snippet", "")) > 120 else src.get("snippet", "-")
-                        md_parts.append(f"| {stitle} | [{surl}]({surl}) | {ssnip} |\n")
+                        ssnip = src.get("snippet", "-")
+                        if len(ssnip) > 120:
+                            ssnip = ssnip[:117] + "..."
+                        md_parts.append(f"| {stitle} | {md_cell(surl)} | {md_cell(ssnip)} |\n")
             elif isinstance(pinned_sources, str):
                 md_parts.append(f"\n{pinned_sources}\n")
 

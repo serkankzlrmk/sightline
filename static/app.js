@@ -5596,10 +5596,50 @@ function renderProposalToHtml(markdown) {
   const container = document.createElement('div');
   container.innerHTML = parsed;
 
-  // 1. Post-process Tables
+  // 1. Wrap all tables with a scrollable container and enhance structure
   const tables = container.querySelectorAll('table');
   tables.forEach(table => {
     table.classList.add('pdf-table');
+
+    // Wrap table in a div for overflow control
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pdf-table-wrapper';
+    table.parentNode.insertBefore(wrapper, table);
+    wrapper.appendChild(table);
+
+    // Ensure thead/tbody structure exists
+    const firstRow = table.querySelector('tr');
+    if (firstRow) {
+      // Check if all cells in first row are th — if so, wrap in thead
+      const cells = Array.from(firstRow.children);
+      const allTh = cells.every(c => c.tagName === 'TH');
+      if (allTh) {
+        const thead = document.createElement('thead');
+        table.insertBefore(thead, firstRow);
+        thead.appendChild(firstRow);
+      } else {
+        // First row has mixed/td cells — convert them to th for header
+        cells.forEach(cell => {
+          const th = document.createElement('th');
+          th.innerHTML = cell.innerHTML;
+          th.className = cell.className;
+          firstRow.replaceChild(th, cell);
+        });
+        const thead = document.createElement('thead');
+        table.insertBefore(thead, firstRow);
+        thead.appendChild(firstRow);
+      }
+
+      // Wrap remaining rows in tbody if not already
+      if (!table.querySelector('tbody')) {
+        const tbody = document.createElement('tbody');
+        const remainingRows = Array.from(table.querySelectorAll('tr')).filter(r => r.parentNode !== table.querySelector('thead'));
+        remainingRows.forEach(r => tbody.appendChild(r));
+        table.appendChild(tbody);
+      }
+    }
+
+    // Post-process table cells
     const rows = Array.from(table.querySelectorAll('tr'));
     rows.forEach(tr => {
       const cells = Array.from(tr.children);
@@ -5634,6 +5674,13 @@ function renderProposalToHtml(markdown) {
     sectionIndex++;
     const num = sectionIndex < 10 ? `0${sectionIndex}` : `${sectionIndex}`;
     h2.setAttribute('data-section-num', num);
+  });
+
+  // 3. Wrap narrative paragraphs in a content div for better spacing
+  container.querySelectorAll('p').forEach(p => {
+    if (p.parentNode === container) {
+      p.classList.add('pdf-paragraph');
+    }
   });
 
   return container.innerHTML;
@@ -5694,7 +5741,7 @@ async function exportProposalPDF() {
     printWindow.document.open();
     printWindow.document.write(`
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
         <title>${escHtml(data.title || 'Proposal Document')}</title>
         <meta charset="utf-8">
@@ -5703,34 +5750,36 @@ async function exportProposalPDF() {
           
           @page {
             size: A4 portrait;
-            margin: 20mm 15mm 20mm 15mm;
+            margin: 18mm 14mm 18mm 14mm;
             @top-right {
               content: "Sightline Project Proposal";
               font-family: 'Inter', sans-serif;
-              font-size: 8pt;
+              font-size: 7pt;
               font-weight: 500;
               color: #94a3b8;
             }
             @bottom-left {
               content: "Sightline Advisor Studio • Confidential Operational Proposal";
               font-family: 'Inter', sans-serif;
-              font-size: 8pt;
+              font-size: 7pt;
               color: #94a3b8;
             }
             @bottom-right {
               content: "Page " counter(page);
               font-family: 'Inter', sans-serif;
-              font-size: 8pt;
+              font-size: 7pt;
               font-weight: 600;
               color: #64748b;
             }
           }
           
+          *, *::before, *::after { box-sizing: border-box; }
+
           body {
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             color: #1e293b;
-            line-height: 1.65;
-            font-size: 11px;
+            line-height: 1.6;
+            font-size: 10.5pt;
             margin: 0;
             padding: 0;
             background: #fff;
@@ -5738,15 +5787,14 @@ async function exportProposalPDF() {
             print-color-adjust: exact;
           }
           
-          /* Cover Page */
+          /* ── Cover Page ── */
           .print-cover-page {
-            height: 93vh;
+            min-height: 93vh;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             page-break-after: always;
-            padding: 15px 5px;
-            box-sizing: border-box;
+            padding: 20px 5px;
             position: relative;
           }
 
@@ -5755,18 +5803,18 @@ async function exportProposalPDF() {
             top: 45%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-35deg);
-            font-size: 130px;
-            color: rgba(226, 232, 240, 0.45);
+            font-size: 120px;
+            color: rgba(226, 232, 240, 0.4);
             font-weight: 800;
             font-family: 'Inter', sans-serif;
-            z-index: -1;
+            z-index: 0;
             pointer-events: none;
             letter-spacing: 16px;
           }
           
           .cover-header {
             border-top: 5px solid #e8364e;
-            padding-top: 24px;
+            padding-top: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -5774,7 +5822,7 @@ async function exportProposalPDF() {
           
           .cover-logo {
             font-weight: 800;
-            font-size: 26px;
+            font-size: 24px;
             color: #e8364e;
             letter-spacing: -0.5px;
             font-family: 'Inter', sans-serif;
@@ -5790,34 +5838,36 @@ async function exportProposalPDF() {
             color: #0f172a;
             padding: 5px 12px;
             border-radius: 20px;
-            font-size: 10px;
+            font-size: 9pt;
             font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
           }
           
           .cover-body {
-            margin-top: 60px;
+            margin-top: 50px;
             flex-grow: 1;
+            position: relative;
+            z-index: 1;
           }
           
           .cover-tagline {
-            font-size: 11px;
+            font-size: 10pt;
             text-transform: uppercase;
             letter-spacing: 3px;
             color: #e8364e;
             font-weight: 700;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             display: block;
           }
           
           .cover-title {
             font-family: 'Playfair Display', serif;
-            font-size: 40px;
+            font-size: 34pt;
             font-weight: 800;
-            line-height: 1.18;
+            line-height: 1.15;
             color: #0f172a;
-            margin: 0 0 35px 0;
+            margin: 0 0 30px 0;
             max-width: 95%;
             letter-spacing: -0.5px;
           }
@@ -5825,23 +5875,23 @@ async function exportProposalPDF() {
           .cover-metadata-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px 30px;
+            gap: 16px 28px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-left: 4px solid #0f172a;
-            border-radius: 8px;
-            padding: 24px;
-            margin-top: 40px;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 32px;
           }
           
           .cover-meta-item {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 3px;
           }
           
           .cover-meta-item strong {
-            font-size: 9.5px;
+            font-size: 8pt;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: #64748b;
@@ -5849,16 +5899,16 @@ async function exportProposalPDF() {
           }
           
           .cover-meta-item span {
-            font-size: 13px;
+            font-size: 11pt;
             color: #0f172a;
             font-weight: 600;
           }
           
           .cover-footer {
-            font-size: 10.5px;
+            font-size: 9pt;
             color: #64748b;
             border-top: 1px solid #e2e8f0;
-            padding-top: 20px;
+            padding-top: 16px;
             display: flex;
             justify-content: space-between;
             font-weight: 500;
@@ -5871,28 +5921,29 @@ async function exportProposalPDF() {
             text-transform: uppercase;
           }
           
-          /* Executive KPI Grid Box */
+          /* ── Executive KPI Grid ── */
           .pdf-kpi-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin: 15px 0 25px 0;
+            gap: 10px;
+            margin: 0 0 24px 0;
             page-break-inside: avoid;
+            page-break-after: avoid;
           }
 
           .pdf-kpi-card {
             background: #f8fafc;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #e2e8f0;
             border-top: 3px solid #e8364e;
-            border-radius: 6px;
-            padding: 10px 12px;
+            border-radius: 5px;
+            padding: 10px 10px;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 3px;
           }
 
           .pdf-kpi-card .kpi-label {
-            font-size: 9px;
+            font-size: 7.5pt;
             text-transform: uppercase;
             letter-spacing: 0.8px;
             color: #64748b;
@@ -5900,37 +5951,38 @@ async function exportProposalPDF() {
           }
 
           .pdf-kpi-card .kpi-val {
-            font-size: 14px;
+            font-size: 12pt;
             font-weight: 800;
             color: #0f172a;
           }
 
-          /* Document Content & Headings */
+          /* ── Document Content & Headings ── */
           .proposal-content {
-            padding-top: 10px;
+            padding-top: 0;
           }
 
           h1 {
             font-family: 'Playfair Display', serif;
-            font-size: 28px;
+            font-size: 22pt;
             font-weight: 700;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             color: #0f172a;
             border-bottom: 2px solid #0f172a;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
+            page-break-after: avoid;
           }
 
           h2 {
             font-family: 'Inter', sans-serif;
-            font-size: 16px;
+            font-size: 13pt;
             font-weight: 700;
             color: #0f172a;
             border-bottom: 1.5px solid #e2e8f0;
-            padding-bottom: 6px;
-            margin-top: 36px;
-            margin-bottom: 14px;
+            padding-bottom: 5px;
+            margin-top: 28px;
+            margin-bottom: 12px;
             position: relative;
-            padding-left: 12px;
+            padding-left: 10px;
             border-left: 4px solid #e8364e;
             page-break-after: avoid;
             page-break-inside: avoid;
@@ -5942,39 +5994,52 @@ async function exportProposalPDF() {
             font-weight: 800;
           }
           
-          .proposal-content > h2:not(:first-of-type) {
-            page-break-before: always;
+          /* Only force page break before major new sections, not every h2 */
+          .proposal-content > h2:nth-of-type(n+3) {
+            page-break-before: auto;
           }
 
           h3 {
             font-family: 'Inter', sans-serif;
-            font-size: 13px;
+            font-size: 11pt;
             font-weight: 700;
-            margin-top: 20px;
-            margin-bottom: 10px;
+            margin-top: 16px;
+            margin-bottom: 8px;
             color: #1e293b;
             page-break-after: avoid;
           }
           
-          p {
-            margin: 0 0 14px 0;
+          p, .pdf-paragraph {
+            margin: 0 0 10px 0;
             text-align: justify;
             color: #334155;
+            orphans: 3;
+            widows: 3;
           }
           
-          /* Table Styles - Modern & Structured */
+          /* ── Table Styles ── */
+          .pdf-table-wrapper {
+            page-break-inside: avoid;
+            margin: 14px 0 20px 0;
+            overflow: hidden;
+          }
+
           table, .pdf-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 18px 0 24px 0;
-            font-size: 10.5px;
+            font-size: 8.5pt;
             page-break-inside: auto;
-            border-radius: 4px;
-            box-shadow: 0 0 0 1px #e2e8f0;
+            border: 1px solid #d1d5db;
+            border-radius: 0;
+            box-shadow: none;
           }
 
           thead {
             display: table-header-group;
+          }
+
+          tbody {
+            display: table-row-group;
           }
 
           tr {
@@ -5986,24 +6051,28 @@ async function exportProposalPDF() {
             background-color: #0f172a;
             color: #f8fafc;
             font-weight: 700;
-            font-size: 9.5px;
+            font-size: 7.5pt;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
             text-align: left;
-            padding: 9px 12px;
-            border-bottom: 3px solid #e8364e;
+            padding: 7px 8px;
+            border-bottom: 2px solid #e8364e;
+            white-space: nowrap;
           }
           
           td {
-            padding: 9px 12px;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            border-bottom: 1px solid #e5e7eb;
             color: #334155;
             vertical-align: top;
-            line-height: 1.5;
+            line-height: 1.45;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
           }
           
           tr:nth-child(even) td {
-            background-color: #f8fafc;
+            background-color: #f9fafb;
           }
 
           tr.total-row td {
@@ -6017,17 +6086,19 @@ async function exportProposalPDF() {
           td.col-num, th.col-num {
             text-align: right;
             font-variant-numeric: tabular-nums;
+            white-space: nowrap;
           }
 
           /* Badges */
           .pdf-badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 7.5pt;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
+            line-height: 1.6;
           }
 
           .pdf-badge-high {
@@ -6050,24 +6121,24 @@ async function exportProposalPDF() {
 
           /* Callouts & Quotes */
           blockquote {
-            margin: 16px 0;
-            padding: 12px 16px;
+            margin: 12px 0;
+            padding: 10px 14px;
             background: #fff5f5;
             border-left: 4px solid #e8364e;
-            border-radius: 0 6px 6px 0;
+            border-radius: 0 4px 4px 0;
             color: #1e293b;
             font-style: italic;
             page-break-inside: avoid;
           }
           
           ul, ol {
-            margin: 12px 0;
-            padding-left: 20px;
+            margin: 8px 0;
+            padding-left: 18px;
             color: #334155;
           }
           
           li {
-            margin-bottom: 6px;
+            margin-bottom: 4px;
           }
           
           li::marker {
@@ -6079,11 +6150,21 @@ async function exportProposalPDF() {
             color: #0f172a;
             font-weight: 600;
           }
-          
+
+          /* Ensure content blocks stay together */
+          .proposal-content > *:first-child {
+            margin-top: 0;
+          }
+
+          /* Metadata items at top (country, donor, etc.) */
+          .proposal-content > p:first-of-type {
+            margin-bottom: 8px;
+            line-height: 1.8;
+          }
+
           @media print {
-            .no-print {
-              display: none;
-            }
+            .no-print { display: none; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           }
         </style>
       </head>
@@ -6151,7 +6232,7 @@ async function exportProposalPDF() {
           window.onload = function() {
             setTimeout(function() {
               window.print();
-            }, 500);
+            }, 600);
           };
         </script>
       </body>
