@@ -5596,60 +5596,56 @@ function renderProposalToHtml(markdown) {
   const container = document.createElement('div');
   container.innerHTML = parsed;
 
-  // 1. Wrap all tables with a scrollable container and enhance structure
-  const tables = container.querySelectorAll('table');
+  // 1. Wrap all tables with a container and enhance structure
+  // Collect tables first (static array) since DOM changes during iteration
+  const tables = Array.from(container.querySelectorAll('table'));
   tables.forEach(table => {
+    // Skip tables already processed
+    if (table.classList.contains('pdf-table')) return;
     table.classList.add('pdf-table');
 
-    // Wrap table in a div for overflow control
-    const wrapper = document.createElement('div');
-    wrapper.className = 'pdf-table-wrapper';
-    table.parentNode.insertBefore(wrapper, table);
-    wrapper.appendChild(table);
-
-    // Ensure thead/tbody structure exists
+    // Ensure thead/tbody: move first row to thead if needed
     const firstRow = table.querySelector('tr');
-    if (firstRow) {
-      // Check if all cells in first row are th — if so, wrap in thead
-      const cells = Array.from(firstRow.children);
-      const allTh = cells.every(c => c.tagName === 'TH');
-      if (allTh) {
-        const thead = document.createElement('thead');
-        table.insertBefore(thead, firstRow);
-        thead.appendChild(firstRow);
-      } else {
-        // First row has mixed/td cells — convert them to th for header
-        cells.forEach(cell => {
+    if (firstRow && !table.querySelector('thead')) {
+      // Convert first row cells to th if they're td
+      Array.from(firstRow.children).forEach(cell => {
+        if (cell.tagName === 'TD') {
           const th = document.createElement('th');
           th.innerHTML = cell.innerHTML;
-          th.className = cell.className;
+          if (cell.className) th.className = cell.className;
           firstRow.replaceChild(th, cell);
-        });
-        const thead = document.createElement('thead');
-        table.insertBefore(thead, firstRow);
-        thead.appendChild(firstRow);
-      }
-
-      // Wrap remaining rows in tbody if not already
-      if (!table.querySelector('tbody')) {
-        const tbody = document.createElement('tbody');
-        const remainingRows = Array.from(table.querySelectorAll('tr')).filter(r => r.parentNode !== table.querySelector('thead'));
-        remainingRows.forEach(r => tbody.appendChild(r));
-        table.appendChild(tbody);
-      }
+        }
+      });
+      const thead = document.createElement('thead');
+      thead.appendChild(firstRow);  // removes firstRow from table body
+      table.prepend(thead);  // safe: prepends to table
     }
 
-    // Post-process table cells
-    const rows = Array.from(table.querySelectorAll('tr'));
-    rows.forEach(tr => {
+    // Wrap remaining rows in tbody
+    if (!table.querySelector('tbody')) {
+      const tbody = document.createElement('tbody');
+      const rows = Array.from(table.querySelectorAll('tr'));
+      rows.forEach(r => tbody.appendChild(r));
+      table.appendChild(tbody);
+    }
+
+    // Wrap table in div for overflow control
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pdf-table-wrapper';
+    if (table.parentNode) {
+      table.parentNode.replaceChild(wrapper, table);
+    }
+    wrapper.appendChild(table);
+
+    // Post-process: total rows, risk badges, numeric alignment
+    const allRows = Array.from(table.querySelectorAll('tr'));
+    allRows.forEach(tr => {
       const cells = Array.from(tr.children);
       cells.forEach(cell => {
         const txt = cell.textContent.trim();
-        // Detect total rows
-        if (/total|grand total|toplam/i.test(txt) && (cell.tagName === 'TH' || cell.tagName === 'TD')) {
+        if (/total|grand total|toplam/i.test(txt)) {
           tr.classList.add('total-row');
         }
-        // Risk badges
         if (/^(high|yüksek)$/i.test(txt)) {
           cell.innerHTML = `<span class="pdf-badge pdf-badge-high">${escHtml(txt)}</span>`;
         } else if (/^(medium|orta)$/i.test(txt)) {
@@ -5657,7 +5653,6 @@ function renderProposalToHtml(markdown) {
         } else if (/^(low|düşük)$/i.test(txt)) {
           cell.innerHTML = `<span class="pdf-badge pdf-badge-low">${escHtml(txt)}</span>`;
         }
-        // Right-align currency / numeric values
         if (/^\$?\d{1,3}(,\d{3})*(\.\d{2})?%?$/.test(txt)) {
           cell.classList.add('col-num');
         }
