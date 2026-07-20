@@ -3910,10 +3910,10 @@ async function initProposalPipeline() {
       }
 
       if (target.classList.contains('risk-item-input') && target.tagName !== 'SELECT') {
-        const tr = target.closest('tr');
-        const idx = parseInt(tr.dataset.index);
+        const card = target.closest('.risk-detail-card');
+        const idx = card ? parseInt(card.dataset.index) : -1;
         const field = target.dataset.field;
-        if (Array.isArray(proposalState.activeProposal.risk_matrix)) {
+        if (idx >= 0 && Array.isArray(proposalState.activeProposal.risk_matrix)) {
           proposalState.activeProposal.risk_matrix[idx][field] = target.value;
           debouncedSaveProposal();
         }
@@ -3943,11 +3943,15 @@ async function initProposalPipeline() {
       }
 
       if (target.classList.contains('risk-item-input') && target.tagName === 'SELECT') {
-        const tr = target.closest('tr');
-        const idx = parseInt(tr.dataset.index);
+        const card = target.closest('.risk-detail-card');
+        const idx = card ? parseInt(card.dataset.index) : -1;
         const field = target.dataset.field;
-        proposalState.activeProposal.risk_matrix[idx][field] = target.value;
-        debouncedSaveProposal();
+        if (idx >= 0 && Array.isArray(proposalState.activeProposal.risk_matrix)) {
+          proposalState.activeProposal.risk_matrix[idx][field] = target.value;
+          // Re-render to update heatmap position
+          renderSectionContent('risk_matrix');
+          debouncedSaveProposal();
+        }
       }
 
       if (target.classList.contains('toc-node-input') && target.tagName === 'SELECT') {
@@ -4548,9 +4552,21 @@ function renderRiskHeatmap(risks, canEdit) {
       html += `<input type="text" class="table-input risk-item-input" data-field="risk" value="${escHtml(r.risk || '')}" placeholder="Risk Event" style="flex:1; font-weight:600; font-size:14px; padding:4px 0; border:none; border-bottom:1px solid transparent; border-radius:0;">`;
       html += `<button type="button" class="btn-delete-row" data-action="delete-risk" data-index="${idx}" style="width:24px; height:24px; border-radius:4px;">×</button>`;
       html += `</div>`;
+      // Probability & Impact dropdowns (works on mobile too)
+      html += `<div style="display:flex; gap:8px; align-items:center;">`;
+      html += `<label style="font-size:11px; color:var(--text-muted); font-weight:600;">P:</label>`;
+      html += `<select class="table-input risk-item-input" data-field="probability" style="flex:1; padding:4px 6px; font-size:12px; background:var(--bg-light); border:1px solid var(--border-color); border-radius:4px;">`;
+      for (const lv of levels) { html += `<option value="${lv}" ${r.probability === lv ? 'selected' : ''}>${lv}</option>`; }
+      html += `</select>`;
+      html += `<label style="font-size:11px; color:var(--text-muted); font-weight:600;">I:</label>`;
+      html += `<select class="table-input risk-item-input" data-field="impact" style="flex:1; padding:4px 6px; font-size:12px; background:var(--bg-light); border:1px solid var(--border-color); border-radius:4px;">`;
+      for (const lv of levels) { html += `<option value="${lv}" ${r.impact === lv ? 'selected' : ''}>${lv}</option>`; }
+      html += `</select>`;
+      html += `</div>`;
       html += `<input type="text" class="table-input risk-item-input" data-field="mitigation" value="${escHtml(r.mitigation || '')}" placeholder="Mitigation Strategy" style="padding:6px 8px; font-size:13px; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px;">`;
     } else {
       html += `<strong style="font-size:14px;">${escHtml(r.risk || '')}</strong>`;
+      html += `<div style="font-size:12px; color:var(--text-muted);">P: ${escHtml(r.probability || '')} · I: ${escHtml(r.impact || '')}</div>`;
       html += `<div style="font-size:13px; color:var(--text-muted);">Mitigation: ${escHtml(r.mitigation || '')}</div>`;
     }
     html += `</div>`;
@@ -4966,7 +4982,21 @@ async function generateSection(step) {
   const editorEl = document.getElementById(`wizard-editor-${step}`);
   const manualDraft = editorEl ? editorEl.value.trim() : '';
 
-  showAdvisorMessage('Sightline Advisor', `Generating ${step} section...${instructions ? ' Using your instructions.' : ''} The agent is researching and writing.`);
+  // Show generating state in review panel
+  const reviewContent = document.getElementById('review-content');
+  const statusEl = document.getElementById('advisor-status');
+  if (statusEl) statusEl.textContent = 'Generating...';
+  if (reviewContent) {
+    const stepLabel = step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    reviewContent.innerHTML = `
+      <div style="text-align:center; padding:40px 20px;">
+        <div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+        <p style="font-size:14px; font-weight:600; color:var(--primary); margin-top:16px;">Generating ${escHtml(stepLabel)}...</p>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:8px;">The AI is researching data sources and writing your section.</p>
+        <p style="font-size:11px; color:var(--text-muted); margin-top:4px;">This may take 10-30 seconds</p>
+      </div>`;
+  }
+
   renderSectionContent(step);
   try {
     const body = {};
@@ -4987,20 +5017,61 @@ async function generateSection(step) {
     renderWizardSteps();
     renderSectionContent(step);
 
-    if (data.overall_score !== undefined) {
-      const scoreMsg = `${step} generated. Quality score: ${data.overall_score}/100`;
-      showAdvisorMessage('Sightline Advisor', scoreMsg);
-      if (data.suggestions && data.suggestions.length > 0) {
-        const suggestionText = data.suggestions.slice(0, 5).join('\n');
-        showAdvisorMessage('M&E Review', suggestionText);
+    // Show result in review panel
+    if (statusEl) statusEl.textContent = 'Ready';
+    if (reviewContent) {
+      const stepLabel2 = step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      let resultHtml = `<div style="text-align:center; padding:30px 20px;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" style="margin-bottom:8px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <p style="font-size:14px; font-weight:600; color:var(--success);">${escHtml(stepLabel2)} Generated</p>`;
+
+      if (data.overall_score !== undefined) {
+        const scoreColor = data.overall_score >= 80 ? 'var(--success)' : data.overall_score >= 60 ? 'var(--warning)' : 'var(--danger)';
+        resultHtml += `<p style="font-size:24px; font-weight:700; color:${scoreColor}; margin-top:8px;">${data.overall_score}/100</p>`;
       }
-    } else {
-      showAdvisorMessage('Sightline Advisor', `${step} section generated. Review, edit, or click "Approve & Continue" when ready.`);
+
+      if (data.suggestions && data.suggestions.length > 0) {
+        resultHtml += `<div style="text-align:left; margin-top:16px; padding:12px; background:var(--bg-light); border-radius:6px; border:1px solid var(--border-color);">
+          <div style="font-size:11px; font-weight:600; text-transform:uppercase; color:var(--primary); margin-bottom:8px;">💡 Suggestions</div>`;
+        for (const s of data.suggestions.slice(0, 5)) {
+          resultHtml += `<div style="font-size:12px; color:var(--text-secondary); padding:2px 0;">• ${escHtml(s)}</div>`;
+        }
+        resultHtml += `</div>`;
+      }
+
+      if (data.sources && data.sources.length > 0) {
+        resultHtml += `<div style="text-align:left; margin-top:12px; padding:12px; background:var(--bg-light); border-radius:6px; border:1px solid var(--border-color);">
+          <div style="font-size:11px; font-weight:600; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px;">📎 Sources Used</div>`;
+        for (const src of data.sources.slice(0, 8)) {
+          const title = escHtml(src.title || src.url || 'Source');
+          const url = src.url || '#';
+          resultHtml += `<div style="font-size:11px; padding:2px 0;"><a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none;">${title}</a></div>`;
+        }
+        resultHtml += `</div>`;
+      }
+
+      resultHtml += `
+        <div style="margin-top:16px;">
+          <button class="btn btn-sm btn-primary" onclick="runProposalReview()" style="width:100%;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Run Full Review
+          </button>
+        </div>
+      </div>`;
+      reviewContent.innerHTML = resultHtml;
     }
   } catch (err) {
     proposalState.generating = false;
     renderSectionContent(step);
-    showAdvisorMessage('System', `Generation failed: ${err.message}`);
+    if (statusEl) statusEl.textContent = 'Error';
+    if (reviewContent) {
+      reviewContent.innerHTML = `
+        <div style="text-align:center; padding:30px 20px; color:var(--danger);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <p>Generation failed: ${escHtml(err.message)}</p>
+          <button class="btn btn-sm btn-secondary" onclick="generateSection('${escHtml(step)}')" style="margin-top:12px;">Try Again</button>
+        </div>`;
+    }
   }
 }
 
@@ -5974,7 +6045,14 @@ async function loadAndRenderAdvisorHistory(propId, propTitle) {
 
 async function saveActiveProposal() {
   if (!proposalState.activeProposalId || !proposalState.activeProposal) return;
-  try { await api(`/api/proposals/${proposalState.activeProposalId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposalState.activeProposal) }); }
+  try {
+    await api(`/api/proposals/${proposalState.activeProposalId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposalState.activeProposal) });
+    // Show subtle notification in review panel after manual edits
+    const statusEl = document.getElementById('advisor-status');
+    if (statusEl && statusEl.textContent !== 'Analyzing...' && statusEl.textContent !== 'Generating...') {
+      statusEl.textContent = 'Edited · Analyze for feedback';
+    }
+  }
   catch (err) { console.warn("Save proposal failed:", err); }
 }
 
