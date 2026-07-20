@@ -3687,19 +3687,13 @@ async function initProposalPipeline() {
   const btnCreateFirst = document.getElementById('btn-create-first-proposal');
   const btnExport = document.getElementById('btn-proposal-export');
   const btnExportPdf = document.getElementById('btn-proposal-export-pdf');
-  const btnSendCritique = document.getElementById('btn-send-critique');
-  const txtCritique = document.getElementById('critique-input');
+  const btnRunReview = document.getElementById('btn-run-review');
 
   if (btnNew) btnNew.addEventListener('click', createNewProposal);
   if (btnCreateFirst) btnCreateFirst.addEventListener('click', createNewProposal);
   if (btnExport) btnExport.addEventListener('click', exportProposalMarkdown);
   if (btnExportPdf) btnExportPdf.addEventListener('click', exportProposalPDF);
-  if (btnSendCritique) btnSendCritique.addEventListener('click', sendProposalCritique);
-  if (txtCritique) {
-    txtCritique.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendProposalCritique(); }
-    });
-  }
+  if (btnRunReview) btnRunReview.addEventListener('click', runProposalReview);
 
   // Sidebar Toggles & Focus Mode
   const btnTogglePropSidebar = document.getElementById('btn-toggle-proposal-sidebar');
@@ -5135,133 +5129,183 @@ function wizardSelectStep(step) {
   renderSectionContent(step);
 }
 
-async function sendProposalCritique() {
-  const inp = document.getElementById('critique-input');
-  const msgs = document.getElementById('critique-messages');
-  if (!inp || !msgs) return;
-  const text = inp.value.trim();
-  if (!text) return;
+function showAdvisorMessage(sender, text) {
+  // Show message in the review panel
+  const reviewContent = document.getElementById('review-content');
+  if (!reviewContent) return;
+
+  const statusColors = {
+    'System': 'var(--text-muted)',
+    'Sightline Advisor': 'var(--primary)',
+    'M&E Review': 'var(--primary)',
+    'M&e Validator': 'var(--primary)',
+    'Error': 'var(--danger)',
+  };
+
+  const msgEl = document.createElement('div');
+  msgEl.style.cssText = `padding:8px 12px; margin:4px 0; border-radius:6px; background:var(--bg-light); border:1px solid var(--border-color); font-size:13px;`;
+  msgEl.innerHTML = `<strong style="color:${statusColors[sender] || 'var(--primary)'}">${escHtml(sender)}</strong><p style="margin:4px 0 0 0; color:var(--text-secondary)">${escHtml(text)}</p>`;
+  reviewContent.appendChild(msgEl);
+  reviewContent.scrollTop = reviewContent.scrollHeight;
+}
+
+async function runProposalReview() {
+  const reviewContent = document.getElementById('review-content');
+  const statusEl = document.getElementById('advisor-status');
+  const btnReview = document.getElementById('btn-run-review');
+
   if (!proposalState.activeProposalId) {
     showAdvisorMessage('System', 'Please select or create a proposal first.');
     return;
   }
 
-  inp.value = '';
+  if (btnReview) btnReview.disabled = true;
+  if (statusEl) statusEl.textContent = 'Analyzing...';
 
-  // Render user message
-  const userBubble = document.createElement('div');
-  userBubble.className = 'critique-msg user';
-  userBubble.innerHTML = `<strong>You</strong><p>${escHtml(text)}</p>`;
-  msgs.appendChild(userBubble);
-
-  // Create assistant bubble with streaming content
-  const aiBubble = document.createElement('div');
-  aiBubble.className = 'critique-msg system';
-  aiBubble.innerHTML = `<strong>Sightline</strong><div class="critique-content"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
-  msgs.appendChild(aiBubble);
-  msgs.scrollTop = msgs.scrollHeight;
-
-  const contentEl = aiBubble.querySelector('.critique-content');
-
-  const setStatus = (s) => {
-    const el = document.getElementById('advisor-status');
-    if (el) { el.textContent = s; }
-  };
-  setStatus('Thinking...');
-
-  const btnSend = document.getElementById('btn-send-critique');
-  if (btnSend) btnSend.disabled = true;
+  // Show loading state
+  reviewContent.innerHTML = `
+    <div style="text-align:center; padding:40px 20px;">
+      <div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+      <p style="font-size:13px; color:var(--text-muted); margin-top:12px;">Analyzing your proposal...</p>
+      <p style="font-size:11px; color:var(--text-muted);">This may take 10-30 seconds</p>
+    </div>`;
 
   try {
-    const resp = await api('/api/agent/chat', {
+    const resp = await api(`/api/proposals/${proposalState.activeProposalId}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: text,
-        mode: 'proposal',
-        proposal_id: proposalState.activeProposalId,
-      }),
     });
 
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      contentEl.innerHTML = `<span class="msg-error">${escHtml(errData.error || 'Request failed')}</span>`;
-      setStatus('Error');
+    const data = await resp.json();
+
+    if (data.error) {
+      reviewContent.innerHTML = `
+        <div style="text-align:center; padding:40px 20px; color:var(--danger);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <p>${escHtml(data.error)}</p>
+          <button class="btn btn-sm btn-secondary" onclick="runProposalReview()" style="margin-top:12px;">Try Again</button>
+        </div>`;
+      if (statusEl) statusEl.textContent = 'Error';
       return;
     }
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '', fullText = '';
+    renderReviewPanel(data);
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        let evt;
-        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
-
-        if (evt.type === 'token') {
-          if (!fullText) contentEl.innerHTML = '';
-          fullText += evt.text || '';
-          contentEl.innerHTML = sanitizeHtml(md(fullText));
-          msgs.scrollTop = msgs.scrollHeight;
-        } else if (evt.type === 'tool_start') {
-          if (!fullText) contentEl.innerHTML = '';
-          const toolEl = document.createElement('div');
-          toolEl.className = 'critique-tool-ind';
-          toolEl.textContent = `🔧 ${evt.name}`;
-          contentEl.appendChild(toolEl);
-          msgs.scrollTop = msgs.scrollHeight;
-        } else if (evt.type === 'tool_done') {
-          // visually noted by tool_start
-        } else if (evt.type === 'error') {
-          contentEl.innerHTML = `<span class="msg-error">Error: ${escHtml(evt.text || 'Unknown error')}</span>`;
-        } else if (evt.type === 'done') {
-          if (!fullText) contentEl.innerHTML = '<span class="msg-placeholder">—</span>';
-        }
-      }
-    }
-
-    // Refresh proposal state in case tools modified it
-    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
-    const prop = await refreshed.json();
-    if (!prop.error) {
-      proposalState.activeProposal = prop;
-      renderSectionContent(proposalState.currentStep);
-    }
-    setStatus('Ready');
   } catch (err) {
-    contentEl.innerHTML = `<span class="msg-error">Connection error: ${escHtml(err.message)}</span>`;
-    setStatus('Error');
+    reviewContent.innerHTML = `
+      <div style="text-align:center; padding:40px 20px; color:var(--danger);">
+        <p>Review failed: ${escHtml(err.message)}</p>
+        <button class="btn btn-sm btn-secondary" onclick="runProposalReview()" style="margin-top:12px;">Try Again</button>
+      </div>`;
+    if (statusEl) statusEl.textContent = 'Error';
   } finally {
-    if (btnSend) btnSend.disabled = false;
+    if (btnReview) btnReview.disabled = false;
   }
 }
 
-function showAdvisorMessage(sender, text) {
-  const msgs = document.getElementById('critique-messages');
-  if (!msgs) return;
-  const bubble = document.createElement('div');
-  bubble.className = 'critique-msg system';
+function renderReviewPanel(review) {
+  const reviewContent = document.getElementById('review-content');
+  const statusEl = document.getElementById('advisor-status');
+  if (!reviewContent) return;
 
-  let formatted = escHtml(text);
-  formatted = formatted.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, (match, title, url) => {
-    return `<div class="advisor-source-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-light); padding:8px 12px; border:1px solid var(--border-color); border-radius:6px; margin:4px 0;">
-      <a href="${url}" target="_blank" style="color:var(--primary); font-weight:600; font-size:12px; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="${title}">${title}</a>
-      <button class="btn btn-xs" onclick="window.pinSource('${url}', '${title.replace(/'/g, "\\'")}')" style="background:var(--primary); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:600;">📌 Pin</button>
+  const score = review.overall_score || 0;
+  const scoreColor = score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
+  const scoreLabel = score >= 80 ? 'Strong' : score >= 60 ? 'Needs Work' : score >= 40 ? 'Weak' : 'Incomplete';
+
+  let html = '';
+
+  // Overall score
+  html += `
+    <div style="text-align:center; padding:20px 0 16px; border-bottom:1px solid var(--border-color); margin-bottom:12px;">
+      <div style="font-size:48px; font-weight:700; color:${scoreColor}; line-height:1;">${score}</div>
+      <div style="font-size:14px; font-weight:600; color:${scoreColor}; margin-top:4px;">${escHtml(scoreLabel)}</div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Overall Proposal Score</div>
     </div>`;
-  });
 
-  bubble.innerHTML = `<strong>${escHtml(sender)}</strong><p>${formatted}</p>`;
-  msgs.appendChild(bubble);
-  msgs.scrollTop = msgs.scrollHeight;
+  // Overall feedback
+  if (review.overall_feedback) {
+    html += `<div style="padding:8px 12px; margin-bottom:12px; background:var(--bg-light); border-radius:6px; font-size:13px; color:var(--text-secondary);">${escHtml(review.overall_feedback)}</div>`;
+  }
+
+  // Section scores
+  if (review.sections && review.sections.length > 0) {
+    html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:8px;">Section Scores</div>`;
+    for (const sec of review.sections) {
+      const sScore = sec.score || 0;
+      const sColor = sScore >= 80 ? 'var(--success)' : sScore >= 60 ? 'var(--warning)' : 'var(--danger)';
+      const statusIcon = sec.status === 'complete' ? '✅' : sec.status === 'needs_improvement' ? '⚠️' : sec.status === 'incomplete' ? '❌' : sec.status === 'skipped' ? '⏭️' : '⬜';
+      html += `
+        <div style="display:flex; align-items:center; padding:6px 8px; border-bottom:1px solid var(--border-color); cursor:pointer;" onclick="wizardSelectStep('${escHtml(sec.step)}')">
+          <span style="margin-right:8px;">${statusIcon}</span>
+          <span style="flex:1; font-size:13px; font-weight:500;">${escHtml(sec.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</span>
+          <span style="font-size:14px; font-weight:700; color:${sColor};">${sScore}</span>
+        </div>`;
+    }
+  }
+
+  // High priority issues
+  if (review.high_priority && review.high_priority.length > 0) {
+    html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--danger); margin:16px 0 8px;">🔴 High Priority</div>`;
+    for (const issue of review.high_priority) {
+      html += `<div style="padding:4px 8px 4px 20px; font-size:13px; color:var(--text-secondary);">• ${escHtml(issue)}</div>`;
+    }
+  }
+
+  // Medium priority
+  if (review.medium_priority && review.medium_priority.length > 0) {
+    html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--warning); margin:12px 0 8px;">🟡 Medium Priority</div>`;
+    for (const issue of review.medium_priority) {
+      html += `<div style="padding:4px 8px 4px 20px; font-size:13px; color:var(--text-secondary);">• ${escHtml(issue)}</div>`;
+    }
+  }
+
+  // Strengths
+  if (review.strengths && review.strengths.length > 0) {
+    html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--success); margin:12px 0 8px;">🟢 Strengths</div>`;
+    for (const s of review.strengths) {
+      html += `<div style="padding:4px 8px 4px 20px; font-size:13px; color:var(--text-secondary);">• ${escHtml(s)}</div>`;
+    }
+  }
+
+  // Suggested actions
+  if (review.suggested_actions && review.suggested_actions.length > 0) {
+    html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--primary); margin:16px 0 8px;">💡 Suggested Actions</div>`;
+    for (const action of review.suggested_actions) {
+      html += `<div style="padding:6px 8px; margin:4px 0; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px; font-size:13px;">
+        <strong style="color:var(--primary);">${escHtml(action.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</strong>
+        <p style="margin:2px 0 0 0; color:var(--text-secondary);">${escHtml(action.action)}</p>
+      </div>`;
+    }
+  }
+
+  // Sources used
+  if (review.sources && review.sources.length > 0) {
+    html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin:16px 0 8px;">📎 Sources Used</div>`;
+    for (const src of review.sources.slice(0, 10)) {
+      const title = escHtml(src.title || src.url || 'Source');
+      const url = src.url || '#';
+      html += `<div style="padding:4px 8px; font-size:12px;">
+        <a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none;">${title}</a>
+      </div>`;
+    }
+  }
+
+  // Re-analyze button
+  html += `
+    <div style="text-align:center; padding:16px 0 8px; margin-top:16px; border-top:1px solid var(--border-color);">
+      <button class="btn btn-sm btn-primary" onclick="runProposalReview()" style="width:100%;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Re-analyze
+      </button>
+    </div>`;
+
+  reviewContent.innerHTML = html;
+  reviewContent.scrollTop = 0;
+  if (statusEl) statusEl.textContent = `${score}/100`;
 }
+
+// Make runProposalReview globally accessible
+window.runProposalReview = runProposalReview;
 
 window.pinSource = async function (url, title) {
   if (!proposalState.activeProposalId) return;

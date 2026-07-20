@@ -10,6 +10,7 @@ Register in server.py with:
 
 import json
 import logging
+import os
 import uuid
 
 from flask import Blueprint, Response, jsonify, request
@@ -1887,5 +1888,151 @@ def api_proposal_export(prop_id):
     except Exception as e:
         logger.error(f"api_proposal_export error: {prop_id}, {e}")
         return jsonify({"error": "Internal server error"}), 500
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROPOSAL REVIEW — Structured AI feedback (replaces advisor chat)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@proposal_bp.route("/proposals/<prop_id>/review", methods=["POST"])
+@require_role("premium")
+def api_proposal_review(prop_id):
+    """AI-powered structured review of entire proposal.
+    
+    Returns section-by-section analysis with scores, priorities, and suggestions.
+    Uses gemini-2.5-flash for fast, high-quality review.
+    """
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM proposals WHERE id = ? AND uid = ?",
+            (prop_id, uid)
+        ).fetchone()
+
+        if not row:
+            return jsonify({"error": "Proposal not found"}), 404
+
+        # Collect all section content for review
+        sections_content = {}
+        field_map = {
+            "cover": "cover_page", "background": "background",
+            "needs_assessment": "needs_assessment", "toc": "toc",
+            "logframe": "logframe", "methodology": "methodology",
+            "budget": "budget", "mne_framework": "mne_framework",
+            "risk_matrix": "risk_matrix", "sustainability": "sustainability",
+            "coordination": "coordination", "final_review": "narrative",
+        }
+
+        for step, field in field_map.items():
+            content = row[field]
+            if content and content not in ("", "{}", "[]", "null"):
+                try:
+                    parsed = json.loads(content)
+                    if isinstance(parsed, dict) and "content" in parsed:
+                        sections_content[step] = {
+                            "content": parsed["content"][:2000],
+                            "sources": parsed.get("sources", [])
+                        }
+                    else:
+                        sections_content[step] = {"content": json.dumps(parsed, indent=2)[:2000]}
+                except (json.JSONDecodeError, TypeError):
+                    sections_content[step] = {"content": str(content)[:2000]}
+
+        # Check step_status for skipped sections
+        try:
+            step_status = json.loads(row["step_status"]) if row["step_status"] else {}
+        except (json.JSONDecodeError, TypeError):
+            step_status = {}
+
+        # Build the review prompt with all section content
+        from agent.proposal_prompts import REVIEW_SYSTEM_PROMPT
+        section_texts = []
+        for step, data in sections_content.items():
+            status = step_status.get(step, "pending")
+            section_texts.append(f"## {step.replace('_', ' ').title()} [status: {status}]\n{data['content']}")
+
+        # Add skipped/empty sections
+        for step, field in field_map.items():
+            if step not in sections_content:
+                status = step_status.get(step, "pending")
+                section_texts.append(f"## {step.replace('_', ' ').title()} [status: {status}]\n(empty)")
+
+        full_proposal_text = "\n\n---\n\n".join(section_texts)
+
+        metadata = f"Country: {row['country']}\nEvent/Crisis: {row['event']}\nDonor: {row['donor']}"
+
+        user_message = f"{metadata}\n\n--- PROPOSAL CONTENT ---\n\n{full_proposal_text}"
+
+        # Use Gemini 2.5 Flash for review (fast, high quality, good JSON)
+        from langchain_openai import ChatOpenAI
+        from config import config as _cfg
+
+        review_model = os.environ.get("REVIEW_MODEL", "google/gemini-2.5-flash")
+        model = ChatOpenAI(
+            model=review_model,
+            base_url=_cfg._LLM_BASE_URL,
+            api_key=_cfg._LLM_API_KEY,
+            temperature=0.3,
+            max_tokens=4096,
+            timeout=90,
+        )
+
+        from langchain_core.messages import HumanMessage, SystemMessage
+        messages = [
+            SystemMessage(content=REVIEW_SYSTEM_PROMPT),
+            HumanMessage(content=user_message),
+        ]
+
+        response = model.invoke(messages)
+        review_text = response.content.strip()
+
+        # Parse JSON response
+        if review_text.startswith("```json"):
+            review_text = review_text[7:]
+        if review_text.startswith("```"):
+            review_text = review_text[3:]
+        if review_text.endswith("```"):
+            review_text = review_text[:-3]
+
+        try:
+            review_data = json.loads(review_text)
+        except json.JSONDecodeError:
+            review_data = {
+                "sections": [],
+                "overall_score": 0,
+                "overall_feedback": review_text[:500],
+                "high_priority": [],
+                "medium_priority": [],
+                "strengths": [],
+                "suggested_actions": [],
+                "raw_response": review_text
+            }
+
+        # Collect sources from sections
+        all_sources = []
+        for step, data in sections_content.items():
+            if isinstance(data, dict):
+                for src in data.get("sources", []):
+                    if src not in all_sources:
+                        all_sources.append(src)
+        review_data["sources"] = all_sources
+
+        # Save review to DB
+        conn.execute(
+            "UPDATE proposals SET review = ? WHERE id = ? AND uid = ?",
+            (json.dumps(review_data), prop_id, uid)
+        )
+        conn.commit()
+
+        _log_event(uid, "proposal_reviewed", {"prop_id": prop_id, "score": review_data.get("overall_score", 0)})
+
+        return jsonify(review_data)
+
+    except Exception as e:
+        logger.error(f"api_proposal_review error: {prop_id}, {e}")
+        return jsonify({"error": f"Review failed: {str(e)}"}), 500
     finally:
         conn.close()

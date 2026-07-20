@@ -12,6 +12,7 @@ Revision uses streaming for real-time feedback.
 
 import json
 import logging
+import os
 import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -50,12 +51,20 @@ def _get_tools_for_step(step: str):
 
 
 def _get_model():
-    """Get a fresh model instance for proposal generation."""
+    """Get a fresh model instance for proposal generation.
+    
+    Uses Gemini 2.5 Flash for better tool-calling and quality.
+    Falls back to the default model if Gemini is unavailable.
+    """
     try:
         from langchain_openai import ChatOpenAI
         from config import config as _cfg
+        
+        # Use Gemini 2.5 Flash for proposal generation (better tool-calling, quality)
+        proposal_model = os.environ.get("PROPOSAL_MODEL", "google/gemini-2.5-flash")
+        
         return ChatOpenAI(
-            model=_cfg.OLLAMA_MODEL,
+            model=proposal_model,
             base_url=_cfg._LLM_BASE_URL,
             api_key=_cfg._LLM_API_KEY,
             temperature=0.4,
