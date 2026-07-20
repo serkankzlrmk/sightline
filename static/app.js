@@ -3638,7 +3638,7 @@ document.addEventListener('click', (e) => {
 });
 
 // ── Proposal Wizard — Step-by-step donor proposal generator ──
-const OPTIONAL_STEPS = ['budget', 'risk_matrix', 'mne_framework', 'sustainability', 'coordination'];
+const OPTIONAL_STEPS = ['background', 'needs_assessment', 'toc', 'logframe', 'methodology', 'budget', 'mne_framework', 'risk_matrix', 'sustainability', 'coordination'];
 
 const PROPOSAL_STEPS = [
   { key: 'cover', label: 'Cover Page', num: 1 },
@@ -4207,9 +4207,9 @@ function renderSectionContent(step) {
               <span>Approve &amp; Continue</span>
             </button>
           ` : ''}
-          ${OPTIONAL_STEPS.includes(step) && !sectionContent ? `
+          ${OPTIONAL_STEPS.includes(step) ? `
             <button class="btn btn-secondary btn-sm" data-action="skip-section" data-step="${step}">
-              <span>Skip (optional)</span>
+              <span>${sectionContent ? 'Skip for now' : 'Skip (optional)'}</span>
             </button>
           ` : ''}
         ` : `<span class="text-muted" style="font-size:12px">Read-only \u2014 upgrade to premium to create proposals</span>`}
