@@ -4185,7 +4185,7 @@ function renderSectionContent(step) {
         ${sectionContent
       ? (isMarkdownSection
         ? `<textarea id="wizard-editor-${step}" class="wizard-content-editor" style="width:100%; min-height:300px; font-family:var(--font-mono, monospace); font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary); resize:vertical; line-height:1.6;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</textarea>`
-        : `<pre class="wizard-json-view" style="white-space:pre-wrap; font-size:13px; padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); max-height:400px; overflow:auto;">${escHtml(typeof sectionContent === 'string' ? sectionContent : JSON.stringify(sectionContent, null, 2))}</pre>`)
+        : renderJsonSection(typeof sectionContent === 'string' ? (() => { try { return JSON.parse(sectionContent); } catch(e) { return sectionContent; } })() : sectionContent, step))
       : '<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted)">No content yet. Write instructions above and click Generate, or just click Generate to let AI create this section.</div>'}
       </div>
 
