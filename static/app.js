@@ -56,12 +56,25 @@ const _tags = { country: [], theme: [] };
 let chatInput, sendBtn, chatDiv, busyDot;
 
 // ── API wrapper with Bearer token ────────────────────────────────────────────
-function api(url, opts = {}) {
+async function api(url, opts = {}) {
   if (!opts.headers) opts.headers = {};
   // Merge existing headers if provided (keep Content-Type etc)
   const tok = typeof getIdToken === 'function' ? getIdToken() : '';
   if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
-  return fetch(url, opts);
+  let res = await fetch(url, opts);
+
+  // 401 = token expired → refresh and retry once
+  if (res.status === 401 && typeof auth !== 'undefined' && auth.currentUser) {
+    try {
+      const freshTok = await auth.currentUser.getIdToken(true);
+      localStorage.setItem('id_token', freshTok);
+      opts.headers['Authorization'] = 'Bearer ' + freshTok;
+      res = await fetch(url, opts);
+    } catch (e) {
+      // Refresh failed — return original 401
+    }
+  }
+  return res;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -180,6 +193,7 @@ function toggleSidebarNav() {
       document.body.classList.remove('sidebar-collapsed');
       if (main) main.style.marginLeft = '';
     }
+    if (currentTab === 'crisis-map') scheduleWorldMapResize();
   }
 }
 
@@ -230,7 +244,6 @@ function switchTab(name) {
       if (main) main.style.marginLeft = '';
     }
     if (hamburger) hamburger.style.display = '';
-    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
   } else {
     if (sidebar) sidebar.classList.remove('hidden');
     document.body.classList.remove('sidebar-hidden');
@@ -251,7 +264,11 @@ function switchTab(name) {
   }
 
   if (name === 'home') loadCommandCenter();
-  if (name === 'crisis-map') loadDashboard();
+  if (name === 'crisis-map') {
+    // Build and measure Leaflet only after its panel is visible.
+    initWorldMap();
+    loadDashboard();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1237,11 +1254,11 @@ function renderSitrepReport(report, filename) {
   let html = `
     <div class="report-hero">
       <div class="report-hero-content">
-        <div class="report-hero-badge">📋 SITREP</div>
+        <div class="report-hero-badge"><svg class="icon-svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px; margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>SPECIAL DISPATCH</span></div>
         <h1 class="report-hero-title">${escHtml(country)}</h1>
         <div class="report-hero-subtitle">${escHtml(evt)}</div>
         <div class="report-hero-meta">
-          ${(rDateFrom || rDateTo) ? `<span class="report-hero-date">📅 ${escHtml(rDateFrom || '…')} — ${escHtml(rDateTo || '…')}</span>` : ''}
+          ${(rDateFrom || rDateTo) ? `<span class="report-hero-date"><svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px; margin-right:4px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>${escHtml(rDateFrom || '…')} — ${escHtml(rDateTo || '…')}</span>` : ''}
           ${rThemes.length ? rThemes.map(t => `<span class="report-hero-theme">${escHtml(t)}</span>`).join('') : ''}
         </div>
       </div>
@@ -1287,14 +1304,16 @@ function renderSitrepReport(report, filename) {
   if (hasNarrative) {
     html += `
       <div class="report-view-toggle">
-        <button class="report-view-btn active" data-mode="narrative" data-action="switch-report-view">Narrative Report</button>
-        <button class="report-view-btn" data-mode="qa" data-action="switch-report-view">Q&A View</button>
+        <button class="report-view-btn active" data-mode="narrative" data-action="switch-report-view">Editorial Narrative</button>
+        <button class="report-view-btn" data-mode="qa" data-action="switch-report-view">Field Q&A Briefing</button>
       </div>`;
   }
 
   // ── Narrative view ──
   if (hasNarrative) {
-    let narrativeHtml = renderNarrativeCitations(md(sanitizeHtml(report.narrative_html)), narrSources);
+    const rawNarrative = (report.narrative_html || '').replace(/<\/h[1-6]>/gi, '$&\n\n');
+    // narrative_html is already HTML from the LLM — skip md() to preserve citations
+    let narrativeHtml = renderNarrativeCitations(sanitizeHtml(rawNarrative), narrSources);
     // Add id attributes to headings for TOC anchor links
     narrativeHtml = narrativeHtml.replace(/<h([1-3])([^>]*)>([\s\S]*?)<\/h[1-3]>/gi, (match, level, attrs, inner) => {
       const text = inner.replace(/<[^>]+>/g, '').trim();
@@ -1304,7 +1323,7 @@ function renderSitrepReport(report, filename) {
     const tocHtml = buildNarrativeToc(narrativeHtml);
     html += `<div id="report-narrative-view" class="report-view-section">`;
     html += `<div class="narrative-layout">`;
-    if (tocHtml) html += `<nav class="narrative-toc"><div class="narrative-toc-title">Contents</div>${tocHtml}</nav>`;
+    if (tocHtml) html += `<nav class="narrative-toc"><div class="narrative-toc-title">Dispatch Index</div>${tocHtml}</nav>`;
     html += `<div class="narrative-content"><div class="narrative-body">${narrativeHtml}</div>`;
     html += buildNarrativeSourcesList(narrSources);
     html += `</div></div></div>`;
@@ -2057,6 +2076,7 @@ window.renderDoughnutChart = renderDoughnutChart;
 // ═══════════════════════════════════════════════════════════════════════════
 
 let dashboardLoaded = false;
+let dashboardLoading = false;
 let latestBulletinData = null;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2068,6 +2088,8 @@ let mapDataLoaded = false;
 let crisisMapData = {};
 let leafletMap = null;
 let leafletMarkers = [];
+let leafletResizeObserver = null;
+let leafletResizeFrame = 0;
 
 function humanizeWeekLabel(label) {
   if (!label) return label;
@@ -2207,8 +2229,12 @@ function ccStartBulletin() {
 }
 
 async function loadDashboard() {
-  if (dashboardLoaded) return;
-  dashboardLoaded = true;
+  if (dashboardLoaded) {
+    if (currentTab === 'crisis-map') initWorldMap();
+    return;
+  }
+  if (dashboardLoading) return;
+  dashboardLoading = true;
 
   // Freemium preview: check if user is authenticated
   const tok = window.getIdToken ? window.getIdToken() : '';
@@ -2248,8 +2274,8 @@ async function loadDashboard() {
     }
   } catch (e) { console.warn('[dashboard] map/countries load failed:', e); }
 
-  // Initialize map after data is loaded
-  setTimeout(() => { initWorldMap(); }, 200);
+  // Render new markers immediately when the visible map receives its data.
+  if (currentTab === 'crisis-map') initWorldMap();
 
   // ── Load basic stats ──
   try {
@@ -2280,6 +2306,11 @@ async function loadDashboard() {
       } catch { /* ignore */ }
     }
   } catch { /* ignore */ }
+
+  // A failed map request must remain retryable on the next Map visit.
+  dashboardLoaded = mapDataLoaded;
+  dashboardLoading = false;
+  if (currentTab === 'crisis-map') initWorldMap();
 }
 
 function renderDashOverview(b) {
@@ -2368,9 +2399,37 @@ function renderDashOverview(b) {
   }
 }
 
+function isWorldMapVisible(container = document.getElementById('world-map')) {
+  const panel = document.getElementById('panel-crisis-map');
+  if (!container || !panel || !panel.classList.contains('active')) return false;
+  const rect = container.getBoundingClientRect();
+  return rect.width >= 100 && rect.height >= 100;
+}
+
+function scheduleWorldMapResize() {
+  if (!leafletMap || !isWorldMapVisible()) return;
+  if (leafletResizeFrame) cancelAnimationFrame(leafletResizeFrame);
+  leafletResizeFrame = requestAnimationFrame(() => {
+    leafletResizeFrame = 0;
+    if (leafletMap && isWorldMapVisible()) {
+      leafletMap.invalidateSize({ animate: false, pan: false });
+    }
+  });
+}
+
+function observeWorldMapSize(container) {
+  if (leafletResizeObserver || typeof ResizeObserver === 'undefined') return;
+  leafletResizeObserver = new ResizeObserver(() => scheduleWorldMapResize());
+  leafletResizeObserver.observe(container);
+}
+
 function initWorldMap() {
   const container = document.getElementById('world-map');
   if (!container) return;
+
+  // Leaflet calculates its internal grid from the container's first size.
+  // Never initialize it inside a hidden (0 x 0) tab.
+  if (!isWorldMapVisible(container)) return;
 
   if (typeof L === 'undefined') {
     container.innerHTML = '<div class="center-loading dash-weekly-loading">Loading map…</div>';
@@ -2391,15 +2450,7 @@ function initWorldMap() {
 
   if (leafletMap) {
     updateMapMarkers();
-    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
-    return;
-  }
-
-  // Ensure container has dimensions before init
-  const wrap = container.closest('.dash-map-wrap');
-  if (wrap && wrap.offsetHeight < 100) {
-    // Container not visible yet, retry
-    setTimeout(() => { initWorldMap(); }, 300);
+    scheduleWorldMapResize();
     return;
   }
 
@@ -2425,8 +2476,8 @@ function initWorldMap() {
     }).addTo(leafletMap);
 
     // No scroll interception — let Leaflet handle zoom natively
-
-    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 500);
+    observeWorldMapSize(container);
+    scheduleWorldMapResize();
   } catch (err) {
     console.error('[map] Leaflet init error:', err);
     container.innerHTML = '<div class="center-loading dash-weekly-loading">Map unavailable.</div>';
@@ -5447,4 +5498,3 @@ document.addEventListener('DOMContentLoaded', function initWalkthroughObserver()
     });
   });
 });
-

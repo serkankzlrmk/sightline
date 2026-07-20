@@ -264,7 +264,7 @@
       <div id="world-map" class="h-full w-full" style="width: 100%; height: 100%; background: #e5e7eb;"></div>
       
       <!-- Top Center Search -->
-      <div style="position: absolute; top: 24px; left: 50%; transform: translateX(-50%); z-index: 400; pointer-events: auto;">
+      <div class="map-search-shell">
         <div class="relative">
           <input type="text" id="map-search-input" class="search-input-glass text-zinc-900 placeholder-zinc-400 pl-10 pr-4 py-2.5 rounded-full text-sm w-80 focus:outline-none transition-all" placeholder="Search country..." autocomplete="off">
           <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -272,8 +272,8 @@
       </div>
       
       <!-- Top Right Sources -->
-      <div style="position: absolute; top: 24px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 400; pointer-events: none;">
-        <div class="pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[420px]">
+      <div class="map-source-shell">
+        <div class="map-source-list pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[420px]">
           <!-- ReliefWeb -->
           <span class="source-badge-glass text-zinc-700" title="ReliefWeb Feed: Active">
             <svg class="text-zinc-400" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -490,8 +490,8 @@
       <!-- Top bar: country select + new report -->
       <div class="sitrep-topbar">
         <div class="sitrep-topbar-left">
-          <span class="brand-icon-sm">SR</span>
-          <h2 class="sitrep-topbar-title">SITREP</h2>
+          <span class="sitrep-badge-edition">DISPATCH INTEL</span>
+          <h2 class="sitrep-topbar-title">Humanitarian SITREP</h2>
         </div>
         <div class="sitrep-topbar-form" id="sitrep-form-bar">
           <select id="inp-country" class="fi">
@@ -506,7 +506,7 @@
             <label for="inp-date-to">To</label>
             <input type="date" id="inp-date-to">
           </div>
-          <button id="btn-run" class="btn btn-primary btn-with-icon"><svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Run</span></button>
+          <button id="btn-run" class="btn btn-primary btn-with-icon"><svg class="icon-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>Generate SITREP</span></button>
           <label class="sitrep-skip-label">
             <input type="checkbox" id="chk-skip-cache">
             Skip cache
@@ -519,7 +519,7 @@
       <!-- Reports list -->
       <div class="sitrep-reports-bar">
         <div class="sitrep-reports-bar-head">
-          <span class="sitrep-reports-bar-title">Available SITREPs</span>
+          <span class="sitrep-reports-bar-title">EDITIONS & SITREPS</span>
         </div>
         <div id="sitrep-reports-list" class="sitrep-reports-list"><div class="empty-state">Loading...</div></div>
       </div>
@@ -527,11 +527,25 @@
       <!-- Main content area -->
       <div class="sitrep-main-content">
         <!-- Welcome view -->
-        <div id="view-welcome" class="sitrep-view">
-          <div class="welcome-icon">REPORTS</div>
-          <div class="welcome-title">Reports</div>
-          <div class="welcome-sub">
-            Select a country and run the pipeline, or choose an existing report above.
+        <div id="view-welcome" class="sitrep-view sitrep-editorial-welcome">
+          <div class="welcome-edition-badge">EDITORIAL DISPATCH</div>
+          <h1 class="welcome-journal-title">Sightline Situation Reports</h1>
+          <p class="welcome-journal-sub">
+            AI-synthesized emergency intelligence dispatches from ReliefWeb, HDX, GDACS, and international humanitarian feeds.
+          </p>
+          <div class="welcome-journal-guide">
+            <div class="guide-step">
+              <span class="step-num">01</span>
+              <span class="step-desc">Select a target country from the Dispatch Desk above</span>
+            </div>
+            <div class="guide-step">
+              <span class="step-num">02</span>
+              <span class="step-desc">Run the 10-stage AI pipeline to compile real-time findings</span>
+            </div>
+            <div class="guide-step">
+              <span class="step-num">03</span>
+              <span class="step-desc">Or choose an existing SITREP edition to read the full report</span>
+            </div>
           </div>
         </div>
 
