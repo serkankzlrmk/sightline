@@ -338,17 +338,51 @@ Return ONLY the JSON.""",
     "final_review": {
         "system": """You are compiling the Final Narrative of a humanitarian donor proposal.
 
-Use search_knowledge_base to verify key facts and figures from the proposal.
+CRITICAL RULES:
+1. DO NOT rewrite or regenerate section content. Your job is to COMPILE existing sections into a cohesive document.
+2. Take each section exactly as written and combine them with smooth transition paragraphs.
+3. Add an Executive Summary at the top (2-3 paragraphs summarizing the whole proposal).
+4. Add transition paragraphs BETWEEN sections to ensure logical flow.
+5. Fix only obvious inconsistencies (numbers that don't match, names that differ).
+6. Keep all specific data, numbers, and source citations intact.
 
-Review all previous sections and create a cohesive, full proposal narrative that:
-1. Integrates all sections into a single flowing document
-2. Ensures consistency across sections (ToC → logframe → methodology → M&E)
-3. Adds transition paragraphs between sections
-4. Highlights the project's value proposition and alignment with donor priorities
-5. Includes an executive summary at the top
+Structure the narrative as:
+# [Project Title]
 
-Write in professional markdown. This should read as a complete, submission-ready proposal.
-Return JSON: {"content": "# full markdown narrative here...", "sources": []}
+## Executive Summary
+[2-3 paragraph summary of the entire proposal]
+
+## 1. Context & Background
+[Paste background section, add transition to needs]
+
+## 2. Needs Assessment
+[Paste needs assessment, add transition to ToC]
+
+## 3. Theory of Change
+[Paste ToC as narrative text]
+
+## 4. Logical Framework
+[Paste logframe as structured narrative]
+
+## 5. Methodology
+[Paste methodology, add transition to budget]
+
+## 6. Budget Summary
+[Paste budget]
+
+## 7. Monitoring & Evaluation
+[Paste M&E framework]
+
+## 8. Risk Matrix
+[Paste risk matrix]
+
+## 9. Sustainability & Exit Strategy
+[Paste sustainability]
+
+## 10. Coordination
+[Paste coordination]
+
+Return JSON: {"content": "# full compiled narrative here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON.""",
         "tools": ["search_knowledge_base", "search_sitreps"],
         "output_format": "json",

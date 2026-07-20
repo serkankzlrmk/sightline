@@ -290,10 +290,43 @@ class TestProposalsAPI:
                 headers={"Authorization": "Bearer token"}
             )
             assert hist_resp.status_code == 200
+            assert hist_resp.status_code == 200
             hist_data = json.loads(hist_resp.data)
             assert len(hist_data) >= 2
             assert hist_data[-2]["role"] == "user"
             assert hist_data[-1]["role"] == "assistant"
+
+    def test_proposal_export_endpoint(self, client):
+        fake_token = {"uid": "test-user-123", "role": "premium"}
+        with patch.object(auth, "_dev_mode", return_value=False), \
+             patch.object(auth, "verify_firebase_token", return_value=fake_token):
+
+            # 1. Create proposal
+            create_resp = client.post(
+                "/api/proposals/new",
+                headers={"Authorization": "Bearer token"},
+                json={
+                    "title": "Export Test Proposal",
+                    "country": "Sudan",
+                    "event": "Sudan Conflict",
+                    "themes": ["WASH"],
+                    "donor": "ECHO"
+                }
+            )
+            assert create_resp.status_code == 201
+            prop_id = json.loads(create_resp.data)["id"]
+
+            # 2. Call Export endpoint
+            exp_resp = client.post(
+                f"/api/proposals/{prop_id}/export",
+                headers={"Authorization": "Bearer token"}
+            )
+            assert exp_resp.status_code == 200
+            exp_data = json.loads(exp_resp.data)
+            assert "markdown" in exp_data
+            assert "Export Test Proposal" in exp_data["markdown"]
+            assert exp_data["title"] == "Export Test Proposal"
+
 
 
 

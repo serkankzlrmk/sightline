@@ -4388,7 +4388,7 @@ function renderSectionContent(step) {
         ${canEdit ? `
           <button class="btn btn-primary btn-sm btn-with-icon" data-action="generate-section" data-step="${step}" ${proposalState.generating ? 'disabled' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            <span>${proposalState.generating ? 'Generating...' : (sectionContent ? 'Regenerate' : 'Generate with AI')}</span>
+            <span>${proposalState.generating ? 'Generating...' : (step === 'final_review' ? (sectionContent ? 'Recompile' : 'Compile & Review') : (sectionContent ? 'Regenerate' : 'Generate with AI'))}</span>
           </button>
           ${sectionContent && isMarkdownSection ? `
             <button class="btn btn-secondary btn-sm btn-with-icon" data-action="save-section" data-step="${step}">
@@ -5059,6 +5059,11 @@ async function generateSection(step) {
         </div>
       </div>`;
       reviewContent.innerHTML = resultHtml;
+
+      // Auto-run review after final_review compile
+      if (step === 'final_review') {
+        setTimeout(() => runProposalReview(), 500);
+      }
     }
   } catch (err) {
     proposalState.generating = false;
@@ -5342,9 +5347,12 @@ function renderReviewPanel(review) {
   if (review.suggested_actions && review.suggested_actions.length > 0) {
     html += `<div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--primary); margin:16px 0 8px;">💡 Suggested Actions</div>`;
     for (const action of review.suggested_actions) {
-      html += `<div style="padding:6px 8px; margin:4px 0; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px; font-size:13px;">
-        <strong style="color:var(--primary);">${escHtml(action.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</strong>
-        <p style="margin:2px 0 0 0; color:var(--text-secondary);">${escHtml(action.action)}</p>
+      html += `<div style="padding:6px 8px; margin:4px 0; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px; font-size:13px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <div style="flex:1;">
+          <strong style="color:var(--primary);">${escHtml(action.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</strong>
+          <p style="margin:2px 0 0 0; color:var(--text-secondary);">${escHtml(action.action)}</p>
+        </div>
+        <button class="btn btn-xs btn-secondary" onclick="reviseFromReview('${escHtml(action.step)}', '${escHtml(action.action).replace(/'/g, "\\'")}')" style="white-space:nowrap; font-size:11px; padding:3px 8px;">✏️ Revise</button>
       </div>`;
     }
   }
@@ -5377,6 +5385,107 @@ function renderReviewPanel(review) {
 
 // Make runProposalReview globally accessible
 window.runProposalReview = runProposalReview;
+
+// Revise a section from review feedback — navigates to section and starts revise
+window.reviseFromReview = function reviseFromReview(step, feedback) {
+  if (!step) return;
+  // Navigate to the section
+  wizardSelectStep(step);
+  // Start a revision with the feedback
+  reviseSectionWithFeedback(step, feedback);
+};
+
+async function reviseSectionWithFeedback(step, feedback) {
+  if (!proposalState.activeProposalId || proposalState.generating) return;
+  proposalState.generating = true;
+
+  const reviewContent = document.getElementById('review-content');
+  const statusEl = document.getElementById('advisor-status');
+  if (statusEl) statusEl.textContent = 'Revising...';
+  if (reviewContent) {
+    reviewContent.innerHTML = `
+      <div style="text-align:center; padding:40px 20px;">
+        <div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+        <p style="font-size:14px; font-weight:600; color:var(--primary); margin-top:16px;">Revising ${escHtml(step.replace(/_/g, ' '))}...</p>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:8px;">Applying feedback: "${escHtml(feedback.substring(0, 80))}${feedback.length > 80 ? '...' : ''}"</p>
+      </div>`;
+  }
+
+  renderSectionContent(step);
+
+  try {
+    const res = await api(`/api/proposals/${proposalState.activeProposalId}/sections/${step}/revise`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Revision failed');
+    }
+
+    // Read the SSE stream
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+        if (evt.type === 'token') {
+          fullText += evt.text || '';
+        } else if (evt.type === 'done') {
+          // Revision complete
+        }
+      }
+    }
+
+    // Refresh proposal state
+    const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+    const prop = await refreshed.json();
+    if (!prop.error) proposalState.activeProposal = prop;
+    proposalState.generating = false;
+    renderWizardSteps();
+    renderSectionContent(step);
+
+    if (statusEl) statusEl.textContent = 'Revised';
+    if (reviewContent) {
+      reviewContent.innerHTML = `
+        <div style="text-align:center; padding:30px 20px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" style="margin-bottom:8px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <p style="font-size:14px; font-weight:600; color:var(--success);">${escHtml(step.replace(/_/g, ' '))} Revised</p>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Section updated with feedback.</p>
+          <button class="btn btn-sm btn-primary" onclick="runProposalReview()" style="margin-top:16px; width:100%;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Re-analyze
+          </button>
+        </div>`;
+    }
+  } catch (err) {
+    proposalState.generating = false;
+    renderSectionContent(step);
+    if (statusEl) statusEl.textContent = 'Error';
+    if (reviewContent) {
+      reviewContent.innerHTML = `
+        <div style="text-align:center; padding:30px 20px; color:var(--danger);">
+          <p>Revision failed: ${escHtml(err.message)}</p>
+          <button class="btn btn-sm btn-secondary" onclick="reviseFromReview('${escHtml(step)}', '${escHtml(feedback).replace(/'/g, "\\'")}')" style="margin-top:12px;">Try Again</button>
+        </div>`;
+    }
+  }
+}
+
+window.reviseSectionWithFeedback = reviseSectionWithFeedback;
 
 window.pinSource = async function (url, title) {
   if (!proposalState.activeProposalId) return;
@@ -5532,6 +5641,23 @@ function renderProposalToHtml(markdown) {
 
 async function exportProposalPDF() {
   if (!proposalState.activeProposalId) return;
+
+  // Open window synchronously to bypass browser popup blockers
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Generating Proposal PDF...</title></head>
+      <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif; text-align:center; padding:60px; color:#334155;">
+        <h2 style="font-size:20px; color:#0f172a;">Preparing Document for Print...</h2>
+        <p style="font-size:14px; color:#64748b;">Compiling structured proposal sections, logframe matrix, and financial summary.</p>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
   try {
     const res = await api(`/api/proposals/${proposalState.activeProposalId}/export`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5539,7 +5665,6 @@ async function exportProposalPDF() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert("Please allow popups to export PDF.");
       return;
@@ -5566,6 +5691,7 @@ async function exportProposalPDF() {
 
     const currentDateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
+    printWindow.document.open();
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -6032,7 +6158,10 @@ async function exportProposalPDF() {
       </html>
     `);
     printWindow.document.close();
-  } catch (err) { alert("PDF Export failed: " + err.message); }
+  } catch (err) {
+    if (printWindow) printWindow.close();
+    alert("PDF Export failed: " + err.message);
+  }
 }
 
 function addAdvisorMessage(sender, text) { showAdvisorMessage(sender, text); }

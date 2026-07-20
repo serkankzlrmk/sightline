@@ -1764,8 +1764,7 @@ def api_proposal_export(prop_id):
             if not allowed or not allowed["completed_at"]:
                 return jsonify({"error": "Proposal not found"}), 404
             row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
-            if not row:
-                return jsonify({"error": "Proposal not found"}), 404
+        row = dict(row)
 
         # Helper for parsing JSON safely
         def safe_json(val, default):
@@ -1782,18 +1781,24 @@ def api_proposal_export(prop_id):
         b_data = safe_json(row.get("beneficiary_data"), {})
         pinned_sources = safe_json(row.get("pinned_sources"), [])
 
-        try:
-            themes_list = json.loads(row["themes"])
-        except Exception:
-            themes_list = [t.strip() for t in row["themes"].split(",") if t.strip()]
+        themes_raw = row.get("themes")
+        if not themes_raw:
+            themes_list = []
+        elif isinstance(themes_raw, list):
+            themes_list = themes_raw
+        else:
+            try:
+                themes_list = json.loads(themes_raw)
+            except Exception:
+                themes_list = [t.strip() for t in str(themes_raw).split(",") if t.strip()]
 
         md_parts = []
-        md_parts.append(f"# {row['title']}\n")
+        md_parts.append(f"# {row.get('title', 'Untitled Proposal')}\n")
         
         meta_lines = [
-            f"**Country of Operation:** {row['country']}",
-            f"**Target Donor:** {row['donor']}",
-            f"**Focus Sector / Event:** {row['event']}",
+            f"**Country of Operation:** {row.get('country', 'N/A')}",
+            f"**Target Donor:** {row.get('donor', 'N/A')}",
+            f"**Focus Sector / Event:** {row.get('event', 'N/A')}",
             f"**Themes:** {', '.join(themes_list) if themes_list else 'Humanitarian Response'}"
         ]
         if row.get("date_from") or row.get("date_to"):
