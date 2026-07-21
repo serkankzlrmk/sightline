@@ -4464,6 +4464,13 @@ body.sidebar-hidden .proposal-sidebar-head {
   user-select: none;
 }
 
+/* Proposal tab buttons */
+.proposal-tab-btn.active {
+  background: var(--primary) !important;
+  color: white !important;
+  border-color: var(--primary) !important;
+}
+
 .proposal-advisor-panel.collapsed .proposal-chat-collapsed-bar {
   display: flex;
 }

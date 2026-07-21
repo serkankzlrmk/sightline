@@ -691,9 +691,12 @@
           <div class="critique-header">
             <div class="critique-header-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              <span>Proposal Review</span>
+              <span>Proposal Assistant</span>
             </div>
             <div style="display:flex; gap:6px; align-items:center;">
+              <!-- Review / Chat tabs -->
+              <button class="btn btn-xs btn-secondary proposal-tab-btn active" id="tab-btn-review" onclick="switchAdvisorTab('review')" style="font-size:11px; padding:2px 8px;">Review</button>
+              <button class="btn btn-xs btn-secondary proposal-tab-btn" id="tab-btn-chat" onclick="switchAdvisorTab('chat')" style="font-size:11px; padding:2px 8px;">Chat</button>
               <button class="btn btn-xs btn-secondary" id="btn-run-review" title="Run AI review on entire proposal" style="font-size:11px; padding:2px 8px;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:3px;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Analyze
@@ -704,15 +707,31 @@
               </button>
             </div>
           </div>
-          <div class="proposal-chat-collapsed-bar" id="proposal-chat-collapsed-bar" title="Expand Proposal Review">
+          <div class="proposal-chat-collapsed-bar" id="proposal-chat-collapsed-bar" title="Expand Proposal Assistant">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            <span>Proposal Review</span>
+            <span>Proposal Assistant</span>
           </div>
+          <!-- Review Tab Content -->
           <div id="review-content" style="flex:1; overflow-y:auto; padding:12px;">
             <div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:12px;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               <p style="font-size:13px;">Click <strong>Analyze</strong> to get AI feedback<br>on your entire proposal</p>
               <p style="font-size:11px; margin-top:8px;">Section scores, priorities & suggestions</p>
+            </div>
+          </div>
+          <!-- Chat Tab Content -->
+          <div id="advisor-chat-content" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+            <div id="advisor-chat-messages" style="flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px;">
+              <div style="text-align:center; padding:30px 20px; color:var(--text-muted);">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4; margin-bottom:8px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <p style="font-size:13px;">Ask questions about your proposal,<br>get suggestions and help</p>
+              </div>
+            </div>
+            <div style="padding:8px 12px; border-top:1px solid var(--border-color); display:flex; gap:6px;">
+              <input type="text" id="advisor-chat-input" placeholder="Ask about your proposal..." style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:6px; font-size:13px; background:var(--bg-light); color:var(--text-primary);" onkeydown="if(event.key==='Enter')sendAdvisorChat()">
+              <button class="btn btn-primary btn-xs" onclick="sendAdvisorChat()" id="btn-send-advisor-chat" style="padding:6px 12px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 10 10 2 15"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -1078,5 +1097,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script src="/static/app.js?v={{ v }}"></script>
+<script src="/static/advisor-chat.js?v={{ v }}"></script>
 </body>
 </html>
