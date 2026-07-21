@@ -5421,7 +5421,10 @@ async function runProposalReview() {
     return;
   }
 
-  if (btnReview) btnReview.disabled = true;
+  // Disable all analyze buttons and show loading in the step content too
+  proposalState.generating = true;
+  const analyzeBtns = document.querySelectorAll('[onclick*="runProposalReview"]');
+  analyzeBtns.forEach(btn => { btn.disabled = true; btn.dataset.originalHtml = btn.innerHTML; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px; animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Analyzing...'; });
   if (statusEl) statusEl.textContent = 'Analyzing...';
 
   // Show loading state
@@ -5474,7 +5477,11 @@ async function runProposalReview() {
       </div>`;
     if (statusEl) statusEl.textContent = 'Error';
   } finally {
+    proposalState.generating = false;
     if (btnReview) btnReview.disabled = false;
+    // Restore all analyze buttons
+    const analyzeBtns = document.querySelectorAll('[onclick*="runProposalReview"]');
+    analyzeBtns.forEach(btn => { btn.disabled = false; if (btn.dataset.originalHtml) { btn.innerHTML = btn.dataset.originalHtml; delete btn.dataset.originalHtml; } });
   }
 }
 
