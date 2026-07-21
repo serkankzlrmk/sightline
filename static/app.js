@@ -2466,7 +2466,7 @@ function initWorldMap() {
   try {
     leafletMap = L.map(container, {
       center: [20, 15],
-      zoom: 2,
+      zoom: 3,
       minZoom: 2,
       maxZoom: 8,
       zoomControl: true,
@@ -4335,6 +4335,12 @@ function renderSectionContent(step) {
   const sectionContent = getSectionContent(prop, step);
   const isMarkdownSection = ['background', 'needs_assessment', 'methodology', 'sustainability', 'coordination', 'final_review'].includes(step);
 
+  // Final Review step: show inline review panel instead of normal content
+  if (step === 'final_review') {
+    renderFinalReviewStep(contentEl, step, stepInfo, status, canEdit, sectionContent);
+    return;
+  }
+
   contentEl.innerHTML = `
     <div class="wizard-section-inner">
       <div class="wizard-section-header-row">
@@ -4441,6 +4447,168 @@ window.toggleProposalViewMode = function(step, mode) {
 function getSectionContent(prop, step) {
   const fieldMap = { cover: 'cover_page', background: 'background', needs_assessment: 'needs_assessment', toc: 'toc', logframe: 'logframe', methodology: 'methodology', budget: 'budget', mne_framework: 'mne_framework', risk_matrix: 'risk_matrix', sustainability: 'sustainability', coordination: 'coordination', final_review: 'narrative' };
   return prop[fieldMap[step]] || '';
+}
+
+function renderFinalReviewStep(contentEl, step, stepInfo, status, canEdit, sectionContent) {
+  const prop = proposalState.activeProposal;
+  if (!prop) { contentEl.innerHTML = '<div class="empty-state">No proposal selected.</div>'; return; }
+
+  // Count how many sections have content
+  const fieldMap = { cover: 'cover_page', background: 'background', needs_assessment: 'needs_assessment', toc: 'toc', logframe: 'logframe', methodology: 'methodology', budget: 'budget', mne_framework: 'mne_framework', risk_matrix: 'risk_matrix', sustainability: 'sustainability', coordination: 'coordination' };
+  const totalSections = Object.keys(fieldMap).length;
+  let filledSections = 0;
+  for (const [s, f] of Object.entries(fieldMap)) {
+    const c = prop[f];
+    if (c && c !== '{}' && c !== '[]' && c !== '' && c !== null && c !== undefined) filledSections++;
+  }
+  const progressPct = Math.round((filledSections / totalSections) * 100);
+
+  // Get existing review data
+  let review = null;
+  try { review = prop.review ? (typeof prop.review === 'string' ? JSON.parse(prop.review) : prop.review) : null; } catch(e) { review = null; }
+
+  const score = review?.overall_score || 0;
+  const scoreColor = score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
+  const scoreLabel = score >= 80 ? 'Strong' : score >= 60 ? 'Needs Work' : score >= 40 ? 'Weak' : 'Incomplete';
+
+  let html = `
+  <div class="wizard-section-inner">
+    <div class="wizard-section-header-row">
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <h3>${stepInfo.num || 12}. Final Review</h3>
+        <span class="wizard-status-badge wizard-status-${status}">${status}</span>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div style="margin-bottom:20px; padding:16px; background:var(--bg-light); border-radius:8px; border:1px solid var(--border-color);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Section Completion</span>
+        <span style="font-size:13px; font-weight:600; color:var(--primary);">${filledSections}/${totalSections} sections</span>
+      </div>
+      <div style="height:8px; background:var(--border-color); border-radius:4px; overflow:hidden;">
+        <div style="height:100%; width:${progressPct}%; background:var(--primary); border-radius:4px; transition:width 0.3s;"></div>
+      </div>
+    </div>`;
+
+  if (review) {
+    // Review exists — show full review panel inline
+    html += `
+    <!-- Overall Score -->
+    <div style="text-align:center; padding:20px 0 16px; border-bottom:1px solid var(--border-color); margin-bottom:16px;">
+      <div style="font-size:56px; font-weight:800; color:${scoreColor}; line-height:1;">${score}</div>
+      <div style="font-size:16px; font-weight:600; color:${scoreColor}; margin-top:4px;">${escHtml(scoreLabel)}</div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">Overall Proposal Score</div>
+    </div>`;
+
+    // Overall feedback
+    if (review.overall_feedback) {
+      html += `<div style="padding:10px 14px; margin-bottom:16px; background:var(--bg-light); border-radius:8px; font-size:13px; color:var(--text-secondary); line-height:1.6;">${escHtml(review.overall_feedback)}</div>`;
+    }
+
+    // Section scores
+    if (review.sections && review.sections.length > 0) {
+      html += `<div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:8px;">Section Scores</div>`;
+      html += `<div style="border:1px solid var(--border-color); border-radius:8px; overflow:hidden; margin-bottom:16px;">`;
+      for (const sec of review.sections) {
+        const sScore = sec.score || 0;
+        const sColor = sScore >= 80 ? 'var(--success)' : sScore >= 60 ? 'var(--warning)' : 'var(--danger)';
+        const statusIcon = sec.status === 'complete' ? '✅' : sec.status === 'needs_improvement' ? '⚠️' : sec.status === 'incomplete' ? '❌' : sec.status === 'skipped' ? '⏭️' : '⬜';
+        html += `
+        <div style="display:flex; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border-color); cursor:pointer; transition:background 0.15s;" onmouseover="this.style.background='var(--bg-light)'" onmouseout="this.style.background='transparent'" onclick="wizardSelectStep('${escHtml(sec.step)}')">
+          <span style="margin-right:10px; font-size:14px;">${statusIcon}</span>
+          <span style="flex:1; font-size:14px; font-weight:500;">${escHtml(sec.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</span>
+          <span style="font-size:16px; font-weight:700; color:${sColor};">${sScore}</span>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+
+    // High priority
+    if (review.high_priority && review.high_priority.length > 0) {
+      html += `<div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--danger); margin-bottom:8px;">🔴 High Priority</div>`;
+      for (const issue of review.high_priority) {
+        html += `<div style="padding:4px 8px 4px 20px; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">• ${escHtml(issue)}</div>`;
+      }
+      html += `<div style="margin-bottom:12px;"></div>`;
+    }
+
+    // Medium priority
+    if (review.medium_priority && review.medium_priority.length > 0) {
+      html += `<div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--warning); margin-bottom:8px;">🟡 Medium Priority</div>`;
+      for (const issue of review.medium_priority) {
+        html += `<div style="padding:4px 8px 4px 20px; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">• ${escHtml(issue)}</div>`;
+      }
+      html += `<div style="margin-bottom:12px;"></div>`;
+    }
+
+    // Strengths
+    if (review.strengths && review.strengths.length > 0) {
+      html += `<div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--success); margin-bottom:8px;">🟢 Strengths</div>`;
+      for (const s of review.strengths) {
+        html += `<div style="padding:4px 8px 4px 20px; font-size:13px; color:var(--text-secondary); margin-bottom:4px;">• ${escHtml(s)}</div>`;
+      }
+      html += `<div style="margin-bottom:12px;"></div>`;
+    }
+
+    // Suggested actions with Revise buttons
+    if (review.suggested_actions && review.suggested_actions.length > 0) {
+      html += `<div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--primary); margin-bottom:8px;">💡 Suggested Actions</div>`;
+      for (const action of review.suggested_actions) {
+        html += `
+        <div style="padding:10px 12px; margin:6px 0; background:var(--bg-light); border:1px solid var(--border-color); border-radius:8px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div style="flex:1;">
+            <strong style="color:var(--primary); font-size:13px;">${escHtml(action.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))}</strong>
+            <p style="margin:2px 0 0 0; font-size:13px; color:var(--text-secondary);">${escHtml(action.action)}</p>
+          </div>
+          <button class="btn btn-xs btn-secondary" onclick="reviseFromReview('${escHtml(action.step)}', '${escHtml(action.action).replace(/'/g, "\\'")}')" style="white-space:nowrap; font-size:11px; padding:4px 10px;">✏️ Revise</button>
+        </div>`;
+      }
+    }
+
+    // Sources
+    if (review.sources && review.sources.length > 0) {
+      html += `<div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin:16px 0 8px;">📎 Sources Used</div>`;
+      for (const src of review.sources.slice(0, 10)) {
+        const title = escHtml(src.title || src.url || 'Source');
+        const url = src.url || '#';
+        html += `<div style="padding:3px 8px; font-size:12px;"><a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none;">${title}</a></div>`;
+      }
+    }
+
+    // Action buttons
+    html += `
+    <div style="display:flex; gap:10px; margin-top:24px; padding-top:16px; border-top:1px solid var(--border-color);">
+      <button class="btn btn-primary btn-sm btn-with-icon" onclick="runProposalReview()" ${proposalState.generating ? 'disabled' : ''}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <span>Re-analyze</span>
+      </button>
+      ${canEdit && sectionContent ? `
+      <button class="btn btn-green btn-sm btn-with-icon" onclick="wizardSelectStep('cover')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Approve & Export</span>
+      </button>` : ''}
+    </div>`;
+
+  } else {
+    // No review yet — show Analyze button
+    html += `
+    <div style="text-align:center; padding:50px 20px;">
+      <div style="font-size:48px; margin-bottom:16px;">📋</div>
+      <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:8px;">Ready for Review</h3>
+      <p style="font-size:14px; color:var(--text-muted); margin-bottom:24px; max-width:400px; margin-left:auto; margin-right:auto;">
+        ${filledSections > 0 ? `You've completed <strong>${filledSections}</strong> of <strong>${totalSections}</strong> sections. Run an AI analysis to get scores, priorities, and suggested improvements.` : 'Start by creating some sections, then run an AI analysis to get feedback.'}
+      </p>
+      ${canEdit ? `
+      <button class="btn btn-primary btn-with-icon" onclick="runProposalReview()" ${proposalState.generating ? 'disabled' : ''} style="font-size:15px; padding:12px 28px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Analyze Proposal
+      </button>` : '<p style="font-size:12px; color:var(--text-muted);">Upgrade to premium to analyze proposals.</p>'}
+    </div>`;
+  }
+
+  html += `</div>`;
+  contentEl.innerHTML = html;
 }
 
 function renderSectionMarkdown(content, step) {
@@ -5266,6 +5434,19 @@ async function runProposalReview() {
     }
 
     renderReviewPanel(data);
+
+    // Also refresh proposal state and re-render final review step if active
+    try {
+      const refreshed = await api(`/api/proposals/${proposalState.activeProposalId}`);
+      const prop = await refreshed.json();
+      if (!prop.error) {
+        proposalState.activeProposal = prop;
+        // Re-render final review step if currently showing
+        if (proposalState.currentStep === 'final_review') {
+          renderSectionContent('final_review');
+        }
+      }
+    } catch(e) {}
 
   } catch (err) {
     reviewContent.innerHTML = `
