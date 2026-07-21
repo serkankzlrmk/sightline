@@ -49,8 +49,8 @@ def _parse_review(raw):
         current = data["current"]
         current["history"] = data.get("history", [])
         return current
-    # Old format: plain review dict — return as-is
-    return data
+    # Old format: plain review dict — wrap with empty history
+    return {**data, "history": data.get("history", [])}
 
 
 # =============================================================================
@@ -2179,8 +2179,8 @@ def api_proposal_review(prop_id):
 
         _log_event(uid, "proposal_reviewed", {"prop_id": prop_id, "score": review_data.get("overall_score", 0)})
 
-        # Return current review with history count
-        review_data["history_count"] = len(review_history)
+        # Return current review with history
+        review_data["history"] = review_history
         return jsonify(review_data)
 
     except Exception as e:
