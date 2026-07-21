@@ -2467,7 +2467,7 @@ function initWorldMap() {
     leafletMap = L.map(container, {
       center: [20, 15],
       zoom: 3,
-      minZoom: 2,
+      minZoom: 3,
       maxZoom: 8,
       zoomControl: true,
       attributionControl: false,
