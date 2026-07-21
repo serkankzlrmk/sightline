@@ -382,7 +382,7 @@ def api_get_proposal_detail(prop_id):
             "is_owner": is_owner,
             "reference_filename": row["reference_filename"] if "reference_filename" in row.keys() else "",
             "has_reference": bool(row["reference_text"]) if "reference_text" in row.keys() else False,
-            "review": _parse_review(row.get("review", "")),
+            "review": _parse_review(row["review"] if "review" in row.keys() else ""),
         })
     except Exception as e:
         logger.error(f"api_get_proposal_detail error: {prop_id}, {e}")
