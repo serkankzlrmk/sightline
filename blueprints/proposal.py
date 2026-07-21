@@ -11,6 +11,7 @@ Register in server.py with:
 import json
 import logging
 import os
+import time
 import uuid
 
 from flask import Blueprint, Response, jsonify, request
@@ -31,6 +32,25 @@ _ADVISOR_BUSY_TIMEOUT = 120  # seconds – auto-clear stuck flags
 
 # ── Module-level time ref (same as server.py: import time as _time) ────────
 import time as _time
+
+
+def _parse_review(raw):
+    """Parse review field from DB — handles both old format (plain dict) and new format ({current, history})."""
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    # New format: {"current": {...}, "history": [...]}
+    if "current" in data and isinstance(data["current"], dict):
+        current = data["current"]
+        current["history"] = data.get("history", [])
+        return current
+    # Old format: plain review dict — return as-is
+    return data
 
 
 # =============================================================================
@@ -362,6 +382,7 @@ def api_get_proposal_detail(prop_id):
             "is_owner": is_owner,
             "reference_filename": row["reference_filename"] if "reference_filename" in row.keys() else "",
             "has_reference": bool(row["reference_text"]) if "reference_text" in row.keys() else False,
+            "review": _parse_review(row.get("review", "")),
         })
     except Exception as e:
         logger.error(f"api_get_proposal_detail error: {prop_id}, {e}")
@@ -2117,15 +2138,49 @@ def api_proposal_review(prop_id):
                         all_sources.append(src)
         review_data["sources"] = all_sources
 
+        # Add timestamp to this review
+        review_data["timestamp"] = time.time()
+
+        # Preserve review history — append new review, keep old ones
+        existing_review = row["review"]
+        review_history = []
+        if existing_review:
+            try:
+                old = json.loads(existing_review)
+                if isinstance(old, dict):
+                    # Old format: single review object
+                    if "history" in old and isinstance(old["history"], list):
+                        # Already has history — extract it
+                        review_history = old["history"]
+                        # Also keep the previous "current" review as history entry
+                        prev = {k: v for k, v in old.items() if k != "history"}
+                        if prev.get("overall_score") is not None:
+                            review_history.append(prev)
+                    else:
+                        # Old format: plain single review
+                        review_history = [old]
+                elif isinstance(old, list):
+                    review_history = old
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Build final review object: current review + history
+        final_review = {
+            "current": review_data,
+            "history": review_history
+        }
+
         # Save review to DB
         conn.execute(
             "UPDATE proposals SET review = ? WHERE id = ? AND uid = ?",
-            (json.dumps(review_data), prop_id, uid)
+            (json.dumps(final_review), prop_id, uid)
         )
         conn.commit()
 
         _log_event(uid, "proposal_reviewed", {"prop_id": prop_id, "score": review_data.get("overall_score", 0)})
 
+        # Return current review with history count
+        review_data["history_count"] = len(review_history)
         return jsonify(review_data)
 
     except Exception as e:

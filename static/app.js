@@ -4576,6 +4576,24 @@ function renderFinalReviewStep(contentEl, step, stepInfo, status, canEdit, secti
       }
     }
 
+    // Review history in final review step
+    if (review.history && review.history.length > 0) {
+      html += `<div style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:12px;">`;
+      html += `<div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:8px; cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'; this.querySelector('.toggle-arrow').textContent=this.nextElementSibling.style.display==='none'?'▶':'▼';">Previous Reviews (${review.history.length}) <span class="toggle-arrow">▶</span></div>`;
+      html += `<div style="display:none;">`;
+      for (let i = review.history.length - 1; i >= 0; i--) {
+        const h = review.history[i];
+        const hScore = h.overall_score || 0;
+        const hColor = hScore >= 80 ? 'var(--success)' : hScore >= 60 ? 'var(--warning)' : 'var(--danger)';
+        const hDate = h.timestamp ? new Date(h.timestamp * 1000).toLocaleString() : `#${i+1}`;
+        html += `<div style="padding:8px 10px; margin:4px 0; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px; font-size:12px; display:flex; justify-content:space-between; align-items:center;">`;
+        html += `<span style="color:var(--text-secondary);">${escHtml(hDate)}</span>`;
+        html += `<span style="font-weight:700; color:${hColor};">${hScore}/100</span>`;
+        html += `</div>`;
+      }
+      html += `</div></div>`;
+    }
+
     // Action buttons
     html += `
     <div style="display:flex; gap:10px; margin-top:24px; padding-top:16px; border-top:1px solid var(--border-color);">
@@ -5548,6 +5566,24 @@ function renderReviewPanel(review) {
         <a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none;">${title}</a>
       </div>`;
     }
+  }
+
+  // Review history (previous reviews)
+  if (review.history && review.history.length > 0) {
+    html += `<div style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:12px;">`;
+    html += `<div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:8px; cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'; this.querySelector('.toggle-arrow').textContent=this.nextElementSibling.style.display==='none'?'▶':'▼';">Previous Reviews (${review.history.length}) <span class="toggle-arrow">▶</span></div>`;
+    html += `<div style="display:none;">`;
+    for (let i = review.history.length - 1; i >= 0; i--) {
+      const h = review.history[i];
+      const hScore = h.overall_score || 0;
+      const hColor = hScore >= 80 ? 'var(--success)' : hScore >= 60 ? 'var(--warning)' : 'var(--danger)';
+      const hDate = h.timestamp ? new Date(h.timestamp * 1000).toLocaleString() : `#${i+1}`;
+      html += `<div style="padding:8px 10px; margin:4px 0; background:var(--bg-light); border:1px solid var(--border-color); border-radius:6px; font-size:12px; display:flex; justify-content:space-between; align-items:center;">`;
+      html += `<span style="color:var(--text-secondary);">${escHtml(hDate)}</span>`;
+      html += `<span style="font-weight:700; color:${hColor};">${hScore}/100</span>`;
+      html += `</div>`;
+    }
+    html += `</div></div>`;
   }
 
   // Re-analyze button
