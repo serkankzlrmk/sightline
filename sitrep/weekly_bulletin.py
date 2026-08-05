@@ -104,7 +104,6 @@ COUNTRY_COORDS: dict[str, dict] = {
     "Mexico": {"lat": 23.6, "lng": -102.6},
     "Indonesia": {"lat": -0.8, "lng": 113.9},
     "Nepal": {"lat": 28.2, "lng": 84.1},
-    "Ethiopia": {"lat": 9.1, "lng": 40.5},
     "Congo": {"lat": -4.0, "lng": 21.8},
     "Sahara": {"lat": 23.4, "lng": 25.7},
     "Western Sahara": {"lat": 23.4, "lng": -12.9},
@@ -133,14 +132,12 @@ COUNTRY_COORDS: dict[str, dict] = {
     "Tunisia": {"lat": 33.9, "lng": 9.5},
     "Algeria": {"lat": 28.0, "lng": 1.2},
     "Morocco": {"lat": 31.8, "lng": -7.1},
-    "Sudan": {"lat": 15.5, "lng": 32.5},
-    "South Sudan": {"lat": 7.0, "lng": 30.0},
 }
 
 # ---------------------------------------------------------------------------
 # Severity thresholds
 # ---------------------------------------------------------------------------
-SEVERITY_HIGH_THRESHOLD = 10   # ≥10 reports = high
+SEVERITY_HIGH_THRESHOLD = 10  # ≥10 reports = high
 SEVERITY_MEDIUM_THRESHOLD = 5  # 5-9 reports = medium
 # <5 reports = low
 
@@ -186,9 +183,11 @@ Countries affected: {countries_count}
 # Data retrieval
 # ---------------------------------------------------------------------------
 
+
 def _get_db():
     """Get a ChromaAdapter instance."""
     from chroma_adapter import ChromaAdapter
+
     return ChromaAdapter()
 
 
@@ -255,7 +254,8 @@ def fetch_reports_by_date_range(
     if len(countries_with_counts) > BULLETIN_MAX_COUNTRIES:
         logger.info(
             "Capping bulletin to top %d countries (of %d) to avoid OOM",
-            BULLETIN_MAX_COUNTRIES, len(countries_with_counts),
+            BULLETIN_MAX_COUNTRIES,
+            len(countries_with_counts),
         )
 
     for entry in countries_iter:
@@ -298,7 +298,10 @@ def fetch_reports_by_date_range(
         if available:
             logger.info(
                 "No data found for %s to %s. Falling back to available range: %s to %s",
-                date_from, date_to, available["date_from"], available["date_to"],
+                date_from,
+                date_to,
+                available["date_from"],
+                available["date_to"],
             )
             actual_from = available["date_from"]
             actual_to = available["date_to"]
@@ -336,8 +339,7 @@ def fetch_reports_by_date_range(
                 if len(unique_reports) >= 3:
                     grouped[country] = unique_reports
 
-    logger.info("Fetched reports for %d countries in date range %s to %s",
-                len(grouped), actual_from, actual_to)
+    logger.info("Fetched reports for %d countries in date range %s to %s", len(grouped), actual_from, actual_to)
     return {
         "grouped": grouped,
         "actual_date_from": actual_from,
@@ -362,6 +364,7 @@ def _determine_severity(report_count: int, themes: list[str]) -> str:
 # ---------------------------------------------------------------------------
 # LLM-based generation
 # ---------------------------------------------------------------------------
+
 
 def generate_crisis_summary(
     country: str,
@@ -441,8 +444,7 @@ def generate_global_overview(
     from llm_client import chat_simple
 
     crisis_summaries = "\n\n".join(
-        f"**{c['country']}** ({c['severity']}): {c['headline']}. {c['summary']}"
-        for c in crises
+        f"**{c['country']}** ({c['severity']}): {c['headline']}. {c['summary']}" for c in crises
     )
 
     prompt = _GLOBAL_OVERVIEW_USER.format(
@@ -468,6 +470,7 @@ def generate_global_overview(
 # ---------------------------------------------------------------------------
 # Bulletin generation
 # ---------------------------------------------------------------------------
+
 
 def generate_weekly_bulletin(
     date_from: str,
@@ -499,7 +502,10 @@ def generate_weekly_bulletin(
     if date_fallback:
         logger.info(
             "Date fallback: requested %s-%s, using available data %s-%s",
-            date_from, date_to, actual_date_from, actual_date_to,
+            date_from,
+            date_to,
+            actual_date_from,
+            actual_date_to,
         )
 
     if not grouped:
@@ -552,39 +558,44 @@ def generate_weekly_bulletin(
             url = r.get("url", "")
             if url and url not in seen_urls:
                 seen_urls.add(url)
-                sources.append({
-                    "title": r.get("title", ""),
-                    "url": url,
-                    "date": r.get("date", "")[:10],
-                    "source": r.get("source", ""),
-                })
+                sources.append(
+                    {
+                        "title": r.get("title", ""),
+                        "url": url,
+                        "date": r.get("date", "")[:10],
+                        "source": r.get("source", ""),
+                    }
+                )
 
         # Determine severity
         severity = _determine_severity(len(reports), unique_themes)
 
         # Fetch HDX enrichment data for this country
-        hdx_data = None
         hdx_key_figures = []
         hdx_context_text = ""
         try:
             from hdx_enrichment import fetch_hdx_context, format_hdx_for_bulletin
+
             hdx_context = fetch_hdx_context(country)
             if hdx_context:
                 hdx_bulletin = format_hdx_for_bulletin(hdx_context)
                 hdx_key_figures = hdx_bulletin.get("key_figures", [])
                 hdx_context_text = hdx_bulletin.get("context_text", "")
-                hdx_data = hdx_context  # Store full context for the crisis entry
         except Exception as exc:
             logger.warning("HDX enrichment for %s failed (non-fatal): %s", country, exc)
 
         # Generate LLM summary (or use metadata-only fallback)
         if skip_llm:
             headline = f"{country} humanitarian situation"
-            summary = f"Analysis of {len(reports)} reports from {country} covering themes: {', '.join(unique_themes[:3])}."
+            summary = (
+                f"Analysis of {len(reports)} reports from {country} covering themes: {', '.join(unique_themes[:3])}."
+            )
             if hdx_context_text:
                 summary += f" {hdx_context_text}"
         else:
-            llm_result = generate_crisis_summary(country, reports, date_from, date_to, hdx_context_text=hdx_context_text)
+            llm_result = generate_crisis_summary(
+                country, reports, date_from, date_to, hdx_context_text=hdx_context_text
+            )
             if llm_result:
                 headline = llm_result["headline"]
                 summary = llm_result["summary"]
@@ -668,6 +679,7 @@ def generate_weekly_bulletin(
     def _human_week_label(start_str, end_str):
         try:
             from datetime import datetime
+
             sd = datetime.strptime(start_str, "%Y-%m-%d")
             ed = datetime.strptime(end_str, "%Y-%m-%d")
             month_name = sd.strftime("%B")
@@ -732,7 +744,6 @@ def _save_bulletin(bulletin: dict, date_from: str, date_to: str) -> Path:
     path = BULLETINS_DIR / filename
 
     # Atomic write: write to temp file, then rename (prevents corruption)
-    import tempfile
     tmp_path = path.with_suffix(".tmp")
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -755,6 +766,7 @@ def _save_bulletin(bulletin: dict, date_from: str, date_to: str) -> Path:
 # List bulletins
 # ---------------------------------------------------------------------------
 
+
 def list_bulletins() -> list[dict]:
     """List available bulletins, sorted by date descending."""
     if not BULLETINS_DIR.exists():
@@ -765,17 +777,19 @@ def list_bulletins() -> list[dict]:
         try:
             with open(f, encoding="utf-8") as fh:
                 data = json.load(fh)
-            bulletins.append({
-                "filename": f.name,
-                "week_start": data.get("week_start", ""),
-                "week_end": data.get("week_end", ""),
-                "week_label": data.get("week_label", ""),
-                "total_reports": data.get("total_reports", 0),
-                "countries_affected": data.get("countries_affected", 0),
-                "crises_count": len(data.get("crises", [])),
-                "generated_at": data.get("generated_at", ""),
-                "data_date_range": data.get("data_date_range"),
-            })
+            bulletins.append(
+                {
+                    "filename": f.name,
+                    "week_start": data.get("week_start", ""),
+                    "week_end": data.get("week_end", ""),
+                    "week_label": data.get("week_label", ""),
+                    "total_reports": data.get("total_reports", 0),
+                    "countries_affected": data.get("countries_affected", 0),
+                    "crises_count": len(data.get("crises", [])),
+                    "generated_at": data.get("generated_at", ""),
+                    "data_date_range": data.get("data_date_range"),
+                }
+            )
         except (json.JSONDecodeError, Exception) as exc:
             logger.warning("Failed to read bulletin %s: %s", f.name, exc)
 
@@ -804,19 +818,20 @@ def get_bulletin(filename: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Weekly Bulletin Generator — Sightline"
-    )
+    parser = argparse.ArgumentParser(description="Weekly Bulletin Generator — Sightline")
     parser.add_argument(
-        "--date-from", required=True,
+        "--date-from",
+        required=True,
         help="Start date (YYYY-MM-DD)",
     )
     parser.add_argument(
-        "--date-to", required=True,
+        "--date-to",
+        required=True,
         help="End date (YYYY-MM-DD)",
     )
     parser.add_argument(
-        "--skip-llm", action="store_true",
+        "--skip-llm",
+        action="store_true",
         help="Skip LLM calls, use metadata-only summaries",
     )
 

@@ -19,11 +19,12 @@ logger = logging.getLogger(__name__)
 # Try to import Docling, but make it optional
 try:
     from docling.document_converter import DocumentConverter
-    from docling_core.types.doc import ConversionStatus
+
     DOCLING_AVAILABLE = True
 except ImportError:
     DOCLING_AVAILABLE = False
     logger.info("Docling not available, using PyPDF2 for PDF processing")
+
 
 class PDFConverter:
     """Convert PDFs to structured formats (Markdown, JSON)"""
@@ -62,12 +63,12 @@ class PDFConverter:
     def convert_pdf_to_markdown(self, pdf_path: str) -> str | None:
         """
         Convert PDF to Markdown format
-        
+
         Uses Docling if available, falls back to PyPDF2
-        
+
         Args:
             pdf_path: Path to PDF file
-            
+
         Returns:
             Markdown content or None if conversion fails
         """
@@ -82,9 +83,8 @@ class PDFConverter:
         if self.docling_available and self.converter:
             try:
                 result = self.converter.convert(str(pdf_path_obj))
-                from docling_core.types.doc import ConversionStatus as ConvStatus
 
-                if result.status == ConvStatus.SUCCESS:
+                if str(result.status) == "success":
                     markdown_content = result.document.export_to_markdown()
                     logger.info(f"PDF converted to Markdown with Docling ({len(markdown_content)} chars)")
                     return markdown_content
@@ -104,12 +104,12 @@ class PDFConverter:
     def convert_pdf_to_json(self, pdf_path: str) -> dict | None:
         """
         Convert PDF to JSON structured format
-        
+
         Extracts text and metadata, structures as JSON
-        
+
         Args:
             pdf_path: Path to PDF file
-            
+
         Returns:
             Dictionary with structured content or None
         """
@@ -129,10 +129,7 @@ class PDFConverter:
             for page_num, page in enumerate(reader.pages, 1):
                 page_text = page.extract_text()
                 if page_text:
-                    pages_content.append({
-                        "page": page_num,
-                        "content": page_text
-                    })
+                    pages_content.append({"page": page_num, "content": page_text})
                     full_text += f"\n--- PAGE {page_num} ---\n{page_text}"
 
             structured = {
@@ -140,7 +137,7 @@ class PDFConverter:
                 "total_pages": len(reader.pages),
                 "conversion_method": "docling" if self.docling_available else "pypdf2",
                 "pages": pages_content,
-                "full_text": full_text.strip()
+                "full_text": full_text.strip(),
             }
 
             logger.info(f"PDF converted to JSON ({len(reader.pages)} pages)")
@@ -182,30 +179,23 @@ class ReportFormatConverter:
         self.pdf_converter = PDFConverter()
 
     def download_and_convert_report(
-        self,
-        report_id: int,
-        output_dir: str = "reliefweb_downloads",
-        formats: list = None
+        self, report_id: int, output_dir: str = "reliefweb_downloads", formats: list = None
     ) -> dict:
         """
         Download a report and convert its PDF to structured formats
-        
+
         Args:
             report_id: ReliefWeb report ID
             output_dir: Directory to save converted files
             formats: List of formats to save ['markdown', 'json', 'both']
-        
+
         Returns:
             Dictionary with conversion results
         """
         if formats is None:
-            formats = ['markdown', 'json']
+            formats = ["markdown", "json"]
 
-        result = {
-            "report_id": report_id,
-            "success": False,
-            "files": {}
-        }
+        result = {"report_id": report_id, "success": False, "files": {}}
 
         try:
             # Get report metadata
@@ -238,19 +228,19 @@ class ReportFormatConverter:
                 return result
 
             pdf_url = pdf_file.get("url", "")
-            pdf_filename = pdf_file.get("filename", f"report_{report_id}.pdf")
+            pdf_file.get("filename", f"report_{report_id}.pdf")
 
             # Download PDF to temporary location
             pdf_response = requests.get(pdf_url, timeout=API_TIMEOUT_LONG, verify=_ssl_verify())
             pdf_response.raise_for_status()
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 tmp.write(pdf_response.content)
                 tmp_pdf_path = tmp.name
 
             try:
                 # Convert to requested formats
-                if 'markdown' in formats or 'both' in formats:
+                if "markdown" in formats or "both" in formats:
                     markdown = self.pdf_converter.convert_pdf_to_markdown(tmp_pdf_path)
                     if markdown:
                         md_path = report_dir / f"report_{report_id}.md"
@@ -258,7 +248,7 @@ class ReportFormatConverter:
                             result["files"]["markdown"] = str(md_path)
                             logger.info(f"Markdown saved for report {report_id}")
 
-                if 'json' in formats or 'both' in formats:
+                if "json" in formats or "both" in formats:
                     json_content = self.pdf_converter.convert_pdf_to_json(tmp_pdf_path)
                     if json_content:
                         json_path = report_dir / f"report_{report_id}_structured.json"
@@ -281,19 +271,16 @@ class ReportFormatConverter:
         return result
 
     def batch_convert_reports(
-        self,
-        report_ids: list,
-        output_dir: str = "reliefweb_downloads",
-        formats: list = None
+        self, report_ids: list, output_dir: str = "reliefweb_downloads", formats: list = None
     ) -> dict:
         """
         Convert multiple reports in batch
-        
+
         Args:
             report_ids: List of report IDs
             output_dir: Directory for outputs
             formats: Formats to convert to
-        
+
         Returns:
             Summary of batch conversion
         """
@@ -308,7 +295,7 @@ class ReportFormatConverter:
             "successful": sum(1 for r in results if r.get("success")),
             "failed": sum(1 for r in results if not r.get("success")),
             "base_directory": output_dir,
-            "results": results
+            "results": results,
         }
 
         return summary

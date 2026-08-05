@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 _worldbank_client: WorldBankClient | None = None
 
 
-def init_worldbank_tools(base_url: str = "", timeout: float = 15.0,
-                         cache_ttl: int = 86400) -> bool:
+def init_worldbank_tools(base_url: str = "", timeout: float = 15.0, cache_ttl: int = 86400) -> bool:
     """Initialize the global World Bank client singleton.
 
     Called from server.py at startup. The World Bank API is keyless, so this
@@ -58,6 +57,7 @@ def get_worldbank_client() -> WorldBankClient | None:
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 
+
 def _worldbank_to_json(data) -> str:
     """Convert World Bank response data to JSON string for agent tool response."""
     if data is None:
@@ -71,6 +71,7 @@ def _worldbank_to_json(data) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 # World Bank Tool Definitions
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @tool
 def worldbank_get_indicator(country_code: str, indicator_code: str, limit: int = 5) -> str:
@@ -136,8 +137,7 @@ def worldbank_country_profile(country_code: str) -> str:
             cc = to_iso2(country_code)
             return format_error(
                 "NoData",
-                f"No profile data returned for country '{country_code}' (ISO2: {cc}). "
-                f"The country code may be invalid.",
+                f"No profile data returned for country '{country_code}' (ISO2: {cc}). The country code may be invalid.",
             )
         return _worldbank_to_json(profile)
     except Exception as e:

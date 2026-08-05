@@ -22,12 +22,10 @@ import re
 import secrets
 import sqlite3
 import subprocess
-import sys
 import threading
 import time
 import uuid
 from pathlib import Path
-
 
 # ── Suppress ONNX / TensorRT log noise before any onnxruntime import ─────────
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
@@ -36,26 +34,21 @@ os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
 
 import urllib3
-from flask import Flask, Response, g, jsonify, render_template, request
-from flask_cors import CORS
+from flask import Flask, g, jsonify, render_template, request
 from flask_compress import Compress
+from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from config import (
     _LLM_API_KEY,
-    _LLM_BASE_URL,
     CHAT_MODELS,
     CHATS_DB_PATH,
+    CONTACT_EMAIL,
     CORS_ORIGINS,
     DAILY_MESSAGE_LIMIT,
     DB_PATH,
     LOG_LEVEL,
-    MODEL_MAX_TOKENS,
-    MODEL_TEMPERATURE,
-    OLLAMA_MODEL,
-    OLLAMA_TIMEOUT,
-    OUTPUT_REPORTS_DIR,
     PREMIUM_MESSAGE_LIMIT,
     SECRET_KEY,
     SERVER_API_KEY,
@@ -70,7 +63,7 @@ from config import (
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from auth import _admins, current_role, current_uid, require_admin, require_auth, require_role
+from auth import _admins, current_role, require_auth
 from config import (
     HDX_APP_IDENTIFIER,
     HDX_BASE_URL,
@@ -110,17 +103,19 @@ app.secret_key = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit (PDF reports)
 
 # ── Register Blueprints ──────────────────────────────────────────────────────
-from blueprints.proposal import proposal_bp
 from blueprints.admin_bp import admin_bp
-from blueprints.sitrep import sitrep_bp
 from blueprints.agent_bp import agent_bp
-from blueprints.public_bp import public_bp
-from blueprints.hdx_bp import hdx_bp
-from blueprints.news_bp import news_bp
 from blueprints.db_bp import db_bp
+from blueprints.guided_proposal import guided_proposal_bp
+from blueprints.hdx_bp import hdx_bp
 from blueprints.ingest_bp import ingest_bp
+from blueprints.news_bp import news_bp
+from blueprints.proposal import proposal_bp
+from blueprints.public_bp import public_bp
+from blueprints.sitrep import sitrep_bp
 
 app.register_blueprint(proposal_bp)
+app.register_blueprint(guided_proposal_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(sitrep_bp)
 app.register_blueprint(agent_bp)
@@ -227,10 +222,10 @@ limiter = Limiter(
 )
 
 # Per-blueprint rate limits
-limiter.limit("30/minute")(agent_bp)     # Expensive LLM calls
+limiter.limit("30/minute")(agent_bp)  # Expensive LLM calls
 limiter.limit("20/minute")(proposal_bp)  # Even more expensive
-limiter.limit("10/minute")(ingest_bp)    # Very heavy — PDF upload + processing
-limiter.limit("60/minute")(admin_bp)     # Light queries
+limiter.limit("10/minute")(ingest_bp)  # Very heavy — PDF upload + processing
+limiter.limit("60/minute")(admin_bp)  # Light queries
 # Public/DB/HDX/News/Sitrep: default 120/min (already set)
 
 # ProxyFix: behind nginx, request.remote_addr is 127.0.0.1 for everyone.
@@ -239,11 +234,13 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
+
 def _ssl_verify():
     """Return verify kwarg for requests calls based on config."""
     if not SSL_VERIFY:
         return False
     return SSL_CA_BUNDLE or True
+
 
 @app.after_request
 def add_security_headers(response):
@@ -306,27 +303,36 @@ def _apply_api_rate_limit():
     if not path.startswith("/api/"):
         return None
     # Exempt: health (Docker healthcheck), stream (long-lived SSE), public endpoints
-    if path == "/api/health" or path.startswith("/api/sitrep/stream") or path.startswith("/api/public/") or path.startswith("/api/map/") or path.startswith("/api/country/summaries"):
+    if (
+        path == "/api/health"
+        or path.startswith("/api/sitrep/stream")
+        or path.startswith("/api/public/")
+        or path.startswith("/api/map/")
+        or path.startswith("/api/country/summaries")
+    ):
         return None
     ok, remaining = _check_api_rate_limit()
     if not ok:
-        return jsonify({
-            "error": "Rate limit exceeded. Please try again later.",
-            "remaining": 0,
-        }), 429
+        return jsonify(
+            {
+                "error": "Rate limit exceeded. Please try again later.",
+                "remaining": 0,
+            }
+        ), 429
     return None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AGENT: Lazy import + multi-chat conversation state
 # ─────────────────────────────────────────────────────────────────────────────
 
 _relief_agent = None
-_agent_lock   = threading.Lock()
+_agent_lock = threading.Lock()
 
 # Multi-chat: SQLite-backed persistence (survives server restarts)
 import time as _time
 
-_chats_lock     = threading.Lock()
+_chats_lock = threading.Lock()
 _user_active_chat = {}  # uid → chat_id
 _user_active_chat_lock = threading.Lock()
 _user_agent_busy = {}  # uid → bool  (per-user agent busy flag)
@@ -339,11 +345,14 @@ _api_rate_lock = threading.Lock()
 _api_rate_counts = {}  # ip → {date: str, count: int}
 _API_DAILY_LIMIT = int(os.getenv("API_DAILY_LIMIT", "100"))
 
+
 def _check_api_rate_limit():
     """Per-IP rate limit for API endpoints. Returns (ok, remaining)."""
     from datetime import date
+
     # Dev mode: bypass IP rate limiting entirely for loopback
     from auth import _dev_mode
+
     if _dev_mode():
         return True, 9999
     today = date.today().isoformat()
@@ -362,6 +371,7 @@ def _check_api_rate_limit():
         remaining = max(0, _API_DAILY_LIMIT - entry["count"])
     return entry["count"] <= _API_DAILY_LIMIT, remaining
 
+
 def _chats_db():
     """Return a connection to the chats SQLite database."""
     conn = sqlite3.connect(str(CHATS_DB_PATH))
@@ -370,6 +380,7 @@ def _chats_db():
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
+
 def _check_rate_limit(uid: str, role: str = "free") -> dict:
     """Check daily message count for a user. Returns {remaining, limit, used}.
 
@@ -377,12 +388,11 @@ def _check_rate_limit(uid: str, role: str = "free") -> dict:
     admin gets 999 (unlimited).
     """
     from datetime import date
+
     today = date.today().isoformat()
     conn = _chats_db()
     try:
-        row = conn.execute(
-            "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
-        ).fetchone()
+        row = conn.execute("SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)).fetchone()
         if row and row["date"] == today:
             used = row["count"]
         else:
@@ -399,6 +409,7 @@ def _check_rate_limit(uid: str, role: str = "free") -> dict:
     remaining = max(0, limit - used)
     return {"remaining": remaining, "limit": limit, "used": used}
 
+
 def _check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:
     """Atomically check the daily rate limit AND increment the counter in a single
     SQLite transaction. Returns {remaining, limit, used, allowed}.
@@ -408,6 +419,7 @@ def _check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:
     when you need to gate a single request.
     """
     from datetime import date
+
     today = date.today().isoformat()
     if role == "admin":
         limit = 999
@@ -419,9 +431,7 @@ def _check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:
     try:
         conn.execute("PRAGMA busy_timeout=5000")
         with conn:
-            row = conn.execute(
-                "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
-            ).fetchone()
+            row = conn.execute("SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)).fetchone()
             if row and row["date"] == today:
                 used = row["count"]
             else:
@@ -430,9 +440,7 @@ def _check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:
             if allowed:
                 new_count = used + 1
                 if row:
-                    conn.execute(
-                        "UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid)
-                    )
+                    conn.execute("UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid))
                 else:
                     conn.execute(
                         "INSERT OR REPLACE INTO rate_limits (uid, date, count) VALUES (?, ?, 1)",
@@ -445,22 +453,20 @@ def _check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:
     finally:
         conn.close()
 
+
 def _increment_rate_limit(uid: str) -> int:
     """Atomically increment daily message count for a user. Returns new count."""
     from datetime import date
+
     today = date.today().isoformat()
     conn = _chats_db()
     try:
         conn.execute("PRAGMA busy_timeout=5000")
         with conn:
-            row = conn.execute(
-                "SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)
-            ).fetchone()
+            row = conn.execute("SELECT date, count FROM rate_limits WHERE uid = ?", (uid,)).fetchone()
             if row and row["date"] == today:
                 new_count = row["count"] + 1
-                conn.execute(
-                    "UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid)
-                )
+                conn.execute("UPDATE rate_limits SET count = ? WHERE uid = ?", (new_count, uid))
             else:
                 new_count = 1
                 conn.execute(
@@ -470,6 +476,7 @@ def _increment_rate_limit(uid: str) -> int:
     finally:
         conn.close()
     return new_count
+
 
 def _init_chats_db():
     """Create chats tables if they don't exist."""
@@ -557,33 +564,34 @@ def _init_chats_db():
     # Migration: add new section columns to existing proposals table
     prop_cols = [r[1] for r in conn.execute("PRAGMA table_info(proposals)").fetchall()]
     _new_prop_cols = {
-        "cover_page":      ("TEXT NOT NULL DEFAULT '{}'"),
-        "background":      ("TEXT NOT NULL DEFAULT ''"),
-        "needs_assessment":("TEXT NOT NULL DEFAULT ''"),
-        "methodology":     ("TEXT NOT NULL DEFAULT ''"),
-        "budget":          ("TEXT NOT NULL DEFAULT '{}'"),
-        "mne_framework":   ("TEXT NOT NULL DEFAULT '{}'"),
-        "risk_matrix":     ("TEXT NOT NULL DEFAULT '[]'"),
-        "sustainability":  ("TEXT NOT NULL DEFAULT ''"),
-        "coordination":    ("TEXT NOT NULL DEFAULT ''"),
-        "current_step":    ("TEXT NOT NULL DEFAULT 'cover'"),
-        "step_status":     ("TEXT NOT NULL DEFAULT '{}'"),
-        "completed_at":    ("REAL"),
-        "reference_text":  ("TEXT NOT NULL DEFAULT ''"),
+        "cover_page": ("TEXT NOT NULL DEFAULT '{}'"),
+        "background": ("TEXT NOT NULL DEFAULT ''"),
+        "needs_assessment": ("TEXT NOT NULL DEFAULT ''"),
+        "methodology": ("TEXT NOT NULL DEFAULT ''"),
+        "budget": ("TEXT NOT NULL DEFAULT '{}'"),
+        "mne_framework": ("TEXT NOT NULL DEFAULT '{}'"),
+        "risk_matrix": ("TEXT NOT NULL DEFAULT '[]'"),
+        "sustainability": ("TEXT NOT NULL DEFAULT ''"),
+        "coordination": ("TEXT NOT NULL DEFAULT ''"),
+        "current_step": ("TEXT NOT NULL DEFAULT 'cover'"),
+        "step_status": ("TEXT NOT NULL DEFAULT '{}'"),
+        "completed_at": ("REAL"),
+        "reference_text": ("TEXT NOT NULL DEFAULT ''"),
         "reference_filename": ("TEXT NOT NULL DEFAULT ''"),
-        "pinned_sources":  ("TEXT NOT NULL DEFAULT '[]'"),
-        "beneficiary_data":("TEXT NOT NULL DEFAULT '{}'"),
-        "toc_nodes":       ("TEXT NOT NULL DEFAULT '[]'"),
-        "logframe_data":   ("TEXT NOT NULL DEFAULT '{}'"),
-        "budget_details":  ("TEXT NOT NULL DEFAULT '{}'"),
-        "risk_details":    ("TEXT NOT NULL DEFAULT '[]'"),
-        "mne_plan":        ("TEXT NOT NULL DEFAULT '[]'"),
+        "pinned_sources": ("TEXT NOT NULL DEFAULT '[]'"),
+        "beneficiary_data": ("TEXT NOT NULL DEFAULT '{}'"),
+        "toc_nodes": ("TEXT NOT NULL DEFAULT '[]'"),
+        "logframe_data": ("TEXT NOT NULL DEFAULT '{}'"),
+        "budget_details": ("TEXT NOT NULL DEFAULT '{}'"),
+        "risk_details": ("TEXT NOT NULL DEFAULT '[]'"),
+        "mne_plan": ("TEXT NOT NULL DEFAULT '[]'"),
     }
     for col, coldef in _new_prop_cols.items():
         if col not in prop_cols:
             conn.execute(f"ALTER TABLE proposals ADD COLUMN {col} {coldef}")
     conn.commit()
     conn.close()
+
 
 _init_chats_db()
 
@@ -621,21 +629,26 @@ def _upsert_user(uid: str, email: str = "", role: str = "free", signup_source: s
     try:
         conn = _chats_db()
         now = _time.time()
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO users (uid, email, role, created_at, last_seen, signup_source)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(uid) DO UPDATE SET
                 email     = excluded.email,
                 role      = excluded.role,
                 last_seen = excluded.last_seen
-        """, (uid, email, role, now, now, signup_source))
+        """,
+            (uid, email, role, now, now, signup_source),
+        )
         conn.commit()
         conn.close()
     except Exception as e:
         logger.debug("Failed to upsert user %s: %s", uid, e)
 
+
 def _new_chat_id():
     return uuid.uuid4().hex[:8]
+
 
 def _db_chat_exists(chat_id):
     conn = _chats_db()
@@ -643,12 +656,13 @@ def _db_chat_exists(chat_id):
     conn.close()
     return row is not None
 
+
 def _db_create_chat(chat_id, uid="", title="New Chat"):
     conn = _chats_db()
-    conn.execute("INSERT INTO chats (id, uid, title, created) VALUES (?, ?, ?, ?)",
-                 (chat_id, uid, title, _time.time()))
+    conn.execute("INSERT INTO chats (id, uid, title, created) VALUES (?, ?, ?, ?)", (chat_id, uid, title, _time.time()))
     conn.commit()
     conn.close()
+
 
 def _db_get_chats_by_uid(uid):
     conn = _chats_db()
@@ -657,10 +671,11 @@ def _db_get_chats_by_uid(uid):
         "FROM chats c LEFT JOIN chat_messages m ON m.chat_id = c.id "
         "WHERE c.uid = ? "
         "GROUP BY c.id ORDER BY c.created DESC",
-        (uid,)
+        (uid,),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
 
 def _db_chat_belongs_to(chat_id, uid):
     conn = _chats_db()
@@ -668,27 +683,30 @@ def _db_chat_belongs_to(chat_id, uid):
     conn.close()
     return row is not None and row["uid"] == uid
 
+
 def _db_add_message(chat_id, role, content):
     conn = _chats_db()
-    conn.execute("INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, ?, ?, ?)",
-                 (chat_id, role, content, _time.time()))
+    conn.execute(
+        "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, ?, ?, ?)",
+        (chat_id, role, content, _time.time()),
+    )
     conn.commit()
     conn.close()
 
+
 def _db_get_messages(chat_id):
     conn = _chats_db()
-    rows = conn.execute(
-        "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY id",
-        (chat_id,)
-    ).fetchall()
+    rows = conn.execute("SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY id", (chat_id,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
 
 def _db_rename_chat(chat_id, title):
     conn = _chats_db()
     conn.execute("UPDATE chats SET title = ? WHERE id = ?", (title, chat_id))
     conn.commit()
     conn.close()
+
 
 def _db_delete_chat(chat_id):
     conn = _chats_db()
@@ -697,12 +715,14 @@ def _db_delete_chat(chat_id):
     conn.commit()
     conn.close()
 
+
 def _db_clear_messages(chat_id):
     conn = _chats_db()
     conn.execute("DELETE FROM chat_messages WHERE chat_id = ?", (chat_id,))
     conn.execute("UPDATE chats SET title = 'New Chat' WHERE id = ?", (chat_id,))
     conn.commit()
     conn.close()
+
 
 def _ensure_active_chat(uid=""):
     """Return the active chat_id for the user, creating one if needed."""
@@ -714,8 +734,7 @@ def _ensure_active_chat(uid=""):
             if uid:
                 conn = _chats_db()
                 row = conn.execute(
-                    "SELECT id FROM chats WHERE uid = ? ORDER BY created DESC LIMIT 1",
-                    (uid,)
+                    "SELECT id FROM chats WHERE uid = ? ORDER BY created DESC LIMIT 1", (uid,)
                 ).fetchone()
                 conn.close()
                 if row and _db_chat_belongs_to(row["id"], uid):
@@ -726,9 +745,11 @@ def _ensure_active_chat(uid=""):
             _user_active_chat[uid] = cid
             return cid
 
+
 def _load_langchain_messages(chat_id):
     """Load messages from DB as LangChain message objects."""
     from langchain_core.messages import AIMessage, HumanMessage
+
     rows = _db_get_messages(chat_id)
     msgs = []
     for r in rows:
@@ -745,17 +766,20 @@ def _get_agent():
         with _agent_lock:
             if _relief_agent is None:
                 from agent.relief_agent import relief_agent
+
                 _relief_agent = relief_agent
     return _relief_agent
 
 
 def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
     """Generate a short chat title using the LLM in a background thread."""
+
     def _do():
         try:
             from langchain_openai import ChatOpenAI
 
             from config import config as _cfg
+
             mini = ChatOpenAI(
                 model=_cfg.LLM_MODEL,
                 base_url=_cfg._LLM_BASE_URL,
@@ -771,7 +795,7 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
                 f"Assistant: {ai_reply[:200]}"
             )
             resp = mini.invoke(prompt)
-            title = resp.content.strip().strip('"\'').strip()[:60]
+            title = resp.content.strip().strip("\"'").strip()[:60]
             if title:
                 _db_rename_chat(chat_id, title)
                 logger.info("Chat title generated: chat_id=%s title=%s", chat_id, title)
@@ -779,12 +803,14 @@ def _generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
                 logger.warning("Chat title generation returned empty for chat_id=%s", chat_id)
         except Exception as exc:
             logger.warning("Chat title generation failed for chat_id=%s: %s", chat_id, exc)
+
     threading.Thread(target=_do, daemon=True).start()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DB: SQLite helpers   (from reliefwebapi/web_app.py)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _db_conn():
     """Return a connection to the reliefweb SQLite database with WAL mode."""
@@ -811,7 +837,7 @@ def _parse_countries(json_str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 _jobs: dict = {}
-_jobs_lock  = threading.Lock()
+_jobs_lock = threading.Lock()
 _JOBS_MAX_AGE = int(os.getenv("SITREP_JOBS_MAX_AGE", "3600"))  # Clean up completed jobs older than 1 hour
 
 # ── Nonce store for SITREP stream auth ────────────────────────────────────────
@@ -866,12 +892,23 @@ def _cleanup_stream_nonces():
         for k in expired:
             del _stream_nonces[k]
 
-_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHF]')
-_NOISE   = [
-    "onnxruntime", "tensorrt", "cublas", "cudnn", "ep error",
-    "falling back to", "onnxruntime_providers", "executionprovider",
-    "requires", "from tensorrt", "cann execution",
-    "cublaslt", "provider_bridge_ort", "cudaexecutionprovider",
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mGKHF]")
+_NOISE = [
+    "onnxruntime",
+    "tensorrt",
+    "cublas",
+    "cudnn",
+    "ep error",
+    "falling back to",
+    "onnxruntime_providers",
+    "executionprovider",
+    "requires",
+    "from tensorrt",
+    "cann execution",
+    "cublaslt",
+    "provider_bridge_ort",
+    "cudaexecutionprovider",
     "tensorrtexecutionprovider",
 ]
 
@@ -964,10 +1001,12 @@ def _run_job(job_id: str, cmd: list):
 # ROUTES — Auth / Me
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/api/auth/me")
 @require_auth
 def api_auth_me():
-    from auth import _admins, _dev_mode
+    from auth import _dev_mode
+
     user = getattr(g, "current_user", None) or {}
     uid = user.get("uid", "")
     role = user.get("role", "free")
@@ -979,25 +1018,39 @@ def api_auth_me():
     # Track user (upsert) + log login event
     _upsert_user(uid, user.get("email", ""), role)
     rate = _check_rate_limit(uid, role)
-    return jsonify({
-        "uid": uid,
-        "email": user.get("email", ""),
-        "name": user.get("name", ""),
-        "is_admin": is_admin,
-        "role": role,
-        "rate_limit": rate,
-        "models": {k: {"name": v["name"], "desc": v["desc"], "premium": v["premium"]} for k, v in CHAT_MODELS.items()},
-    })
+    return jsonify(
+        {
+            "uid": uid,
+            "email": user.get("email", ""),
+            "name": user.get("name", ""),
+            "is_admin": is_admin,
+            "role": role,
+            "rate_limit": rate,
+            "models": {
+                k: {"name": v["name"], "desc": v["desc"], "premium": v["premium"]} for k, v in CHAT_MODELS.items()
+            },
+        }
+    )
 
 
 @app.route("/api/chat/models")
 @require_auth
 def api_chat_models():
     role = current_role()
-    return jsonify({
-        "models": {k: {"name": v["name"], "desc": v["desc"], "premium": v["premium"], "allowed": not v["premium"] or role in ("premium", "admin")} for k, v in CHAT_MODELS.items()},
-        "default": "thinking",
-    })
+    return jsonify(
+        {
+            "models": {
+                k: {
+                    "name": v["name"],
+                    "desc": v["desc"],
+                    "premium": v["premium"],
+                    "allowed": not v["premium"] or role in ("premium", "admin"),
+                }
+                for k, v in CHAT_MODELS.items()
+            },
+            "default": "thinking",
+        }
+    )
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1012,7 +1065,7 @@ def landing():
 
 @app.route("/app")
 def spa():
-    return render_template("index.html", v=int(_time.time()))
+    return render_template("index.html", v=int(_time.time()), contact_email=CONTACT_EMAIL)
 
 
 @app.route("/api/health")
@@ -1023,7 +1076,7 @@ def health():
     status flags — no model names, no release info, no dev_mode flag (which
     would be a banner saying 'auth is disabled here').
     """
-    from config import _LLM_API_KEY, CHROMA_DIR, VECTOR_BACKEND
+    from config import CHROMA_DIR, VECTOR_BACKEND
 
     checks = {"status": "ok", "version": "1.2"}
 
@@ -1042,6 +1095,7 @@ def health():
     if VECTOR_BACKEND == "pgvector":
         try:
             from config import SUPABASE_DB_URL, SUPABASE_URL
+
             checks["vector"] = bool(SUPABASE_URL and SUPABASE_DB_URL)
         except Exception:
             checks["vector"] = False
@@ -1096,11 +1150,12 @@ def _get_chroma_adapter():
         if _chroma_adapter is not None:
             return _chroma_adapter
         from sitrep.chroma_adapter import ChromaAdapter
+
         _chroma_adapter = ChromaAdapter()
         return _chroma_adapter
 
 
-MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this
+MANUAL_ID_BASE = 9_000_000_000  # manual TR-prefixed IDs start above this
 
 
 # =============================================================================
@@ -1113,9 +1168,18 @@ MANUAL_ID_BASE = 9_000_000_000   # manual TR-prefixed IDs start above this
 # =============================================================================
 
 PROPOSAL_SECTIONS = [
-    "cover", "background", "needs_assessment", "toc", "logframe",
-    "methodology", "budget", "mne_framework", "risk_matrix",
-    "sustainability", "coordination", "final_review",
+    "cover",
+    "background",
+    "needs_assessment",
+    "toc",
+    "logframe",
+    "methodology",
+    "budget",
+    "mne_framework",
+    "risk_matrix",
+    "sustainability",
+    "coordination",
+    "final_review",
 ]
 PROPOSAL_SECTION_LABELS = {
     "cover": "Cover Page",
@@ -1154,10 +1218,7 @@ def _get_proposal_for_edit(prop_id: str, uid: str, role: str):
         if role == "admin":
             row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
         else:
-            row = conn.execute(
-                "SELECT * FROM proposals WHERE id = ? AND uid = ?",
-                (prop_id, uid)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
         return row, conn
     except Exception:
         conn.close()
@@ -1177,7 +1238,9 @@ def _update_step_status(conn, prop_id: str, step: str, status: str, uid: str, ro
     if role == "admin":
         conn.execute("UPDATE proposals SET step_status = ? WHERE id = ?", (json.dumps(step_status), prop_id))
     else:
-        conn.execute("UPDATE proposals SET step_status = ? WHERE id = ? AND uid = ?", (json.dumps(step_status), prop_id, uid))
+        conn.execute(
+            "UPDATE proposals SET step_status = ? WHERE id = ? AND uid = ?", (json.dumps(step_status), prop_id, uid)
+        )
     conn.commit()
 
 
@@ -1186,7 +1249,7 @@ def _update_step_status(conn, prop_id: str, step: str, status: str, uid: str, ro
 # =============================================================================
 
 if __name__ == "__main__":
-    auth_status  = "ENABLED" if SERVER_API_KEY else "DISABLED"
+    auth_status = "ENABLED" if SERVER_API_KEY else "DISABLED"
     cors_display = ", ".join(_cors_origins)
     print("=" * 58)
     print("  ReliefWeb AI Platform  —  Unified Server")

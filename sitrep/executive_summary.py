@@ -103,9 +103,9 @@ def _format_numbered_context(items: list[dict]) -> str:
         title = item.get("title", "")
         text = item.get("text", "")
         if title:
-            parts.append(f"Source {i+1}: [{title}]\n{text}")
+            parts.append(f"Source {i + 1}: [{title}]\n{text}")
         else:
-            parts.append(f"Source {i+1}: {text}")
+            parts.append(f"Source {i + 1}: {text}")
     return "\n\n".join(parts)
 
 
@@ -154,10 +154,7 @@ def _simple_retrieve(
         ]
     except Exception as exc:
         logger.warning("Embedding-based retrieval failed, falling back to rank-based: %s", exc)
-        return [
-            {"id": str(i), "text": t, "rank": i + 1, "similarity": 0.0}
-            for i, t in enumerate(corpus[:k])
-        ]
+        return [{"id": str(i), "text": t, "rank": i + 1, "similarity": 0.0} for i, t in enumerate(corpus[:k])]
 
 
 def generate_executive_summary(
@@ -198,11 +195,13 @@ def generate_executive_summary(
             summary_text = cdata.get("summary", "").strip()
             title = cdata.get("title", f"Cluster {cid}")
             if summary_text:
-                sources.append({
-                    "cluster_id": cid,
-                    "title": title,
-                    "text": summary_text,
-                })
+                sources.append(
+                    {
+                        "cluster_id": cid,
+                        "title": title,
+                        "text": summary_text,
+                    }
+                )
 
         if sources:
             # Inject HDX quantitative data as Source 0 if available
@@ -210,6 +209,7 @@ def generate_executive_summary(
             if hdx_context:
                 try:
                     from hdx_enrichment import format_hdx_summary_for_prompt
+
                     hdx_prefix = format_hdx_summary_for_prompt(hdx_context)
                 except Exception as exc:
                     logger.warning("HDX enrichment for executive summary failed: %s", exc)
@@ -239,9 +239,7 @@ def generate_executive_summary(
                     cited_paragraphs[str(num)] = src["text"]
 
                     cid = src["cluster_id"]
-                    meta_values = list(
-                        cluster_summaries.get(cid, {}).get("used_contexts_meta", {}).values()
-                    )
+                    meta_values = list(cluster_summaries.get(cid, {}).get("used_contexts_meta", {}).values())
                     urls = [m.get("url", "") for m in meta_values if m.get("url", "")]
                     rep_url = max(set(urls), key=urls.count) if urls else ""
 
@@ -249,7 +247,9 @@ def generate_executive_summary(
 
             logger.info(
                 "SITREP executive summary completed: %d sources, %d citations, %d words.",
-                len(sources), len(cited_numbers), len(summary.split()),
+                len(sources),
+                len(cited_numbers),
+                len(summary.split()),
             )
 
             return {
@@ -333,7 +333,8 @@ def generate_executive_summary(
 
     logger.info(
         "Executive summary completed: %d citations, %d words.",
-        len(cited_numbers), len(summary.split()),
+        len(cited_numbers),
+        len(summary.split()),
     )
 
     return {

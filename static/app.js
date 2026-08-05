@@ -7,7 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const ADMIN_EMAIL = 'serkankizilirmak@gmail.com';
+const ADMIN_EMAIL = document.querySelector('meta[name="contact-email"]')?.content || 'support@sightline.ai';
 const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
 const DEFAULT_MODEL = 'flash';
 const CHAT_MODELS = {

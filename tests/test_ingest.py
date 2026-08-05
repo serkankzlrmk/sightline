@@ -12,9 +12,11 @@ import pytest
 
 # ── chunk_text ──────────────────────────────────────────────────────────────────
 
+
 class TestChunkText:
     def test_basic_chunking(self):
         from reliefweb_api.db_manager import chunk_text
+
         text = "A" * 500
         chunks = chunk_text(text, chunk_size=200, overlap=20)
         assert len(chunks) > 0
@@ -22,6 +24,7 @@ class TestChunkText:
 
     def test_short_text_returns_single_chunk(self):
         from reliefweb_api.db_manager import chunk_text
+
         text = "Short text"
         chunks = chunk_text(text, chunk_size=200, overlap=20)
         assert len(chunks) == 1
@@ -29,14 +32,17 @@ class TestChunkText:
 
     def test_empty_string_returns_empty_list(self):
         from reliefweb_api.db_manager import chunk_text
+
         assert chunk_text("") == []
 
     def test_whitespace_only_returns_empty_list(self):
         from reliefweb_api.db_manager import chunk_text
+
         assert chunk_text("   \n\n  ") == []
 
     def test_overlap_preserves_context(self):
         from reliefweb_api.db_manager import chunk_text
+
         text = "Word " * 200
         chunks = chunk_text(text, chunk_size=100, overlap=20)
         assert len(chunks) > 1
@@ -45,6 +51,7 @@ class TestChunkText:
 
     def test_preserves_content(self):
         from reliefweb_api.db_manager import chunk_text
+
         text = "This is a test sentence. " * 50
         chunks = chunk_text(text, chunk_size=200, overlap=30)
         full = " ".join(chunks)
@@ -53,9 +60,11 @@ class TestChunkText:
 
 # ── build_chunk_with_header ───────────────────────────────────────────────────
 
+
 class TestBuildChunkWithHeader:
     def test_basic_header(self):
         from reliefweb_api.db_manager import build_chunk_with_header
+
         metadata = {
             "title": "Test Report",
             "source": [{"shortname": "UNHCR"}],
@@ -72,12 +81,14 @@ class TestBuildChunkWithHeader:
 
     def test_missing_metadata(self):
         from reliefweb_api.db_manager import build_chunk_with_header
+
         result = build_chunk_with_header("Content", {}, "pdf")
         assert "[REPORT:" in result
         assert "TYPE: PDF" in result
 
     def test_limits_countries_to_five(self):
         from reliefweb_api.db_manager import build_chunk_with_header
+
         countries = [{"shortname": f"Country{i}"} for i in range(10)]
         metadata = {"title": "T", "source": [], "date": {}, "countries": countries}
         result = build_chunk_with_header("Content", metadata, "html")
@@ -87,10 +98,12 @@ class TestBuildChunkWithHeader:
 
 # ── DatabaseManager ────────────────────────────────────────────────────────────
 
+
 class TestDatabaseManager:
     @pytest.fixture
     def db(self, tmp_path):
         from reliefweb_api.db_manager import DatabaseManager
+
         db_path = str(tmp_path / "test.db")
         dm = DatabaseManager(db_path)
         yield dm
@@ -98,9 +111,7 @@ class TestDatabaseManager:
 
     def test_create_tables(self, db):
         conn = db._connect()
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         conn.close()
         table_names = [t[0] for t in tables]
         assert "reports" in table_names
@@ -233,10 +244,12 @@ class TestDatabaseManager:
 
 # ── is_ingested / is_ingested_with_pdf ─────────────────────────────────────────
 
+
 class TestIsIngested:
     def test_is_ingested_true(self, tmp_path):
         from reliefweb_api.db_manager import DatabaseManager
         from reliefweb_api.ingest_pipeline import is_ingested
+
         db_path = str(tmp_path / "test_ingest.db")
         db = DatabaseManager(db_path)
         metadata = {
@@ -256,12 +269,14 @@ class TestIsIngested:
 
     def test_is_ingested_false(self, tmp_path):
         from reliefweb_api.ingest_pipeline import is_ingested
+
         db_path = str(tmp_path / "test_ingest2.db")
         assert is_ingested(999999, db_path) is False
 
     def test_is_ingested_with_pdf_true(self, tmp_path):
         from reliefweb_api.db_manager import DatabaseManager
         from reliefweb_api.ingest_pipeline import is_ingested_with_pdf
+
         db_path = str(tmp_path / "test_ingest3.db")
         db = DatabaseManager(db_path)
         metadata = {
@@ -282,6 +297,7 @@ class TestIsIngested:
     def test_is_ingested_with_pdf_false_when_html_only(self, tmp_path):
         from reliefweb_api.db_manager import DatabaseManager
         from reliefweb_api.ingest_pipeline import is_ingested_with_pdf
+
         db_path = str(tmp_path / "test_ingest4.db")
         db = DatabaseManager(db_path)
         metadata = {

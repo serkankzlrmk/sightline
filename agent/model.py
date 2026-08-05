@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ModelInitializationError(Exception):
     """Model initialization failed."""
+
     pass
 
 
@@ -23,11 +24,11 @@ def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
     """
     Check if the LLM provider is accessible before initializing the model.
     Supports both OpenRouter and Ollama.
-    
+
     Args:
         max_retries: Number of retry attempts
         retry_delay: Delay between retries in seconds
-        
+
     Returns:
         True if the provider is accessible, False otherwise
     """
@@ -62,7 +63,7 @@ def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
         return False
     else:
         # Ollama: check /api/tags endpoint
-        base_url = config.OLLAMA_BASE_URL.rstrip('/v1')
+        base_url = config.OLLAMA_BASE_URL.rstrip("/v1")
         health_url = f"{base_url}/api/tags"
 
         for attempt in range(max_retries):
@@ -87,10 +88,10 @@ def check_model_available(model_name: str) -> bool:
     Check if a specific model is available.
     For OpenRouter, always returns True (models are available on-demand).
     For Ollama, checks the local model list.
-    
+
     Args:
         model_name: Name of the model to check
-        
+
     Returns:
         True if model is available, False otherwise
     """
@@ -100,14 +101,14 @@ def check_model_available(model_name: str) -> bool:
         return True
 
     # Ollama: check local model list
-    base_url = config.OLLAMA_BASE_URL.rstrip('/v1')
+    base_url = config.OLLAMA_BASE_URL.rstrip("/v1")
     tags_url = f"{base_url}/api/tags"
 
     try:
         response = requests.get(tags_url, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            models = [m.get('name', '') for m in data.get('models', [])]
+            models = [m.get("name", "") for m in data.get("models", [])]
 
             for available_model in models:
                 if model_name in available_model or available_model in model_name:
@@ -125,13 +126,13 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
     """
     Initialize the LLM model with error handling.
     Supports OpenRouter and Ollama providers.
-    
+
     Args:
         skip_checks: Skip connectivity/model availability checks
-        
+
     Returns:
         Initialized ChatOpenAI instance
-        
+
     Raises:
         ModelInitializationError: If model initialization fails
     """
@@ -143,13 +144,11 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
         if not check_llm_connectivity():
             if provider == "openrouter":
                 raise ModelInitializationError(
-                    f"Cannot connect to OpenRouter at {config._LLM_BASE_URL}. "
-                    "Check your OPENROUTER_API_KEY."
+                    f"Cannot connect to OpenRouter at {config._LLM_BASE_URL}. Check your OPENROUTER_API_KEY."
                 )
             else:
                 raise ModelInitializationError(
-                    f"Cannot connect to Ollama at {config.OLLAMA_BASE_URL}. "
-                    "Make sure Ollama is running: `ollama serve`"
+                    f"Cannot connect to Ollama at {config.OLLAMA_BASE_URL}. Make sure Ollama is running: `ollama serve`"
                 )
 
         if not check_model_available(model_name):
@@ -177,10 +176,10 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
 def get_model(skip_checks: bool = False) -> ChatOpenAI | None:
     """
     Get or initialize the model singleton.
-    
+
     Args:
         skip_checks: Skip connectivity/model availability checks
-        
+
     Returns:
         Initialized ChatOpenAI instance or None if initialization fails
     """
@@ -195,14 +194,15 @@ def reinitialize_model() -> ChatOpenAI:
     """
     Reinitialize the model singleton with current config values.
     Useful after config reload to pick up new model settings.
-    
+
     Returns:
         Newly initialized ChatOpenAI instance
-        
+
     Raises:
         ModelInitializationError: If model initialization fails
     """
     import importlib
+
     importlib.reload(config)
     logger.info("Reinitializing model with updated config: %s", config.OLLAMA_MODEL)
     return initialize_model(skip_checks=True)

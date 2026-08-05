@@ -87,7 +87,9 @@ def chat(
                 wait = _RATE_LIMIT_WAIT * attempt
                 logger.warning(
                     "Rate limit (429). Attempt %d/%d. Waiting %ds.",
-                    attempt, LLM_MAX_RETRIES, wait,
+                    attempt,
+                    LLM_MAX_RETRIES,
+                    wait,
                 )
                 time.sleep(wait)
                 continue
@@ -104,37 +106,28 @@ def chat(
                 )
             # qwen3 and similar reasoning models add a think block — clean it up
             import re as _re
+
             content = _re.sub(r"<think>.*?</think>", "", content, flags=_re.DOTALL).strip()
             return content.strip()
 
         except requests.exceptions.Timeout:
-            last_error = TimeoutError(
-                f"LLM request timed out ({LLM_TIMEOUT}s). "
-                f"Attempt {attempt}/{LLM_MAX_RETRIES}."
-            )
+            last_error = TimeoutError(f"LLM request timed out ({LLM_TIMEOUT}s). Attempt {attempt}/{LLM_MAX_RETRIES}.")
             logger.warning(str(last_error))
             time.sleep(2 * attempt)
 
         except requests.exceptions.RequestException as exc:
             last_error = exc
-            logger.warning(
-                "Request error (attempt %d/%d): %s", attempt, LLM_MAX_RETRIES, exc
-            )
+            logger.warning("Request error (attempt %d/%d): %s", attempt, LLM_MAX_RETRIES, exc)
             time.sleep(2 * attempt)
 
         except (KeyError, IndexError, RuntimeError) as exc:
             raw = getattr(response, "text", "")[:300] if response is not None else "—"
-            last_error = RuntimeError(
-                f"Failed to parse LLM response: {exc}. Raw response: {raw}"
-            )
+            last_error = RuntimeError(f"Failed to parse LLM response: {exc}. Raw response: {raw}")
             logger.warning("Response error (attempt %d/%d): %s", attempt, LLM_MAX_RETRIES, exc)
             time.sleep(2 * attempt)
             continue
 
-    raise RuntimeError(
-        f"Could not reach LLM provider after {LLM_MAX_RETRIES} attempts. "
-        f"Last error: {last_error}"
-    )
+    raise RuntimeError(f"Could not reach LLM provider after {LLM_MAX_RETRIES} attempts. Last error: {last_error}")
 
 
 def chat_simple(user_prompt: str, system_prompt: str | None = None, **kwargs) -> str:

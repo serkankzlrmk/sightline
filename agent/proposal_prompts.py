@@ -44,7 +44,6 @@ Return ONLY the JSON object.""",
         "tools": ["search_sitreps", "search_knowledge_base", "search_sources"],
         "output_format": "json",
     },
-
     "background": {
         "system": """You are writing the Context & Background section of a humanitarian donor proposal.
 
@@ -70,10 +69,15 @@ Write a comprehensive background section covering:
 Write in clear, professional markdown with ## headers.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON. Do not wrap in markdown code blocks.""",
-        "tools": ["search_sitreps", "search_knowledge_base", "get_sitrep_summary", "brave_web_search", "search_sources"],
+        "tools": [
+            "search_sitreps",
+            "search_knowledge_base",
+            "get_sitrep_summary",
+            "brave_web_search",
+            "search_sources",
+        ],
         "output_format": "json",
     },
-
     "needs_assessment": {
         "system": """You are writing the Needs Assessment section of a humanitarian donor proposal.
 
@@ -100,10 +104,16 @@ Write a structured needs assessment covering:
 Include specific numbers where available from the context. Write in professional markdown.
 Return JSON: {"content": "# markdown content here...", "sources": [{"title": "...", "url": "..."}]}
 Return ONLY the JSON. Do not wrap in markdown code blocks.""",
-        "tools": ["search_sitreps", "search_knowledge_base", "get_sitrep_summary", "hdx_get_refugees", "hdx_get_funding", "brave_web_search"],
+        "tools": [
+            "search_sitreps",
+            "search_knowledge_base",
+            "get_sitrep_summary",
+            "hdx_get_refugees",
+            "hdx_get_funding",
+            "brave_web_search",
+        ],
         "output_format": "json",
     },
-
     "toc": {
         "system": """You are creating the Theory of Change (ToC) for a humanitarian donor proposal.
 
@@ -127,7 +137,6 @@ Return ONLY the JSON array.""",
         "tools": ["search_knowledge_base"],
         "output_format": "json",
     },
-
     "logframe": {
         "system": """You are creating the Logical Framework Matrix for a humanitarian donor proposal.
 
@@ -160,7 +169,6 @@ Return ONLY the JSON object.""",
         "tools": ["search_knowledge_base"],
         "output_format": "json",
     },
-
     "methodology": {
         "system": """You are writing the Methodology section of a humanitarian donor proposal.
 
@@ -188,7 +196,6 @@ Return ONLY the JSON.""",
         "tools": ["search_sitreps", "search_knowledge_base", "search_sources"],
         "output_format": "json",
     },
-
     "budget": {
         "system": """You are creating the Budget Summary for a humanitarian donor proposal.
 
@@ -221,7 +228,6 @@ Return ONLY the JSON object.""",
         "tools": ["hdx_get_funding", "search_knowledge_base", "search_sources"],
         "output_format": "json",
     },
-
     "mne_framework": {
         "system": """You are creating the Monitoring & Evaluation Framework for a humanitarian donor proposal.
 
@@ -248,7 +254,6 @@ Return ONLY the JSON object.""",
         "tools": ["search_knowledge_base", "search_sitreps"],
         "output_format": "json",
     },
-
     "risk_matrix": {
         "system": """You are creating the Risk Matrix for a humanitarian donor proposal.
 
@@ -282,7 +287,6 @@ Return ONLY the JSON array.""",
         "tools": ["search_sitreps", "search_knowledge_base", "news_search", "brave_web_search"],
         "output_format": "json",
     },
-
     "sustainability": {
         "system": """You are writing the Sustainability & Exit Strategy section of a humanitarian donor proposal.
 
@@ -308,7 +312,6 @@ Return ONLY the JSON.""",
         "tools": ["search_knowledge_base", "search_sitreps", "search_sources"],
         "output_format": "json",
     },
-
     "coordination": {
         "system": """You are writing the Coordination section of a humanitarian donor proposal.
 
@@ -334,7 +337,6 @@ Return ONLY the JSON.""",
         "tools": ["search_sitreps", "search_sources", "brave_web_search"],
         "output_format": "json",
     },
-
     "final_review": {
         "system": """You are compiling the Final Narrative of a humanitarian donor proposal.
 
@@ -391,9 +393,18 @@ Return ONLY the JSON.""",
 
 
 SECTION_ORDER = [
-    "cover", "background", "needs_assessment", "toc", "logframe",
-    "methodology", "budget", "mne_framework", "risk_matrix",
-    "sustainability", "coordination", "final_review",
+    "cover",
+    "background",
+    "needs_assessment",
+    "toc",
+    "logframe",
+    "methodology",
+    "budget",
+    "mne_framework",
+    "risk_matrix",
+    "sustainability",
+    "coordination",
+    "final_review",
 ]
 
 
@@ -411,7 +422,8 @@ def build_user_context(step: str, proposal_row: dict) -> str:
 
     try:
         from agent.donor_templates import get_template_directive
-        donor_directive = get_template_directive(proposal_row.get('donor', ''))
+
+        donor_directive = get_template_directive(proposal_row.get("donor", ""))
         if donor_directive:
             parts.append(f"\n--- DONOR FORMAT REQUIREMENTS ---\n{donor_directive}")
     except ImportError:
@@ -425,18 +437,6 @@ def build_user_context(step: str, proposal_row: dict) -> str:
         themes = [t.strip() for t in str(proposal_row.get("themes", "")).split(",") if t.strip()]
     parts.append(f"Themes/Sectors: {', '.join(themes) if themes else 'General'}")
     parts.append(f"Date Range: {proposal_row.get('date_from', '')} to {proposal_row.get('date_to', '')}")
-
-    section_contexts = {
-        "toc": "logframe",
-        "logframe": "toc",
-        "methodology": "toc",
-        "budget": "toc",
-        "mne_framework": "logframe",
-        "risk_matrix": "methodology",
-        "sustainability": "methodology",
-        "coordination": "background",
-        "final_review": "narrative",
-    }
 
     prev_sections = []
     if step in ("background", "needs_assessment"):

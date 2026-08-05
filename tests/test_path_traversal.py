@@ -1,6 +1,7 @@
 """
 Tests for path traversal protection on SITREP report/bulletin endpoints.
 """
+
 from pathlib import Path
 
 

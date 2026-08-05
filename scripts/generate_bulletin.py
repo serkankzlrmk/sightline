@@ -40,9 +40,7 @@ def this_week_range():
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Weekly Bulletin Generator — Sightline CLI"
-    )
+    parser = argparse.ArgumentParser(description="Weekly Bulletin Generator — Sightline CLI")
     date_group = parser.add_mutually_exclusive_group(required=True)
     date_group.add_argument(
         "--date-from",
@@ -87,10 +85,12 @@ def main():
 
     # Initialize HDX client if configured (for enrichment)
     from config import config
-    hdx_app_id = getattr(config, 'HDX_APP_IDENTIFIER', '') or ''
+
+    hdx_app_id = getattr(config, "HDX_APP_IDENTIFIER", "") or ""
     if hdx_app_id:
         try:
             from reliefweb_api.hdx_tools import init_hdx_tools
+
             if init_hdx_tools(app_identifier=hdx_app_id):
                 print("HDX client initialized successfully")
             else:

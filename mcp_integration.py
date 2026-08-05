@@ -233,6 +233,7 @@ def init_mcp_tools() -> bool:
         except Exception as e:
             logger.warning("MCP: Background init failed (non-fatal): %s", e)
             import traceback
+
             logger.debug("MCP: Background init traceback: %s", traceback.format_exc())
 
     t = threading.Thread(target=_bg_init, daemon=True)

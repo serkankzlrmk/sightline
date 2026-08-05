@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 # Cache (TTL-based, Thread-Safe) — copied from news_client.py
 # ============================================================================
 
+
 class SimpleCache:
     def __init__(self, ttl: int = 3600, max_size: int = 200):
         self.ttl = ttl
@@ -113,6 +114,7 @@ def describe_weather_code(code: int) -> str:
 # Open-Meteo Weather Client
 # ============================================================================
 
+
 class WeatherClient:
     """Direct Open-Meteo API client (keyless, free)."""
 
@@ -150,6 +152,7 @@ class WeatherClient:
     @classmethod
     def from_env(cls) -> "WeatherClient":
         from dotenv import load_dotenv
+
         load_dotenv()
 
         return cls(
@@ -183,10 +186,7 @@ class WeatherClient:
     def _check_rate_limit(self) -> None:
         now = time.time()
         with self._rate_lock:
-            self._request_timestamps = [
-                t for t in self._request_timestamps
-                if now - t < self.rate_limit_period
-            ]
+            self._request_timestamps = [t for t in self._request_timestamps if now - t < self.rate_limit_period]
             if len(self._request_timestamps) >= self.rate_limit_requests:
                 oldest = self._request_timestamps[0]
                 wait_time = self.rate_limit_period - (now - oldest)
@@ -201,8 +201,7 @@ class WeatherClient:
     # Internal HTTP helper
     # =========================================================================
 
-    def _request(self, base: str, params: dict[str, Any],
-                 cache: SimpleCache | None = None) -> dict[str, Any] | None:
+    def _request(self, base: str, params: dict[str, Any], cache: SimpleCache | None = None) -> dict[str, Any] | None:
         """Perform a GET request and return parsed JSON, or None on error.
 
         Results are cached in `cache` when provided, keyed by base+params.
@@ -223,8 +222,7 @@ class WeatherClient:
             response = client.get(base, params=params)
             if response.status_code != 200:
                 logger.error(
-                    f"Open-Meteo error: {response.status_code} "
-                    f"for {base} params={params} body={response.text[:200]}"
+                    f"Open-Meteo error: {response.status_code} for {base} params={params} body={response.text[:200]}"
                 )
                 return None
             data = response.json()
@@ -239,8 +237,7 @@ class WeatherClient:
     # Public API — Geocoding
     # =========================================================================
 
-    def geocode(self, location_name: str, country_code: str | None = None,
-                limit: int = 5) -> list[dict[str, Any]]:
+    def geocode(self, location_name: str, country_code: str | None = None, limit: int = 5) -> list[dict[str, Any]]:
         """Geocode a place name to coordinates via Open-Meteo Geocoding API.
 
         Returns a list of dicts with keys:
@@ -262,23 +259,24 @@ class WeatherClient:
         results = data.get("results") or []
         out: list[dict[str, Any]] = []
         for r in results:
-            out.append({
-                "name": r.get("name", ""),
-                "latitude": r.get("latitude"),
-                "longitude": r.get("longitude"),
-                "country": r.get("country", ""),
-                "country_code": r.get("country_code", ""),
-                "admin1": r.get("admin1", ""),
-                "population": r.get("population"),
-            })
+            out.append(
+                {
+                    "name": r.get("name", ""),
+                    "latitude": r.get("latitude"),
+                    "longitude": r.get("longitude"),
+                    "country": r.get("country", ""),
+                    "country_code": r.get("country_code", ""),
+                    "admin1": r.get("admin1", ""),
+                    "population": r.get("population"),
+                }
+            )
         return out
 
     # =========================================================================
     # Public API — Weather Forecast
     # =========================================================================
 
-    def get_forecast(self, latitude: float, longitude: float,
-                     days: int = 7) -> dict[str, Any]:
+    def get_forecast(self, latitude: float, longitude: float, days: int = 7) -> dict[str, Any]:
         """Get current conditions + daily forecast for a coordinate.
 
         Returns dict:
@@ -296,19 +294,23 @@ class WeatherClient:
             "longitude": round(float(longitude), 4),
             "timezone": "auto",
             "forecast_days": days,
-            "current": ",".join([
-                "temperature_2m",
-                "relative_humidity_2m",
-                "wind_speed_10m",
-                "weather_code",
-            ]),
-            "daily": ",".join([
-                "temperature_2m_max",
-                "temperature_2m_min",
-                "precipitation_sum",
-                "wind_speed_10m_max",
-                "weather_code",
-            ]),
+            "current": ",".join(
+                [
+                    "temperature_2m",
+                    "relative_humidity_2m",
+                    "wind_speed_10m",
+                    "weather_code",
+                ]
+            ),
+            "daily": ",".join(
+                [
+                    "temperature_2m_max",
+                    "temperature_2m_min",
+                    "precipitation_sum",
+                    "wind_speed_10m_max",
+                    "weather_code",
+                ]
+            ),
         }
 
         data = self._request(self.base_url, params, cache=self.cache)
@@ -363,12 +365,12 @@ class WeatherClient:
 
     # WHO air quality guidelines (annual mean / 24h) for quick context.
     WHO_GUIDELINES = {
-        "pm2_5": 5.0,      # µg/m³ annual mean
-        "pm10": 15.0,      # µg/m³ 24-hour mean
-        "no2": 10.0,       # µg/m³ annual mean
-        "so2": 40.0,       # µg/m³ 24-hour mean
-        "o3": 100.0,       # µg/m³ 8-hour mean
-        "co": 4.0,         # mg/m³ 24-hour mean
+        "pm2_5": 5.0,  # µg/m³ annual mean
+        "pm10": 15.0,  # µg/m³ 24-hour mean
+        "no2": 10.0,  # µg/m³ annual mean
+        "so2": 40.0,  # µg/m³ 24-hour mean
+        "o3": 100.0,  # µg/m³ 8-hour mean
+        "co": 4.0,  # mg/m³ 24-hour mean
     }
 
     def get_air_quality(self, latitude: float, longitude: float) -> dict[str, Any]:
@@ -380,14 +382,16 @@ class WeatherClient:
             "latitude": round(float(latitude), 4),
             "longitude": round(float(longitude), 4),
             "timezone": "auto",
-            "current": ",".join([
-                "pm2_5",
-                "pm10",
-                "nitrogen_dioxide",
-                "sulphur_dioxide",
-                "ozone",
-                "carbon_monoxide",
-            ]),
+            "current": ",".join(
+                [
+                    "pm2_5",
+                    "pm10",
+                    "nitrogen_dioxide",
+                    "sulphur_dioxide",
+                    "ozone",
+                    "carbon_monoxide",
+                ]
+            ),
         }
 
         data = self._request(self.aq_url, params, cache=self.cache)

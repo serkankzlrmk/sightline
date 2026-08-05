@@ -24,8 +24,15 @@ load_dotenv(dotenv_path=_ENV_PATH, override=True)
 _MODEL_MIGRATIONS = {
     "google/gemini-2.5-flash": "google/gemma-4-31b-it",
 }
-_MODEL_KEYS = {"ACTIVE_MODEL", "LLM_MODEL", "OLLAMA_MODEL",
-               "LLM_MODEL_QUESTIONS", "LLM_MODEL_FILTER", "LLM_MODEL_ANSWERS"}
+_MODEL_KEYS = {
+    "ACTIVE_MODEL",
+    "LLM_MODEL",
+    "OLLAMA_MODEL",
+    "LLM_MODEL_QUESTIONS",
+    "LLM_MODEL_FILTER",
+    "LLM_MODEL_ANSWERS",
+}
+
 
 def _migrate_env_model_names():
     """Auto-migrate .env model names. Called once at import time."""
@@ -53,6 +60,7 @@ def _migrate_env_model_names():
         logging.getLogger(__name__).error(f"_migrate_env_model_names: Error: {e}")
         return False
 
+
 _migrate_env_model_names()
 
 # Suppress ONNX TensorRT noise early (missing nvinfer DLL on most machines)
@@ -66,7 +74,7 @@ os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 # ============================================================================
 PROJECT_ROOT = Path(__file__).parent
 DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", str(PROJECT_ROOT / "reliefweb_downloads")))
-DB_PATH       = Path(os.getenv("DB_PATH",       str(PROJECT_ROOT / "reliefweb.db")))
+DB_PATH = Path(os.getenv("DB_PATH", str(PROJECT_ROOT / "reliefweb.db")))
 CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))
 
 # NOTE: DOWNLOADS_DIR is kept for backward compatibility but is no longer used
@@ -165,12 +173,12 @@ OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 
 # --- Ollama (legacy, for local dev) ---
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-OLLAMA_API_KEY:  str = os.getenv("OLLAMA_API_KEY",  "")
-OLLAMA_TIMEOUT:  int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "")
+OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
 # --- Effective LLM settings (resolved based on LLM_PROVIDER) ---
 _LLM_BASE_URL: str = OPENROUTER_BASE_URL if LLM_PROVIDER == "openrouter" else OLLAMA_BASE_URL
-_LLM_API_KEY:  str  = OPENROUTER_API_KEY if LLM_PROVIDER == "openrouter" else OLLAMA_API_KEY
+_LLM_API_KEY: str = OPENROUTER_API_KEY if LLM_PROVIDER == "openrouter" else OLLAMA_API_KEY
 
 # ============================================================================
 # ACTIVE MODEL
@@ -218,17 +226,17 @@ CHAT_MODELS: dict = {
 # MODEL PARAMETERS — reliefwebapi agent
 # ============================================================================
 MODEL_TEMPERATURE: float = float(os.getenv("MODEL_TEMPERATURE", "0.3"))
-MODEL_MAX_TOKENS:  int   = int(os.getenv("MODEL_MAX_TOKENS",   "2048"))
+MODEL_MAX_TOKENS: int = int(os.getenv("MODEL_MAX_TOKENS", "2048"))
 
 # ============================================================================
 # ROLE-BASED LLM SETTINGS — sitrep pipeline stages
 # ============================================================================
 LLM_TEMPERATURE: float = 0.0
 LLM_MAX_TOKENS_DEFAULT: int = 1024
-LLM_MAX_TOKENS_ANSWER:  int = 4096
+LLM_MAX_TOKENS_ANSWER: int = 4096
 LLM_MAX_TOKENS_SUMMARY: int = 4096
 LLM_MAX_TOKENS_HEADLINE: int = 64
-LLM_TIMEOUT:     int = int(os.getenv("LLM_TIMEOUT",     "180"))
+LLM_TIMEOUT: int = int(os.getenv("LLM_TIMEOUT", "180"))
 LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
 # SITREP pipeline subprocess timeout (seconds). A stuck pipeline (ChromaDB lock,
@@ -236,49 +244,49 @@ LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
 SITREP_JOB_TIMEOUT: int = int(os.getenv("SITREP_JOB_TIMEOUT", "1800"))  # 30 min
 
 # Question generation
-LLM_MODEL_QUESTIONS:       str   = os.getenv("LLM_MODEL_QUESTIONS",       LLM_MODEL)
+LLM_MODEL_QUESTIONS: str = os.getenv("LLM_MODEL_QUESTIONS", LLM_MODEL)
 LLM_TEMPERATURE_QUESTIONS: float = float(os.getenv("LLM_TEMPERATURE_QUESTIONS", "0.7"))
 
 # Question filtering
-LLM_MODEL_FILTER:       str   = os.getenv("LLM_MODEL_FILTER",       LLM_MODEL)
+LLM_MODEL_FILTER: str = os.getenv("LLM_MODEL_FILTER", LLM_MODEL)
 LLM_TEMPERATURE_FILTER: float = float(os.getenv("LLM_TEMPERATURE_FILTER", "0.0"))
 
 # RAG answers / summaries
-LLM_MODEL_ANSWERS:       str   = os.getenv("LLM_MODEL_ANSWERS",       LLM_MODEL)
+LLM_MODEL_ANSWERS: str = os.getenv("LLM_MODEL_ANSWERS", LLM_MODEL)
 LLM_TEMPERATURE_ANSWERS: float = float(os.getenv("LLM_TEMPERATURE_ANSWERS", "0.0"))
 
 # ============================================================================
 # RETRIEVAL PARAMETERS — sitrep pipeline
 # ============================================================================
-RETRIEVAL_TOP_K:         int   = int(os.getenv("RETRIEVAL_TOP_K",   "10"))
-RETRIEVAL_TOP_K_SUMMARY: int   = int(os.getenv("RETRIEVAL_TOP_K_SUMMARY", "20"))
-RRF_K:                   int   = int(os.getenv("RRF_K",             "60"))
-RRF_NUM_SUBQUERIES:      int   = int(os.getenv("RRF_NUM_SUBQUERIES", "3"))
+RETRIEVAL_TOP_K: int = int(os.getenv("RETRIEVAL_TOP_K", "10"))
+RETRIEVAL_TOP_K_SUMMARY: int = int(os.getenv("RETRIEVAL_TOP_K_SUMMARY", "20"))
+RRF_K: int = int(os.getenv("RRF_K", "60"))
+RRF_NUM_SUBQUERIES: int = int(os.getenv("RRF_NUM_SUBQUERIES", "3"))
 
 # ============================================================================
 # CLUSTERING PARAMETERS — sitrep pipeline
 # ============================================================================
-UMAP_N_COMPONENTS: int   = 10
-UMAP_METRIC:       str   = "cosine"
-UMAP_MIN_DIST:     float = 0.0
+UMAP_N_COMPONENTS: int = 10
+UMAP_METRIC: str = "cosine"
+UMAP_MIN_DIST: float = 0.0
 
-HDBSCAN_METRIC:                  str   = "euclidean"
-HDBSCAN_CLUSTER_SELECTION_METHOD: str  = "eom"
+HDBSCAN_METRIC: str = "euclidean"
+HDBSCAN_CLUSTER_SELECTION_METHOD: str = "eom"
 
-HP_N_NEIGHBORS_RANGE:    tuple = (5, 30)
+HP_N_NEIGHBORS_RANGE: tuple = (5, 30)
 HP_MIN_CLUSTER_SIZE_RANGE: tuple = (10, 100)
-HP_MIN_SAMPLES_RANGE:    tuple = (1, 10)
-HP_EPSILON_OPTIONS:      tuple = (0.0, 0.05, 0.1, 0.2, 0.3)
-HP_SEARCH_ITERATIONS:    int   = int(os.getenv("HP_SEARCH_ITERATIONS", "30"))
-HP_MIN_CLUSTERS:         int   = int(os.getenv("HP_MIN_CLUSTERS",      "4"))
+HP_MIN_SAMPLES_RANGE: tuple = (1, 10)
+HP_EPSILON_OPTIONS: tuple = (0.0, 0.05, 0.1, 0.2, 0.3)
+HP_SEARCH_ITERATIONS: int = int(os.getenv("HP_SEARCH_ITERATIONS", "30"))
+HP_MIN_CLUSTERS: int = int(os.getenv("HP_MIN_CLUSTERS", "4"))
 
 # ============================================================================
 # QUESTION GENERATION PARAMETERS
 # ============================================================================
-QUESTION_RUNS_PER_CLUSTER:  int   = int(os.getenv("QUESTION_RUNS_PER_CLUSTER",  "2"))
-QUESTION_DEDUP_THRESHOLD:   float = float(os.getenv("QUESTION_DEDUP_THRESHOLD", "0.7"))
-MAX_QUESTIONS_PER_CLUSTER:  int   = int(os.getenv("MAX_QUESTIONS_PER_CLUSTER",  "4"))
-MAX_TOTAL_QUESTIONS:        int   = int(os.getenv("MAX_TOTAL_QUESTIONS",        "120"))
+QUESTION_RUNS_PER_CLUSTER: int = int(os.getenv("QUESTION_RUNS_PER_CLUSTER", "2"))
+QUESTION_DEDUP_THRESHOLD: float = float(os.getenv("QUESTION_DEDUP_THRESHOLD", "0.7"))
+MAX_QUESTIONS_PER_CLUSTER: int = int(os.getenv("MAX_QUESTIONS_PER_CLUSTER", "4"))
+MAX_TOTAL_QUESTIONS: int = int(os.getenv("MAX_TOTAL_QUESTIONS", "120"))
 # Note: MAX_CLUSTERS removed — HDBSCAN determines cluster count naturally.
 # MAX_TOTAL_QUESTIONS distributes budget proportionally across all clusters,
 # so more clusters = fewer questions per cluster, but all topics are preserved.
@@ -287,23 +295,29 @@ MAX_TOTAL_QUESTIONS:        int   = int(os.getenv("MAX_TOTAL_QUESTIONS",        
 # With ~80 countries × 500 chunks each = 40k chunk dicts in memory, the bulletin
 # generator can exhaust memory. This cap limits the worst case.
 BULLETIN_MAX_COUNTRIES: int = int(os.getenv("BULLETIN_MAX_COUNTRIES", "30"))
-BULLETIN_CHUNK_LIMIT:   int = int(os.getenv("BULLETIN_CHUNK_LIMIT",   "200"))
+BULLETIN_CHUNK_LIMIT: int = int(os.getenv("BULLETIN_CHUNK_LIMIT", "200"))
 
 # ============================================================================
 # OUTPUT DIRECTORIES — sitrep pipeline
 # ============================================================================
-_BASE             = PROJECT_ROOT / "output"
-OUTPUT_DIR        = _BASE
-OUTPUT_CLUSTERS_DIR  = _BASE / "clusters"
+_BASE = PROJECT_ROOT / "output"
+OUTPUT_DIR = _BASE
+OUTPUT_CLUSTERS_DIR = _BASE / "clusters"
 OUTPUT_QUESTIONS_DIR = _BASE / "questions"
-OUTPUT_ANSWERS_DIR   = _BASE / "answers"
+OUTPUT_ANSWERS_DIR = _BASE / "answers"
 OUTPUT_SUMMARIES_DIR = _BASE / "summaries"
-OUTPUT_REPORTS_DIR   = _BASE / "reports"
+OUTPUT_REPORTS_DIR = _BASE / "reports"
 OUTPUT_BULLETINS_DIR = _BASE / "bulletins"
 
-for _d in [OUTPUT_DIR, OUTPUT_CLUSTERS_DIR, OUTPUT_QUESTIONS_DIR,
-           OUTPUT_ANSWERS_DIR, OUTPUT_SUMMARIES_DIR, OUTPUT_REPORTS_DIR,
-           OUTPUT_BULLETINS_DIR]:
+for _d in [
+    OUTPUT_DIR,
+    OUTPUT_CLUSTERS_DIR,
+    OUTPUT_QUESTIONS_DIR,
+    OUTPUT_ANSWERS_DIR,
+    OUTPUT_SUMMARIES_DIR,
+    OUTPUT_REPORTS_DIR,
+    OUTPUT_BULLETINS_DIR,
+]:
     _d.mkdir(parents=True, exist_ok=True)
 
 # ============================================================================
@@ -314,17 +328,29 @@ RELIEFWEB_APPNAME: str = os.getenv("RELIEFWEB_APPNAME", "sightline_platform")
 # ============================================================================
 # FLASK / SERVER
 # ============================================================================
-SERVER_HOST:  str  = os.getenv("SERVER_HOST",  "0.0.0.0")
-SERVER_PORT:  int  = int(os.getenv("SERVER_PORT", "5001"))
+SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
+SERVER_PORT: int = int(os.getenv("SERVER_PORT", "5001"))
 SERVER_DEBUG: bool = os.getenv("SERVER_DEBUG", "false").lower() == "true"
 SERVER_API_KEY: str = os.getenv("SERVER_API_KEY", "")
-CORS_ORIGINS:  str = os.getenv("CORS_ORIGINS", "*")
+CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
+
+# DESKTOP_MODE: bypass Firebase auth for local desktop use (loopback only).
+# When true, all requests get a mock admin user — no Firebase SA file needed.
+# Combine with SERVER_HOST=127.0.0.1 for safety.
+DESKTOP_MODE: bool = os.getenv("DESKTOP_MODE", "false").lower() == "true"
+
+# Public contact email shown in the frontend (rate-limit messages, etc.)
+CONTACT_EMAIL: str = os.getenv("CONTACT_EMAIL", "support@sightline.ai")
+
+# Firebase service account JSON path (env-driven, falls back to well-known locations)
+FIREBASE_SERVICE_ACCOUNT_PATH: str = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "")
 
 # In production (SERVER_DEBUG=false), reject wildcard CORS for safety.
 # Wildcard CORS allows any website to make authenticated API calls if it
 # can obtain a token (e.g., via XSS). Dev mode keeps `*` for convenience.
 if not SERVER_DEBUG and CORS_ORIGINS.strip() == "*":
     import logging as _cfg_logging
+
     _cfg_logging.getLogger(__name__).warning(
         "CORS_ORIGINS=* in production (SERVER_DEBUG=false) is insecure. "
         "Set CORS_ORIGINS to your production domain. Falling back to same-origin."
@@ -336,36 +362,45 @@ SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
 SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
 if not SSL_VERIFY and not SERVER_DEBUG:
     import logging as _ssl_log
+
     _ssl_log.getLogger(__name__).warning(
         "SSL_VERIFY=false in production (SERVER_DEBUG=false) — all outbound "
         "HTTPS calls (ReliefWeb, HDX, Supabase) are vulnerable to MITM. "
         "Set SSL_VERIFY=true or configure SSL_CA_BUNDLE for corporate proxies."
     )
-SECRET_KEY:  str = os.getenv("SECRET_KEY", "")
+SECRET_KEY: str = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
     if os.getenv("SERVER_DEBUG", "").lower() == "true":
         # Generate a random ephemeral key for dev — never use a hardcoded string
         # (hardcoded keys allow session forgery if the repo is public).
         import secrets as _secrets
+
         SECRET_KEY = _secrets.token_hex(32)
         import warnings
-        warnings.warn("SECRET_KEY not set — generated random ephemeral dev key. Set SECRET_KEY in .env for production!")
+
+        warnings.warn(
+            "SECRET_KEY not set — generated random ephemeral dev key. Set SECRET_KEY in .env for production!",
+            stacklevel=2,
+        )
     else:
         # Production without SECRET_KEY — generate random ephemeral key and warn.
         # Don't sys.exit — the server should stay up (auto-rollback on crash is worse).
         # The operator should set SECRET_KEY in .env and restart for persistent sessions.
         import secrets as _secrets
+
         SECRET_KEY = _secrets.token_hex(32)
         import warnings
+
         warnings.warn(
             "SECRET_KEY not set in production! Generated random ephemeral key — "
-            "sessions will reset on restart. Set SECRET_KEY in .env for persistent sessions."
+            "sessions will reset on restart. Set SECRET_KEY in .env for persistent sessions.",
+            stacklevel=2,
         )
 
 # Aliases for reliefwebapi compatibility
-FLASK_PORT  = SERVER_PORT
+FLASK_PORT = SERVER_PORT
 FLASK_DEBUG = SERVER_DEBUG
-LOG_LEVEL   = os.getenv("LOG_LEVEL", "INFO")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # ============================================================================
 # RATE LIMITING — daily message limit per user (role-aware)
@@ -380,10 +415,12 @@ ADMIN_MESSAGE_LIMIT: int = 999  # effectively unlimited
 # ============================================================================
 class _Config:
     """Thin object wrapper so `from config import config; config.FLASK_PORT` works."""
+
     def __getattr__(self, name):
         try:
             return globals()[name]
         except KeyError:
             raise AttributeError(f"Config has no attribute '{name}'")
+
 
 config = _Config()

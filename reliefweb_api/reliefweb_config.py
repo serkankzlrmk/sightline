@@ -20,6 +20,7 @@ def _ssl_verify():
     ca_bundle = os.getenv("SSL_CA_BUNDLE", "")
     return ca_bundle or True
 
+
 # ========================================================================
 # API CONFIGURATION
 # ========================================================================
@@ -35,9 +36,9 @@ RELIEFWEB_SOURCES_API = f"{RELIEFWEB_API_BASE}/sources"
 # TIMEOUT SETTINGS
 # ========================================================================
 
-API_TIMEOUT_SHORT = 30      # For simple queries
-API_TIMEOUT_LONG = 120      # For complex queries
-PDF_DOWNLOAD_TIMEOUT = 180   # For large PDF downloads (up to 50 MB)
+API_TIMEOUT_SHORT = 30  # For simple queries
+API_TIMEOUT_LONG = 120  # For complex queries
+PDF_DOWNLOAD_TIMEOUT = 180  # For large PDF downloads (up to 50 MB)
 
 # ========================================================================
 # LIMITS AND CONSTRAINTS
@@ -126,11 +127,25 @@ COUNTRY_NAME_MAP: dict[str, str] = {
 # ========================================================================
 
 DISASTER_TYPES = [
-    "Drought", "Earthquake", "Epidemic", "Flash Flood", "Flood",
-    "Food Insecurity", "Heat Wave", "Cold Wave", "Insect Infestation",
-    "Land Slide", "Mud Slide", "Complex Emergency", "Cyclone",
-    "Fire", "Storm Surge", "Technological Disaster", "Tsunami",
-    "Volcano", "Wild Fire",
+    "Drought",
+    "Earthquake",
+    "Epidemic",
+    "Flash Flood",
+    "Flood",
+    "Food Insecurity",
+    "Heat Wave",
+    "Cold Wave",
+    "Insect Infestation",
+    "Land Slide",
+    "Mud Slide",
+    "Complex Emergency",
+    "Cyclone",
+    "Fire",
+    "Storm Surge",
+    "Technological Disaster",
+    "Tsunami",
+    "Volcano",
+    "Wild Fire",
 ]
 
 # ========================================================================
@@ -138,9 +153,15 @@ DISASTER_TYPES = [
 # ========================================================================
 
 ORG_TYPES = [
-    "International NGO", "National NGO", "Government",
-    "International Organization", "United Nations",
-    "Academic and Research Institution", "Donor", "Media", "Red Cross / Red Crescent",
+    "International NGO",
+    "National NGO",
+    "Government",
+    "International Organization",
+    "United Nations",
+    "Academic and Research Institution",
+    "Donor",
+    "Media",
+    "Red Cross / Red Crescent",
     "Other",
 ]
 
@@ -151,10 +172,20 @@ ORG_TYPES = [
 # Fields to request from API (minimizes payload)
 REPORT_FIELDS = ["id", "title", "date", "source", "url"]
 REPORT_FULL_FIELDS = [
-    "id", "title", "date", "source", "url",
-    "body", "body-html", "headline",
-    "country", "disaster", "theme",
-    "format", "language", "origin"
+    "id",
+    "title",
+    "date",
+    "source",
+    "url",
+    "body",
+    "body-html",
+    "headline",
+    "country",
+    "disaster",
+    "theme",
+    "format",
+    "language",
+    "origin",
 ]
 DISASTER_FIELDS = ["id", "name", "type", "status", "date", "country", "url", "glide"]
 HEADLINE_FIELDS = ["id", "title", "date", "source", "url", "country", "theme"]

@@ -49,6 +49,7 @@ class ChromaAdapter:
         if self.backend == "chromadb":
             import chromadb
             from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
             self.client = chromadb.PersistentClient(path=CHROMA_DIR)
             self.ef = DefaultEmbeddingFunction()
             self.collection = self.client.get_or_create_collection(
@@ -67,6 +68,7 @@ class ChromaAdapter:
         """Lazy-initialize pgvector store."""
         if self._pgvector is None:
             from reliefweb_api.pgvector_store import PgVectorStore
+
             self._pgvector = PgVectorStore()
             self._pgvector.ensure_schema()
         return self._pgvector
@@ -170,11 +172,7 @@ class ChromaAdapter:
                 include=["metadatas"],
             )
             if results and results["metadatas"]:
-                dates = sorted(set(
-                    m.get("date", "")[:10]
-                    for m in results["metadatas"]
-                    if m.get("date")
-                ))
+                dates = sorted(set(m.get("date", "")[:10] for m in results["metadatas"] if m.get("date")))
                 if dates:
                     return {
                         "min": dates[0],
@@ -345,15 +343,12 @@ class ChromaAdapter:
         if themes:
             themes_lower = {t.strip().lower() for t in themes}
             filtered = [
-                c for c in filtered
-                if any(
-                    ct.strip().lower() in themes_lower
-                    for ct in c.get("themes", "").split(",")
-                )
+                c for c in filtered if any(ct.strip().lower() in themes_lower for ct in c.get("themes", "").split(","))
             ]
 
         # Date filter
         if date_from or date_to:
+
             def _date_in_range(chunk_date: str) -> bool:
                 if not chunk_date:
                     return False
@@ -363,6 +358,7 @@ class ChromaAdapter:
                 if date_to and d > date_to:
                     return False
                 return True
+
             filtered = [c for c in filtered if _date_in_range(c.get("date", ""))]
 
         return filtered[:limit]
@@ -426,18 +422,13 @@ class ChromaAdapter:
             return self._get_pgvector().retrieve_bulk(queries, country=country, k=k, candidate_pool=candidate_pool)
 
         # ChromaDB path
-        return [
-            self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool)
-            for q in queries
-        ]
+        return [self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool) for q in queries]
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _retrieve_from_pool(
-        self, query: str, pool: list[dict], k: int
-    ) -> list[dict]:
+    def _retrieve_from_pool(self, query: str, pool: list[dict], k: int) -> list[dict]:
         """
         Compares chunks in the pool against the query and returns top-k.
         Uses DefaultEmbeddingFunction for embedding computation.
@@ -461,34 +452,37 @@ class ChromaAdapter:
             # Handle string embeddings from pgvector/psycopg2
             if isinstance(chunk_emb, str):
                 import json as _json
+
                 try:
                     chunk_emb = _json.loads(chunk_emb)
                 except (ValueError, _json.JSONDecodeError):
                     stripped = chunk_emb.strip()
-                    if stripped.startswith('[') and stripped.endswith(']'):
+                    if stripped.startswith("[") and stripped.endswith("]"):
                         stripped = stripped[1:-1]
-                    chunk_emb = [float(x) for x in stripped.split(',') if x.strip()]
+                    chunk_emb = [float(x) for x in stripped.split(",") if x.strip()]
             chunk_vec = np.array(chunk_emb, dtype=float)
             # Cosine similarity
-            denom = (np.linalg.norm(query_vec) * np.linalg.norm(chunk_vec))
+            denom = np.linalg.norm(query_vec) * np.linalg.norm(chunk_vec)
             sim = float(np.dot(query_vec, chunk_vec) / denom) if denom > 0 else 0.0
             scored.append((sim, chunk))
 
         scored.sort(key=lambda x: x[0], reverse=True)
         results = []
         for rank, (sim, chunk) in enumerate(scored[:k], start=1):
-            results.append({
-                "rank": rank,
-                "similarity": round(sim, 3),
-                "id": chunk.get("id", ""),
-                "text": chunk.get("text", ""),
-                "title": chunk.get("title", ""),
-                "url": chunk.get("url", ""),
-                "source": chunk.get("source", ""),
-                "date": chunk.get("date", ""),
-                "themes": chunk.get("themes", ""),
-                "primary_country": chunk.get("primary_country", ""),
-            })
+            results.append(
+                {
+                    "rank": rank,
+                    "similarity": round(sim, 3),
+                    "id": chunk.get("id", ""),
+                    "text": chunk.get("text", ""),
+                    "title": chunk.get("title", ""),
+                    "url": chunk.get("url", ""),
+                    "source": chunk.get("source", ""),
+                    "date": chunk.get("date", ""),
+                    "themes": chunk.get("themes", ""),
+                    "primary_country": chunk.get("primary_country", ""),
+                }
+            )
         return results
 
     def _format_results(self, results: dict) -> list[dict]:
@@ -505,7 +499,7 @@ class ChromaAdapter:
             embeddings = [None] * len(ids)
 
         output = []
-        for cid, doc, meta, emb in zip(ids, docs, metas, embeddings):
+        for cid, doc, meta, emb in zip(ids, docs, metas, embeddings, strict=False):
             entry = {
                 "id": cid,
                 "text": doc or "",
@@ -519,15 +513,17 @@ class ChromaAdapter:
             }
             if emb is not None:
                 import numpy as np
+
                 if isinstance(emb, str):
                     import json as _json
+
                     try:
                         emb = _json.loads(emb)
                     except (ValueError, _json.JSONDecodeError):
                         stripped = emb.strip()
-                        if stripped.startswith('[') and stripped.endswith(']'):
+                        if stripped.startswith("[") and stripped.endswith("]"):
                             stripped = stripped[1:-1]
-                        emb = [float(x) for x in stripped.split(',') if x.strip()]
+                        emb = [float(x) for x in stripped.split(",") if x.strip()]
                 entry["embedding"] = emb.tolist() if isinstance(emb, np.ndarray) else list(emb)
             output.append(entry)
         return output
@@ -539,20 +535,22 @@ class ChromaAdapter:
         dists = results["distances"][0]
 
         output = []
-        for rank, (doc, meta, dist) in enumerate(zip(docs, metas, dists), start=1):
-            output.append({
-                "rank": rank,
-                "similarity": round(1 - dist, 3),
-                "id": f"{meta.get('report_id', '')}_{meta.get('chunk_index', '')}",
-                "text": doc,
-                "title": meta.get("title", ""),
-                "url": meta.get("url", ""),
-                "source": meta.get("source", ""),
-                "date": meta.get("date", ""),
-                "themes": meta.get("themes", ""),
-                "primary_country": meta.get("primary_country", ""),
-                "all_countries": meta.get("all_countries", ""),
-            })
+        for rank, (doc, meta, dist) in enumerate(zip(docs, metas, dists, strict=False), start=1):
+            output.append(
+                {
+                    "rank": rank,
+                    "similarity": round(1 - dist, 3),
+                    "id": f"{meta.get('report_id', '')}_{meta.get('chunk_index', '')}",
+                    "text": doc,
+                    "title": meta.get("title", ""),
+                    "url": meta.get("url", ""),
+                    "source": meta.get("source", ""),
+                    "date": meta.get("date", ""),
+                    "themes": meta.get("themes", ""),
+                    "primary_country": meta.get("primary_country", ""),
+                    "all_countries": meta.get("all_countries", ""),
+                }
+            )
         return output
 
     # ------------------------------------------------------------------
@@ -566,8 +564,11 @@ class ChromaAdapter:
             import sqlite3
 
             from config import DB_PATH
+
             conn = sqlite3.connect(str(DB_PATH))
-            rows = conn.execute("SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'").fetchall()
+            rows = conn.execute(
+                "SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
+            ).fetchall()
             conn.close()
             countries_set = set()
             for row in rows:
@@ -588,6 +589,7 @@ class ChromaAdapter:
             import sqlite3
 
             from config import DB_PATH
+
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute("SELECT themes FROM reports WHERE themes IS NOT NULL AND themes != '[]'").fetchall()
             conn.close()
@@ -610,6 +612,7 @@ class ChromaAdapter:
             import sqlite3
 
             from config import DB_PATH
+
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
                 "SELECT date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
@@ -637,10 +640,10 @@ class ChromaAdapter:
             import sqlite3
 
             from config import DB_PATH
+
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
-                "SELECT report_id, countries FROM reports "
-                "WHERE countries IS NOT NULL AND countries != '[]'"
+                "SELECT report_id, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
             ).fetchall()
             conn.close()
 
@@ -678,10 +681,10 @@ class ChromaAdapter:
             import sqlite3
 
             from config import DB_PATH
+
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
-                "SELECT countries FROM reports "
-                "WHERE countries IS NOT NULL AND countries != '[]'"
+                "SELECT countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
             ).fetchall()
             conn.close()
             counts: dict[str, int] = {}

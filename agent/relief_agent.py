@@ -29,7 +29,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from pathlib import Path as _Path
 
 _AGENT_DIR = str(_Path(__file__).parent.resolve())
-_ROOT_DIR  = str(_Path(__file__).parent.parent.resolve())
+_ROOT_DIR = str(_Path(__file__).parent.parent.resolve())
 for _p in (_AGENT_DIR, _ROOT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -42,10 +42,7 @@ from config import config
 # ============================================================================
 # LOGGING SETUP
 # ============================================================================
-logging.basicConfig(
-    level=config.LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=config.LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -86,7 +83,7 @@ from reliefweb_api.worldbank_tools import WORLDBANK_TOOLS, init_worldbank_tools
 # This prevents sys.exit(1) from killing the process when the module is imported
 # for testing or when only helpers are needed.
 _model_instance = None
-_model_lock = __import__('threading').Lock()
+_model_lock = __import__("threading").Lock()
 
 
 def _get_model():
@@ -108,6 +105,7 @@ def _get_model():
 # Backward-compatible property: `model` still works but lazy-loads
 class _LazyModel:
     """Descriptor that lazy-loads the LLM model on first attribute access."""
+
     def __getattr__(self, name):
         m = _get_model()
         if m is None:
@@ -138,25 +136,25 @@ _news_initialized = init_news_tools(
 
 # Initialize GDACS client (always succeeds — free, keyless API)
 _gdacs_initialized = init_gdacs_tools(
-    base_url=getattr(config, 'GDACS_BASE_URL', 'https://www.gdacs.org/xml/rss.xml'),
-    timeout=getattr(config, 'GDACS_TIMEOUT', 30.0),
-    cache_ttl=getattr(config, 'GDACS_CACHE_TTL', 900),
+    base_url=getattr(config, "GDACS_BASE_URL", "https://www.gdacs.org/xml/rss.xml"),
+    timeout=getattr(config, "GDACS_TIMEOUT", 30.0),
+    cache_ttl=getattr(config, "GDACS_CACHE_TTL", 900),
 )
 
 # Initialize Open-Meteo weather client (always succeeds — free, keyless API)
 _weather_initialized = init_weather_tools(
-    base_url=getattr(config, 'OPEN_METEO_BASE_URL', 'https://api.open-meteo.com/v1/forecast'),
-    geo_url=getattr(config, 'OPEN_METEO_GEO_URL', 'https://geocoding-api.open-meteo.com/v1/search'),
-    aq_url=getattr(config, 'OPEN_METEO_AQ_URL', 'https://air-quality-api.open-meteo.com/v1/air-quality'),
-    timeout=getattr(config, 'OPEN_METEO_TIMEOUT', 15.0),
-    cache_ttl=getattr(config, 'OPEN_METEO_CACHE_TTL', 3600),
+    base_url=getattr(config, "OPEN_METEO_BASE_URL", "https://api.open-meteo.com/v1/forecast"),
+    geo_url=getattr(config, "OPEN_METEO_GEO_URL", "https://geocoding-api.open-meteo.com/v1/search"),
+    aq_url=getattr(config, "OPEN_METEO_AQ_URL", "https://air-quality-api.open-meteo.com/v1/air-quality"),
+    timeout=getattr(config, "OPEN_METEO_TIMEOUT", 15.0),
+    cache_ttl=getattr(config, "OPEN_METEO_CACHE_TTL", 3600),
 )
 
 # Initialize World Bank client (always succeeds — free, keyless API)
 _worldbank_initialized = init_worldbank_tools(
-    base_url=getattr(config, 'WORLDBANK_BASE_URL', 'https://api.worldbank.org/v2'),
-    timeout=getattr(config, 'WORLDBANK_TIMEOUT', 15.0),
-    cache_ttl=getattr(config, 'WORLDBANK_CACHE_TTL', 86400),
+    base_url=getattr(config, "WORLDBANK_BASE_URL", "https://api.worldbank.org/v2"),
+    timeout=getattr(config, "WORLDBANK_TIMEOUT", 15.0),
+    cache_ttl=getattr(config, "WORLDBANK_CACHE_TTL", 86400),
 )
 
 _tool_groups = [mcp_langchain_tools]
@@ -242,7 +240,8 @@ def get_tools_for_mode(mode: str = "analyst") -> list:
         return all_tools
 
     from agent.proposal_tools import PROPOSAL_TOOLS
-    proposal_tool_names = {t.name for t in PROPOSAL_TOOLS}
+
+    {t.name for t in PROPOSAL_TOOLS}
 
     if mode == "proposal":
         existing = {t.name for t in all_tools}
@@ -250,27 +249,27 @@ def get_tools_for_mode(mode: str = "analyst") -> list:
         return all_tools + extra
 
     if mode == "me_reviewer":
-        review_tools = [t for t in PROPOSAL_TOOLS if t.name in (
-            "get_proposal_details", "get_section_content"
-        )]
+        review_tools = [t for t in PROPOSAL_TOOLS if t.name in ("get_proposal_details", "get_section_content")]
         existing = {t.name for t in all_tools}
         extra = [t for t in review_tools if t.name not in existing]
         return all_tools + extra
 
     return all_tools
 
+
 # Background MCP tool loader — when MCP tools finish loading, add them to the agent
 def _register_mcp_tools_when_ready():
     """Poll for MCP tools in background and register them when available.
     Uses a threading.Event for synchronization instead of busy-waiting."""
     import time as _t
-    _mcp_event = getattr(mcp_integration, '_mcp_ready_event', None)
+
+    _mcp_event = getattr(mcp_integration, "_mcp_ready_event", None)
     if _mcp_event:
         # Wait up to 5 minutes for the event
         _mcp_event.wait(timeout=300)
 
     # Try up to 3 times with 10s gaps (instead of 60 × 5s = 300s busy-wait)
-    for attempt in range(3):
+    for _attempt in range(3):
         if mcp_integration.MCP_TOOLS:
             new_count = 0
             for t in mcp_integration.MCP_TOOLS:
@@ -293,6 +292,7 @@ def _register_mcp_tools_when_ready():
     else:
         logger.warning("MCP tools did not become ready after 3 attempts — running without MCP tools")
 
+
 import threading as _threading2
 
 _threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
@@ -300,6 +300,7 @@ _threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
 # ============================================================================
 # SYSTEM PROMPT
 # ============================================================================
+
 
 def _build_system_prompt(use_sequential: bool = False, mode: str = "analyst") -> str:
     today = _date.today().isoformat()  # e.g. "2026-04-01"
@@ -766,6 +767,7 @@ According to recent reports, approximately 2.1 million people in Sudan face acut
 # LANGGRAPH AGENT NODES
 # ============================================================================
 
+
 def llm_call(state: MessagesState):
     """LLM node: decides which tools to call or generates final response."""
     messages = [SystemMessage(content=_build_system_prompt())] + state["messages"]
@@ -798,10 +800,12 @@ def tool_node(state: MessagesState):
                 tool_name = matched
             else:
                 logger.error(f"Unknown tool: {tool_name!r}, available: {list(tools_by_name.keys())}")
-                results.append(ToolMessage(
-                    content=f"Error: Unknown tool '{tool_name}'. Available tools: {', '.join(tools_by_name.keys())}",
-                    tool_call_id=tool_call["id"]
-                ))
+                results.append(
+                    ToolMessage(
+                        content=f"Error: Unknown tool '{tool_name}'. Available tools: {', '.join(tools_by_name.keys())}",
+                        tool_call_id=tool_call["id"],
+                    )
+                )
                 continue
         tool_fn = tools_by_name[tool_name]
         try:
@@ -834,6 +838,7 @@ _INVOKE_CONFIG = {"recursion_limit": 25}  # max tool-call rounds per turn
 # ============================================================================
 # CONVERSATIONAL CLI
 # ============================================================================
+
 
 def run_conversational_agent():
     """Multi-turn conversational CLI. State is preserved across turns."""
@@ -892,4 +897,3 @@ def run_conversational_agent():
 
 if __name__ == "__main__":
     run_conversational_agent()
-

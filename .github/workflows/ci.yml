@@ -16,11 +16,13 @@ jobs:
           python-version: "3.12"
       - run: pip install ruff
       - run: ruff check .
+      - run: ruff format --check .
 
   test:
     runs-on: ubuntu-latest
     env:
-      DEV_AUTH_BYPASS: "true"
+      DESKTOP_MODE: "true"
+      SERVER_HOST: "127.0.0.1"
       SERVER_DEBUG: "true"
       OLLAMA_BASE_URL: "http://localhost:11434/v1"
       LLM_PROVIDER: "openrouter"
@@ -38,5 +40,21 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov
       - name: Run tests
-        run: pytest tests/ -v --tb=short -x
+        run: pytest tests/ -v --tb=short
         timeout-minutes: 10
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for secrets in git history
+        run: |
+          if git log --all -p | grep -qE "(sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_-]{35}|ghp_[a-zA-Z0-9]{36})"; then
+            echo "⚠️ Potential API key found in git history!"
+            git log --all -p | grep -nE "(sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_-]{35}|ghp_[a-zA-Z0-9]{36})" | head -5
+            exit 1
+          else
+            echo "✅ No API keys found in git history"
+          fi

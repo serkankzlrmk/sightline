@@ -38,7 +38,7 @@ _MAX_ARTICLE_CHARS: int = 500
 
 def _build_prompt(headline: str, articles: list[str], event: str, country: str) -> str:
     """Builds the original Prompt 1 template.
-    
+
     Random sampling and truncation applied to stay within token limits.
     """
     # Randomly sample and truncate to stay within token limits
@@ -88,6 +88,7 @@ Content:
 # Question extraction
 # ---------------------------------------------------------------------------
 
+
 def _extract_questions(raw_text: str) -> list[str]:
     """
     Extracts question sentences from LLM output.
@@ -113,6 +114,7 @@ def _extract_questions(raw_text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # Dedup via cosine similarity
 # ---------------------------------------------------------------------------
+
 
 def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
     denom = np.linalg.norm(a) * np.linalg.norm(b)
@@ -141,6 +143,7 @@ def _deduplicate_questions(
 
     try:
         from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
         ef = DefaultEmbeddingFunction()
         embeddings = np.array(ef(questions), dtype=float)
     except Exception as exc:
@@ -168,6 +171,7 @@ def _deduplicate_questions(
 # ---------------------------------------------------------------------------
 # Main function
 # ---------------------------------------------------------------------------
+
 
 def generate_questions(
     clusters: dict,
@@ -201,7 +205,9 @@ def generate_questions(
 
         logger.info(
             "Generating questions for cluster %s: '%s' (%d articles)",
-            cluster_id, headline, len(articles_texts),
+            cluster_id,
+            headline,
+            len(articles_texts),
         )
 
         prompt = _build_prompt(headline, articles_texts, event, country)
@@ -223,7 +229,9 @@ def generate_questions(
                 all_raw.extend(questions)
                 logger.debug(
                     "  Run %d/%d: %d questions generated",
-                    run_idx + 1, QUESTION_RUNS_PER_CLUSTER, len(questions),
+                    run_idx + 1,
+                    QUESTION_RUNS_PER_CLUSTER,
+                    len(questions),
                 )
             except Exception as exc:
                 logger.error("  Run %d/%d failed: %s", run_idx + 1, QUESTION_RUNS_PER_CLUSTER, exc)
@@ -233,7 +241,9 @@ def generate_questions(
         unique = _deduplicate_questions(all_raw)
         logger.info(
             "  Cluster %s: %d raw → %d unique questions",
-            cluster_id, len(all_raw), len(unique),
+            cluster_id,
+            len(all_raw),
+            len(unique),
         )
 
         result[cluster_id] = {

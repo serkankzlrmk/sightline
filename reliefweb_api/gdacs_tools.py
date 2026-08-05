@@ -40,10 +40,13 @@ logger = logging.getLogger(__name__)
 _gdacs_client: GDACSClient | None = None
 
 
-def init_gdacs_tools(base_url: str = "", timeout: float = 30.0,
-                     rate_limit_requests: int = 30,
-                     rate_limit_period: float = 60.0,
-                     cache_ttl: int = 900) -> bool:
+def init_gdacs_tools(
+    base_url: str = "",
+    timeout: float = 30.0,
+    rate_limit_requests: int = 30,
+    rate_limit_period: float = 60.0,
+    cache_ttl: int = 900,
+) -> bool:
     """Initialize the global GDACS client singleton.
 
     Called from server.py at startup. GDACS is a free, keyless RSS feed,
@@ -73,6 +76,7 @@ def get_gdacs_client() -> GDACSClient | None:
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 
+
 def _alerts_to_json(alerts, params=None) -> str:
     """Format alert list as a JSON response string for agent tools."""
     payload = {
@@ -90,9 +94,9 @@ def _alerts_to_json(alerts, params=None) -> str:
 # GDACS Tool Definitions
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @tool
-def gdacs_get_alerts(event_type: str = "", alert_level: str = "",
-                     country_iso3: str = "", limit: int = 20) -> str:
+def gdacs_get_alerts(event_type: str = "", alert_level: str = "", country_iso3: str = "", limit: int = 20) -> str:
     """Get real-time disaster alerts from GDACS (Global Disaster Alert and Coordination System).
 
     GDACS provides near real-time alerts about natural disasters worldwide

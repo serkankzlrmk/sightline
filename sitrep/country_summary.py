@@ -17,7 +17,6 @@ Output: output/country_summaries/{Country}.json
 import json
 import logging
 import os
-import re
 import time
 from collections import Counter
 from datetime import UTC, datetime
@@ -26,8 +25,8 @@ logger = logging.getLogger("country_summary")
 
 # Reuse from shared countries module
 from config import OUTPUT_DIR
-from sitrep.countries import COUNTRY_COORDS, COUNTRY_ALIASES, get_country_coords
-from sitrep.utils import safe_filename, parse_themes
+from sitrep.countries import COUNTRY_COORDS
+from sitrep.utils import parse_themes, safe_filename
 from sitrep.weekly_bulletin import _determine_severity
 
 COUNTRY_SUMMARY_DIR = OUTPUT_DIR / "country_summaries"
@@ -43,6 +42,7 @@ HDX_TOP_COUNTRIES = int(os.getenv("COUNTRY_SUMMARY_HDX_TOP", "30"))
 def _get_db():
     """Get ChromaAdapter instance for data access."""
     from sitrep.chroma_adapter import ChromaAdapter
+
     return ChromaAdapter()
 
 
@@ -69,6 +69,7 @@ def _country_to_iso3(country: str) -> str:
     """Convert country name to ISO3 code for HDX/GDACS."""
     try:
         from reliefweb_api.country_codes import get_iso_code
+
         iso3 = get_iso_code(country)
         if iso3 and len(iso3) == 3:
             return iso3.upper()
@@ -76,6 +77,7 @@ def _country_to_iso3(country: str) -> str:
         pass
     # Use shared countries module fallback
     from sitrep.countries import country_to_iso3
+
     return country_to_iso3(country)
 
 
@@ -85,6 +87,7 @@ def _fetch_hdx_data(country: str, iso3: str) -> dict:
         return {}
     try:
         from sitrep.hdx_enrichment import fetch_hdx_context, format_hdx_for_bulletin
+
         context = fetch_hdx_context(country)
         if context:
             return format_hdx_for_bulletin(context)
@@ -99,6 +102,7 @@ def _fetch_gdacs_alerts(iso3: str) -> list[dict]:
         return []
     try:
         from reliefweb_api.gdacs_client import GDACSClient
+
         client = GDACSClient()
         alerts = client.get_alerts(country_iso3=iso3, limit=5)
         return [
@@ -123,6 +127,7 @@ def _fetch_worldbank_profile(iso3: str) -> dict:
         return {}
     try:
         from reliefweb_api.worldbank_client import WorldBankClient
+
         client = WorldBankClient()
         profile = client.get_country_profile(iso3)
         # Extract just the most relevant indicators
@@ -143,9 +148,15 @@ def _fetch_worldbank_profile(iso3: str) -> dict:
     return {}
 
 
-def _generate_narrative(country: str, report_count: int, themes: list[str],
-                        sources: list[str], hdx_data: dict, gdacs_alerts: list[dict],
-                        date_range: str) -> dict:
+def _generate_narrative(
+    country: str,
+    report_count: int,
+    themes: list[str],
+    sources: list[str],
+    hdx_data: dict,
+    gdacs_alerts: list[dict],
+    date_range: str,
+) -> dict:
     """Use LLM to generate a 2-3 paragraph narrative summary for the country."""
     try:
         from sitrep.llm_client import llm_complete
@@ -190,7 +201,8 @@ Respond with this exact JSON format:
         except json.JSONDecodeError:
             # Try to extract JSON from response
             import re
-            match = re.search(r'\{.*\}', result, re.DOTALL)
+
+            match = re.search(r"\{.*\}", result, re.DOTALL)
             if match:
                 try:
                     return json.loads(match.group())
@@ -247,12 +259,14 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
         title = chunk.get("title", "")
         if title and title not in seen_titles and len(recent_reports) < 10:
             seen_titles.add(title)
-            recent_reports.append({
-                "title": title,
-                "date": chunk.get("date", ""),
-                "source": source,
-                "url": chunk.get("url", ""),
-            })
+            recent_reports.append(
+                {
+                    "title": title,
+                    "date": chunk.get("date", ""),
+                    "source": source,
+                    "url": chunk.get("url", ""),
+                }
+            )
 
     top_themes = [t for t, _ in theme_counter.most_common(8)]
     top_sources = [s for s, _ in source_counter.most_common(5)]
@@ -273,10 +287,7 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
 
     # 6. LLM narrative
     date_str = f"{date_range.get('min_date', '?')} to {date_range.get('max_date', '?')}"
-    narrative = _generate_narrative(
-        country, report_count, top_themes, top_sources,
-        hdx_data, gdacs_alerts, date_str
-    )
+    narrative = _generate_narrative(country, report_count, top_themes, top_sources, hdx_data, gdacs_alerts, date_str)
 
     # 7. Check for existing SITREP reports
     sitrep_reports = []
@@ -360,8 +371,7 @@ def generate_all_country_summaries(max_countries: int = 80) -> dict:
             try:
                 existing = json.loads(existing_path.read_text(encoding="utf-8"))
                 # Skip if report count unchanged AND generated within 7 days
-                if (existing.get("report_count") == count and
-                        time.time() - existing.get("generated_ts", 0) < 7 * 86400):
+                if existing.get("report_count") == count and time.time() - existing.get("generated_ts", 0) < 7 * 86400:
                     skipped += 1
                     continue
             except Exception:
@@ -379,8 +389,7 @@ def generate_all_country_summaries(max_countries: int = 80) -> dict:
             errors += 1
 
     logger.info(
-        "Country summaries: %d generated, %d skipped, %d errors, %d total",
-        generated, skipped, errors, len(countries)
+        "Country summaries: %d generated, %d skipped, %d errors, %d total", generated, skipped, errors, len(countries)
     )
     return {"generated": generated, "skipped": skipped, "errors": errors, "total": len(countries)}
 
@@ -394,16 +403,18 @@ def list_country_summaries() -> list[dict]:
     for f in sorted(COUNTRY_SUMMARY_DIR.glob("*.json")):
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
-            results.append({
-                "country": data.get("country", ""),
-                "iso3": data.get("iso3", ""),
-                "coords": data.get("coords", {"lat": 0, "lng": 0}),
-                "severity": data.get("severity", "low"),
-                "report_count": data.get("report_count", 0),
-                "has_sitrep": data.get("has_sitrep", False),
-                "headline": data.get("headline", ""),
-                "generated_at": data.get("generated_at", ""),
-            })
+            results.append(
+                {
+                    "country": data.get("country", ""),
+                    "iso3": data.get("iso3", ""),
+                    "coords": data.get("coords", {"lat": 0, "lng": 0}),
+                    "severity": data.get("severity", "low"),
+                    "report_count": data.get("report_count", 0),
+                    "has_sitrep": data.get("has_sitrep", False),
+                    "headline": data.get("headline", ""),
+                    "generated_at": data.get("generated_at", ""),
+                }
+            )
         except Exception:
             continue
 

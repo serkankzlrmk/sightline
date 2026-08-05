@@ -39,6 +39,7 @@ COLLECTION_NAME = "reliefweb_chunks"
 # VECTOR STORE
 # ============================================================================
 
+
 class VectorStore:
     """
     Semantic search over ReliefWeb report chunks.
@@ -52,12 +53,14 @@ class VectorStore:
 
         if self.backend == "pgvector":
             from reliefweb_api.pgvector_store import PgVectorStore
+
             self._pgvector = PgVectorStore()
             self._pgvector.ensure_schema()
             self._chroma = None
         elif self.backend == "chromadb":
             import chromadb
             from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
             self.client = chromadb.PersistentClient(path=persist_dir)
             self.ef = DefaultEmbeddingFunction()
             self.collection = self.client.get_or_create_collection(
@@ -116,18 +119,12 @@ class VectorStore:
 
         date_obj = report_meta.get("date", {})
         date_str = (
-            date_obj.get("original", date_obj.get("created", ""))
-            if isinstance(date_obj, dict) else str(date_obj)
+            date_obj.get("original", date_obj.get("created", "")) if isinstance(date_obj, dict) else str(date_obj)
         )[:10]
 
         countries = report_meta.get("countries", [])
-        primary_country = (
-            countries[0].get("shortname", countries[0].get("name", ""))
-            if countries else ""
-        )
-        all_countries = ", ".join(
-            c.get("shortname", c.get("name", "")) for c in countries[:8]
-        )
+        primary_country = countries[0].get("shortname", countries[0].get("name", "")) if countries else ""
+        all_countries = ", ".join(c.get("shortname", c.get("name", "")) for c in countries[:8])
         themes = [t.get("name", "") for t in report_meta.get("themes", [])]
         themes_str = ", ".join(themes[:6])
 
@@ -211,19 +208,22 @@ class VectorStore:
             results["documents"][0],
             results["metadatas"][0],
             results["distances"][0],
+            strict=False,
         ):
-            output.append({
-                "rank": len(output) + 1,
-                "similarity": round(1 - dist, 3),
-                "report_id": meta.get("report_id"),
-                "title": meta.get("title"),
-                "date": meta.get("date"),
-                "source": meta.get("source"),
-                "countries": meta.get("all_countries"),
-                "source_type": meta.get("source_type"),
-                "url": meta.get("url"),
-                "chunk_preview": doc[:400],
-            })
+            output.append(
+                {
+                    "rank": len(output) + 1,
+                    "similarity": round(1 - dist, 3),
+                    "report_id": meta.get("report_id"),
+                    "title": meta.get("title"),
+                    "date": meta.get("date"),
+                    "source": meta.get("source"),
+                    "countries": meta.get("all_countries"),
+                    "source_type": meta.get("source_type"),
+                    "url": meta.get("url"),
+                    "chunk_preview": doc[:400],
+                }
+            )
 
         return output
 
@@ -237,12 +237,14 @@ class VectorStore:
         return {
             "total_chunks": self.collection.count(),
             "collection": COLLECTION_NAME,
-            "persist_dir": str(Path(self.persist_dir).resolve()) if hasattr(self, 'persist_dir') and self.persist_dir else "N/A",
+            "persist_dir": str(Path(self.persist_dir).resolve())
+            if hasattr(self, "persist_dir") and self.persist_dir
+            else "N/A",
         }
 
     def purge_by_report_ids(self, report_ids: list[int]) -> int:
         """Remove all chunks belonging to the given report_ids.
-        
+
         Returns the number of chunk IDs removed.
         """
         if self.backend == "pgvector":
@@ -257,10 +259,7 @@ class VectorStore:
         for rid in report_ids:
             # Find all chunks for this report_id
             try:
-                results = self.collection.get(
-                    where={"report_id": str(rid)},
-                    include=[]
-                )
+                results = self.collection.get(where={"report_id": str(rid)}, include=[])
                 if results and results.get("ids"):
                     chunk_ids_to_remove.extend(results["ids"])
             except Exception as e:
@@ -279,7 +278,7 @@ class VectorStore:
         batch_size = 500
         total_removed = 0
         for i in range(0, len(chunk_ids_to_remove), batch_size):
-            batch = chunk_ids_to_remove[i:i + batch_size]
+            batch = chunk_ids_to_remove[i : i + batch_size]
             try:
                 self.collection.delete(ids=batch)
                 total_removed += len(batch)
@@ -292,6 +291,7 @@ class VectorStore:
 # ============================================================================
 # FACTORY
 # ============================================================================
+
 
 def get_vector_store(persist_dir: str = CHROMA_DIR, backend: str = None) -> VectorStore:
     return VectorStore(persist_dir, backend=backend)

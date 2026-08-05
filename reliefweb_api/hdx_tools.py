@@ -32,10 +32,13 @@ logger = logging.getLogger(__name__)
 _hdx_client: HDXClient | None = None
 
 
-def init_hdx_tools(app_identifier: str = "", base_url: str = "",
-                   timeout: float = 30.0,
-                   rate_limit_requests: int = 10,
-                   rate_limit_period: float = 60.0) -> bool:
+def init_hdx_tools(
+    app_identifier: str = "",
+    base_url: str = "",
+    timeout: float = 30.0,
+    rate_limit_requests: int = 10,
+    rate_limit_period: float = 60.0,
+) -> bool:
     """Initialize the global HDX client singleton.
 
     Called from server.py at startup. Returns True if initialized successfully,
@@ -65,6 +68,7 @@ def get_hdx_client() -> HDXClient | None:
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 
+
 def _hdx_result_to_json(result) -> str:
     """Convert HDXResult to JSON string for agent tool response.
 
@@ -72,8 +76,7 @@ def _hdx_result_to_json(result) -> str:
     Otherwise, convert the single HDXResult.
     """
     if result is None:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
 
     if isinstance(result, dict):
         # Country overview returns dict of category → HDXResult
@@ -95,6 +98,7 @@ def _hdx_result_to_json(result) -> str:
 # HDX Tool Definitions
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @tool
 def hdx_get_country_overview(country_code: str) -> str:
     """Get a comprehensive humanitarian data overview for a country from HDX (Humanitarian Data Exchange).
@@ -109,8 +113,7 @@ def hdx_get_country_overview(country_code: str) -> str:
     """
     hdx = get_hdx_client()
     if not hdx:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
     try:
         result = hdx.get_country_overview_sync(country_code.upper())
         return _hdx_result_to_json(result)
@@ -132,8 +135,7 @@ def hdx_get_data_availability(country_code: str) -> str:
     """
     hdx = get_hdx_client()
     if not hdx:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
     try:
         result = hdx.get_data_availability_sync(location_code=country_code.upper())
         return _hdx_result_to_json(result)
@@ -156,8 +158,7 @@ def hdx_get_refugees(country_code: str, limit: int = 10) -> str:
     """
     hdx = get_hdx_client()
     if not hdx:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
     try:
         result = hdx.get_refugees_sync(location_code=country_code.upper(), limit=min(limit, 50))
         return _hdx_result_to_json(result)
@@ -179,8 +180,7 @@ def hdx_get_idps(country_code: str, limit: int = 10) -> str:
     """
     hdx = get_hdx_client()
     if not hdx:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
     try:
         result = hdx.get_idps_sync(location_code=country_code.upper(), limit=min(limit, 50))
         return _hdx_result_to_json(result)
@@ -203,8 +203,7 @@ def hdx_get_funding(country_code: str, limit: int = 10) -> str:
     """
     hdx = get_hdx_client()
     if not hdx:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
     try:
         result = hdx.get_funding_sync(location_code=country_code.upper(), limit=min(limit, 50))
         return _hdx_result_to_json(result)
@@ -227,8 +226,7 @@ def hdx_get_conflict_events(country_code: str, limit: int = 10) -> str:
     """
     hdx = get_hdx_client()
     if not hdx:
-        return format_error("ServiceUnavailable",
-                            "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
     try:
         result = hdx.get_conflict_events_sync(location_code=country_code.upper(), limit=min(limit, 50))
         return _hdx_result_to_json(result)

@@ -20,13 +20,14 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # ============================================================================
 DEFAULT_DB_PATH = "reliefweb.db"
-CHUNK_SIZE = 800       # characters per chunk
-CHUNK_OVERLAP = 150    # overlap between consecutive chunks
+CHUNK_SIZE = 800  # characters per chunk
+CHUNK_OVERLAP = 150  # overlap between consecutive chunks
 
 
 # ============================================================================
 # DATABASE MANAGER
 # ============================================================================
+
 
 class DatabaseManager:
     """
@@ -102,9 +103,7 @@ class DatabaseManager:
         """Return True if this report_id is already in the database."""
         conn = self._connect()
         try:
-            row = conn.execute(
-                "SELECT 1 FROM reports WHERE report_id = ?", (report_id,)
-            ).fetchone()
+            row = conn.execute("SELECT 1 FROM reports WHERE report_id = ?", (report_id,)).fetchone()
             return row is not None
         finally:
             conn.close()
@@ -113,9 +112,7 @@ class DatabaseManager:
         """Return True if report exists AND has_pdf=1."""
         conn = self._connect()
         try:
-            row = conn.execute(
-                "SELECT has_pdf FROM reports WHERE report_id = ?", (report_id,)
-            ).fetchone()
+            row = conn.execute("SELECT has_pdf FROM reports WHERE report_id = ?", (report_id,)).fetchone()
             if row is None:
                 return False
             return bool(row[0])
@@ -155,8 +152,7 @@ class DatabaseManager:
         # Flatten metadata fields
         date_obj = metadata.get("date", {})
         date_str = (
-            date_obj.get("original", date_obj.get("created", ""))
-            if isinstance(date_obj, dict) else str(date_obj)
+            date_obj.get("original", date_obj.get("created", "")) if isinstance(date_obj, dict) else str(date_obj)
         )[:10]  # keep only YYYY-MM-DD
 
         sources = metadata.get("source", [])
@@ -172,6 +168,7 @@ class DatabaseManager:
         language = languages[0].get("code", "") if languages else ""
 
         from datetime import datetime as _dt
+
         now = _dt.now(UTC).isoformat()
 
         conn = self._connect()
@@ -230,18 +227,10 @@ class DatabaseManager:
     def get_stats(self) -> dict:
         conn = self._connect()
         try:
-            row = conn.execute(
-                "SELECT COUNT(*) as reports FROM reports"
-            ).fetchone()
-            row2 = conn.execute(
-                "SELECT COUNT(*) as chunks FROM chunks"
-            ).fetchone()
-            row3 = conn.execute(
-                "SELECT COUNT(*) as with_pdf FROM reports WHERE has_pdf = 1"
-            ).fetchone()
-            row4 = conn.execute(
-                "SELECT COUNT(*) as with_content FROM reports WHERE has_content = 1"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) as reports FROM reports").fetchone()
+            row2 = conn.execute("SELECT COUNT(*) as chunks FROM chunks").fetchone()
+            row3 = conn.execute("SELECT COUNT(*) as with_pdf FROM reports WHERE has_pdf = 1").fetchone()
+            row4 = conn.execute("SELECT COUNT(*) as with_content FROM reports WHERE has_content = 1").fetchone()
             size_bytes = Path(self.db_path).stat().st_size if Path(self.db_path).exists() else 0
             return {
                 "reports": row["reports"],
@@ -283,31 +272,24 @@ class DatabaseManager:
 
     def purge_old_reports(self, days: int = 90) -> int:
         """Delete reports (and their chunks) older than `days` days.
-        
+
         Returns the number of reports purged.
         """
         from datetime import timedelta
+
         cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
         conn = self._connect()
         try:
             # Get report_ids to purge (needed for ChromaDB cleanup)
-            old_ids = [row[0] for row in conn.execute(
-                "SELECT report_id FROM reports WHERE date < ?", (cutoff,)
-            ).fetchall()]
+            old_ids = [
+                row[0] for row in conn.execute("SELECT report_id FROM reports WHERE date < ?", (cutoff,)).fetchall()
+            ]
             if not old_ids:
                 return 0
             # Delete chunks first (FK constraint)
-            conn.execute(
-                "DELETE FROM chunks WHERE report_id IN ({})".format(
-                    ",".join("?" * len(old_ids))
-                ), old_ids
-            )
+            conn.execute("DELETE FROM chunks WHERE report_id IN ({})".format(",".join("?" * len(old_ids))), old_ids)
             # Delete reports
-            conn.execute(
-                "DELETE FROM reports WHERE report_id IN ({})".format(
-                    ",".join("?" * len(old_ids))
-                ), old_ids
-            )
+            conn.execute("DELETE FROM reports WHERE report_id IN ({})".format(",".join("?" * len(old_ids))), old_ids)
             conn.commit()
             return len(old_ids)
         finally:
@@ -316,12 +298,13 @@ class DatabaseManager:
     def get_old_report_ids(self, days: int = 90) -> list[int]:
         """Return list of report_ids older than `days` days (for ChromaDB purge)."""
         from datetime import timedelta
+
         cutoff = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
         conn = self._connect()
         try:
-            return [row[0] for row in conn.execute(
-                "SELECT report_id FROM reports WHERE date < ?", (cutoff,)
-            ).fetchall()]
+            return [
+                row[0] for row in conn.execute("SELECT report_id FROM reports WHERE date < ?", (cutoff,)).fetchall()
+            ]
         finally:
             conn.close()
 
@@ -329,6 +312,7 @@ class DatabaseManager:
 # ============================================================================
 # TEXT CHUNKING
 # ============================================================================
+
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
     """
@@ -377,10 +361,9 @@ def build_chunk_with_header(raw_chunk: str, metadata: dict, source_type: str) ->
     source_name = sources[0].get("shortname", "") if sources else ""
 
     date_obj = metadata.get("date", {})
-    date_str = (
-        date_obj.get("original", date_obj.get("created", ""))
-        if isinstance(date_obj, dict) else str(date_obj)
-    )[:10]
+    date_str = (date_obj.get("original", date_obj.get("created", "")) if isinstance(date_obj, dict) else str(date_obj))[
+        :10
+    ]
 
     countries = [c.get("shortname", c.get("name", "")) for c in metadata.get("countries", [])]
     country_str = ", ".join(countries[:5])  # max 5 for brevity
@@ -399,6 +382,7 @@ def build_chunk_with_header(raw_chunk: str, metadata: dict, source_type: str) ->
 # PDF TEXT EXTRACTION
 # ============================================================================
 
+
 def extract_pdf_text(pdf_path: str) -> tuple[str, int]:
     """
     Extract text from a PDF file using PyPDF2.
@@ -406,6 +390,7 @@ def extract_pdf_text(pdf_path: str) -> tuple[str, int]:
     """
     try:
         from PyPDF2 import PdfReader
+
         reader = PdfReader(pdf_path)
         pages = []
         for page in reader.pages:

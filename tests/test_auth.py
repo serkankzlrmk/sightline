@@ -15,6 +15,7 @@ import auth
 
 # ── Role hierarchy ─────────────────────────────────────────────────────────────
 
+
 class TestRoleHierarchy:
     def test_hierarchy_order(self):
         assert auth.ROLE_HIERARCHY == ["free", "premium", "admin"]
@@ -30,6 +31,7 @@ class TestRoleHierarchy:
 
 
 # ── _resolve_role ──────────────────────────────────────────────────────────────
+
 
 class TestResolveRole:
     def test_custom_claim_admin(self):
@@ -67,6 +69,7 @@ class TestResolveRole:
 
 # ── _dev_mode ──────────────────────────────────────────────────────────────────
 
+
 class TestDevMode:
     def test_dev_auth_bypass_true(self):
         # Dev bypass requires loopback SERVER_HOST (safety: no auth bypass on 0.0.0.0)
@@ -86,8 +89,10 @@ class TestDevMode:
     def test_dev_mode_server_debug_no_firebase_no_apikey(self):
         env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": "", "SERVER_HOST": "127.0.0.1"}
         with patch.dict(os.environ, env, clear=False):
-            with patch.object(auth, "_api_key", return_value=""), \
-                 patch.object(auth, "_firebase_app", return_value=None):
+            with (
+                patch.object(auth, "_api_key", return_value=""),
+                patch.object(auth, "_firebase_app", return_value=None),
+            ):
                 assert auth._dev_mode() is True
 
     def test_dev_mode_server_debug_with_apikey(self):
@@ -99,12 +104,15 @@ class TestDevMode:
     def test_dev_mode_server_debug_with_firebase(self):
         env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": "", "SERVER_HOST": "127.0.0.1"}
         with patch.dict(os.environ, env, clear=False):
-            with patch.object(auth, "_api_key", return_value=""), \
-                 patch.object(auth, "_firebase_app", return_value=MagicMock()):
+            with (
+                patch.object(auth, "_api_key", return_value=""),
+                patch.object(auth, "_firebase_app", return_value=MagicMock()),
+            ):
                 assert auth._dev_mode() is False
 
 
 # ── _admins ────────────────────────────────────────────────────────────────────
+
 
 class TestAdmins:
     def test_empty_env(self):
@@ -127,9 +135,11 @@ class TestAdmins:
 
 # ── current_uid / current_role ─────────────────────────────────────────────────
 
+
 class TestHelpers:
     def test_current_uid_with_user(self):
         from flask import Flask, g
+
         app = Flask(__name__)
         with app.app_context():
             g.current_user = {"uid": "test-uid", "role": "admin"}
@@ -137,12 +147,14 @@ class TestHelpers:
 
     def test_current_uid_no_user(self):
         from flask import Flask
+
         app = Flask(__name__)
         with app.app_context():
             assert auth.current_uid() == ""
 
     def test_current_role_with_user(self):
         from flask import Flask, g
+
         app = Flask(__name__)
         with app.app_context():
             g.current_user = {"uid": "test-uid", "role": "premium"}
@@ -150,12 +162,14 @@ class TestHelpers:
 
     def test_current_role_no_user(self):
         from flask import Flask
+
         app = Flask(__name__)
         with app.app_context():
             assert auth.current_role() == "free"
 
 
 # ── Decorators with Flask test client ───────────────────────────────────────────
+
 
 class TestRequireAuth:
     @pytest.fixture(autouse=True)
@@ -164,14 +178,12 @@ class TestRequireAuth:
         self.client = self.app.test_client()
 
     def test_no_token_returns_401(self):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = self.client.get("/api/agent/chats")
             assert resp.status_code == 401
 
     def test_empty_bearer_returns_401(self):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = self.client.get(
                 "/api/agent/chats",
                 headers={"Authorization": "Bearer "},
@@ -179,9 +191,11 @@ class TestRequireAuth:
             assert resp.status_code == 401
 
     def test_invalid_token_returns_401(self):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", side_effect=ValueError("Invalid token")):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", side_effect=ValueError("Invalid token")),
+        ):
             resp = self.client.get(
                 "/api/agent/chats",
                 headers={"Authorization": "Bearer invalid-token"},
@@ -194,10 +208,12 @@ class TestRequireAuth:
             "email": "user@test.com",
             "role": "free",
         }
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="free"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="free"),
+        ):
             resp = self.client.get(
                 "/api/agent/chats",
                 headers={"Authorization": "Bearer valid-token"},
@@ -205,8 +221,10 @@ class TestRequireAuth:
             assert resp.status_code != 401
 
     def test_api_key_valid(self):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value="test-secret"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value="test-secret"),
+        ):
             resp = self.client.get(
                 "/api/agent/chats",
                 headers={"X-API-Key": "test-secret"},
@@ -215,8 +233,10 @@ class TestRequireAuth:
             assert resp.status_code != 403
 
     def test_api_key_invalid(self):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value="test-secret"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value="test-secret"),
+        ):
             resp = self.client.get(
                 "/api/agent/chats",
                 headers={"X-API-Key": "wrong-secret"},
@@ -237,10 +257,12 @@ class TestRequireAdmin:
 
     def test_free_role_denied_admin_route(self):
         fake_token = {"uid": "free-user", "role": "free"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="free"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="free"),
+        ):
             resp = self.client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer token"},
@@ -249,10 +271,12 @@ class TestRequireAdmin:
 
     def test_premium_role_denied_admin_route(self):
         fake_token = {"uid": "premium-user", "role": "premium"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="premium"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
             resp = self.client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer token"},
@@ -261,11 +285,13 @@ class TestRequireAdmin:
 
     def test_admin_role_allowed(self):
         fake_token = {"uid": "admin-user", "role": "admin"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="admin"), \
-             patch.object(auth, "_firebase_app", return_value=MagicMock()):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="admin"),
+            patch.object(auth, "_firebase_app", return_value=MagicMock()),
+        ):
             with patch("firebase_admin.auth.list_users") as mock_list:
                 mock_page = MagicMock()
                 mock_page.users = []
@@ -285,10 +311,12 @@ class TestRequireRole:
 
     def test_free_role_denied_premium_route(self):
         fake_token = {"uid": "free-user", "role": "free"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="free"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="free"),
+        ):
             resp = self.client.get(
                 "/api/hdx/availability/TUR",
                 headers={"Authorization": "Bearer token"},
@@ -297,10 +325,12 @@ class TestRequireRole:
 
     def test_premium_role_allowed_premium_route(self):
         fake_token = {"uid": "premium-user", "role": "premium"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="premium"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
             with patch("server.get_hdx_client", return_value=None):
                 resp = self.client.get(
                     "/api/hdx/availability/TUR",
@@ -310,10 +340,12 @@ class TestRequireRole:
 
     def test_admin_role_allowed_premium_route(self):
         fake_token = {"uid": "admin-user", "role": "admin"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="admin"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="admin"),
+        ):
             with patch("server.get_hdx_client", return_value=None):
                 resp = self.client.get(
                     "/api/hdx/availability/TUR",
@@ -323,6 +355,7 @@ class TestRequireRole:
 
 
 # ── set_user_role / get_user_role ───────────────────────────────────────────────
+
 
 class TestUserRoleManagement:
     def test_set_user_role_invalid_role(self):
@@ -334,35 +367,42 @@ class TestUserRoleManagement:
 
     def test_set_user_role_success(self):
         mock_fb = MagicMock()
-        with patch.object(auth, "_firebase_app", return_value=mock_fb), \
-             patch("firebase_admin.auth.set_custom_user_claims") as mock_set:
+        with (
+            patch.object(auth, "_firebase_app", return_value=mock_fb),
+            patch("firebase_admin.auth.set_custom_user_claims") as mock_set,
+        ):
             result = auth.set_user_role("uid123", "admin")
             assert result is True
             mock_set.assert_called_once_with("uid123", {"role": "admin"})
 
     def test_get_user_role_no_firebase_admin_uid(self):
-        with patch.object(auth, "_firebase_app", return_value=None), \
-             patch.object(auth, "_admins", return_value={"uid123"}):
+        with (
+            patch.object(auth, "_firebase_app", return_value=None),
+            patch.object(auth, "_admins", return_value={"uid123"}),
+        ):
             assert auth.get_user_role("uid123") == "admin"
 
     def test_get_user_role_no_firebase_not_admin(self):
-        with patch.object(auth, "_firebase_app", return_value=None), \
-             patch.object(auth, "_admins", return_value=set()):
+        with patch.object(auth, "_firebase_app", return_value=None), patch.object(auth, "_admins", return_value=set()):
             assert auth.get_user_role("uid123") == "free"
 
     def test_get_user_role_with_firebase(self):
         mock_fb = MagicMock()
         mock_user = MagicMock()
         mock_user.custom_claims = {"role": "premium"}
-        with patch.object(auth, "_firebase_app", return_value=mock_fb), \
-             patch("firebase_admin.auth.get_user", return_value=mock_user):
+        with (
+            patch.object(auth, "_firebase_app", return_value=mock_fb),
+            patch("firebase_admin.auth.get_user", return_value=mock_user),
+        ):
             assert auth.get_user_role("uid123") == "premium"
 
     def test_get_user_role_with_firebase_no_claims(self):
         mock_fb = MagicMock()
         mock_user = MagicMock()
         mock_user.custom_claims = None
-        with patch.object(auth, "_firebase_app", return_value=mock_fb), \
-             patch("firebase_admin.auth.get_user", return_value=mock_user), \
-             patch.object(auth, "_admins", return_value=set()):
+        with (
+            patch.object(auth, "_firebase_app", return_value=mock_fb),
+            patch("firebase_admin.auth.get_user", return_value=mock_user),
+            patch.object(auth, "_admins", return_value=set()),
+        ):
             assert auth.get_user_role("uid123") == "free"

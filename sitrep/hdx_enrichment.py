@@ -30,6 +30,7 @@ from reliefweb_api.country_codes import get_iso_code
 # HDX data fetching
 # ---------------------------------------------------------------------------
 
+
 def fetch_hdx_context(country: str) -> dict[str, Any] | None:
     """
     Fetch HDX context data for a country.
@@ -51,6 +52,7 @@ def fetch_hdx_context(country: str) -> dict[str, Any] | None:
 
     try:
         from reliefweb_api.hdx_tools import get_hdx_client
+
         client = get_hdx_client()
         if not client:
             logger.info("HDX: Client not initialized, skipping enrichment")
@@ -72,7 +74,8 @@ def fetch_hdx_context(country: str) -> dict[str, Any] | None:
 
         logger.info(
             "HDX: Enrichment data fetched for %s (%s) — summary keys: %s, data categories: %s",
-            country, iso_code,
+            country,
+            iso_code,
             list(context.get("summary", {}).keys()),
             list(context.get("data_sources", {}).keys()),
         )
@@ -86,6 +89,7 @@ def fetch_hdx_context(country: str) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 # HDX data formatting for LLM prompts
 # ---------------------------------------------------------------------------
+
 
 def format_hdx_summary_for_prompt(hdx_context: dict[str, Any] | None) -> str:
     """
@@ -109,7 +113,9 @@ def format_hdx_summary_for_prompt(hdx_context: dict[str, Any] | None) -> str:
 
     lines = []
     lines.append("## Quantitative Humanitarian Data (HDX)")
-    lines.append(f"Source: Humanitarian Data Exchange (HDX) — country: {hdx_context.get('country', 'Unknown')} ({hdx_context.get('country_code', '??')})")
+    lines.append(
+        f"Source: Humanitarian Data Exchange (HDX) — country: {hdx_context.get('country', 'Unknown')} ({hdx_context.get('country_code', '??')})"
+    )
     lines.append("")
 
     # Refugees
@@ -139,7 +145,9 @@ def format_hdx_summary_for_prompt(hdx_context: dict[str, Any] | None) -> str:
         lines.append(f"- **INFORM Risk Class**: {risk} (Global Rank: {rank})")
 
     lines.append("")
-    lines.append("Use these figures to support your analysis. Always cite HDX as the source when referencing these numbers.")
+    lines.append(
+        "Use these figures to support your analysis. Always cite HDX as the source when referencing these numbers."
+    )
     lines.append("")
 
     return "\n".join(lines)
@@ -174,7 +182,7 @@ def format_hdx_for_rag_context(hdx_context: dict[str, Any] | None) -> str:
         if not data or not isinstance(data, dict):
             continue
 
-        source = data.get("source", "HDX")
+        data.get("source", "HDX")
         record_count = data.get("record_count", 0)
         preview = data.get("data_preview", [])
 
@@ -198,7 +206,7 @@ def format_hdx_for_rag_context(hdx_context: dict[str, Any] | None) -> str:
         lines.append(f"### {label} ({record_count} records)")
 
         # Add preview data (first 3 records)
-        for i, record in enumerate(preview[:3]):
+        for _i, record in enumerate(preview[:3]):
             if isinstance(record, dict):
                 # Extract key fields based on category
                 if category == "refugees":
@@ -273,22 +281,26 @@ def format_hdx_for_bulletin(hdx_context: dict[str, Any] | None) -> dict[str, Any
     if "refugees_total" in summary:
         val = summary["refugees_total"]
         if val and val > 0:
-            key_figures.append({
-                "label": "Refugees",
-                "value": f"{val:,.0f}",
-                "icon": "people",
-            })
+            key_figures.append(
+                {
+                    "label": "Refugees",
+                    "value": f"{val:,.0f}",
+                    "icon": "people",
+                }
+            )
             context_parts.append(f"{val:,.0f} refugees")
 
     # IDPs
     if "idps_total" in summary:
         val = summary["idps_total"]
         if val and val > 0:
-            key_figures.append({
-                "label": "IDPs",
-                "value": f"{val:,.0f}",
-                "icon": "home",
-            })
+            key_figures.append(
+                {
+                    "label": "IDPs",
+                    "value": f"{val:,.0f}",
+                    "icon": "home",
+                }
+            )
             context_parts.append(f"{val:,.0f} internally displaced persons")
 
     # Funding
@@ -296,22 +308,28 @@ def format_hdx_for_bulletin(hdx_context: dict[str, Any] | None) -> dict[str, Any
     funded = summary.get("funding_funded_usd", 0) or 0
     if required > 0:
         pct = (funded / required * 100) if required > 0 else 0
-        key_figures.append({
-            "label": "Funding",
-            "value": f"{pct:.0f}% funded",
-            "icon": "attach_money",
-        })
-        context_parts.append(f"Humanitarian funding: ${funded/1e6:.1f}M funded of ${required/1e6:.1f}M required ({pct:.0f}%)")
+        key_figures.append(
+            {
+                "label": "Funding",
+                "value": f"{pct:.0f}% funded",
+                "icon": "attach_money",
+            }
+        )
+        context_parts.append(
+            f"Humanitarian funding: ${funded / 1e6:.1f}M funded of ${required / 1e6:.1f}M required ({pct:.0f}%)"
+        )
 
     # Risk
     if "risk_class" in summary:
         risk = summary["risk_class"]
         rank = summary.get("global_rank", "?")
-        key_figures.append({
-            "label": "Risk Level",
-            "value": f"{risk} (#{rank})",
-            "icon": "warning",
-        })
+        key_figures.append(
+            {
+                "label": "Risk Level",
+                "value": f"{risk} (#{rank})",
+                "icon": "warning",
+            }
+        )
         context_parts.append(f"INFORM risk class: {risk}, global rank: {rank}")
 
     context_text = ""

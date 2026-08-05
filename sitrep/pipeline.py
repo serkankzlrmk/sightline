@@ -21,7 +21,7 @@ from pathlib import Path
 # Ensure sitrep/ (for chroma_adapter, clustering, etc.) and project root
 # (for config.py) are on sys.path — needed when run as a subprocess.
 _SITREP_DIR = str(Path(__file__).parent.resolve())
-_ROOT_DIR   = str(Path(__file__).parent.parent.resolve())
+_ROOT_DIR = str(Path(__file__).parent.parent.resolve())
 for _p in (_SITREP_DIR, _ROOT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -46,6 +46,7 @@ logger = logging.getLogger("pipeline")
 # Intermediate file management
 # ---------------------------------------------------------------------------
 
+
 def _safe_name(country: str, event: str) -> str:
     """Generates a safe string for file names."""
     return f"{country}_{event}".replace(" ", "_").replace("/", "-")
@@ -54,6 +55,7 @@ def _safe_name(country: str, event: str) -> str:
 def _filter_hash(themes: list | None, date_from: str | None, date_to: str | None) -> str:
     """Generates a short hash based on theme/date filters (for checkpoint differentiation)."""
     import hashlib
+
     parts = []
     if themes:
         parts.append(",".join(sorted(themes)))
@@ -69,14 +71,14 @@ def _filter_hash(themes: list | None, date_from: str | None, date_to: str | None
 
 def _checkpoint_path(step_name: str, country: str, event: str, suffix: str = "") -> Path:
     step_dirs = {
-        "clusters"     : OUTPUT_CLUSTERS_DIR,
-        "questions"    : OUTPUT_QUESTIONS_DIR,
-        "filtered"     : OUTPUT_QUESTIONS_DIR,
-        "answers"      : OUTPUT_ANSWERS_DIR,
-        "answers_post" : OUTPUT_ANSWERS_DIR,
-        "summaries"    : OUTPUT_SUMMARIES_DIR,
-        "exec_summary" : OUTPUT_SUMMARIES_DIR,
-        "narrative"    : OUTPUT_SUMMARIES_DIR,
+        "clusters": OUTPUT_CLUSTERS_DIR,
+        "questions": OUTPUT_QUESTIONS_DIR,
+        "filtered": OUTPUT_QUESTIONS_DIR,
+        "answers": OUTPUT_ANSWERS_DIR,
+        "answers_post": OUTPUT_ANSWERS_DIR,
+        "summaries": OUTPUT_SUMMARIES_DIR,
+        "exec_summary": OUTPUT_SUMMARIES_DIR,
+        "narrative": OUTPUT_SUMMARIES_DIR,
     }
     base = step_dirs.get(step_name, OUTPUT_REPORTS_DIR)
     return base / f"{_safe_name(country, event)}_{step_name}{suffix}.json"
@@ -102,6 +104,7 @@ def _save_checkpoint(data, step_name: str, country: str, event: str, suffix: str
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
+
 
 def run_pipeline(
     country: str,
@@ -135,6 +138,7 @@ def run_pipeline(
     # ---- Step 0: ChromaDB connection ----
     logger.info("[0] Connecting to Chroma DB...")
     from chroma_adapter import ChromaAdapter
+
     db = ChromaAdapter()
     total = db.count()
     logger.info("    Collection: %d chunks", total)
@@ -144,7 +148,10 @@ def run_pipeline(
     chunks = _load_checkpoint("chunks_raw", country, event, suffix=fh) if not skip_cache else None
     if chunks is None:
         chunks = db.get_chunks_by_country_and_themes(
-            country, themes, date_from=date_from, date_to=date_to,
+            country,
+            themes,
+            date_from=date_from,
+            date_to=date_to,
         )
         if not chunks:
             filter_detail = ""
@@ -168,10 +175,7 @@ def run_pipeline(
                     f"{filter_detail}.{range_hint} "
                     "Try adjusting theme or date filters."
                 )
-            raise ValueError(
-                f"No chunks found for '{country}' in Chroma DB. "
-                "Check the primary_country field."
-            )
+            raise ValueError(f"No chunks found for '{country}' in Chroma DB. Check the primary_country field.")
         _save_checkpoint(chunks, "chunks_raw", country, event, suffix=fh)
     logger.info("    %d chunks loaded.", len(chunks))
 
@@ -180,6 +184,7 @@ def run_pipeline(
     hdx_context = None
     try:
         from hdx_enrichment import fetch_hdx_context
+
         hdx_context = fetch_hdx_context(country)
         if hdx_context:
             logger.info("    HDX enrichment data available: %s", list(hdx_context.get("summary", {}).keys()))
@@ -211,11 +216,13 @@ def run_pipeline(
     clusters = _load_checkpoint("clusters", country, event, suffix=fh) if not skip_cache else None
     if clusters is None:
         from clustering import run_clustering
+
         MIN_CHUNKS_FOR_CLUSTERING = 20
         if len(chunks) < MIN_CHUNKS_FOR_CLUSTERING:
             logger.info(
                 "    %d chunks < %d → clustering skipped, creating single cluster.",
-                len(chunks), MIN_CHUNKS_FOR_CLUSTERING,
+                len(chunks),
+                MIN_CHUNKS_FOR_CLUSTERING,
             )
             # Deduplication on title
             seen_titles: set = set()
@@ -223,19 +230,24 @@ def run_pipeline(
             for c in chunks:
                 if c["title"] not in seen_titles:
                     seen_titles.add(c["title"])
-                    metadata.append({
-                        "title": c["title"],
-                        "url": c.get("url", ""),
-                        "source": c.get("source", ""),
-                        "date": c.get("date", ""),
-                    })
+                    metadata.append(
+                        {
+                            "title": c["title"],
+                            "url": c.get("url", ""),
+                            "source": c.get("source", ""),
+                            "date": c.get("date", ""),
+                        }
+                    )
             clusters = {
                 "0": {
                     "cluster_articles": [
                         {
-                            "id": c["id"], "text": c["text"],
-                            "title": c.get("title", ""), "url": c.get("url", ""),
-                            "source": c.get("source", ""), "date": c.get("date", ""),
+                            "id": c["id"],
+                            "text": c["text"],
+                            "title": c.get("title", ""),
+                            "url": c.get("url", ""),
+                            "source": c.get("source", ""),
+                            "date": c.get("date", ""),
                             "embedding": c.get("embedding"),
                         }
                         for c in chunks
@@ -258,6 +270,7 @@ def run_pipeline(
     questions_raw = _load_checkpoint("questions", country, event, suffix=fh) if not skip_cache else None
     if questions_raw is None:
         from question_generation import generate_questions
+
         try:
             questions_raw = generate_questions(clusters, event=event, country=country)
         except Exception as exc:
@@ -270,6 +283,7 @@ def run_pipeline(
     filtered_questions = _load_checkpoint("filtered", country, event, suffix=fh) if not skip_cache else None
     if filtered_questions is None:
         from question_filtering import filter_questions
+
         try:
             filtered_questions = filter_questions(questions_raw)
         except Exception as exc:
@@ -294,6 +308,7 @@ def run_pipeline(
     raw_answers = _load_checkpoint("answers", country, event, suffix=fh) if not skip_cache else None
     if raw_answers is None:
         from rag_answers import answer_questions
+
         # Use per-cluster checkpointing for resilience on large runs
         answers_ckpt_dir = os.path.join(OUTPUT_ANSWERS_DIR, f"{country}_{event}_ckpt")
         try:
@@ -330,6 +345,7 @@ def run_pipeline(
     postprocessed = _load_checkpoint("answers_post", country, event, suffix=fh) if not skip_cache else None
     if postprocessed is None:
         from citation_postprocess import postprocess_citations
+
         postprocessed = postprocess_citations(raw_answers)
         _save_checkpoint(postprocessed, "answers_post", country, event, suffix=fh)
 
@@ -338,6 +354,7 @@ def run_pipeline(
     cluster_summaries = _load_checkpoint("summaries", country, event, suffix=fh) if not skip_cache else None
     if cluster_summaries is None:
         from cluster_summary import generate_cluster_summaries
+
         try:
             cluster_summaries = generate_cluster_summaries(postprocessed, clusters)
         except Exception as exc:
@@ -360,8 +377,11 @@ def run_pipeline(
     exec_summary = _load_checkpoint("exec_summary", country, event, suffix=fh) if not skip_cache else None
     if exec_summary is None:
         from executive_summary import generate_executive_summary
+
         try:
-            exec_summary = generate_executive_summary(postprocessed, cluster_summaries=cluster_summaries, hdx_context=hdx_context)
+            exec_summary = generate_executive_summary(
+                postprocessed, cluster_summaries=cluster_summaries, hdx_context=hdx_context
+            )
         except Exception as exc:
             logger.error("[8] Executive summary generation failed: %s", exc, exc_info=True)
             exec_summary = {
@@ -377,6 +397,7 @@ def run_pipeline(
     narrative = _load_checkpoint("narrative", country, event, suffix=fh) if not skip_cache else None
     if narrative is None:
         from narrative_report import generate_narrative_report
+
         try:
             narrative = generate_narrative_report(
                 country=country,
@@ -390,8 +411,7 @@ def run_pipeline(
             summary_text = exec_summary.get("summary", "") if exec_summary else ""
             narrative = {
                 "narrative_html": (
-                    f"<h2>1. Executive Overview</h2>"
-                    f"<p>{summary_text or 'Narrative report generation failed.'}</p>"
+                    f"<h2>1. Executive Overview</h2><p>{summary_text or 'Narrative report generation failed.'}</p>"
                 ),
                 "narrative_sources": {
                     "cluster_titles": [],
@@ -440,31 +460,37 @@ def run_pipeline(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="SITREP Pipeline — Chroma + OpenRouter"
-    )
+    parser = argparse.ArgumentParser(description="SITREP Pipeline — Chroma + OpenRouter")
     parser.add_argument(
-        "--country", required=True,
+        "--country",
+        required=True,
         help="Country name (must match primary_country value in Chroma)",
     )
     parser.add_argument(
-        "--event", required=False, default="",
+        "--event",
+        required=False,
+        default="",
         help="Event/crisis name (used in prompts). If omitted, country name is used.",
     )
     parser.add_argument(
-        "--themes", nargs="*", default=None,
+        "--themes",
+        nargs="*",
+        default=None,
         help="Optional theme filter (e.g.: --themes Health Protection)",
     )
     parser.add_argument(
-        "--date-from", default=None,
+        "--date-from",
+        default=None,
         help="Optional start date (YYYY-MM-DD)",
     )
     parser.add_argument(
-        "--date-to", default=None,
+        "--date-to",
+        default=None,
         help="Optional end date (YYYY-MM-DD)",
     )
     parser.add_argument(
-        "--skip-cache", action="store_true",
+        "--skip-cache",
+        action="store_true",
         help="Ignore checkpoints, rerun all steps",
     )
 
@@ -472,10 +498,12 @@ if __name__ == "__main__":
 
     # Initialize HDX client if configured (for enrichment in Stage 1.5)
     from config import config
-    hdx_app_id = getattr(config, 'HDX_APP_IDENTIFIER', '') or ''
+
+    hdx_app_id = getattr(config, "HDX_APP_IDENTIFIER", "") or ""
     if hdx_app_id:
         try:
             from reliefweb_api.hdx_tools import init_hdx_tools
+
             if init_hdx_tools(app_identifier=hdx_app_id):
                 logger.info("HDX client initialized for CLI pipeline")
             else:
@@ -487,7 +515,7 @@ if __name__ == "__main__":
         country=args.country,
         event=args.event or args.country,
         themes=args.themes,
-        date_from=getattr(args, 'date_from', None),
-        date_to=getattr(args, 'date_to', None),
+        date_from=getattr(args, "date_from", None),
+        date_to=getattr(args, "date_to", None),
         skip_cache=args.skip_cache,
     )

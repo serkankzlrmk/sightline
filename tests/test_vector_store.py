@@ -11,11 +11,13 @@ import pytest
 class TestVectorStoreInit:
     def test_init_creates_collection(self, tmp_path):
         from reliefweb_api.vector_store import VectorStore
+
         vs = VectorStore(str(tmp_path / "chroma_test"))
         assert vs is not None
 
     def test_init_default_backend(self, tmp_path):
         from reliefweb_api.vector_store import VectorStore
+
         vs = VectorStore(str(tmp_path / "chroma_test2"))
         stats = vs.get_stats()
         assert "total_chunks" in stats
@@ -26,6 +28,7 @@ class TestVectorStoreAddReport:
     @pytest.fixture
     def vs(self, tmp_path):
         from reliefweb_api.vector_store import VectorStore
+
         return VectorStore(str(tmp_path / "chroma_add"))
 
     def test_add_report_returns_count(self, vs):
@@ -41,7 +44,10 @@ class TestVectorStoreAddReport:
             "language": [{"code": "en"}],
         }
         chunks = [
-            {"source_type": "html", "content": "This is test content for vector store testing about Sudan humanitarian crisis."},
+            {
+                "source_type": "html",
+                "content": "This is test content for vector store testing about Sudan humanitarian crisis.",
+            },
         ]
         count = vs.add_report(10001, chunks, metadata)
         assert count == 1
@@ -89,6 +95,7 @@ class TestVectorStoreSearch:
     @pytest.fixture
     def vs_with_data(self, tmp_path):
         from reliefweb_api.vector_store import VectorStore
+
         vs = VectorStore(str(tmp_path / "chroma_search"))
         metadata = {
             "id": 20001,
@@ -102,7 +109,10 @@ class TestVectorStoreSearch:
             "language": [{"code": "en"}],
         }
         chunks = [
-            {"source_type": "html", "content": "Sudan faces severe humanitarian crisis with millions displaced and food insecurity affecting vast populations across the country."},
+            {
+                "source_type": "html",
+                "content": "Sudan faces severe humanitarian crisis with millions displaced and food insecurity affecting vast populations across the country.",
+            },
         ]
         vs.add_report(20001, chunks, metadata)
         return vs
@@ -132,6 +142,7 @@ class TestVectorStoreSearch:
 class TestVectorStoreStats:
     def test_stats_structure(self, tmp_path):
         from reliefweb_api.vector_store import VectorStore
+
         vs = VectorStore(str(tmp_path / "chroma_stats"))
         stats = vs.get_stats()
         assert "total_chunks" in stats
@@ -142,6 +153,7 @@ class TestVectorStorePurge:
     @pytest.fixture
     def vs_with_data(self, tmp_path):
         from reliefweb_api.vector_store import VectorStore
+
         vs = VectorStore(str(tmp_path / "chroma_purge"))
         metadata = {
             "id": 30001,

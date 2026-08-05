@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 # Data Models
 # ============================================================================
 
+
 @dataclass
 class GDACSResult:
     success: bool
@@ -85,6 +86,7 @@ class GDACSResult:
 # ============================================================================
 # Cache (TTL-based, Thread-Safe)
 # ============================================================================
+
 
 class SimpleCache:
     def __init__(self, ttl: int = 900, max_size: int = 200):
@@ -143,6 +145,7 @@ ALERT_LEVELS = {"Green", "Orange", "Red"}
 # GDACS Client
 # ============================================================================
 
+
 class GDACSClient:
     DEFAULT_BASE_URL = "https://www.gdacs.org/xml/rss.xml"
 
@@ -170,6 +173,7 @@ class GDACSClient:
     @classmethod
     def from_env(cls) -> "GDACSClient":
         from dotenv import load_dotenv
+
         load_dotenv()
 
         return cls(
@@ -200,10 +204,7 @@ class GDACSClient:
     def _check_rate_limit(self) -> None:
         now = time.time()
         with self._rate_lock:
-            self._request_timestamps = [
-                t for t in self._request_timestamps
-                if now - t < self.rate_limit_period
-            ]
+            self._request_timestamps = [t for t in self._request_timestamps if now - t < self.rate_limit_period]
             if len(self._request_timestamps) >= self.rate_limit_requests:
                 oldest = self._request_timestamps[0]
                 wait_time = self.rate_limit_period - (now - oldest)
@@ -255,6 +256,7 @@ class GDACSClient:
         "{uri}localname" seklindedir (kapali parantezden sonra colon YOK).
         Ornegin gdacs:eventtype -> "{http://www.gdacs.org}eventtype".
         """
+
         def text(tag: str, ns_prefix: str = "") -> str:
             if ns_prefix:
                 el = item.find(f"{{{_NS[ns_prefix]}}}{tag}")
@@ -359,9 +361,7 @@ class GDACSClient:
             return alerts
 
         except httpx.HTTPStatusError as e:
-            logger.error(
-                f"GDACS HTTP error: {e.response.status_code} - {e.response.text[:200]}"
-            )
+            logger.error(f"GDACS HTTP error: {e.response.status_code} - {e.response.text[:200]}")
             return []
         except httpx.RequestError as e:
             logger.warning(f"GDACS request failed (network): {e}")

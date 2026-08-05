@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Embedding → UMAP → HDBSCAN
 # ---------------------------------------------------------------------------
 
+
 def _umap_reduce(embeddings: np.ndarray, n_neighbors: int) -> np.ndarray:
     """UMAP dimensionality reduction."""
     import umap as umap_lib
@@ -56,7 +57,7 @@ def _hdbscan_fit(
     min_cluster_size: int,
     min_samples: int,
     epsilon: float,
-) -> "hdbscan.HDBSCAN":
+):
     """Create and fit HDBSCAN cluster object."""
     import hdbscan as hdbscan_lib
 
@@ -118,9 +119,7 @@ def _llm_coherence_score(paragraphs: list[str]) -> float:
     Returns 0.5 if parsing fails.
     """
     sample = paragraphs[:8]  # Send max 8 paragraphs to LLM (token savings)
-    docs_str = "\n---\n".join(
-        f"[{i+1}] {p[:300]}" for i, p in enumerate(sample)
-    )
+    docs_str = "\n---\n".join(f"[{i + 1}] {p[:300]}" for i, p in enumerate(sample))
     prompt = _COHERENCE_USER_TEMPLATE.format(documents=docs_str)
 
     try:
@@ -139,9 +138,7 @@ def _llm_coherence_score(paragraphs: list[str]) -> float:
     return 0.5
 
 
-def _evaluate_all_clusters_llm(
-    chunks: list[dict], labels: np.ndarray
-) -> float:
+def _evaluate_all_clusters_llm(chunks: list[dict], labels: np.ndarray) -> float:
     """
     Average LLM coherence score for all clusters.
     Each cluster is evaluated by sampling up to 6 chunks.
@@ -152,11 +149,7 @@ def _evaluate_all_clusters_llm(
 
     scores = []
     for label in unique_labels:
-        cluster_chunks = [
-            chunks[i]["text"]
-            for i, lbl in enumerate(labels)
-            if lbl == label
-        ]
+        cluster_chunks = [chunks[i]["text"] for i, lbl in enumerate(labels) if lbl == label]
         sample = cluster_chunks[:6]
         score = _llm_coherence_score(sample)
         scores.append(score)
@@ -198,7 +191,10 @@ def _random_search(
 
     logger.info(
         "Adaptive HP ranges for %d chunks: mcs=%s, ms=%s, nn=%s",
-        n_chunks, mcs_range, ms_range, nn_range,
+        n_chunks,
+        mcs_range,
+        ms_range,
+        nn_range,
     )
 
     # Phase 1: Collect DBCV-only candidates (fast, no LLM)
@@ -224,24 +220,34 @@ def _random_search(
         if label_count < min_clusters:
             logger.debug(
                 "Iter %d: %d clusters (< %d min) — skipped",
-                i, label_count, min_clusters,
+                i,
+                label_count,
+                min_clusters,
             )
             continue
 
         logger.info(
             "Iter %d: clusters=%d  dbcv=%.3f  params=(nn=%d, mcs=%d, ms=%d, eps=%.2f)",
-            i, label_count, dbcv, n_neighbors, min_cluster_size, min_samples, epsilon,
+            i,
+            label_count,
+            dbcv,
+            n_neighbors,
+            min_cluster_size,
+            min_samples,
+            epsilon,
         )
 
-        candidates.append({
-            "n_neighbors": n_neighbors,
-            "min_cluster_size": min_cluster_size,
-            "min_samples": min_samples,
-            "epsilon": epsilon,
-            "label_count": label_count,
-            "dbcv": dbcv,
-            "labels": clusterer.labels_.tolist(),
-        })
+        candidates.append(
+            {
+                "n_neighbors": n_neighbors,
+                "min_cluster_size": min_cluster_size,
+                "min_samples": min_samples,
+                "epsilon": epsilon,
+                "label_count": label_count,
+                "dbcv": dbcv,
+                "labels": clusterer.labels_.tolist(),
+            }
+        )
 
     if not candidates:
         if min_clusters > 2:
@@ -251,9 +257,7 @@ def _random_search(
             )
             return _random_search(chunks, embeddings, n_iterations, min_clusters=2)
         else:
-            logger.warning(
-                "HDBSCAN failed to produce any clusters. Using KMeans fallback."
-            )
+            logger.warning("HDBSCAN failed to produce any clusters. Using KMeans fallback.")
             return _kmeans_fallback(chunks, embeddings)
 
     # Phase 2: Sort by DBCV, evaluate only top-3 with LLM (saves ~90% LLM calls)
@@ -270,7 +274,10 @@ def _random_search(
 
         logger.info(
             "Top candidate: clusters=%d  dbcv=%.3f  llm=%.3f  final=%.3f",
-            cand["label_count"], cand["dbcv"], llm_score, cand["final_score"],
+            cand["label_count"],
+            cand["dbcv"],
+            llm_score,
+            cand["final_score"],
         )
 
         if cand["final_score"] > best_score:
@@ -286,6 +293,7 @@ def _kmeans_fallback(chunks: list[dict], embeddings: np.ndarray, k: int | None =
     If k is not provided, it is auto-selected based on data size: sqrt(n/10), min 2, max 12.
     """
     from sklearn.cluster import KMeans
+
     n = len(chunks)
 
     if k is None:
@@ -320,8 +328,7 @@ def _kmeans_fallback(chunks: list[dict], embeddings: np.ndarray, k: int | None =
 # ---------------------------------------------------------------------------
 
 _HEADLINE_SYSTEM = (
-    "You are an expert summarizer for humanitarian situation reports. "
-    "Respond ONLY with the title, nothing else."
+    "You are an expert summarizer for humanitarian situation reports. Respond ONLY with the title, nothing else."
 )
 
 _HEADLINE_USER_TEMPLATE = """\
@@ -337,7 +344,7 @@ Passages:
 def _generate_cluster_headline(paragraphs: list[str]) -> str:
     """Generate cluster headline."""
     sample = paragraphs[:5]
-    passages_str = "\n---\n".join(f"[{i+1}] {p[:250]}" for i, p in enumerate(sample))
+    passages_str = "\n---\n".join(f"[{i + 1}] {p[:250]}" for i, p in enumerate(sample))
     prompt = _HEADLINE_USER_TEMPLATE.format(passages=passages_str)
 
     try:
@@ -356,6 +363,7 @@ def _generate_cluster_headline(paragraphs: list[str]) -> str:
 # ---------------------------------------------------------------------------
 # Main function
 # ---------------------------------------------------------------------------
+
 
 def run_clustering(
     chunks: list[dict],
@@ -390,6 +398,7 @@ def run_clustering(
 
     # Normalise embeddings: handle string format from pgvector/psycopg2
     import json as _json
+
     parsed = []
     for i, e in enumerate(embeddings_list):
         if e is None:
@@ -404,9 +413,9 @@ def run_clustering(
             except (ValueError, _json.JSONDecodeError):
                 # Fallback: strip brackets and split
                 stripped = e.strip()
-                if stripped.startswith('[') and stripped.endswith(']'):
+                if stripped.startswith("[") and stripped.endswith("]"):
                     stripped = stripped[1:-1]
-                parsed.append([float(x) for x in stripped.split(',') if x.strip()])
+                parsed.append([float(x) for x in stripped.split(",") if x.strip()])
         elif isinstance(e, np.ndarray):
             parsed.append(e.tolist())
         elif isinstance(e, list):
@@ -417,8 +426,7 @@ def run_clustering(
                 parsed.append(np.array(e).tolist())
             except Exception:
                 raise ValueError(
-                    f"Chunk {i} has an unparseable embedding of type {type(e).__name__}. "
-                    "Cannot convert to float list."
+                    f"Chunk {i} has an unparseable embedding of type {type(e).__name__}. Cannot convert to float list."
                 )
 
     embeddings = np.array(parsed, dtype=float)
@@ -429,11 +437,13 @@ def run_clustering(
     labels = np.array(best["labels"])
 
     logger.info(
-        "Best parameters: n_neighbors=%d, min_cluster_size=%d, "
-        "min_samples=%d, epsilon=%.2f → %d clusters, score=%.3f",
-        best["n_neighbors"], best["min_cluster_size"],
-        best["min_samples"], best["epsilon"],
-        best["label_count"], best["final_score"],
+        "Best parameters: n_neighbors=%d, min_cluster_size=%d, min_samples=%d, epsilon=%.2f → %d clusters, score=%.3f",
+        best["n_neighbors"],
+        best["min_cluster_size"],
+        best["min_samples"],
+        best["epsilon"],
+        best["label_count"],
+        best["final_score"],
     )
 
     # 3. Build cluster dictionary
@@ -454,12 +464,14 @@ def run_clustering(
         for c in cluster_chunks:
             if c["title"] not in seen_titles:
                 seen_titles.add(c["title"])
-                metadata.append({
-                    "title": c["title"],
-                    "url": c["url"],
-                    "source": c["source"],
-                    "date": c["date"],
-                })
+                metadata.append(
+                    {
+                        "title": c["title"],
+                        "url": c["url"],
+                        "source": c["source"],
+                        "date": c["date"],
+                    }
+                )
 
         result[str(label)] = {
             "cluster_articles": [

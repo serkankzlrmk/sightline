@@ -115,7 +115,6 @@ COUNTRY_TO_ISO: dict[str, str] = {
     "Moldova": "MDA",
     "Mongolia": "MNG",
     "Morocco": "MAR",
-    "Myanmar": "MMR",
     "Namibia": "NAM",
     "Nepal": "NPL",
     "Nicaragua": "NIC",
@@ -138,7 +137,6 @@ COUNTRY_TO_ISO: dict[str, str] = {
     "South Africa": "ZAF",
     "Spain": "ESP",
     "Sri Lanka": "LKA",
-    "Sudan": "SDN",
     "Sweden": "SWE",
     "Switzerland": "CHE",
     "Syrian Arab Republic": "SYR",
@@ -147,9 +145,6 @@ COUNTRY_TO_ISO: dict[str, str] = {
     "Togo": "TGO",
     "Tunisia": "TUN",
     "Turkmenistan": "TKM",
-    "Türkiye": "TUR",
-    "Turkey": "TUR",
-    "Uganda": "UGA",
     "United Arab Emirates": "ARE",
     "United Kingdom": "GBR",
     "United States": "USA",
@@ -159,7 +154,6 @@ COUNTRY_TO_ISO: dict[str, str] = {
     "Vietnam": "VNM",
     "West Bank and Gaza": "PSE",
     "Zambia": "ZMB",
-
     # --- Territories and special entries ---
     "World": None,  # Not a country, no ISO code
     "Guam": "GUM",

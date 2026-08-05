@@ -8,9 +8,7 @@ Register in server.py with:
     app.register_blueprint(admin_bp)
 """
 
-import json
 import logging
-import re
 import time as _time
 from pathlib import Path
 
@@ -22,23 +20,26 @@ from config import OUTPUT_REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
-admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
 
 # =============================================================================
 # Admin routes
 # =============================================================================
 
+
 @admin_bp.route("/users", methods=["GET"])
 @require_admin
 def api_admin_users():
     """List all Firebase Auth users with their roles.  Admin only."""
     from auth import _firebase_app
+
     fb = _firebase_app()
     if not fb:
         return jsonify({"error": "Firebase not configured"}), 503
     try:
         from firebase_admin import auth as firebase_auth
+
         users = []
         page = firebase_auth.list_users()
         for user_record in page.users:
@@ -46,13 +47,15 @@ def api_admin_users():
             # Fallback: check ADMIN_UIDS
             if role == "free" and user_record.uid in _admins():
                 role = "admin"
-            users.append({
-                "uid": user_record.uid,
-                "email": user_record.email or "",
-                "displayName": user_record.display_name or "",
-                "role": role,
-                "disabled": user_record.disabled,
-            })
+            users.append(
+                {
+                    "uid": user_record.uid,
+                    "email": user_record.email or "",
+                    "displayName": user_record.display_name or "",
+                    "role": role,
+                    "disabled": user_record.disabled,
+                }
+            )
         return jsonify({"users": users})
     except Exception as exc:
         logger.error("api_admin_users error: %s", exc, exc_info=True)
@@ -64,6 +67,7 @@ def api_admin_users():
 def api_admin_set_role(uid):
     """Set a user's role via Firebase Custom Claims.  Admin only."""
     from auth import ROLE_HIERARCHY, set_user_role
+
     data = request.get_json(silent=True) or {}
     new_role = (data.get("role") or "").strip().lower()
     if new_role not in ROLE_HIERARCHY:
@@ -81,22 +85,26 @@ def api_admin_set_role(uid):
 def api_admin_get_user(uid):
     """Get a single user's details including role.  Admin only."""
     from auth import _firebase_app
+
     fb = _firebase_app()
     if not fb:
         return jsonify({"error": "Firebase not configured"}), 503
     try:
         from firebase_admin import auth as firebase_auth
+
         user_record = firebase_auth.get_user(uid)
         role = (user_record.custom_claims or {}).get("role", "free")
         if role == "free" and user_record.uid in _admins():
             role = "admin"
-        return jsonify({
-            "uid": user_record.uid,
-            "email": user_record.email or "",
-            "displayName": user_record.display_name or "",
-            "role": role,
-            "disabled": user_record.disabled,
-        })
+        return jsonify(
+            {
+                "uid": user_record.uid,
+                "email": user_record.email or "",
+                "displayName": user_record.display_name or "",
+                "role": role,
+                "disabled": user_record.disabled,
+            }
+        )
     except Exception as exc:
         logger.error("api_admin_get_user error: %s", exc, exc_info=True)
         return jsonify({"error": "User not found"}), 404
@@ -112,53 +120,57 @@ def api_admin_analytics():
         total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         # Daily Active Users (users with events in last 24h)
         dau = conn.execute(
-            "SELECT COUNT(DISTINCT uid) FROM events WHERE ts > ? AND uid != ''",
-            (_time.time() - 86400,)
+            "SELECT COUNT(DISTINCT uid) FROM events WHERE ts > ? AND uid != ''", (_time.time() - 86400,)
         ).fetchone()[0]
         # Weekly Active Users
         wau = conn.execute(
-            "SELECT COUNT(DISTINCT uid) FROM events WHERE ts > ? AND uid != ''",
-            (_time.time() - 7*86400,)
+            "SELECT COUNT(DISTINCT uid) FROM events WHERE ts > ? AND uid != ''", (_time.time() - 7 * 86400,)
         ).fetchone()[0]
         # New users this week
         new_this_week = conn.execute(
-            "SELECT COUNT(*) FROM users WHERE created_at > ?",
-            (_time.time() - 7*86400,)
+            "SELECT COUNT(*) FROM users WHERE created_at > ?", (_time.time() - 7 * 86400,)
         ).fetchone()[0]
         # Role breakdown
-        role_breakdown = conn.execute(
-            "SELECT role, COUNT(*) as cnt FROM users GROUP BY role"
-        ).fetchall()
+        role_breakdown = conn.execute("SELECT role, COUNT(*) as cnt FROM users GROUP BY role").fetchall()
 
         # 2. Event counts (last 30 days, top events)
-        event_counts = conn.execute("""
+        event_counts = conn.execute(
+            """
             SELECT event, COUNT(*) as cnt
             FROM events
             WHERE ts > ?
             GROUP BY event
             ORDER BY cnt DESC
             LIMIT 20
-        """, (_time.time() - 30*86400,)).fetchall()
+        """,
+            (_time.time() - 30 * 86400,),
+        ).fetchall()
 
         # 3. DAU trend (last 14 days)
-        dau_trend = conn.execute("""
+        dau_trend = conn.execute(
+            """
             SELECT date(ts, 'unixepoch') as day, COUNT(DISTINCT uid) as users
             FROM events
             WHERE ts > ? AND uid != ''
             GROUP BY day
             ORDER BY day DESC
             LIMIT 14
-        """, (_time.time() - 14*86400,)).fetchall()
+        """,
+            (_time.time() - 14 * 86400,),
+        ).fetchall()
 
         # 4. Top SITREP runs (by country)
-        sitrep_runs = conn.execute("""
+        sitrep_runs = conn.execute(
+            """
             SELECT json_extract(props, '$.country') as country, COUNT(*) as cnt
             FROM events
             WHERE event = 'sitrep_run_started' AND ts > ?
             GROUP BY country
             ORDER BY cnt DESC
             LIMIT 10
-        """, (_time.time() - 30*86400,)).fetchall()
+        """,
+            (_time.time() - 30 * 86400,),
+        ).fetchall()
 
         # 5. Recent users (last 10 signups)
         recent_users = conn.execute("""
@@ -169,24 +181,30 @@ def api_admin_analytics():
         """).fetchall()
 
         # 6. Event timeline (last 7 days, daily counts)
-        event_timeline = conn.execute("""
+        event_timeline = conn.execute(
+            """
             SELECT date(ts, 'unixepoch') as day, COUNT(*) as cnt
             FROM events
             WHERE ts > ?
             GROUP BY day
             ORDER BY day DESC
             LIMIT 7
-        """, (_time.time() - 7*86400,)).fetchall()
+        """,
+            (_time.time() - 7 * 86400,),
+        ).fetchall()
 
         # 7. Bulletin views (last 30 days)
-        bulletin_views = conn.execute("""
+        bulletin_views = conn.execute(
+            """
             SELECT json_extract(props, '$.filename') as filename, COUNT(*) as cnt
             FROM events
             WHERE event = 'bulletin_viewed' AND ts > ?
             GROUP BY filename
             ORDER BY cnt DESC
             LIMIT 10
-        """, (_time.time() - 30*86400,)).fetchall()
+        """,
+            (_time.time() - 30 * 86400,),
+        ).fetchall()
 
         result = {
             "users": {
@@ -203,8 +221,16 @@ def api_admin_analytics():
             "dau_trend": [{"day": r["day"], "users": r["users"]} for r in dau_trend],
             "sitrep_runs": [{"country": r["country"] or "Unknown", "count": r["cnt"]} for r in sitrep_runs],
             "bulletin_views": [{"filename": r["filename"] or "Unknown", "count": r["cnt"]} for r in bulletin_views],
-            "recent_users": [{"uid": r["uid"], "email": r["email"], "role": r["role"],
-                              "created_at": r["created_at"], "last_seen": r["last_seen"]} for r in recent_users],
+            "recent_users": [
+                {
+                    "uid": r["uid"],
+                    "email": r["email"],
+                    "role": r["role"],
+                    "created_at": r["created_at"],
+                    "last_seen": r["last_seen"],
+                }
+                for r in recent_users
+            ],
         }
         return jsonify(result)
     except Exception as exc:
@@ -219,37 +245,48 @@ def api_admin_analytics():
 def api_admin_config():
     """Get current runtime config values. Admin only."""
     from config import ACTIVE_MODEL, LLM_MODEL, LLM_PROVIDER, MODEL_MAX_TOKENS, MODEL_TEMPERATURE
-    return jsonify({
-        "ACTIVE_MODEL": ACTIVE_MODEL,
-        "LLM_MODEL": LLM_MODEL,
-        "LLM_PROVIDER": LLM_PROVIDER,
-        "MODEL_TEMPERATURE": MODEL_TEMPERATURE,
-        "MODEL_MAX_TOKENS": MODEL_MAX_TOKENS,
-    })
+
+    return jsonify(
+        {
+            "ACTIVE_MODEL": ACTIVE_MODEL,
+            "LLM_MODEL": LLM_MODEL,
+            "LLM_PROVIDER": LLM_PROVIDER,
+            "MODEL_TEMPERATURE": MODEL_TEMPERATURE,
+            "MODEL_MAX_TOKENS": MODEL_MAX_TOKENS,
+        }
+    )
 
 
 @admin_bp.route("/config", methods=["POST"])
 @require_admin
 def api_admin_update_config():
     """Update .env config values and reload config. Admin only.
-    
+
     Accepts JSON body with key-value pairs to update in the .env file.
     Only whitelisted keys are allowed. After updating .env, reloads config
     and reinitializes the LLM model.
     """
-    ALLOWED_KEYS = {"ACTIVE_MODEL", "LLM_MODEL", "MODEL_TEMPERATURE", "MODEL_MAX_TOKENS",
-                    "LLM_MODEL_QUESTIONS", "LLM_MODEL_FILTER", "LLM_MODEL_ANSWERS"}
+    ALLOWED_KEYS = {
+        "ACTIVE_MODEL",
+        "LLM_MODEL",
+        "MODEL_TEMPERATURE",
+        "MODEL_MAX_TOKENS",
+        "LLM_MODEL_QUESTIONS",
+        "LLM_MODEL_FILTER",
+        "LLM_MODEL_ANSWERS",
+    }
     # Validation regex per key type — prevents .env injection (newline in value
     # could add arbitrary env keys like ADMIN_UIDS=attacker-uid)
     import re as _re
+
     _VALUE_PATTERNS = {
-        "ACTIVE_MODEL":          _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
-        "LLM_MODEL":             _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
-        "LLM_MODEL_QUESTIONS":   _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
-        "LLM_MODEL_FILTER":      _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
-        "LLM_MODEL_ANSWERS":     _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
-        "MODEL_TEMPERATURE":     _re.compile(r"^[0-9.]+$"),
-        "MODEL_MAX_TOKENS":      _re.compile(r"^[0-9]+$"),
+        "ACTIVE_MODEL": _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL": _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL_QUESTIONS": _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL_FILTER": _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "LLM_MODEL_ANSWERS": _re.compile(r"^[a-zA-Z0-9._/:-]+$"),
+        "MODEL_TEMPERATURE": _re.compile(r"^[0-9.]+$"),
+        "MODEL_MAX_TOKENS": _re.compile(r"^[0-9]+$"),
     }
     data = request.get_json(silent=True) or {}
     updates = {}
@@ -295,6 +332,7 @@ def api_admin_update_config():
     import importlib
 
     import config as config_module
+
     importlib.reload(config_module)
     # Re-import updated values into server module
     global ACTIVE_MODEL
@@ -304,17 +342,20 @@ def api_admin_update_config():
     # Reinitialize the LLM model if agent is loaded
     try:
         from agent.model import reinitialize_model
+
         reinitialize_model()
         logger.info("api_admin_update_config: LLM model reinitialized successfully")
     except Exception as e:
         logger.warning("api_admin_update_config: Could not reinitialize model: %s", e)
 
-    return jsonify({
-        "ok": True,
-        "updated": list(updates.keys()),
-        "ACTIVE_MODEL": config_module.ACTIVE_MODEL,
-        "LLM_MODEL": config_module.LLM_MODEL,
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "updated": list(updates.keys()),
+            "ACTIVE_MODEL": config_module.ACTIVE_MODEL,
+            "LLM_MODEL": config_module.LLM_MODEL,
+        }
+    )
 
 
 @admin_bp.route("/sitrep/<filename>", methods=["DELETE"])
@@ -345,6 +386,7 @@ def api_admin_delete_bulletin(filename):
     if ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
     from sitrep.weekly_bulletin import BULLETINS_DIR
+
     base = BULLETINS_DIR.resolve()
     path = (BULLETINS_DIR / filename).resolve()
     if not path.is_relative_to(base):

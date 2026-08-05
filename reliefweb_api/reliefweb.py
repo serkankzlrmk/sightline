@@ -4,10 +4,10 @@ Provides tools for querying humanitarian data from ReliefWeb API
 
 Usage:
     from reliefweb_api import search_sitreps, get_sitrep_summary, ...
-    
+
     # Direct invocation
     result = search_sitreps.invoke({"country": "Syria", "limit": 10})
-    
+
     # With tool agents
     from langchain.agents import Tool
     tools = [search_sitreps, get_sitrep_summary, ...]
@@ -55,18 +55,18 @@ from .reliefweb_utils import (
 # LOCAL DB HELPERS — read from SQLite before hitting the external API
 # ========================================================================
 
+
 def _local_report_meta(report_id: int) -> dict | None:
     """Return the reports row as a dict, or None if not found."""
     try:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT * FROM reports WHERE report_id = ?", (report_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM reports WHERE report_id = ?", (report_id,)).fetchone()
         conn.close()
         return dict(row) if row else None
     except Exception:
         return None
+
 
 def _local_report_chunks(report_id: int) -> list:
     """Return all chunks for a report as a list of dicts, ordered by index."""
@@ -74,17 +74,18 @@ def _local_report_chunks(report_id: int) -> list:
         conn = sqlite3.connect(LOCAL_DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT content FROM chunks WHERE report_id = ? ORDER BY chunk_index",
-            (report_id,)
+            "SELECT content FROM chunks WHERE report_id = ? ORDER BY chunk_index", (report_id,)
         ).fetchall()
         conn.close()
         return [r["content"] for r in rows]
     except Exception:
         return []
 
+
 # ========================================================================
 # TOOL 1: Search Situation Reports
 # ========================================================================
+
 
 @tool
 def search_sitreps(
@@ -202,9 +203,7 @@ def search_sitreps(
         body = {
             "preset": "latest",
             "limit": min(limit, REPORT_LIMIT_MAX),
-            "fields": {
-                "include": ["id", "title", "date", "source", "url", "theme", "format", "language", "country"]
-            }
+            "fields": {"include": ["id", "title", "date", "source", "url", "theme", "format", "language", "country"]},
         }
 
         if combined_filter:
@@ -231,16 +230,18 @@ def search_sitreps(
             fmt = [f.get("name", "") for f in fields.get("format", [])]
             countries = [c.get("name", "") for c in fields.get("country", [])]
 
-            reports.append({
-                "id": item.get("id"),
-                "title": fields.get("title", "No title"),
-                "date": fields.get("date", {}).get("original", fields.get("date", {}).get("created", "Unknown")),
-                "source": source_name,
-                "url": fields.get("url", ""),
-                "themes": themes,
-                "format": fmt,
-                "countries": countries,
-            })
+            reports.append(
+                {
+                    "id": item.get("id"),
+                    "title": fields.get("title", "No title"),
+                    "date": fields.get("date", {}).get("original", fields.get("date", {}).get("created", "Unknown")),
+                    "source": source_name,
+                    "url": fields.get("url", ""),
+                    "themes": themes,
+                    "format": fmt,
+                    "countries": countries,
+                }
+            )
 
         return format_response(reports)
 
@@ -254,21 +255,22 @@ def search_sitreps(
 # TOOL 2: Get Report Summary
 # ========================================================================
 
+
 @tool
 def get_sitrep_summary(report_id: int | None = None, ids: list | None = None) -> str:
     """
     Get a summary of a specific report.
-    
+
     Returns a concise summary (700 characters) with metadata.
     Use this for quick overview of a report.
-    
+
     Args:
         report_id: Report ID from search results (single report)
         ids: Deprecated - list of report IDs (will use first one)
-        
+
     Returns:
         JSON with report summary, title, date, source, and URL
-        
+
     Examples:
         get_sitrep_summary.invoke({"report_id": 4192591})
     """
@@ -350,21 +352,22 @@ def get_sitrep_summary(report_id: int | None = None, ids: list | None = None) ->
 # TOOL 3: Get Full Report Content
 # ========================================================================
 
+
 @tool
 def get_report_full_content(report_id: int | None = None, ids: list | None = None) -> str:
     """
     Get FULL content of a report.
-    
+
     Returns complete metadata and HTML body content (typically 1000-5000 chars).
     Use this for detailed analysis of a report.
-    
+
     Args:
         report_id: Report ID from search results (single report)
         ids: Deprecated - list of report IDs (will use first one)
-        
+
     Returns:
         JSON with full report content, metadata, countries, and disasters
-        
+
     Examples:
         get_report_full_content.invoke({"report_id": 4192591})
     """
@@ -470,22 +473,23 @@ def get_report_full_content(report_id: int | None = None, ids: list | None = Non
 # TOOL 4: Search Disasters
 # ========================================================================
 
+
 @tool
 def search_disasters(country: str | None = None, status: str = "current", limit: int = 20) -> str:
     """
     Search for disasters and emergencies from ReliefWeb.
-    
+
     Returns list of disasters with type, status, affected countries.
     Filter by country or status (current/past/all).
-    
+
     Args:
         country: Optional country name to filter (e.g., 'Turkey', 'Syria')
         status: 'current' (ongoing), 'past' (historical), or 'all'
         limit: Number of disasters to return (max 50)
-        
+
     Returns:
         JSON list of disasters with names, types, status, and affected countries
-        
+
     Examples:
         search_disasters.invoke({"status": "current"})
         search_disasters.invoke({"country": "Syria", "status": "current"})
@@ -502,9 +506,7 @@ def search_disasters(country: str | None = None, status: str = "current", limit:
         # Build API request
         body = {
             "limit": min(limit, DISASTER_LIMIT_MAX),
-            "fields": {
-                "include": ["id", "name", "type", "status", "date", "country", "url", "glide"]
-            }
+            "fields": {"include": ["id", "name", "type", "status", "date", "country", "url", "glide"]},
         }
 
         # Add filters
@@ -512,17 +514,11 @@ def search_disasters(country: str | None = None, status: str = "current", limit:
 
         if country:
             normalized_country = normalize_country_name(country)
-            conditions.append({
-                "field": "country.name",
-                "value": normalized_country
-            })
+            conditions.append({"field": "country.name", "value": normalized_country})
 
         if status != "all":
             status_value = "ongoing" if status == "current" else "past"
-            conditions.append({
-                "field": "status",
-                "value": status_value
-            })
+            conditions.append({"field": "status", "value": status_value})
 
         if conditions:
             if len(conditions) == 1:
@@ -546,16 +542,18 @@ def search_disasters(country: str | None = None, status: str = "current", limit:
             fields = item.get("fields", {})
             country_list = [c.get("name", "") for c in fields.get("country", [])]
 
-            disasters.append({
-                "id": item.get("id"),
-                "name": fields.get("name", ""),
-                "type": fields.get("type", ""),
-                "status": fields.get("status", ""),
-                "date": fields.get("date", ""),
-                "countries": country_list,
-                "glide": fields.get("glide", ""),
-                "url": fields.get("url", "")
-            })
+            disasters.append(
+                {
+                    "id": item.get("id"),
+                    "name": fields.get("name", ""),
+                    "type": fields.get("type", ""),
+                    "status": fields.get("status", ""),
+                    "date": fields.get("date", ""),
+                    "countries": country_list,
+                    "glide": fields.get("glide", ""),
+                    "url": fields.get("url", ""),
+                }
+            )
 
         return format_response(disasters)
 
@@ -569,25 +567,23 @@ def search_disasters(country: str | None = None, status: str = "current", limit:
 # TOOL 5: Search Disasters by Date
 # ========================================================================
 
+
 @tool
 def search_disasters_by_date(
-    start_date: str,
-    country: str | None = None,
-    end_date: str | None = None,
-    limit: int = 20
+    start_date: str, country: str | None = None, end_date: str | None = None, limit: int = 20
 ) -> str:
     """
     Search for disasters within a date range.
-    
+
     Args:
         start_date: Start date (YYYY-MM-DD format)
         country: Optional country name to filter
         end_date: End date (YYYY-MM-DD format), defaults to today
         limit: Number of results (max 50)
-        
+
     Returns:
         JSON list of disasters in date range
-        
+
     Examples:
         search_disasters_by_date.invoke({
             "start_date": "2025-01-01",
@@ -613,9 +609,7 @@ def search_disasters_by_date(
         body = {
             "limit": min(limit, DISASTER_LIMIT_MAX),
             "sort": ["date:desc"],
-            "fields": {
-                "include": ["id", "name", "type", "status", "date", "country", "url"]
-            }
+            "fields": {"include": ["id", "name", "type", "status", "date", "country", "url"]},
         }
 
         # Build filters
@@ -624,10 +618,7 @@ def search_disasters_by_date(
         # Date range filter
         date_filter = {"field": "date"}
         if end_date:
-            date_filter["value"] = {
-                "from": f"{start_date}T00:00:00+00:00",
-                "to": f"{end_date}T23:59:59+00:00"
-            }
+            date_filter["value"] = {"from": f"{start_date}T00:00:00+00:00", "to": f"{end_date}T23:59:59+00:00"}
         else:
             date_filter["value"] = {"from": f"{start_date}T00:00:00+00:00"}
         conditions.append(date_filter)
@@ -635,10 +626,7 @@ def search_disasters_by_date(
         # Country filter
         if country:
             normalized_country = normalize_country_name(country)
-            conditions.append({
-                "field": "country.name",
-                "value": normalized_country
-            })
+            conditions.append({"field": "country.name", "value": normalized_country})
 
         # Apply filters
         if len(conditions) == 1:
@@ -662,15 +650,17 @@ def search_disasters_by_date(
             fields = item.get("fields", {})
             country_list = [c.get("name", "") for c in fields.get("country", [])]
 
-            disasters.append({
-                "id": item.get("id"),
-                "name": fields.get("name", ""),
-                "type": fields.get("type", ""),
-                "status": fields.get("status", ""),
-                "date": fields.get("date", ""),
-                "countries": country_list,
-                "url": fields.get("url", "")
-            })
+            disasters.append(
+                {
+                    "id": item.get("id"),
+                    "name": fields.get("name", ""),
+                    "type": fields.get("type", ""),
+                    "status": fields.get("status", ""),
+                    "date": fields.get("date", ""),
+                    "countries": country_list,
+                    "url": fields.get("url", ""),
+                }
+            )
 
         return format_response(disasters)
 
@@ -684,19 +674,20 @@ def search_disasters_by_date(
 # TOOL 6: Get Latest Headlines
 # ========================================================================
 
+
 @tool
 def get_latest_headlines(limit: int = 15) -> str:
     """
     Get latest humanitarian headlines from ReliefWeb.
-    
+
     Returns most recent news and updates across all crises.
-    
+
     Args:
         limit: Number of headlines to return (max 50)
-        
+
     Returns:
         JSON list of headlines with titles, dates, sources, and affected countries
-        
+
     Examples:
         get_latest_headlines.invoke({})
         get_latest_headlines.invoke({"limit": 20})
@@ -712,9 +703,7 @@ def get_latest_headlines(limit: int = 15) -> str:
             "preset": "latest",
             "limit": min(limit, 50),
             "sort": ["date:desc"],
-            "fields": {
-                "include": ["id", "title", "date", "source", "url", "country", "theme"]
-            }
+            "fields": {"include": ["id", "title", "date", "source", "url", "country", "theme"]},
         }
 
         # Make API request
@@ -737,15 +726,17 @@ def get_latest_headlines(limit: int = 15) -> str:
             countries = [c.get("name", "") for c in fields.get("country", [])]
             themes = [t.get("name", "") for t in fields.get("theme", [])]
 
-            headlines.append({
-                "id": item.get("id"),
-                "title": fields.get("title", ""),
-                "date": fields.get("date", {}).get("created", ""),
-                "source": source_name,
-                "countries": countries,
-                "themes": themes,
-                "url": fields.get("url", "")
-            })
+            headlines.append(
+                {
+                    "id": item.get("id"),
+                    "title": fields.get("title", ""),
+                    "date": fields.get("date", {}).get("created", ""),
+                    "source": source_name,
+                    "countries": countries,
+                    "themes": themes,
+                    "url": fields.get("url", ""),
+                }
+            )
 
         return format_response(headlines)
 
@@ -759,19 +750,20 @@ def get_latest_headlines(limit: int = 15) -> str:
 # TOOL 7: Get Latest Blog Posts
 # ========================================================================
 
+
 @tool
 def get_latest_blog_posts(limit: int = 10) -> str:
     """
     Get latest blog posts and analysis from humanitarian organizations.
-    
+
     Returns recent posts with analysis and insights.
-    
+
     Args:
         limit: Number of posts to return (max 30)
-        
+
     Returns:
         JSON list of posts with titles, dates, sources, and URLs
-        
+
     Examples:
         get_latest_blog_posts.invoke({})
         get_latest_blog_posts.invoke({"limit": 5})
@@ -787,9 +779,7 @@ def get_latest_blog_posts(limit: int = 10) -> str:
             "preset": "latest",
             "limit": min(limit, 30),
             "sort": ["date:desc"],
-            "fields": {
-                "include": ["id", "title", "date", "source", "url", "source.type"]
-            }
+            "fields": {"include": ["id", "title", "date", "source", "url", "source.type"]},
         }
 
         # Make API request
@@ -810,14 +800,16 @@ def get_latest_blog_posts(limit: int = 10) -> str:
             source_name = source_info[0].get("shortname", "Unknown") if source_info else "Unknown"
             source_type = source_info[0].get("type", "") if source_info else ""
 
-            posts.append({
-                "id": item.get("id"),
-                "title": fields.get("title", ""),
-                "date": fields.get("date", {}).get("created", ""),
-                "source": source_name,
-                "source_type": source_type,
-                "url": fields.get("url", "")
-            })
+            posts.append(
+                {
+                    "id": item.get("id"),
+                    "title": fields.get("title", ""),
+                    "date": fields.get("date", {}).get("created", ""),
+                    "source": source_name,
+                    "source_type": source_type,
+                    "url": fields.get("url", ""),
+                }
+            )
 
         return format_response(posts)
 
@@ -831,19 +823,20 @@ def get_latest_blog_posts(limit: int = 10) -> str:
 # TOOL 8: Get Recent Updates Summary
 # ========================================================================
 
+
 @tool
 def get_recent_updates_summary(days: int = 7) -> str:
     """
     Get summary of recent humanitarian updates and emergencies.
-    
+
     Aggregates disasters and headlines from the last N days.
-    
+
     Args:
         days: Number of days to look back (default 7)
-        
+
     Returns:
         JSON with summary including disasters and headlines
-        
+
     Examples:
         get_recent_updates_summary.invoke({})
         get_recent_updates_summary.invoke({"days": 30})
@@ -860,13 +853,13 @@ def get_recent_updates_summary(days: int = 7) -> str:
         disasters_body = {
             "limit": 10,
             "sort": ["date:desc"],
-            "fields": {
-                "include": ["id", "name", "type", "status", "date", "country"]
-            }
+            "fields": {"include": ["id", "name", "type", "status", "date", "country"]},
         }
 
         disasters_url = f"{RELIEFWEB_DISASTERS_API}?appname={RELIEFWEB_APPNAME}"
-        disasters_response = retry_request("post", disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        disasters_response = retry_request(
+            "post", disasters_url, json=disasters_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify()
+        )
         disasters_response.raise_for_status()
         disasters_data = disasters_response.json().get("data", [])
 
@@ -875,13 +868,13 @@ def get_recent_updates_summary(days: int = 7) -> str:
             "preset": "latest",
             "limit": 10,
             "sort": ["date:desc"],
-            "fields": {
-                "include": ["id", "title", "date", "source", "country"]
-            }
+            "fields": {"include": ["id", "title", "date", "source", "country"]},
         }
 
         headlines_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
-        headlines_response = retry_request("post", headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
+        headlines_response = retry_request(
+            "post", headlines_url, json=headlines_body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify()
+        )
         headlines_response.raise_for_status()
         headlines_data = headlines_response.json().get("data", [])
 
@@ -894,7 +887,7 @@ def get_recent_updates_summary(days: int = 7) -> str:
                     "type": item.get("fields", {}).get("type", ""),
                     "status": item.get("fields", {}).get("status", ""),
                     "date": item.get("fields", {}).get("date", ""),
-                    "countries": [c.get("name", "") for c in item.get("fields", {}).get("country", [])]
+                    "countries": [c.get("name", "") for c in item.get("fields", {}).get("country", [])],
                 }
                 for item in disasters_data
             ],
@@ -902,11 +895,13 @@ def get_recent_updates_summary(days: int = 7) -> str:
                 {
                     "title": item.get("fields", {}).get("title", ""),
                     "date": item.get("fields", {}).get("date", {}).get("created", ""),
-                    "source": item.get("fields", {}).get("source", [{}])[0].get("shortname", "") if item.get("fields", {}).get("source") else "",
-                    "countries": [c.get("name", "") for c in item.get("fields", {}).get("country", [])]
+                    "source": item.get("fields", {}).get("source", [{}])[0].get("shortname", "")
+                    if item.get("fields", {}).get("source")
+                    else "",
+                    "countries": [c.get("name", "") for c in item.get("fields", {}).get("country", [])],
                 }
                 for item in headlines_data
-            ]
+            ],
         }
 
         return format_response(result)
@@ -921,21 +916,22 @@ def get_recent_updates_summary(days: int = 7) -> str:
 # TOOL 9: Download and Read PDF
 # ========================================================================
 
+
 @tool
 def download_and_read_full_pdf(report_id: int | None = None, ids: list | None = None) -> str:
     """
     Download and read PDF attachment from a report.
-    
+
     Extracts full text from PDF file (max 5MB).
     Use only for detailed PDF analysis.
-    
+
     Args:
         report_id: Report ID that contains the PDF (single report)
         ids: Deprecated - list of report IDs (will use first one)
-        
+
     Returns:
         JSON with PDF content, metadata, and page count
-        
+
     Examples:
         download_and_read_full_pdf.invoke({"report_id": 4192591})
     """
@@ -980,22 +976,24 @@ def download_and_read_full_pdf(report_id: int | None = None, ids: list | None = 
 
         # Check file size
         if pdf_size > PDF_SIZE_LIMIT:
-            return format_response({
-                "error": "PDF file too large to process",
-                "report_id": actual_report_id,
-                "title": fields.get("title", ""),
-                "pdf_size_mb": round(pdf_size / 1_000_000, 2),
-                "pdf_size_limit_mb": PDF_SIZE_LIMIT_MB,
-                "pdf_url": pdf_url,
-                "suggestion": f"PDF exceeds {PDF_SIZE_LIMIT_MB}MB limit. Use get_report_full_content for summary."
-            })
+            return format_response(
+                {
+                    "error": "PDF file too large to process",
+                    "report_id": actual_report_id,
+                    "title": fields.get("title", ""),
+                    "pdf_size_mb": round(pdf_size / 1_000_000, 2),
+                    "pdf_size_limit_mb": PDF_SIZE_LIMIT_MB,
+                    "pdf_url": pdf_url,
+                    "suggestion": f"PDF exceeds {PDF_SIZE_LIMIT_MB}MB limit. Use get_report_full_content for summary.",
+                }
+            )
 
         # Download PDF
         pdf_response = retry_request("get", pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
         pdf_response.raise_for_status()
 
         # Write to temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(pdf_response.content)
             tmp_path = tmp_file.name
 
@@ -1019,10 +1017,10 @@ def download_and_read_full_pdf(report_id: int | None = None, ids: list | None = 
                     "filename": pdf_filename,
                     "size_kb": round(pdf_size / 1024, 2),
                     "total_pages": len(reader.pages),
-                    "pdf_url": pdf_url
+                    "pdf_url": pdf_url,
                 },
                 "full_pdf_content": full_text.strip(),
-                "content_length_chars": len(full_text)
+                "content_length_chars": len(full_text),
             }
 
             return format_response(result)
@@ -1041,6 +1039,7 @@ def download_and_read_full_pdf(report_id: int | None = None, ids: list | None = 
 # ========================================================================
 # TOOL 10: Ingest Report from API (in-memory, no disk writes)
 # ========================================================================
+
 
 @tool
 def ingest_report_from_api(report_id: int) -> str:
@@ -1067,12 +1066,15 @@ def ingest_report_from_api(report_id: int) -> str:
 
         # --- dedup check (allow re-ingest if PDF missing) ---
         from .ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
+
         if is_ingested(report_id) and is_ingested_with_pdf(report_id):
-            return format_response({
-                "status": "already_ingested",
-                "report_id": report_id,
-                "message": "Report already in knowledge base (with PDF). Skipping.",
-            })
+            return format_response(
+                {
+                    "status": "already_ingested",
+                    "report_id": report_id,
+                    "message": "Report already in knowledge base (with PDF). Skipping.",
+                }
+            )
 
         re_ingest = is_ingested(report_id) and not is_ingested_with_pdf(report_id)
 
@@ -1090,6 +1092,7 @@ def ingest_report_from_api(report_id: int) -> str:
 # ========================================================================
 # TOOL 11: Ingest Multiple Reports Batch (in-memory, no disk writes)
 # ========================================================================
+
 
 @tool
 def ingest_reports_batch(report_ids: list) -> str:
@@ -1145,19 +1148,21 @@ def ingest_reports_batch(report_ids: list) -> str:
 
             if ingest_result.get("success"):
                 entry = {
-                    "report_id":    rid,
+                    "report_id": rid,
                     "chunks_added": ingest_result.get("chunks_added", 0),
-                    "has_pdf":      ingest_result.get("has_pdf", False),
-                    "has_content":  ingest_result.get("has_content", False),
+                    "has_pdf": ingest_result.get("has_pdf", False),
+                    "has_content": ingest_result.get("has_content", False),
                 }
                 if re_ingest:
                     entry["note"] = "Re-ingested to fetch missing PDF content"
                 results["ingested"].append(entry)
             else:
-                results["errors"].append({
-                    "report_id": rid,
-                    "error": ingest_result.get("error", "unknown"),
-                })
+                results["errors"].append(
+                    {
+                        "report_id": rid,
+                        "error": ingest_result.get("error", "unknown"),
+                    }
+                )
 
         results["summary"] = {
             "total": len(report_ids),
@@ -1176,21 +1181,22 @@ def ingest_reports_batch(report_ids: list) -> str:
 # TOOL 12: Convert Report PDF to Markdown
 # ========================================================================
 
+
 @tool
 def convert_report_to_markdown(report_id: int, output_dir: str = "output") -> str:
     """
     Download and convert a report PDF to Markdown format.
-    
+
     Uses Docling to extract structured content from PDF and save as Markdown.
     Perfect for agent reading and analysis.
-    
+
     Args:
         report_id: Report ID to convert
         output_dir: Directory to save Markdown file (default: output/)
-        
+
     Returns:
         JSON with Markdown file path and conversion status
-        
+
     Examples:
         convert_report_to_markdown.invoke({"report_id": 4205377})
     """
@@ -1199,11 +1205,7 @@ def convert_report_to_markdown(report_id: int, output_dir: str = "output") -> st
             return format_error("InvalidInput", "Report ID must be a positive integer")
 
         converter = ReportFormatConverter()
-        result = converter.download_and_convert_report(
-            report_id,
-            output_dir,
-            formats=['markdown']
-        )
+        result = converter.download_and_convert_report(report_id, output_dir, formats=["markdown"])
 
         return format_response(result)
 
@@ -1215,21 +1217,22 @@ def convert_report_to_markdown(report_id: int, output_dir: str = "output") -> st
 # TOOL 13: Convert Report PDF to JSON
 # ========================================================================
 
+
 @tool
 def convert_report_to_json(report_id: int, output_dir: str = "output") -> str:
     """
     Download and convert a report PDF to JSON structured format.
-    
+
     Uses Docling to extract content blocks and metadata, saves as JSON.
     Ideal for programmatic processing and parsing.
-    
+
     Args:
         report_id: Report ID to convert
         output_dir: Directory to save JSON file (default: output/)
-        
+
     Returns:
         JSON with structured file path and conversion status
-        
+
     Examples:
         convert_report_to_json.invoke({"report_id": 4205377})
     """
@@ -1238,11 +1241,7 @@ def convert_report_to_json(report_id: int, output_dir: str = "output") -> str:
             return format_error("InvalidInput", "Report ID must be a positive integer")
 
         converter = ReportFormatConverter()
-        result = converter.download_and_convert_report(
-            report_id,
-            output_dir,
-            formats=['json']
-        )
+        result = converter.download_and_convert_report(report_id, output_dir, formats=["json"])
 
         return format_response(result)
 
@@ -1254,22 +1253,23 @@ def convert_report_to_json(report_id: int, output_dir: str = "output") -> str:
 # TOOL 14: Convert Multiple Reports to Markdown/JSON
 # ========================================================================
 
+
 @tool
 def convert_reports_batch(report_ids: list, output_dir: str = "output", format_type: str = "both") -> str:
     """
     Batch download and convert multiple reports to Markdown and/or JSON.
-    
+
     Efficiently converts multiple reports for agent consumption.
     Easy reading and parsing of humanitarian data.
-    
+
     Args:
         report_ids: List of report IDs to convert
         output_dir: Base directory for outputs (default: output/)
         format_type: 'markdown', 'json', or 'both'
-        
+
     Returns:
         JSON summary with conversion results for each report
-        
+
     Examples:
         convert_reports_batch.invoke({"report_ids": [4205377, 4192591]})
         convert_reports_batch.invoke({"report_ids": [4205377, 4205348], "format_type": "markdown"})
@@ -1279,7 +1279,7 @@ def convert_reports_batch(report_ids: list, output_dir: str = "output", format_t
             return format_error("InvalidInput", "report_ids must be a non-empty list")
 
         # Validate format
-        if format_type not in ['markdown', 'json', 'both']:
+        if format_type not in ["markdown", "json", "both"]:
             return format_error("InvalidInput", "format_type must be 'markdown', 'json', or 'both'")
 
         # Validate IDs
@@ -1287,18 +1287,10 @@ def convert_reports_batch(report_ids: list, output_dir: str = "output", format_t
             if not isinstance(rid, int) or rid < 1:
                 return format_error("InvalidInput", f"Invalid report ID: {rid}")
 
-        formats = {
-            'markdown': ['markdown'],
-            'json': ['json'],
-            'both': ['markdown', 'json']
-        }[format_type]
+        formats = {"markdown": ["markdown"], "json": ["json"], "both": ["markdown", "json"]}[format_type]
 
         converter = ReportFormatConverter()
-        summary = converter.batch_convert_reports(
-            report_ids,
-            output_dir,
-            formats
-        )
+        summary = converter.batch_convert_reports(report_ids, output_dir, formats)
 
         return format_response(summary)
 
@@ -1306,10 +1298,10 @@ def convert_reports_batch(report_ids: list, output_dir: str = "output", format_t
         return format_error("ConversionError", str(e))
 
 
-
 # ========================================================================
 # TOOL 15: Search Knowledge Base (Vector DB)
 # ========================================================================
+
 
 @tool
 def search_knowledge_base(
@@ -1343,14 +1335,17 @@ def search_knowledge_base(
     """
     try:
         from .vector_store import CHROMA_DIR, VectorStore
+
         vs = VectorStore(CHROMA_DIR)
         stats = vs.get_stats()
 
         if stats["total_chunks"] == 0:
-            return format_response({
-                "message": "Knowledge base is empty. Download some reports first.",
-                "results": [],
-            })
+            return format_response(
+                {
+                    "message": "Knowledge base is empty. Download some reports first.",
+                    "results": [],
+                }
+            )
 
         results = vs.search(query, n_results=n_results, country=country, source=source_org)
         return format_response({"total_chunks_in_db": stats["total_chunks"], "results": results})
@@ -1362,6 +1357,7 @@ def search_knowledge_base(
 # ========================================================================
 # TOOL 16: Parse ReliefWeb URL
 # ========================================================================
+
 
 @tool
 def parse_reliefweb_url(url: str) -> str:
@@ -1387,27 +1383,27 @@ def parse_reliefweb_url(url: str) -> str:
         report_id = None
 
         # Pattern 1: /node/<id>
-        m = re.search(r'reliefweb\.int/node/(\d+)', url)
+        m = re.search(r"reliefweb\.int/node/(\d+)", url)
         if m:
             report_id = int(m.group(1))
 
         # Pattern 2: api.reliefweb.int/v2/reports/<id>
         if not report_id:
-            m = re.search(r'api\.reliefweb\.int/v\d+/reports/(\d+)', url)
+            m = re.search(r"api\.reliefweb\.int/v\d+/reports/(\d+)", url)
             if m:
                 report_id = int(m.group(1))
 
         # Pattern 3: reliefweb.int/report/<country>/<slug>  — resolve via search
         if not report_id:
-            m = re.search(r'reliefweb\.int/report/([^/]+)/([^/?#]+)', url)
+            m = re.search(r"reliefweb\.int/report/([^/]+)/([^/?#]+)", url)
             if m:
-                slug = m.group(2).replace('-', ' ')
+                slug = m.group(2).replace("-", " ")
                 # Search by slug keywords to find the report
                 body = {
                     "preset": "latest",
                     "limit": 3,
                     "query": {"value": slug},
-                    "fields": {"include": ["id", "title", "date", "source", "url", "body-html", "country"]}
+                    "fields": {"include": ["id", "title", "date", "source", "url", "body-html", "country"]},
                 }
                 api_url = f"{RELIEFWEB_REPORTS_API}?appname={RELIEFWEB_APPNAME}"
                 resp = retry_request("post", api_url, json=body, timeout=API_TIMEOUT_SHORT, verify=_ssl_verify())
@@ -1419,15 +1415,17 @@ def parse_reliefweb_url(url: str) -> str:
                     source_info = fields.get("source", [])
                     source_name = source_info[0].get("shortname", "Unknown") if source_info else "Unknown"
                     countries = [c.get("name", "") for c in fields.get("country", [])]
-                    return format_response({
-                        "id": data[0].get("id"),
-                        "title": fields.get("title", ""),
-                        "date": fields.get("date", {}).get("original", ""),
-                        "source": source_name,
-                        "countries": countries,
-                        "url": fields.get("url", ""),
-                        "body_excerpt": truncate_text(body_text, 1000),
-                    })
+                    return format_response(
+                        {
+                            "id": data[0].get("id"),
+                            "title": fields.get("title", ""),
+                            "date": fields.get("date", {}).get("original", ""),
+                            "source": source_name,
+                            "countries": countries,
+                            "url": fields.get("url", ""),
+                            "body_excerpt": truncate_text(body_text, 1000),
+                        }
+                    )
                 return format_error("NotFound", f"Could not find report matching URL slug: {slug}")
 
         if not report_id:
@@ -1448,15 +1446,17 @@ def parse_reliefweb_url(url: str) -> str:
         source_name = source_info[0].get("shortname", "Unknown") if source_info else "Unknown"
         countries = [c.get("name", "") for c in fields.get("country", [])]
 
-        return format_response({
-            "id": report_id,
-            "title": fields.get("title", ""),
-            "date": fields.get("date", {}).get("original", ""),
-            "source": source_name,
-            "countries": countries,
-            "url": fields.get("url", ""),
-            "body_excerpt": truncate_text(body_text, 1000),
-        })
+        return format_response(
+            {
+                "id": report_id,
+                "title": fields.get("title", ""),
+                "date": fields.get("date", {}).get("original", ""),
+                "source": source_name,
+                "countries": countries,
+                "url": fields.get("url", ""),
+                "body_excerpt": truncate_text(body_text, 1000),
+            }
+        )
 
     except requests.exceptions.RequestException as e:
         return format_error("APIError", f"Failed to fetch report: {str(e)}")
@@ -1467,6 +1467,7 @@ def parse_reliefweb_url(url: str) -> str:
 # ========================================================================
 # TOOL 17: Search Sources / Organizations
 # ========================================================================
+
 
 @tool
 def search_sources(
@@ -1509,9 +1510,7 @@ def search_sources(
         body = {
             "limit": min(limit, 50),
             "query": {"value": str(query).strip()},
-            "fields": {
-                "include": ["id", "name", "shortname", "type", "homepage", "country"]
-            }
+            "fields": {"include": ["id", "name", "shortname", "type", "homepage", "country"]},
         }
 
         if len(filters) == 1:
@@ -1528,16 +1527,26 @@ def search_sources(
         for item in data:
             fields = item.get("fields", {})
             type_info = fields.get("type", [])
-            type_name = type_info[0].get("name", "") if isinstance(type_info, list) and type_info else (type_info.get("name", "") if isinstance(type_info, dict) else "")
-            countries = [c.get("name", "") for c in fields.get("country", [])] if isinstance(fields.get("country"), list) else []
-            sources.append({
-                "id": item.get("id"),
-                "name": fields.get("name", ""),
-                "shortname": fields.get("shortname", ""),
-                "type": type_name,
-                "homepage": fields.get("homepage", ""),
-                "countries": countries,
-            })
+            type_name = (
+                type_info[0].get("name", "")
+                if isinstance(type_info, list) and type_info
+                else (type_info.get("name", "") if isinstance(type_info, dict) else "")
+            )
+            countries = (
+                [c.get("name", "") for c in fields.get("country", [])]
+                if isinstance(fields.get("country"), list)
+                else []
+            )
+            sources.append(
+                {
+                    "id": item.get("id"),
+                    "name": fields.get("name", ""),
+                    "shortname": fields.get("shortname", ""),
+                    "type": type_name,
+                    "homepage": fields.get("homepage", ""),
+                    "countries": countries,
+                }
+            )
 
         return format_response(sources)
 
@@ -1594,5 +1603,5 @@ __all__ = [
     "parse_reliefweb_url",
     "search_sources",
     "mcp_langchain_tools",
-    "tools_dict"
+    "tools_dict",
 ]

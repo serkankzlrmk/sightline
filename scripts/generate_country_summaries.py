@@ -32,6 +32,7 @@ def main():
     try:
         from config import config
         from reliefweb_api.hdx_tools import init_hdx_tools
+
         hdx_app_id = getattr(config, "HDX_APP_IDENTIFIER", "") or ""
         if hdx_app_id:
             init_hdx_tools(app_identifier=hdx_app_id)
@@ -43,10 +44,16 @@ def main():
 
     # Generate summaries
     from sitrep.country_summary import generate_all_country_summaries
+
     result = generate_all_country_summaries()
 
-    log.info("Done: %d generated, %d skipped, %d errors, %d total",
-             result["generated"], result["skipped"], result["errors"], result["total"])
+    log.info(
+        "Done: %d generated, %d skipped, %d errors, %d total",
+        result["generated"],
+        result["skipped"],
+        result["errors"],
+        result["total"],
+    )
 
     if result["errors"] > 0:
         log.warning("Some errors occurred — check logs above")

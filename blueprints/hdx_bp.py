@@ -17,27 +17,32 @@ from reliefweb_api.hdx_tools import get_hdx_client
 
 logger = logging.getLogger(__name__)
 
-hdx_bp = Blueprint('hdx', __name__, url_prefix='/api/hdx')
+hdx_bp = Blueprint("hdx", __name__, url_prefix="/api/hdx")
 
 
 # =============================================================================
 # ROUTES — HDX (Humanitarian Data Exchange)
 # =============================================================================
 
+
 @hdx_bp.route("/health")
 def api_hdx_health():
     """HDX connectivity check. No auth required — just checks if client is initialized."""
     hdx = get_hdx_client()
     if not hdx:
-        return jsonify({
-            "status": "not_configured",
-            "message": "HDX_APP_IDENTIFIER not set. Set it in .env to enable HDX data.",
-        }), 503
-    return jsonify({
-        "status": "ok",
-        "base_url": hdx.base_url,
-        "cache_stats": hdx.cache.stats(),
-    })
+        return jsonify(
+            {
+                "status": "not_configured",
+                "message": "HDX_APP_IDENTIFIER not set. Set it in .env to enable HDX data.",
+            }
+        ), 503
+    return jsonify(
+        {
+            "status": "ok",
+            "base_url": hdx.base_url,
+            "cache_stats": hdx.cache.stats(),
+        }
+    )
 
 
 @hdx_bp.route("/availability/<country_code>")

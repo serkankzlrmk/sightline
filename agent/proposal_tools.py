@@ -57,10 +57,7 @@ def get_proposal_details(config: RunnableConfig) -> str:
 
     conn = _get_db()
     try:
-        row = conn.execute(
-            "SELECT * FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
 
         if not row:
             return "Error: Proposal not found in the database."
@@ -106,10 +103,7 @@ def get_section_content(section: str, config: RunnableConfig) -> str:
 
     conn = _get_db()
     try:
-        row = conn.execute(
-            f"SELECT {db_field} FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
-        ).fetchone()
+        row = conn.execute(f"SELECT {db_field} FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
         if not row:
             return "Error: Proposal not found."
         return row[0] or ""
@@ -141,15 +135,12 @@ def edit_proposal_toc(goal_impact: str, outcome: str, output: str, activity: str
         {"level": "impact", "text": goal_impact},
         {"level": "outcome", "text": outcome},
         {"level": "output", "text": output},
-        {"level": "activity", "text": activity}
+        {"level": "activity", "text": activity},
     ]
 
     conn = _get_db()
     try:
-        conn.execute(
-            "UPDATE proposals SET toc = ? WHERE id = ? AND uid = ?",
-            (json.dumps(toc_nodes), prop_id, uid)
-        )
+        conn.execute("UPDATE proposals SET toc = ? WHERE id = ? AND uid = ?", (json.dumps(toc_nodes), prop_id, uid))
         conn.commit()
         return "Success: Theory of Change has been updated in the database."
     except Exception as e:
@@ -180,10 +171,7 @@ def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str
 
     conn = _get_db()
     try:
-        row = conn.execute(
-            "SELECT logframe FROM proposals WHERE id = ? AND uid = ?",
-            (prop_id, uid)
-        ).fetchone()
+        row = conn.execute("SELECT logframe FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
 
         if not row:
             return "Error: Proposal not found."
@@ -191,10 +179,7 @@ def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str
         lf = json.loads(row["logframe"])
         lf[field] = text
 
-        conn.execute(
-            "UPDATE proposals SET logframe = ? WHERE id = ? AND uid = ?",
-            (json.dumps(lf), prop_id, uid)
-        )
+        conn.execute("UPDATE proposals SET logframe = ? WHERE id = ? AND uid = ?", (json.dumps(lf), prop_id, uid))
         conn.commit()
         return f"Success: Logframe cell '{field}' updated."
     except Exception as e:
@@ -220,10 +205,7 @@ def edit_proposal_narrative(narrative: str, config: RunnableConfig) -> str:
 
     conn = _get_db()
     try:
-        conn.execute(
-            "UPDATE proposals SET narrative = ? WHERE id = ? AND uid = ?",
-            (narrative, prop_id, uid)
-        )
+        conn.execute("UPDATE proposals SET narrative = ? WHERE id = ? AND uid = ?", (narrative, prop_id, uid))
         conn.commit()
         return "Success: Proposal narrative text has been updated."
     except Exception as e:

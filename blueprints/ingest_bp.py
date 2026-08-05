@@ -27,6 +27,7 @@ MANUAL_ID_BASE = 9_000_000_000  # manual TR-prefixed IDs start above this
 
 # ─── Daily ingestion ────────────────────────────────────────────────────────
 
+
 @ingest_bp.route("/daily", methods=["POST"])
 @require_admin
 def api_ingest_daily():
@@ -74,32 +75,49 @@ def api_ingest_daily():
 
         # Parse the summary from output
         summary = {
-            "fetched": 0, "ingested": 0, "skipped": 0, "errors": 0,
-            "purged_sql": 0, "purged_chroma": 0,
+            "fetched": 0,
+            "ingested": 0,
+            "skipped": 0,
+            "errors": 0,
+            "purged_sql": 0,
+            "purged_chroma": 0,
             "log": output[-2000:] if len(output) > 2000 else output,
         }
         for line in output.splitlines():
             m = re.search(r"Fetched:\s+(\d+)", line)
-            if m: summary["fetched"] = int(m.group(1))
+            if m:
+                summary["fetched"] = int(m.group(1))
             m = re.search(r"Ingested:\s+(\d+)", line)
-            if m: summary["ingested"] = int(m.group(1))
+            if m:
+                summary["ingested"] = int(m.group(1))
             m = re.search(r"Skipped:\s+(\d+)", line)
-            if m: summary["skipped"] = int(m.group(1))
+            if m:
+                summary["skipped"] = int(m.group(1))
             m = re.search(r"Errors:\s+(\d+)", line)
-            if m: summary["errors"] = int(m.group(1))
+            if m:
+                summary["errors"] = int(m.group(1))
             m = re.search(r"Purged \(SQL\):\s+(\d+)", line)
-            if m: summary["purged_sql"] = int(m.group(1))
+            if m:
+                summary["purged_sql"] = int(m.group(1))
             m = re.search(r"Purged \(Vec\):\s+(\d+)", line)
-            if m: summary["purged_chroma"] = int(m.group(1))
+            if m:
+                summary["purged_chroma"] = int(m.group(1))
 
         if result.returncode != 0:
             summary["warning"] = "Script exited with non-zero code (some errors occurred)"
 
-        server._log_event(current_uid(), "ingest_daily_completed", {
-            "fetched": summary["fetched"], "ingested": summary["ingested"],
-            "skipped": summary["skipped"], "errors": summary["errors"],
-            "purged_sql": summary["purged_sql"], "purged_chroma": summary["purged_chroma"],
-        })
+        server._log_event(
+            current_uid(),
+            "ingest_daily_completed",
+            {
+                "fetched": summary["fetched"],
+                "ingested": summary["ingested"],
+                "skipped": summary["skipped"],
+                "errors": summary["errors"],
+                "purged_sql": summary["purged_sql"],
+                "purged_chroma": summary["purged_chroma"],
+            },
+        )
         return jsonify(summary)
 
     except subprocess.TimeoutExpired:
@@ -111,6 +129,7 @@ def api_ingest_daily():
 
 # ─── Manual PDF upload ──────────────────────────────────────────────────────
 
+
 @ingest_bp.route("/upload", methods=["POST"])
 @require_admin
 def api_ingest_upload():
@@ -118,6 +137,7 @@ def api_ingest_upload():
     import shutil
     import tempfile
 
+    import server
     from reliefweb_api.db_manager import (
         CHUNK_OVERLAP,
         CHUNK_SIZE,
@@ -128,21 +148,27 @@ def api_ingest_upload():
     )
     from reliefweb_api.vector_store import VectorStore
 
-    import server
-
-    title       = (request.form.get("title")       or "").strip()[:500]
-    source      = (request.form.get("source")      or "").strip()[:200]
-    country     = (request.form.get("country")     or "").strip()[:500]
+    title = (request.form.get("title") or "").strip()[:500]
+    source = (request.form.get("source") or "").strip()[:200]
+    country = (request.form.get("country") or "").strip()[:500]
     format_type = (request.form.get("format_type") or "").strip()[:100]
-    language    = (request.form.get("language")    or "").strip()[:10]
-    date_str    = (request.form.get("date")        or "").strip()[:10]
-    theme       = (request.form.get("theme")       or "").strip()[:1000]
-    pdf_file    = request.files.get("pdf")
+    language = (request.form.get("language") or "").strip()[:10]
+    date_str = (request.form.get("date") or "").strip()[:10]
+    theme = (request.form.get("theme") or "").strip()[:1000]
+    pdf_file = request.files.get("pdf")
 
-    missing = [f for f, v in [
-        ("title", title), ("source", source), ("country", country),
-        ("format_type", format_type), ("language", language), ("date", date_str),
-    ] if not v]
+    missing = [
+        f
+        for f, v in [
+            ("title", title),
+            ("source", source),
+            ("country", country),
+            ("format_type", format_type),
+            ("language", language),
+            ("date", date_str),
+        ]
+        if not v
+    ]
     if not pdf_file or not pdf_file.filename:
         missing.append("pdf")
     if missing:
@@ -159,18 +185,17 @@ def api_ingest_upload():
 
     conn = server._db_conn()
     try:
-        max_row = conn.execute(
-            "SELECT MAX(report_id) FROM reports WHERE report_id > ?", (MANUAL_ID_BASE,)
-        ).fetchone()
+        max_row = conn.execute("SELECT MAX(report_id) FROM reports WHERE report_id > ?", (MANUAL_ID_BASE,)).fetchone()
     finally:
         conn.close()
-    new_id     = (max_row[0] or MANUAL_ID_BASE) + 1
+    new_id = (max_row[0] or MANUAL_ID_BASE) + 1
     tr_display = f"TR-{new_id - MANUAL_ID_BASE:05d}"
 
-    tmp      = tempfile.mkdtemp()
+    tmp = tempfile.mkdtemp()
     try:
         from werkzeug.utils import secure_filename
-        safe_nm  = secure_filename(pdf_file.filename) or "upload.pdf"
+
+        safe_nm = secure_filename(pdf_file.filename) or "upload.pdf"
         pdf_path = os.path.join(tmp, safe_nm)
         pdf_file.save(pdf_path)
 
@@ -179,17 +204,17 @@ def api_ingest_upload():
             return jsonify({"error": "Could not extract text from PDF"}), 422
 
         countries_list = [c.strip() for c in country.split(",") if c.strip()]
-        themes_list    = [t.strip() for t in theme.split(",")   if t.strip()]
+        themes_list = [t.strip() for t in theme.split(",") if t.strip()]
         metadata = {
-            "id":        new_id,
-            "title":     title,
-            "date":      {"original": date_str},
-            "source":    [{"shortname": source}],
+            "id": new_id,
+            "title": title,
+            "date": {"original": date_str},
+            "source": [{"shortname": source}],
             "countries": [{"name": c} for c in countries_list],
-            "themes":    [{"name": t} for t in themes_list],
-            "format":    [{"name": format_type}],
-            "language":  [{"code": language}],
-            "url":       f"manual://{tr_display}",
+            "themes": [{"name": t} for t in themes_list],
+            "format": [{"name": format_type}],
+            "language": [{"code": language}],
+            "url": f"manual://{tr_display}",
         }
 
         chunks = []
@@ -207,20 +232,23 @@ def api_ingest_upload():
 
         try:
             from config import CHROMA_DIR
+
             vs = VectorStore(str(CHROMA_DIR))
             vs.add_report(new_id, chunks, metadata)
         except Exception as e:
             logger.error("Upload vector store insert failed: %s", e, exc_info=True)
             return jsonify({"error": "Vector store insert failed"}), 500
 
-        return jsonify({
-            "success":      True,
-            "report_id":    new_id,
-            "tr_id":        tr_display,
-            "title":        title,
-            "chunks_added": len(chunks),
-            "pdf_pages":    pdf_pages,
-        })
+        return jsonify(
+            {
+                "success": True,
+                "report_id": new_id,
+                "tr_id": tr_display,
+                "title": title,
+                "chunks_added": len(chunks),
+                "pdf_pages": pdf_pages,
+            }
+        )
     finally:
         try:
             shutil.rmtree(tmp, ignore_errors=True)

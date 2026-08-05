@@ -39,6 +39,7 @@ def _get_db_path():
     if _DB_PATH is None:
         try:
             from config import DB_PATH
+
             _DB_PATH = str(DB_PATH)
         except Exception:
             _DB_PATH = "reliefweb.db"
@@ -69,11 +70,14 @@ def sql_query(query: str, database: str = "reports") -> str:
     # Check for forbidden keywords
     forbidden_match = _FORBIDDEN_KEYWORDS.search(query)
     if forbidden_match:
-        return f"Error: Forbidden keyword '{forbidden_match.group()}' detected. Only read-only SELECT queries are allowed."
+        return (
+            f"Error: Forbidden keyword '{forbidden_match.group()}' detected. Only read-only SELECT queries are allowed."
+        )
 
     # Resolve DB path
     if database == "chats":
         from server import CHATS_DB_PATH
+
         db_path = str(CHATS_DB_PATH)
     else:
         db_path = _get_db_path()

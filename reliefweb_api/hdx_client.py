@@ -88,6 +88,7 @@ logger = logging.getLogger(__name__)
 # Data Models
 # ============================================================================
 
+
 @dataclass
 class HDXResult:
     """HDX API çağrı sonucu wrapper'ı.
@@ -103,6 +104,7 @@ class HDXResult:
         count: Dönen kayıt sayısı.
         params: Çağrıda kullanılan parametreler.
     """
+
     success: bool
     tool: str = ""
     data: list[dict[str, Any]] = field(default_factory=list)
@@ -141,6 +143,7 @@ class HDXResult:
 # ============================================================================
 # Cache (TTL-based, Thread-Safe)
 # ============================================================================
+
 
 class SimpleCache:
     """HDX metadata sorguları için TTL tabanlı bellek içi önbellek.
@@ -187,6 +190,7 @@ class SimpleCache:
 # ============================================================================
 # HDX Direct API Client
 # ============================================================================
+
 
 class HDXClient:
     """HDX Direct API Client — Sightline Entegrasyonu.
@@ -308,6 +312,7 @@ class HDXClient:
             ValueError: HDX_APP_IDENTIFIER tanımlı değilse.
         """
         from dotenv import load_dotenv
+
         load_dotenv()
 
         app_id = os.getenv("HDX_APP_IDENTIFIER", "")
@@ -359,10 +364,7 @@ class HDXClient:
         """
         now = time.time()
         with self._rate_lock:
-            self._request_timestamps = [
-                t for t in self._request_timestamps
-                if now - t < self.rate_limit_period
-            ]
+            self._request_timestamps = [t for t in self._request_timestamps if now - t < self.rate_limit_period]
             if len(self._request_timestamps) >= self.rate_limit_requests:
                 oldest = self._request_timestamps[0]
                 wait_time = self.rate_limit_period - (now - oldest)
@@ -516,14 +518,18 @@ class HDXClient:
         """
         return await self._aget("/metadata/admin1", {"location_code": location_code, "limit": limit, **kwargs})
 
-    async def get_admin2(self, location_code: str = None, admin1_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
+    async def get_admin2(
+        self, location_code: str = None, admin1_code: str = None, limit: int = 100, **kwargs
+    ) -> HDXResult:
         """Admin2 (ilçe/bölge) bölgelerini getir.
 
         Args:
             location_code: ISO ülke kodu.
             admin1_code: Admin1 kodu (il/eyalet filtresi).
         """
-        return await self._aget("/metadata/admin2", {"location_code": location_code, "admin1_code": admin1_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/metadata/admin2", {"location_code": location_code, "admin1_code": admin1_code, "limit": limit, **kwargs}
+        )
 
     async def get_data_availability(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Bir ülke için mevcut veri kategorilerini kontrol et.
@@ -534,7 +540,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu (ör: "TUR", "SYR").
         """
-        return await self._aget("/metadata/data-availability", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/metadata/data-availability", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_organizations(self, limit: int = 100, **kwargs) -> HDXResult:
         """HDX'deki organizasyonları listele."""
@@ -570,7 +578,9 @@ class HDXClient:
         Args:
             location_code: Sığınma ülkesi ISO kodu.
         """
-        return await self._aget("/affected-people/refugees-persons-of-concern", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/affected-people/refugees-persons-of-concern", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_humanitarian_needs(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """İnsani ihtiyaç verilerini getir (HRP/PIP).
@@ -578,7 +588,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/affected-people/humanitarian-needs", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/affected-people/humanitarian-needs", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_idps(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """İçinden göç etmiş kişiler (IDP) verisini getir.
@@ -594,7 +606,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/affected-people/returnees", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/affected-people/returnees", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     # =========================================================================
     # Demographics & Geography (1 endpoint)
@@ -606,7 +620,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/geography-infrastructure/baseline-population", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/geography-infrastructure/baseline-population", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     # =========================================================================
     # Climate (1 endpoint)
@@ -630,7 +646,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/coordination-context/operational-presence", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/coordination-context/operational-presence", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_funding(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Finansman verisini getir (ihtiyaç vs. karşılanan).
@@ -638,7 +656,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/coordination-context/funding", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/coordination-context/funding", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_conflict_events(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Çatışma olayları verisini getir (ACLED).
@@ -646,7 +666,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/coordination-context/conflict-events", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/coordination-context/conflict-events", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_national_risk(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Ulusal risk verisini getir (INFORM Risk Index).
@@ -654,7 +676,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/coordination-context/national-risk", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/coordination-context/national-risk", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     # =========================================================================
     # Food Security & Poverty (3 endpoint)
@@ -666,7 +690,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/food-security-nutrition-poverty/food-security", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/food-security-nutrition-poverty/food-security", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     async def get_food_prices(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Gıda fiyatları verisini getir (WFP Market Monitor).
@@ -674,7 +700,10 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/food-security-nutrition-poverty/food-prices-market-monitor", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/food-security-nutrition-poverty/food-prices-market-monitor",
+            {"location_code": location_code, "limit": limit, **kwargs},
+        )
 
     async def get_poverty_rate(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Yoksulluk oranı verisini getir.
@@ -682,7 +711,9 @@ class HDXClient:
         Args:
             location_code: ISO ülke kodu.
         """
-        return await self._aget("/food-security-nutrition-poverty/poverty-rate", {"location_code": location_code, "limit": limit, **kwargs})
+        return await self._aget(
+            "/food-security-nutrition-poverty/poverty-rate", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     # =========================================================================
     # Utility (1 endpoint)
@@ -737,7 +768,7 @@ class HDXClient:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
 
         output = {}
-        for (key, _), result in zip(tasks.items(), results):
+        for (key, _), result in zip(tasks.items(), results, strict=False):
             if isinstance(result, Exception):
                 output[key] = HDXResult(success=False, tool=key, error=str(result))
             else:
@@ -831,9 +862,13 @@ class HDXClient:
         """Sync: Admin1 (il/eyalet) bölgelerini getir."""
         return self._get("/metadata/admin1", {"location_code": location_code, "limit": limit, **kwargs})
 
-    def get_admin2_sync(self, location_code: str = None, admin1_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
+    def get_admin2_sync(
+        self, location_code: str = None, admin1_code: str = None, limit: int = 100, **kwargs
+    ) -> HDXResult:
         """Sync: Admin2 (ilçe/bölge) bölgelerini getir."""
-        return self._get("/metadata/admin2", {"location_code": location_code, "admin1_code": admin1_code, "limit": limit, **kwargs})
+        return self._get(
+            "/metadata/admin2", {"location_code": location_code, "admin1_code": admin1_code, "limit": limit, **kwargs}
+        )
 
     def get_data_availability_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Veri bulunabilirliğini kontrol et."""
@@ -849,11 +884,15 @@ class HDXClient:
 
     def get_refugees_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Mülteci verisini getir."""
-        return self._get("/affected-people/refugees-persons-of-concern", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/affected-people/refugees-persons-of-concern", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_humanitarian_needs_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: İnsani ihtiyaç verisini getir."""
-        return self._get("/affected-people/humanitarian-needs", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/affected-people/humanitarian-needs", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_idps_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: IDP verisini getir."""
@@ -865,7 +904,9 @@ class HDXClient:
 
     def get_population_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Nüfus verisini getir."""
-        return self._get("/geography-infrastructure/baseline-population", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/geography-infrastructure/baseline-population", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_rainfall_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Yağış verisini getir."""
@@ -873,7 +914,9 @@ class HDXClient:
 
     def get_operational_presence_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Operasyonel varlık verisini getir."""
-        return self._get("/coordination-context/operational-presence", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/coordination-context/operational-presence", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_funding_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Finansman verisini getir."""
@@ -881,23 +924,34 @@ class HDXClient:
 
     def get_conflict_events_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Çatışma olayları verisini getir."""
-        return self._get("/coordination-context/conflict-events", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/coordination-context/conflict-events", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_national_risk_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Ulusal risk verisini getir."""
-        return self._get("/coordination-context/national-risk", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/coordination-context/national-risk", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_food_security_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Gıda güvenliği verisini getir."""
-        return self._get("/food-security-nutrition-poverty/food-security", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/food-security-nutrition-poverty/food-security", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_food_prices_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Gıda fiyatları verisini getir."""
-        return self._get("/food-security-nutrition-poverty/food-prices-market-monitor", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/food-security-nutrition-poverty/food-prices-market-monitor",
+            {"location_code": location_code, "limit": limit, **kwargs},
+        )
 
     def get_poverty_rate_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: Yoksulluk oranı verisini getir."""
-        return self._get("/food-security-nutrition-poverty/poverty-rate", {"location_code": location_code, "limit": limit, **kwargs})
+        return self._get(
+            "/food-security-nutrition-poverty/poverty-rate", {"location_code": location_code, "limit": limit, **kwargs}
+        )
 
     def get_api_version_sync(self, **kwargs) -> HDXResult:
         """Sync: API versiyon bilgisini getir."""
@@ -910,10 +964,12 @@ class HDXClient:
         ThreadPoolExecutor ile çözer.
         """
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(asyncio.run, self.get_country_overview(location_code))
                     return future.result()
@@ -929,10 +985,12 @@ class HDXClient:
         ile aynı mekanizmayı kullanır.
         """
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     future = pool.submit(asyncio.run, self.get_sitrep_context(location_code))
                     return future.result()

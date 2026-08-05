@@ -11,6 +11,7 @@ auth.py — Single source of truth for authentication and role management.
 - Helper: current_role() returns the authenticated user's role string.
 - Helper: set_user_role() / get_user_role() for Firebase Custom Claims management.
 """
+
 import functools
 import hmac
 import logging
@@ -27,6 +28,7 @@ ROLE_HIERARCHY = ["free", "premium", "admin"]
 
 def _get_app_config():
     from config import config
+
     return config
 
 
@@ -45,18 +47,21 @@ def _firebase_app():
         if _fb_app is not None:
             return _fb_app
 
+        _env_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip()
         _sa_paths = [
+            _env_path,
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "firebase-service-account.json"),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "firebase-service-account.json"),
             "/opt/sightline/data/firebase-service-account.json",
             "/app/data/firebase-service-account.json",
         ]
-        sa_path = next((p for p in _sa_paths if os.path.exists(p)), None)
+        sa_path = next((p for p in _sa_paths if p and os.path.exists(p)), None)
         if not sa_path:
             return None
 
         import firebase_admin
         from firebase_admin import credentials
+
         try:
             _fb_app = firebase_admin.get_app()
         except ValueError:
@@ -74,7 +79,8 @@ def _admins() -> set:
     if not raw:
         try:
             from config import config
-            raw = getattr(config, 'ADMIN_UIDS', '').strip() if config else ''
+
+            raw = getattr(config, "ADMIN_UIDS", "").strip() if config else ""
         except Exception:
             pass
     if not raw:
@@ -93,19 +99,22 @@ def _api_key() -> str:
 def _dev_mode() -> bool:
     """Return True if running in dev mode with auth bypass enabled.
 
-    Auth is bypassed when DEV_AUTH_BYPASS=true is set in .env AND the server
-    is bound to a loopback address (127.0.0.1/localhost). This prevents
-    accidental auth bypass on a networked VM.
+    Auth is bypassed when DESKTOP_MODE=true OR DEV_AUTH_BYPASS=true is set
+    AND the server is bound to a loopback address (127.0.0.1/localhost).
+    This prevents accidental auth bypass on a networked VM.
 
     When bypassed, all requests get a mock dev user with admin access.
     """
-    if os.getenv("DEV_AUTH_BYPASS", "").lower() == "true":
+    # DESKTOP_MODE (new) or DEV_AUTH_BYPASS (legacy) — both checked
+    bypass = os.getenv("DESKTOP_MODE", "").lower() == "true" or os.getenv("DEV_AUTH_BYPASS", "").lower() == "true"
+    if bypass:
         # Only allow dev bypass on loopback — never on 0.0.0.0 or a public IP
         host = os.getenv("SERVER_HOST", "0.0.0.0").strip()
         if host not in ("127.0.0.1", "localhost", "::1"):
             _log.warning(
-                "DEV_AUTH_BYPASS=true but SERVER_HOST=%s is not loopback — "
-                "dev bypass disabled for safety.", host,
+                "DESKTOP_MODE/DEV_AUTH_BYPASS=true but SERVER_HOST=%s is not loopback — "
+                "dev bypass disabled for safety.",
+                host,
             )
             return False
         return True
@@ -172,10 +181,12 @@ def set_user_role(uid: str, role: str) -> bool:
         return False
     try:
         from firebase_admin import auth as firebase_auth
+
         firebase_auth.set_custom_user_claims(uid, {"role": role})
         return True
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).error("set_user_role failed for uid=%s: %s", uid, exc)
         return False
 
@@ -194,11 +205,13 @@ def get_user_role(uid: str) -> str:
         return "free"
     try:
         from firebase_admin import auth as firebase_auth
+
         user = firebase_auth.get_user(uid)
         claims = user.custom_claims or {}
         return claims.get("role", "free")
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning("get_user_role failed for uid=%s: %s", uid, exc)
         if uid in _admins():
             return "admin"
@@ -207,7 +220,7 @@ def get_user_role(uid: str) -> str:
 
 def verify_firebase_token(token: str) -> dict:
     """Verify a Firebase ID token and return decoded claims.
-    
+
     Uses check_revoked=False to avoid clock-skew issues ("Token used too early").
     Revocation is checked lazily instead.
     """
@@ -215,6 +228,7 @@ def verify_firebase_token(token: str) -> dict:
     import time
 
     from firebase_admin import auth as firebase_auth
+
     try:
         decoded = firebase_auth.verify_id_token(token, check_revoked=False)
         return decoded
@@ -222,9 +236,8 @@ def verify_firebase_token(token: str) -> dict:
         err_msg = str(exc)
         if "too early" in err_msg.lower():
             import logging
-            logging.getLogger(__name__).warning(
-                "Clock skew detected — retrying token verify after short delay"
-            )
+
+            logging.getLogger(__name__).warning("Clock skew detected — retrying token verify after short delay")
             time.sleep(2)
             decoded = firebase_auth.verify_id_token(token, check_revoked=False)
             return decoded
@@ -251,9 +264,11 @@ def require_auth(f):
     - Dev mode:                   if DEV_AUTH_BYPASS=true or SERVER_DEBUG=true + no Firebase/API key, bypass auth.
     Sets g.current_user = decoded Firebase claims with added 'role' field.
     """
+
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         import logging
+
         _log = logging.getLogger(__name__)
 
         # Dev mode bypass — no Firebase SA file, no API key, SERVER_DEBUG=true
@@ -280,7 +295,7 @@ def require_auth(f):
         if not auth_header.startswith("Bearer "):
             _log.debug("require_auth: no Bearer header for %s", request.path)
             return jsonify({"error": "Missing Authorization: Bearer token"}), 401
-        token = auth_header[len("Bearer "):].strip()
+        token = auth_header[len("Bearer ") :].strip()
         if not token:
             _log.debug("require_auth: empty token for %s", request.path)
             return jsonify({"error": "Empty token"}), 401
@@ -294,6 +309,7 @@ def require_auth(f):
             return jsonify({"error": "Authentication failed."}), 401
 
         return f(*args, **kwargs)
+
     return decorated
 
 
@@ -306,6 +322,7 @@ def optional_auth(f):
     users, full data to authenticated users. Route handlers check current_uid()
     to determine which data to return.
     """
+
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         # Dev mode bypass
@@ -321,7 +338,7 @@ def optional_auth(f):
 
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
-            token = auth_header[len("Bearer "):].strip()
+            token = auth_header[len("Bearer ") :].strip()
             if token:
                 try:
                     decoded = verify_firebase_token(token)
@@ -336,6 +353,7 @@ def optional_auth(f):
             g.current_user = None
 
         return f(*args, **kwargs)
+
     return decorated
 
 
@@ -348,9 +366,11 @@ def require_admin(f):
     - Dev mode:                   bypassed as admin.
     Sets g.current_user = decoded Firebase claims with 'role' field.
     """
+
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         import logging
+
         _log = logging.getLogger(__name__)
 
         # Dev mode bypass
@@ -377,7 +397,7 @@ def require_admin(f):
         if not auth_header.startswith("Bearer "):
             _log.debug("require_admin: no Bearer header for %s", request.path)
             return jsonify({"error": "Missing Authorization: Bearer token"}), 401
-        token = auth_header[len("Bearer "):].strip()
+        token = auth_header[len("Bearer ") :].strip()
         if not token:
             _log.debug("require_admin: empty token for %s", request.path)
             return jsonify({"error": "Empty token"}), 401
@@ -391,10 +411,13 @@ def require_admin(f):
 
         user_role = decoded.get("role", "free")
         if user_role != "admin":
-            _log.warning("require_admin: uid=%s role=%s not admin for %s", decoded.get("uid", ""), user_role, request.path)
+            _log.warning(
+                "require_admin: uid=%s role=%s not admin for %s", decoded.get("uid", ""), user_role, request.path
+            )
             return jsonify({"error": "Admin access required"}), 403
 
         return f(*args, **kwargs)
+
     return decorated
 
 
@@ -414,6 +437,7 @@ def require_role(minimum: str):
         @functools.wraps(f)
         def decorated(*args, **kwargs):
             import logging
+
             _log = logging.getLogger(__name__)
 
             # Dev mode bypass — always treated as admin
@@ -440,7 +464,7 @@ def require_role(minimum: str):
             if not auth_header.startswith("Bearer "):
                 _log.debug("require_role(%s): no Bearer header for %s", minimum, request.path)
                 return jsonify({"error": "Missing Authorization: Bearer token"}), 401
-            token = auth_header[len("Bearer "):].strip()
+            token = auth_header[len("Bearer ") :].strip()
             if not token:
                 _log.debug("require_role(%s): empty token for %s", minimum, request.path)
                 return jsonify({"error": "Empty token"}), 401
@@ -457,10 +481,15 @@ def require_role(minimum: str):
             if user_rank < min_rank:
                 _log.warning(
                     "require_role(%s): uid=%s role=%s insufficient for %s",
-                    minimum, decoded.get("uid", ""), user_role, request.path,
+                    minimum,
+                    decoded.get("uid", ""),
+                    user_role,
+                    request.path,
                 )
                 return jsonify({"error": f"{minimum.capitalize()} access required"}), 403
 
             return f(*args, **kwargs)
+
         return decorated
+
     return decorator

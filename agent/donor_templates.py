@@ -63,7 +63,6 @@ Follow ECHO format strictly:
 - Reference ECHO HIP thematic priorities for the country
 - Indicators must follow ECHO methodology: baseline → target → source → frequency""",
     },
-
     "USAID": {
         "name": "USAID/BHA Application",
         "full_name": "U.S. Agency for International Development / Bureau for Humanitarian Assistance",
@@ -112,7 +111,6 @@ Follow USAID/BHA format strictly:
 - MEAL plan must include learning component
 - Indicators must include disaggregation by sex, age, and disability where relevant""",
     },
-
     "OCHA": {
         "name": "OCHA CBPF (Country-Based Pooled Fund)",
         "full_name": "UN OCHA Country-Based Pooled Fund",
@@ -159,7 +157,6 @@ Follow CBPF format strictly:
 - Maximum 12-month duration
 - Indicators must align with cluster HRP indicators""",
     },
-
     "Generic": {
         "name": "Generic Donor Proposal",
         "full_name": "Standard humanitarian proposal format",
@@ -199,7 +196,5 @@ def get_template_directive(donor: str) -> str:
 def list_templates() -> list[dict]:
     """List available donor templates for frontend selection."""
     return [
-        {"key": k, "name": v["name"], "full_name": v["full_name"]}
-        for k, v in DONOR_TEMPLATES.items()
-        if k != "Generic"
+        {"key": k, "name": v["name"], "full_name": v["full_name"]} for k, v in DONOR_TEMPLATES.items() if k != "Generic"
     ]

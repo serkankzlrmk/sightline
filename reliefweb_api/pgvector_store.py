@@ -20,13 +20,14 @@ logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
-    from psycopg2 import extras, sql
+
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -61,15 +62,15 @@ SUPABASE_REST_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_SERVICE_KEY)
 # EMBEDDING FUNCTION
 # ============================================================================
 
+
 def get_embedding_function():
     """Return the embedding function compatible with ChromaDB's DefaultEmbeddingFunction."""
     try:
         from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
         return DefaultEmbeddingFunction()
     except ImportError:
-        raise ImportError(
-            "chromadb is required for embeddings. Install it with: pip install chromadb"
-        )
+        raise ImportError("chromadb is required for embeddings. Install it with: pip install chromadb")
 
 
 def _parse_embedding(emb):
@@ -93,6 +94,7 @@ def _parse_embedding(emb):
     # String like '[-0.07,0.05,...]' — parse it
     if isinstance(emb, str):
         import json as _json
+
         try:
             parsed = _json.loads(emb)
             if isinstance(parsed, list):
@@ -101,9 +103,9 @@ def _parse_embedding(emb):
             pass
         # Fallback: strip brackets and split by comma
         stripped = emb.strip()
-        if stripped.startswith('[') and stripped.endswith(']'):
+        if stripped.startswith("[") and stripped.endswith("]"):
             stripped = stripped[1:-1]
-        return [float(x) for x in stripped.split(',') if x.strip()]
+        return [float(x) for x in stripped.split(",") if x.strip()]
     # Unknown type — try numpy conversion as last resort
     if np is not None:
         try:
@@ -116,6 +118,7 @@ def _parse_embedding(emb):
 # ============================================================================
 # PGVECTOR VECTOR STORE
 # ============================================================================
+
 
 class PgVectorStore:
     """
@@ -297,10 +300,7 @@ class PgVectorStore:
         """Fast check: does this report exist in the database?"""
         cur = self._get_cursor()
         try:
-            cur.execute(
-                "SELECT 1 FROM chunks WHERE report_id = %s AND chunk_index = 0 LIMIT 1",
-                (report_id,)
-            )
+            cur.execute("SELECT 1 FROM chunks WHERE report_id = %s AND chunk_index = 0 LIMIT 1", (report_id,))
             return cur.fetchone() is not None
         finally:
             cur.close()
@@ -335,11 +335,11 @@ class PgVectorStore:
 
         date_obj = report_meta.get("date", {})
         date_str = (
-            date_obj.get("original", date_obj.get("created", ""))
-            if isinstance(date_obj, dict) else str(date_obj)
+            date_obj.get("original", date_obj.get("created", "")) if isinstance(date_obj, dict) else str(date_obj)
         )[:10]
 
         countries = report_meta.get("countries", [])
+
         # Handle both dict and string entries in countries list
         def _get_country_name(c):
             if isinstance(c, dict):
@@ -353,9 +353,23 @@ class PgVectorStore:
 
         # format/language are lists of dicts from ReliefWeb API
         raw_format = report_meta.get("format", [])
-        format_name = raw_format[0].get("name", "") if isinstance(raw_format, list) and raw_format else (raw_format.get("name", "") if isinstance(raw_format, dict) else str(raw_format) if raw_format else "")
+        format_name = (
+            raw_format[0].get("name", "")
+            if isinstance(raw_format, list) and raw_format
+            else (raw_format.get("name", "") if isinstance(raw_format, dict) else str(raw_format) if raw_format else "")
+        )
         raw_language = report_meta.get("language", [])
-        language_name = raw_language[0].get("name", "") if isinstance(raw_language, list) and raw_language else (raw_language.get("name", "") if isinstance(raw_language, dict) else str(raw_language) if raw_language else "")
+        language_name = (
+            raw_language[0].get("name", "")
+            if isinstance(raw_language, list) and raw_language
+            else (
+                raw_language.get("name", "")
+                if isinstance(raw_language, dict)
+                else str(raw_language)
+                if raw_language
+                else ""
+            )
+        )
 
         # ---- compute embeddings ----
         documents = [c["content"] for c in chunks]
@@ -393,7 +407,7 @@ class PgVectorStore:
             )
 
             # ---- insert chunks ----
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
                 emb_str = "[" + ",".join(str(x) for x in embedding) + "]"
                 cur.execute(
                     """
@@ -506,22 +520,33 @@ class PgVectorStore:
         output = []
         for rank, row in enumerate(rows, start=1):
             (
-                report_id, chunk_index, source_type, content,
-                title, date, source, primary_country, all_countries, themes, url,
-                similarity
+                report_id,
+                chunk_index,
+                source_type,
+                content,
+                title,
+                date,
+                source,
+                primary_country,
+                all_countries,
+                themes,
+                url,
+                similarity,
             ) = row
-            output.append({
-                "rank": rank,
-                "similarity": round(float(similarity), 3),
-                "report_id": report_id,
-                "title": title,
-                "date": date,
-                "source": source,
-                "countries": all_countries,
-                "source_type": source_type,
-                "url": url,
-                "chunk_preview": (content or "")[:400],
-            })
+            output.append(
+                {
+                    "rank": rank,
+                    "similarity": round(float(similarity), 3),
+                    "report_id": report_id,
+                    "title": title,
+                    "date": date,
+                    "source": source,
+                    "countries": all_countries,
+                    "source_type": source_type,
+                    "url": url,
+                    "chunk_preview": (content or "")[:400],
+                }
+            )
 
         return output
 
@@ -536,14 +561,20 @@ class PgVectorStore:
             headers["Prefer"] = "count=exact"
             r_resp = requests.get(
                 f"{SUPABASE_REST_URL}/rest/v1/reports?select=report_id&limit=0",
-                headers=headers, timeout=10,
+                headers=headers,
+                timeout=10,
             )
             c_resp = requests.get(
                 f"{SUPABASE_REST_URL}/rest/v1/chunks?select=id&limit=0",
-                headers=headers, timeout=10,
+                headers=headers,
+                timeout=10,
             )
-            report_count = int(r_resp.headers.get("content-range", "*/0").split("/")[-1]) if r_resp.status_code == 200 else 0
-            chunk_count = int(c_resp.headers.get("content-range", "*/0").split("/")[-1]) if c_resp.status_code == 200 else 0
+            report_count = (
+                int(r_resp.headers.get("content-range", "*/0").split("/")[-1]) if r_resp.status_code == 200 else 0
+            )
+            chunk_count = (
+                int(c_resp.headers.get("content-range", "*/0").split("/")[-1]) if c_resp.status_code == 200 else 0
+            )
             return {
                 "total_chunks": chunk_count,
                 "total_reports": report_count,
@@ -572,7 +603,8 @@ class PgVectorStore:
             headers["Prefer"] = "count=exact"
             resp = requests.get(
                 f"{SUPABASE_REST_URL}/rest/v1/chunks?select=id&limit=0",
-                headers=headers, timeout=10,
+                headers=headers,
+                timeout=10,
             )
             return int(resp.headers.get("content-range", "*/0").split("/")[-1]) if resp.status_code == 200 else 0
         cur = self._get_cursor()
@@ -598,17 +630,11 @@ class PgVectorStore:
         cur = self._get_cursor()
         try:
             # Count chunks to be removed
-            cur.execute(
-                "SELECT COUNT(*) FROM chunks WHERE report_id = ANY(%s)",
-                (report_ids,)
-            )
+            cur.execute("SELECT COUNT(*) FROM chunks WHERE report_id = ANY(%s)", (report_ids,))
             count = cur.fetchone()[0]
 
             # Delete reports (cascades to chunks)
-            cur.execute(
-                "DELETE FROM reports WHERE report_id = ANY(%s)",
-                (report_ids,)
-            )
+            cur.execute("DELETE FROM reports WHERE report_id = ANY(%s)", (report_ids,))
             self.conn.commit()
             return count
         except Exception as e:
@@ -682,15 +708,22 @@ class PgVectorStore:
         if self._use_rest:
             result = self._rest_rpc("get_date_range", {"country_name": country})
             if result and isinstance(result, list) and len(result) > 0:
-                return {"min": result[0].get("min_date"), "max": result[0].get("max_date"), "count": result[0].get("count", 0)}
+                return {
+                    "min": result[0].get("min_date"),
+                    "max": result[0].get("max_date"),
+                    "count": result[0].get("count", 0),
+                }
             return {"min": None, "max": None, "count": 0}
         cur = self._get_cursor()
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT MIN(date), MAX(date), COUNT(*)
                 FROM chunks
                 WHERE primary_country = %s AND date IS NOT NULL AND date != '';
-            """, (country,))
+            """,
+                (country,),
+            )
             row = cur.fetchone()
             if row and row[0]:
                 return {"min": row[0], "max": row[1], "count": row[2]}
@@ -706,7 +739,8 @@ class PgVectorStore:
         """Get all chunks for a given country."""
         cur = self._get_cursor()
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     id, report_id, chunk_index, source_type, content,
                     title, date, source, primary_country, all_countries, themes, url,
@@ -715,16 +749,28 @@ class PgVectorStore:
                 WHERE primary_country = %s
                 ORDER BY date DESC
                 LIMIT %s;
-            """, (country, limit))
+            """,
+                (country, limit),
+            )
 
             columns = [
-                "id", "report_id", "chunk_index", "source_type", "text",
-                "title", "date", "source", "primary_country", "all_countries",
-                "themes", "url", "embedding"
+                "id",
+                "report_id",
+                "chunk_index",
+                "source_type",
+                "text",
+                "title",
+                "date",
+                "source",
+                "primary_country",
+                "all_countries",
+                "themes",
+                "url",
+                "embedding",
             ]
             results = []
             for row in cur.fetchall():
-                entry = dict(zip(columns, row))
+                entry = dict(zip(columns, row, strict=False))
                 # Convert embedding to list for compatibility
                 if entry.get("embedding") is not None:
                     entry["embedding"] = _parse_embedding(entry["embedding"])
@@ -753,15 +799,13 @@ class PgVectorStore:
             # Uses ANY with array literal for precise matching (avoids substring false positives)
             theme_conditions = []
             for t in themes:
-                theme_conditions.append(
-                    "(themes ILIKE %s OR themes ILIKE %s OR themes ILIKE %s OR themes = %s)"
-                )
+                theme_conditions.append("(themes ILIKE %s OR themes ILIKE %s OR themes ILIKE %s OR themes = %s)")
                 # Match: "Health, ..." | "..., Health, ..." | "..., Health" | exact "Health"
                 params.append(f"{t},%")
                 params.append(f"%, {t},%")
                 params.append(f"%, {t}")
                 params.append(t)
-            conditions.append(f"({ ' OR '.join(theme_conditions) })")
+            conditions.append(f"({' OR '.join(theme_conditions)})")
 
         if date_from:
             conditions.append("date >= %s")
@@ -775,7 +819,8 @@ class PgVectorStore:
 
         cur = self._get_cursor()
         try:
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 SELECT
                     id, report_id, chunk_index, source_type, content,
                     title, date, source, primary_country, all_countries, themes, url,
@@ -784,16 +829,28 @@ class PgVectorStore:
                 WHERE {where}
                 ORDER BY date DESC
                 LIMIT %s;
-            """, params)
+            """,
+                params,
+            )
 
             columns = [
-                "id", "report_id", "chunk_index", "source_type", "text",
-                "title", "date", "source", "primary_country", "all_countries",
-                "themes", "url", "embedding"
+                "id",
+                "report_id",
+                "chunk_index",
+                "source_type",
+                "text",
+                "title",
+                "date",
+                "source",
+                "primary_country",
+                "all_countries",
+                "themes",
+                "url",
+                "embedding",
             ]
             results = []
             for row in cur.fetchall():
-                entry = dict(zip(columns, row))
+                entry = dict(zip(columns, row, strict=False))
                 if entry.get("embedding") is not None:
                     entry["embedding"] = _parse_embedding(entry["embedding"])
                 results.append(entry)
@@ -838,7 +895,8 @@ class PgVectorStore:
 
         cur = self._get_cursor()
         try:
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 SELECT
                     report_id, chunk_index, source_type, content,
                     title, date, source, primary_country, all_countries, themes, url,
@@ -847,28 +905,41 @@ class PgVectorStore:
                 {where}
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s;
-            """, params)
+            """,
+                params,
+            )
 
             results = []
             for rank, row in enumerate(cur.fetchall(), start=1):
                 (
-                    report_id, chunk_index, source_type, content,
-                    title, date, source, primary_country, all_countries, themes, url,
-                    similarity
+                    report_id,
+                    chunk_index,
+                    source_type,
+                    content,
+                    title,
+                    date,
+                    source,
+                    primary_country,
+                    all_countries,
+                    themes,
+                    url,
+                    similarity,
                 ) = row
-                results.append({
-                    "rank": rank,
-                    "similarity": round(float(similarity), 3),
-                    "id": f"{report_id}_{chunk_index}",
-                    "text": content,
-                    "title": title,
-                    "url": url,
-                    "source": source,
-                    "date": date,
-                    "themes": themes,
-                    "primary_country": primary_country,
-                    "all_countries": all_countries,
-                })
+                results.append(
+                    {
+                        "rank": rank,
+                        "similarity": round(float(similarity), 3),
+                        "id": f"{report_id}_{chunk_index}",
+                        "text": content,
+                        "title": title,
+                        "url": url,
+                        "source": source,
+                        "date": date,
+                        "themes": themes,
+                        "primary_country": primary_country,
+                        "all_countries": all_countries,
+                    }
+                )
             return results
         finally:
             cur.close()
@@ -881,14 +952,9 @@ class PgVectorStore:
         candidate_pool: list[dict] | None = None,
     ) -> list[list[dict]]:
         """Bulk retrieval for multiple queries."""
-        return [
-            self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool)
-            for q in queries
-        ]
+        return [self.retrieve(q, country=country, k=k, candidate_pool=candidate_pool) for q in queries]
 
-    def _retrieve_from_pool(
-        self, query: str, pool: list[dict], k: int
-    ) -> list[dict]:
+    def _retrieve_from_pool(self, query: str, pool: list[dict], k: int) -> list[dict]:
         """
         Compares chunks in the pool against the query and returns top-k.
         Uses numpy for cosine similarity computation.
@@ -909,25 +975,27 @@ class PgVectorStore:
             if chunk_emb is None:
                 continue
             chunk_vec = np.array(chunk_emb, dtype=float)
-            denom = (np.linalg.norm(query_vec) * np.linalg.norm(chunk_vec))
+            denom = np.linalg.norm(query_vec) * np.linalg.norm(chunk_vec)
             sim = float(np.dot(query_vec, chunk_vec) / denom) if denom > 0 else 0.0
             scored.append((sim, chunk))
 
         scored.sort(key=lambda x: x[0], reverse=True)
         results = []
         for rank, (sim, chunk) in enumerate(scored[:k], start=1):
-            results.append({
-                "rank": rank,
-                "similarity": round(sim, 3),
-                "id": chunk.get("id", ""),
-                "text": chunk.get("text", ""),
-                "title": chunk.get("title", ""),
-                "url": chunk.get("url", ""),
-                "source": chunk.get("source", ""),
-                "date": chunk.get("date", ""),
-                "themes": chunk.get("themes", ""),
-                "primary_country": chunk.get("primary_country", ""),
-            })
+            results.append(
+                {
+                    "rank": rank,
+                    "similarity": round(sim, 3),
+                    "id": chunk.get("id", ""),
+                    "text": chunk.get("text", ""),
+                    "title": chunk.get("title", ""),
+                    "url": chunk.get("url", ""),
+                    "source": chunk.get("source", ""),
+                    "date": chunk.get("date", ""),
+                    "themes": chunk.get("themes", ""),
+                    "primary_country": chunk.get("primary_country", ""),
+                }
+            )
         return results
 
     # -------------------------------------------------------------------------
@@ -943,6 +1011,7 @@ class PgVectorStore:
 # ============================================================================
 # FACTORY
 # ============================================================================
+
 
 def get_pgvector_store(db_url: str = DB_URL) -> PgVectorStore:
     """Create and return a PgVectorStore instance."""

@@ -28,11 +28,14 @@ logger = logging.getLogger(__name__)
 _news_client: NewsClient | None = None
 
 
-def init_news_tools(api_key: str = "", base_url: str = "",
-                    timeout: float = 15.0,
-                    rate_limit_requests: int = 80,
-                    rate_limit_period: float = 86400.0,
-                    cache_ttl: int = 3600) -> bool:
+def init_news_tools(
+    api_key: str = "",
+    base_url: str = "",
+    timeout: float = 15.0,
+    rate_limit_requests: int = 80,
+    rate_limit_period: float = 86400.0,
+    cache_ttl: int = 3600,
+) -> bool:
     """Initialize the global News client singleton.
 
     Called from server.py at startup. Returns True if initialized successfully,
@@ -64,8 +67,7 @@ def get_news_client() -> NewsClient | None:
 def _news_result_to_json(result) -> str:
     """Convert NewsResult to JSON string for agent tool response."""
     if result is None:
-        return format_error("ServiceUnavailable",
-                            "News client is not initialized. Set NEWS_API_KEY in .env")
+        return format_error("ServiceUnavailable", "News client is not initialized. Set NEWS_API_KEY in .env")
 
     if hasattr(result, "to_dict"):
         return format_response(result.to_dict())
@@ -77,11 +79,17 @@ def _news_result_to_json(result) -> str:
 # News Tool Definitions
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @tool
-def news_search(query: str, country: str | None = None,
-                language: str | None = None,
-                from_date: str | None = None, to_date: str | None = None,
-                sort_by: str = "relevancy", limit: int = 10) -> str:
+def news_search(
+    query: str,
+    country: str | None = None,
+    language: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    sort_by: str = "relevancy",
+    limit: int = 10,
+) -> str:
     """Search global news articles by keyword, country, language, and date range.
 
     Use this for finding recent news coverage about humanitarian crises,
@@ -108,8 +116,7 @@ def news_search(query: str, country: str | None = None,
     """
     news = get_news_client()
     if not news:
-        return format_error("ServiceUnavailable",
-                            "News client is not initialized. Set NEWS_API_KEY in .env")
+        return format_error("ServiceUnavailable", "News client is not initialized. Set NEWS_API_KEY in .env")
     try:
         result = news.search_everything_sync(
             query=query,
@@ -127,10 +134,9 @@ def news_search(query: str, country: str | None = None,
 
 
 @tool
-def news_headlines(country: str | None = None,
-                    category: str | None = None,
-                    language: str | None = None,
-                    limit: int = 10) -> str:
+def news_headlines(
+    country: str | None = None, category: str | None = None, language: str | None = None, limit: int = 10
+) -> str:
     """Get top/breaking news headlines by country and category.
 
     Use this for getting a quick overview of the latest news in a country
@@ -153,8 +159,7 @@ def news_headlines(country: str | None = None,
     """
     news = get_news_client()
     if not news:
-        return format_error("ServiceUnavailable",
-                            "News client is not initialized. Set NEWS_API_KEY in .env")
+        return format_error("ServiceUnavailable", "News client is not initialized. Set NEWS_API_KEY in .env")
     try:
         result = news.get_top_headlines_sync(
             country=country,
@@ -169,9 +174,7 @@ def news_headlines(country: str | None = None,
 
 
 @tool
-def news_sources(category: str | None = None,
-                  language: str | None = None,
-                  country: str | None = None) -> str:
+def news_sources(category: str | None = None, language: str | None = None, country: str | None = None) -> str:
     """List available news sources filtered by category, language, and country.
 
     Use this to discover which news sources cover a specific country or topic.
@@ -191,8 +194,7 @@ def news_sources(category: str | None = None,
     """
     news = get_news_client()
     if not news:
-        return format_error("ServiceUnavailable",
-                            "News client is not initialized. Set NEWS_API_KEY in .env")
+        return format_error("ServiceUnavailable", "News client is not initialized. Set NEWS_API_KEY in .env")
     try:
         result = news.get_sources_sync(
             category=category,

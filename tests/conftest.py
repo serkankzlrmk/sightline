@@ -4,6 +4,7 @@ Pytest configuration — ensures test environment is properly set up.
 Sets DEV_AUTH_BYPASS and SERVER_DEBUG so that auth module can be imported
 without a real Firebase service account file.
 """
+
 import os
 import sys
 

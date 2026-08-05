@@ -31,9 +31,7 @@ logger = logging.getLogger(__name__)
 # Sub-query generation
 # ---------------------------------------------------------------------------
 
-_SUBQUERY_SYSTEM = (
-    "You are a helpful assistant that generates multiple search queries based on a single input query."
-)
+_SUBQUERY_SYSTEM = "You are a helpful assistant that generates multiple search queries based on a single input query."
 
 _SUBQUERY_USER_TEMPLATE = (
     "Generate {n} different search queries related to the following question. "
@@ -66,6 +64,7 @@ def _generate_subqueries(question: str, n: int = RRF_NUM_SUBQUERIES) -> list[str
 # ---------------------------------------------------------------------------
 # Reciprocal Rank Fusion
 # ---------------------------------------------------------------------------
+
 
 def _reciprocal_rank_fusion(
     ranked_lists: list[list[dict]],
@@ -145,6 +144,7 @@ def _format_context(chunks: list[dict]) -> str:
 # Main RAG function
 # ---------------------------------------------------------------------------
 
+
 def answer_questions(
     filtered_questions: dict,
     clusters: dict,
@@ -187,19 +187,13 @@ def answer_questions(
         cd["filtered_questions"] = list(cd.get("filtered_questions", []))
 
     # --- Dynamic question budget: distribute MAX_TOTAL_QUESTIONS proportionally ---
-    total_questions = sum(
-        len(cd.get("filtered_questions", []))
-        for cd in filtered_questions.values()
-    )
+    total_questions = sum(len(cd.get("filtered_questions", [])) for cd in filtered_questions.values())
     num_clusters = len(filtered_questions)
 
     if total_questions > MAX_TOTAL_QUESTIONS:
         # Calculate per-cluster budget based on cluster size
         # Larger clusters get proportionally more questions
-        cluster_sizes = {
-            cid: len(cd.get("filtered_questions", []))
-            for cid, cd in filtered_questions.items()
-        }
+        cluster_sizes = {cid: len(cd.get("filtered_questions", [])) for cid, cd in filtered_questions.items()}
         total_size = sum(cluster_sizes.values())
 
         # Distribute budget proportionally, with minimum 1 question per cluster
@@ -214,13 +208,13 @@ def answer_questions(
             cd["filtered_questions"] = cd["filtered_questions"][:take]
             remaining -= take
 
-        actual_total = sum(
-            len(cd.get("filtered_questions", []))
-            for cd in filtered_questions.values()
-        )
+        actual_total = sum(len(cd.get("filtered_questions", [])) for cd in filtered_questions.values())
         logger.info(
             "Dynamic budget: %d clusters, %d→%d questions (budget=%d, ~%.1f per cluster)",
-            num_clusters, total_questions, actual_total, MAX_TOTAL_QUESTIONS,
+            num_clusters,
+            total_questions,
+            actual_total,
+            MAX_TOTAL_QUESTIONS,
             MAX_TOTAL_QUESTIONS / max(1, num_clusters),
         )
 
@@ -242,7 +236,8 @@ def answer_questions(
                             all_answers.extend(_json.load(f))
                 logger.info(
                     "Resumed from checkpoint: %d clusters already done, %d answers loaded.",
-                    len(completed_clusters), len(all_answers),
+                    len(completed_clusters),
+                    len(all_answers),
                 )
             except Exception as exc:
                 logger.warning("Failed to load checkpoint, starting fresh: %s", exc)
@@ -260,7 +255,9 @@ def answer_questions(
 
         logger.info(
             "Cluster %s: Answering %d questions (%d chunks in pool)",
-            cluster_id, len(questions), len(cluster_chunks),
+            cluster_id,
+            len(questions),
+            len(cluster_chunks),
         )
 
         cluster_answers: list[dict] = []
@@ -274,9 +271,7 @@ def answer_questions(
 
             # 2. Retrieval for each sub-query (within cluster_chunks pool)
             # If pool chunks have embeddings, use pool-based retrieval; otherwise use global Chroma query
-            pool_has_embeddings = bool(
-                cluster_chunks and cluster_chunks[0].get("embedding") is not None
-            )
+            pool_has_embeddings = bool(cluster_chunks and cluster_chunks[0].get("embedding") is not None)
             ranked_lists: list[list[dict]] = []
             for sq in subqueries:
                 if pool_has_embeddings:
@@ -301,12 +296,14 @@ def answer_questions(
 
             if not top_chunks:
                 logger.warning("  No chunks found for question: %s", question[:60])
-                cluster_answers.append({
-                    "cluster_id": cluster_id,
-                    "question": question,
-                    "retrieved_answer": "The provided sources do not contain information relevant to this query.",
-                    "retrieved_contexts": [],
-                })
+                cluster_answers.append(
+                    {
+                        "cluster_id": cluster_id,
+                        "question": question,
+                        "retrieved_answer": "The provided sources do not contain information relevant to this query.",
+                        "retrieved_contexts": [],
+                    }
+                )
                 continue
 
             # 4. Answer synthesis
@@ -317,6 +314,7 @@ def answer_questions(
             if hdx_context:
                 try:
                     from hdx_enrichment import format_hdx_for_rag_context
+
                     hdx_text = format_hdx_for_rag_context(hdx_context)
                     if hdx_text:
                         hdx_prefix = hdx_text + "\n\n"
@@ -340,21 +338,23 @@ def answer_questions(
                 logger.error("  Answer generation failed: %s", exc)
                 answer = "No clear answer."
 
-            cluster_answers.append({
-                "cluster_id": cluster_id,
-                "question": question,
-                "retrieved_answer": answer.strip(),
-                "retrieved_contexts": [c.get("text", "") for c in top_chunks],
-                "retrieved_contexts_meta": [
-                    {
-                        "title": c.get("title", ""),
-                        "url": c.get("url", ""),
-                        "source": c.get("source", ""),
-                        "date": c.get("date", ""),
-                    }
-                    for c in top_chunks
-                ],
-            })
+            cluster_answers.append(
+                {
+                    "cluster_id": cluster_id,
+                    "question": question,
+                    "retrieved_answer": answer.strip(),
+                    "retrieved_contexts": [c.get("text", "") for c in top_chunks],
+                    "retrieved_contexts_meta": [
+                        {
+                            "title": c.get("title", ""),
+                            "url": c.get("url", ""),
+                            "source": c.get("source", ""),
+                            "date": c.get("date", ""),
+                        }
+                        for c in top_chunks
+                    ],
+                }
+            )
 
             logger.debug("  Answer: %s", answer[:120])
 

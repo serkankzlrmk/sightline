@@ -151,7 +151,9 @@ def generate_narrative_report(
     # Find the most representative URL from exec summary citations
     exec_urls = [v.get("url", "") for v in exec_meta.values() if isinstance(v, dict) and v.get("url")]
     exec_rep_url = max(set(exec_urls), key=exec_urls.count) if exec_urls else ""
-    exec_title = exec_summary.get("summary", "")[:80].strip() + "..." if len(exec_summary.get("summary", "")) > 80 else exec_summary.get("summary", "")
+    exec_summary.get("summary", "")[:80].strip() + "..." if len(
+        exec_summary.get("summary", "")
+    ) > 80 else exec_summary.get("summary", "")
 
     # Combined source map: "0" = exec summary, "1".."N" = cluster summaries
     narrative_citation_meta = {"0": {"title": "Executive Summary", "url": exec_rep_url}}
@@ -162,6 +164,7 @@ def generate_narrative_report(
     if hdx_context:
         try:
             from hdx_enrichment import format_hdx_for_narrative
+
             hdx_section = format_hdx_for_narrative(hdx_context)
         except Exception as exc:
             logger.warning("HDX enrichment for narrative report failed: %s", exc)
@@ -184,9 +187,7 @@ def generate_narrative_report(
         ).strip()
     except Exception as exc:
         logger.error("Narrative report generation failed: %s", exc)
-        narrative_html = _build_fallback_html(
-            country, event_label, summary_text, cluster_summaries
-        )
+        narrative_html = _build_fallback_html(country, event_label, summary_text, cluster_summaries)
 
     seen = set()
     cluster_titles = []

@@ -27,6 +27,7 @@ MIN_SUBSTRING_LENGTH: int = 50
 # Citation enrichment
 # ---------------------------------------------------------------------------
 
+
 def _build_metadata_lookup(
     postprocessed_answers: list[dict],
 ) -> list[dict]:
@@ -38,21 +39,23 @@ def _build_metadata_lookup(
     metadata: list[dict] = []
     for answer in postprocessed_answers:
         for meta in answer.get("retrieved_contexts_meta", []):
-            text = answer.get("retrieved_contexts", [])
+            answer.get("retrieved_contexts", [])
             # Match meta and text by retrieved_contexts order
             pass
         # Cleaner approach: store all metas together with contexts
         contexts = answer.get("retrieved_contexts", [])
         metas = answer.get("retrieved_contexts_meta", [])
-        for ctx, meta in zip(contexts, metas):
+        for ctx, meta in zip(contexts, metas, strict=False):
             key = ctx[:100]
             if key not in seen:
                 seen.add(key)
-                metadata.append({
-                    "paragraph": ctx,
-                    "title": meta.get("title", ""),
-                    "url": meta.get("url", ""),
-                })
+                metadata.append(
+                    {
+                        "paragraph": ctx,
+                        "title": meta.get("title", ""),
+                        "url": meta.get("url", ""),
+                    }
+                )
     return metadata
 
 
@@ -120,6 +123,7 @@ def _enrich_contexts(
 # QA filter
 # ---------------------------------------------------------------------------
 
+
 def _is_valid_answer(answer_text: str) -> bool:
     """
     Filters out answers without citations or containing 'no clear answer'.
@@ -134,6 +138,7 @@ def _is_valid_answer(answer_text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Main function
 # ---------------------------------------------------------------------------
+
 
 def assemble_report(
     country: str,
@@ -216,15 +221,10 @@ def assemble_report(
         retrieved_metas: list[dict] = answer.get("retrieved_contexts_meta", [])
 
         context_map: dict[int, str] = {
-            num: text
-            for num, text in zip(new_citations, new_contexts)
-            if text
+            num: text for num, text in zip(new_citations, new_contexts, strict=False) if text
         }
         # Metadata map directly from post-process (fuzzy match not needed)
-        meta_map: dict[int, dict] = {
-            num: m
-            for num, m in zip(new_citations, new_metas)
-        }
+        meta_map: dict[int, dict] = {num: m for num, m in zip(new_citations, new_metas, strict=False)}
 
         # Also add all [n] references in the answer text (if not in context_map)
         for m in re.findall(r"\[(\d+)\]", answer_text):
@@ -247,11 +247,13 @@ def assemble_report(
                 url = url or url_fb
             enriched[str(num)] = {"context": text, "title": title, "url": url}
 
-        qa_by_cluster.setdefault(cid, []).append({
-            "question": answer["question"],
-            "updated_retrieved_answer": answer_text,
-            "used_contexts": enriched,
-        })
+        qa_by_cluster.setdefault(cid, []).append(
+            {
+                "question": answer["question"],
+                "updated_retrieved_answer": answer_text,
+                "used_contexts": enriched,
+            }
+        )
 
     # ---- Cluster listesi ----
     output_clusters: list[dict] = []
@@ -261,16 +263,17 @@ def assemble_report(
             continue  # Skip clusters without QA
 
         # Title: use from cluster_summaries if available
-        cluster_title = (
-            cluster_summaries.get(cluster_id, {}).get("title")
-            or cluster_data.get("cluster_headline", f"Cluster {cluster_id}")
+        cluster_title = cluster_summaries.get(cluster_id, {}).get("title") or cluster_data.get(
+            "cluster_headline", f"Cluster {cluster_id}"
         )
 
-        output_clusters.append({
-            "cluster_id": cluster_id,
-            "cluster_headline": cluster_title,
-            "questions_and_answers": qa_items,
-        })
+        output_clusters.append(
+            {
+                "cluster_id": cluster_id,
+                "cluster_headline": cluster_title,
+                "questions_and_answers": qa_items,
+            }
+        )
 
     report = {
         "file_name": file_name,
@@ -358,7 +361,9 @@ def generate_markdown(report: dict) -> str:
             pct = (funded / required * 100) if required > 0 else 0
             md += f"- **Funding**: ${funded:,.0f} of ${required:,.0f} ({pct:.1f}%)\n"
         if "risk_class" in hdx_summary:
-            md += f"- **INFORM Risk**: {hdx_summary['risk_class']} (Global Rank #{hdx_summary.get('global_rank', '?')})\n"
+            md += (
+                f"- **INFORM Risk**: {hdx_summary['risk_class']} (Global Rank #{hdx_summary.get('global_rank', '?')})\n"
+            )
         md += "\n*Source: Humanitarian Data Exchange (HDX)*\n\n"
 
     md += "## Questions and Answers\n\n"

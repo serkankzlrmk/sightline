@@ -32,13 +32,16 @@ logger = logging.getLogger(__name__)
 _weather_client: WeatherClient | None = None
 
 
-def init_weather_tools(base_url: str = "", geo_url: str = "",
-                       aq_url: str = "",
-                       timeout: float = 15.0,
-                       cache_ttl: int = 3600,
-                       geo_cache_ttl: int = 604800,
-                       rate_limit_requests: int = 60,
-                       rate_limit_period: float = 60.0) -> bool:
+def init_weather_tools(
+    base_url: str = "",
+    geo_url: str = "",
+    aq_url: str = "",
+    timeout: float = 15.0,
+    cache_ttl: int = 3600,
+    geo_cache_ttl: int = 604800,
+    rate_limit_requests: int = 60,
+    rate_limit_period: float = 60.0,
+) -> bool:
     """Initialize the global Weather client singleton.
 
     Called from server.py at startup. Open-Meteo is keyless, so this always
@@ -71,6 +74,7 @@ def get_weather_client() -> WeatherClient | None:
 
 # ── Helper ──────────────────────────────────────────────────────────────────
 
+
 def _parse_location(location: str) -> tuple | None:
     """Parse 'lat,lon' string into (float, float). Returns None if not coords."""
     if not location or "," not in location:
@@ -88,6 +92,7 @@ def _parse_location(location: str) -> tuple | None:
 # Weather Tool Definitions
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @tool
 def weather_get_forecast(location: str, days: int = 7) -> str:
     """Get weather forecast for a location (city name or coordinates).
@@ -104,8 +109,7 @@ def weather_get_forecast(location: str, days: int = 7) -> str:
     """
     weather = get_weather_client()
     if not weather:
-        return format_error("ServiceUnavailable",
-                            "Weather client is not initialized.")
+        return format_error("ServiceUnavailable", "Weather client is not initialized.")
     try:
         # Parse coordinates if provided as 'lat,lon'
         coords = _parse_location(location)
@@ -117,8 +121,7 @@ def weather_get_forecast(location: str, days: int = 7) -> str:
             if not results:
                 return format_error(
                     "NotFound",
-                    f"Could not geocode location '{location}'. "
-                    "Try 'lat,lon' coordinates instead.",
+                    f"Could not geocode location '{location}'. Try 'lat,lon' coordinates instead.",
                 )
             lat = results[0]["latitude"]
             lon = results[0]["longitude"]
@@ -159,8 +162,7 @@ def weather_geocode(query: str, country_code: str = "", limit: int = 5) -> str:
     """
     weather = get_weather_client()
     if not weather:
-        return format_error("ServiceUnavailable",
-                            "Weather client is not initialized.")
+        return format_error("ServiceUnavailable", "Weather client is not initialized.")
     try:
         limit = min(max(int(limit), 1), 10)
         results = weather.geocode(
@@ -171,16 +173,17 @@ def weather_geocode(query: str, country_code: str = "", limit: int = 5) -> str:
         if not results:
             return format_error(
                 "NotFound",
-                f"No locations found for '{query}'"
-                + (f" in country '{country_code}'" if country_code else ""),
+                f"No locations found for '{query}'" + (f" in country '{country_code}'" if country_code else ""),
             )
-        return format_response({
-            "success": True,
-            "query": query,
-            "country_code": country_code or None,
-            "count": len(results),
-            "results": results,
-        })
+        return format_response(
+            {
+                "success": True,
+                "query": query,
+                "country_code": country_code or None,
+                "count": len(results),
+                "results": results,
+            }
+        )
     except Exception as e:
         logger.error(f"Weather geocode error for '{query}': {e}")
         return format_error(
@@ -202,8 +205,7 @@ def weather_get_air_quality(location: str) -> str:
     """
     weather = get_weather_client()
     if not weather:
-        return format_error("ServiceUnavailable",
-                            "Weather client is not initialized.")
+        return format_error("ServiceUnavailable", "Weather client is not initialized.")
     try:
         # Parse coordinates if provided as 'lat,lon'
         coords = _parse_location(location)
@@ -214,8 +216,7 @@ def weather_get_air_quality(location: str) -> str:
             if not results:
                 return format_error(
                     "NotFound",
-                    f"Could not geocode location '{location}'. "
-                    "Try 'lat,lon' coordinates instead.",
+                    f"Could not geocode location '{location}'. Try 'lat,lon' coordinates instead.",
                 )
             lat = results[0]["latitude"]
             lon = results[0]["longitude"]

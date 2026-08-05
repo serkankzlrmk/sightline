@@ -13,12 +13,12 @@ from flask import Blueprint, Response, jsonify, request
 
 from auth import current_role, current_uid, require_admin, require_auth
 from config import (
+    _LLM_API_KEY,
+    _LLM_BASE_URL,
     CHAT_MODELS,
     MODEL_MAX_TOKENS,
     MODEL_TEMPERATURE,
     OLLAMA_MODEL,
-    _LLM_API_KEY,
-    _LLM_BASE_URL,
     OLLAMA_TIMEOUT,
 )
 
@@ -28,6 +28,7 @@ agent_bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 
 
 # ─── Chat list & management ──────────────────────────────────────────────────
+
 
 @agent_bp.route("/chats")
 @require_auth
@@ -141,11 +142,13 @@ def api_agent_chats_delete(chat_id):
 
 # ─── Agent chat (SSE streaming) ──────────────────────────────────────────────
 
+
 @agent_bp.route("/chat", methods=["POST"])
 @require_auth
 def api_agent_chat():
-    import server
     import time as _time
+
+    import server
 
     uid = current_uid()
     role = current_role()
@@ -209,12 +212,14 @@ def api_agent_chat():
             rate = server._check_and_increment_rate_limit(uid, role)
             if not rate["allowed"]:
                 server._log_event(uid, "rate_limit_hit", {"reason": "daily_limit", "limit": rate["limit"]})
-                return jsonify({
-                    "error": "Daily message limit reached",
-                    "limit": rate["limit"],
-                    "used": rate["used"],
-                    "remaining": 0,
-                }), 429
+                return jsonify(
+                    {
+                        "error": "Daily message limit reached",
+                        "limit": rate["limit"],
+                        "used": rate["used"],
+                        "remaining": 0,
+                    }
+                ), 429
         # Mark busy NOW (under the lock) so a concurrent request sees it
         server._user_agent_busy[uid] = True
         server._user_agent_busy_since[uid] = _time.time()
@@ -222,7 +227,9 @@ def api_agent_chat():
     # ── Post-busy setup (wrapped in try/finally — clears busy on failure) ──
     chat_id = None
     try:
-        server._log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking"), "mode": agent_mode})
+        server._log_event(
+            uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking"), "mode": agent_mode}
+        )
         chat_id = server._ensure_active_chat(uid)
     except Exception:
         # If setup fails before generate() starts, free the busy flag
@@ -263,6 +270,7 @@ def api_agent_chat():
                 def temp_llm_call(state: MessagesState):
                     messages = state["messages"]
                     from langchain_core.messages import SystemMessage
+
                     if not messages or not isinstance(messages[0], SystemMessage):
                         messages = [SystemMessage(content=_system_prompt_text)] + messages
                     return {"messages": temp_llm_with_tools.invoke(messages)}
@@ -271,7 +279,11 @@ def api_agent_chat():
                 _temp_builder.add_node("llm_call", temp_llm_call)
                 _temp_builder.add_node("tool_node", ToolNode(all_tools))
                 _temp_builder.add_edge(START, "llm_call")
-                _temp_builder.add_conditional_edges("llm_call", lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__", ["tool_node", "__end__"])
+                _temp_builder.add_conditional_edges(
+                    "llm_call",
+                    lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__",
+                    ["tool_node", "__end__"],
+                )
                 _temp_builder.add_edge("tool_node", "llm_call")
                 agent = _temp_builder.compile()
             else:
@@ -300,10 +312,7 @@ def api_agent_chat():
 
                     if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
                         for tcc in chunk.tool_call_chunks:
-                            name = (
-                                tcc.get("name", "") if isinstance(tcc, dict)
-                                else getattr(tcc, "name", "")
-                            ) or ""
+                            name = (tcc.get("name", "") if isinstance(tcc, dict) else getattr(tcc, "name", "")) or ""
                             if name:
                                 yield f"data: {json.dumps({'type': 'tool_start', 'name': name})}\n\n"
 
@@ -365,7 +374,9 @@ def api_agent_chat_unlock():
         if target_uid:
             was_busy = server._user_agent_busy.get(target_uid, False)
             server._user_agent_busy[target_uid] = False
-            logger.info("Admin %s unlocked agent busy flag for uid=%s (was_busy=%s)", current_uid(), target_uid, was_busy)
+            logger.info(
+                "Admin %s unlocked agent busy flag for uid=%s (was_busy=%s)", current_uid(), target_uid, was_busy
+            )
             return jsonify({"ok": True, "was_busy": was_busy, "uid": target_uid})
         else:
             # Unlock all users
@@ -386,8 +397,10 @@ def api_agent_chat_status():
     msg_count = len(server._db_get_messages(chat_id))
     with server._user_agent_busy_lock:
         busy = server._user_agent_busy.get(uid, False)
-    return jsonify({
-        "busy": busy,
-        "history_len": msg_count,
-        "active_chat": chat_id,
-    })
+    return jsonify(
+        {
+            "busy": busy,
+            "history_len": msg_count,
+            "active_chat": chat_id,
+        }
+    )

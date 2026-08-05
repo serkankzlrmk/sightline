@@ -2,6 +2,7 @@
 Tests for dev mode bypass safety — ensures auth bypass cannot activate
 in production configurations.
 """
+
 import os
 import sys
 from unittest.mock import patch
@@ -45,6 +46,8 @@ class TestDevModeSafety:
         """SERVER_DEBUG=true but SERVER_HOST=0.0.0.0 + no Firebase → False."""
         env = {"SERVER_DEBUG": "true", "DEV_AUTH_BYPASS": "", "SERVER_HOST": "0.0.0.0"}
         with patch.dict(os.environ, env, clear=False):
-            with patch.object(auth, "_api_key", return_value=""), \
-                 patch.object(auth, "_firebase_app", return_value=None):
+            with (
+                patch.object(auth, "_api_key", return_value=""),
+                patch.object(auth, "_firebase_app", return_value=None),
+            ):
                 assert auth._dev_mode() is False

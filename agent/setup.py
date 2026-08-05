@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Ensure agent/ and project root are on sys.path
 _AGENT_DIR = str(Path(__file__).parent.resolve())
-_ROOT_DIR  = str(Path(__file__).parent.parent.resolve())
+_ROOT_DIR = str(Path(__file__).parent.parent.resolve())
 for _p in (_AGENT_DIR, _ROOT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -23,27 +23,25 @@ logger = logging.getLogger(__name__)
 def verify_dependencies():
     """Verify all required Python dependencies are installed."""
     required_packages = [
-        'flask',
-        'langchain',
-        'langchain-core',
-        'langchain-openai',
-        'langgraph',
-        'requests',
-        'python-dotenv',
+        "flask",
+        "langchain",
+        "langchain-core",
+        "langchain-openai",
+        "langgraph",
+        "requests",
+        "python-dotenv",
     ]
 
     missing = []
     for package in required_packages:
         try:
-            __import__(package.replace('-', '_'))
+            __import__(package.replace("-", "_"))
         except ImportError:
             missing.append(package)
 
     if missing:
         logger.error(f"Missing required packages: {', '.join(missing)}")
-        logger.info(
-            f"Install with: pip install {' '.join(missing)}"
-        )
+        logger.info(f"Install with: pip install {' '.join(missing)}")
         return False
 
     logger.info("✓ All required packages are installed")
@@ -93,9 +91,9 @@ def verify_ollama():
 
 def run_setup():
     """Run full system setup verification."""
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("ReliefWeb Agent - System Setup Verification")
-    logger.info("="*60)
+    logger.info("=" * 60)
 
     checks = [
         ("Dependencies", verify_dependencies),
@@ -112,9 +110,9 @@ def run_setup():
             logger.error(f"Error during {name} check: {e}")
             results[name] = False
 
-    logger.info("\n" + "="*60)
+    logger.info("\n" + "=" * 60)
     logger.info("SETUP SUMMARY")
-    logger.info("="*60)
+    logger.info("=" * 60)
 
     for name, passed in results.items():
         status = "✓ PASS" if passed else "✗ FAIL"
@@ -131,10 +129,7 @@ def run_setup():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(levelname)s: %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     success = run_setup()
     sys.exit(0 if success else 1)

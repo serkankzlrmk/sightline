@@ -8,13 +8,11 @@ via `import server` to avoid circular imports and duplication.
 
 import json
 import logging
-import sqlite3
 
 from flask import Blueprint, jsonify, request
 
 from auth import current_role, current_uid, require_auth
 from blueprints.helpers import _db_conn
-from config import DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +20,7 @@ db_bp = Blueprint("db", __name__, url_prefix="/api/db")
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
 
 def _row_to_dict(row):
     return dict(row)
@@ -36,6 +35,7 @@ def _parse_countries(json_str):
 
 # ─── Stats ──────────────────────────────────────────────────────────────────
 
+
 @db_bp.route("/stats")
 @require_auth
 def api_db_stats():
@@ -43,7 +43,7 @@ def api_db_stats():
     conn = _db_conn()
     try:
         report_count = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
-        chunk_count  = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        chunk_count = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         # SQL-side aggregation for sources (stored as plain text in `source` column)
         source_rows = conn.execute(
             "SELECT source, COUNT(*) AS cnt FROM reports GROUP BY source ORDER BY cnt DESC LIMIT 10"
@@ -61,15 +61,18 @@ def api_db_stats():
         except Exception:
             pass
 
-    return jsonify({
-        "report_count": report_count,
-        "chunk_count":  chunk_count,
-        "top_countries": [[r[0], r[1]] for r in country_rows],
-        "top_sources":   [(r[0] or "?", r[1]) for r in source_rows],
-    })
+    return jsonify(
+        {
+            "report_count": report_count,
+            "chunk_count": chunk_count,
+            "top_countries": [[r[0], r[1]] for r in country_rows],
+            "top_sources": [(r[0] or "?", r[1]) for r in source_rows],
+        }
+    )
 
 
 # ─── Countries list ─────────────────────────────────────────────────────────
+
 
 @db_bp.route("/countries")
 @require_auth
@@ -93,6 +96,7 @@ def api_db_countries():
 
 # ─── Sources list ────────────────────────────────────────────────────────────
 
+
 @db_bp.route("/sources")
 @require_auth
 def api_db_sources():
@@ -112,17 +116,18 @@ def api_db_sources():
 
 # ─── Reports search ─────────────────────────────────────────────────────────
 
+
 @db_bp.route("/reports")
 @require_auth
 def api_db_reports():
-    search   = request.args.get("search",   "").strip()
-    country  = request.args.get("country",  "").strip()
-    source   = request.args.get("source",   "").strip()
+    search = request.args.get("search", "").strip()
+    country = request.args.get("country", "").strip()
+    source = request.args.get("source", "").strip()
     date_from = request.args.get("date_from", "").strip()
-    date_to   = request.args.get("date_to",   "").strip()
-    limit    = request.args.get("limit",    "").strip()
-    sort     = request.args.get("sort",      "date").strip()
-    order    = request.args.get("order",     "desc").strip()
+    date_to = request.args.get("date_to", "").strip()
+    limit = request.args.get("limit", "").strip()
+    sort = request.args.get("sort", "date").strip()
+    order = request.args.get("order", "desc").strip()
 
     role = current_role()
 
@@ -180,26 +185,32 @@ def api_db_reports():
         if country and not any(country == c for c in clist):
             continue
         d["primary_country"] = clist[0] if clist else ""
-        d["all_countries"]   = clist
+        d["all_countries"] = clist
         results.append(d)
 
     import server
-    server._log_event(current_uid(), "db_search_performed", {
-        "country": country, "source": source, "result_count": len(results),
-    })
+
+    server._log_event(
+        current_uid(),
+        "db_search_performed",
+        {
+            "country": country,
+            "source": source,
+            "result_count": len(results),
+        },
+    )
     return jsonify(results)
 
 
 # ─── Report detail ───────────────────────────────────────────────────────────
+
 
 @db_bp.route("/reports/<int:report_id>")
 @require_auth
 def api_db_report_detail(report_id):
     conn = _db_conn()
     try:
-        row = conn.execute(
-            "SELECT * FROM reports WHERE report_id=?", (report_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM reports WHERE report_id=?", (report_id,)).fetchone()
         if not row:
             return jsonify({"error": "not found"}), 404
 
@@ -211,8 +222,7 @@ def api_db_report_detail(report_id):
             d["themes_list"] = []
 
         chunks = conn.execute(
-            "SELECT chunk_index, source_type, content FROM chunks "
-            "WHERE report_id=? ORDER BY chunk_index LIMIT 3",
+            "SELECT chunk_index, source_type, content FROM chunks WHERE report_id=? ORDER BY chunk_index LIMIT 3",
             (report_id,),
         ).fetchall()
         d["chunks_preview"] = [dict(c) for c in chunks]

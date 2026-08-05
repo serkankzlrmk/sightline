@@ -49,8 +49,8 @@ def _extract_numbers(text):
     """Extract numeric values from text."""
     if not text or not isinstance(text, str):
         return []
-    numbers = re.findall(r'[\d,]+(?:\.\d+)?', text)
-    return [float(n.replace(',', '')) for n in numbers if n.replace(',', '').replace('.', '').isdigit()]
+    numbers = re.findall(r"[\d,]+(?:\.\d+)?", text)
+    return [float(n.replace(",", "")) for n in numbers if n.replace(",", "").replace(".", "").isdigit()]
 
 
 def validate_cross_sections(proposal_row: dict) -> dict:
@@ -92,44 +92,64 @@ def validate_cross_sections(proposal_row: dict) -> dict:
         lf_goal = str(logframe.get("goal", "")).lower()
 
         if toc_impact and lf_goal:
-            shared_words = [w for w in ["vulnerab", "resilien", "safe", "health", "protect",
-                                       "access", "right", "reduc", "improv", "support"]
-                           if w in toc_impact and w in lf_goal]
+            shared_words = [
+                w
+                for w in [
+                    "vulnerab",
+                    "resilien",
+                    "safe",
+                    "health",
+                    "protect",
+                    "access",
+                    "right",
+                    "reduc",
+                    "improv",
+                    "support",
+                ]
+                if w in toc_impact and w in lf_goal
+            ]
             if shared_words or len(toc_impact) > 10:
                 passed += 1
             else:
-                warnings.append({
-                    "severity": "medium",
-                    "check": "ToC Impact ↔ Logframe Goal",
-                    "message": "Theory of Change impact and Logframe goal seem disconnected. "
-                               "Ensure they describe the same long-term outcome.",
-                })
+                warnings.append(
+                    {
+                        "severity": "medium",
+                        "check": "ToC Impact ↔ Logframe Goal",
+                        "message": "Theory of Change impact and Logframe goal seem disconnected. "
+                        "Ensure they describe the same long-term outcome.",
+                    }
+                )
         elif not lf_goal:
-            warnings.append({
-                "severity": "low",
-                "check": "Logframe Goal",
-                "message": "Logframe goal is empty — fill it from the ToC impact level.",
-            })
+            warnings.append(
+                {
+                    "severity": "low",
+                    "check": "Logframe Goal",
+                    "message": "Logframe goal is empty — fill it from the ToC impact level.",
+                }
+            )
 
     # ── Check 2: Logframe outputs ↔ M&E indicators ──
     total += 1
     if isinstance(logframe, dict) and isinstance(mne, dict):
         lf_has_outputs = bool(logframe.get("outputs"))
         mne_indicators = mne.get("indicators", []) if isinstance(mne, dict) else []
-        mne_has_output_indicators = any(
-            ind.get("type") == "output" for ind in mne_indicators
-            if isinstance(ind, dict)
-        ) if mne_indicators else False
+        mne_has_output_indicators = (
+            any(ind.get("type") == "output" for ind in mne_indicators if isinstance(ind, dict))
+            if mne_indicators
+            else False
+        )
 
         if lf_has_outputs and mne_has_output_indicators:
             passed += 1
         elif lf_has_outputs and not mne_has_output_indicators:
-            warnings.append({
-                "severity": "medium",
-                "check": "Logframe Outputs ↔ M&E Indicators",
-                "message": "Logframe has outputs but M&E framework has no output-level indicators. "
-                           "Every output should have at least one M&E indicator.",
-            })
+            warnings.append(
+                {
+                    "severity": "medium",
+                    "check": "Logframe Outputs ↔ M&E Indicators",
+                    "message": "Logframe has outputs but M&E framework has no output-level indicators. "
+                    "Every output should have at least one M&E indicator.",
+                }
+            )
 
     # ── Check 3: Budget total ↔ Methodology activities ──
     total += 1
@@ -144,23 +164,27 @@ def validate_cross_sections(proposal_row: dict) -> dict:
                 if rough_match:
                     passed += 1
                 else:
-                    warnings.append({
-                        "severity": "low",
-                        "check": "Budget ↔ Methodology",
-                        "message": f"Budget total ({budget_text}) doesn't match any numbers in methodology. "
-                                   "Ensure budget aligns with described activities.",
-                    })
+                    warnings.append(
+                        {
+                            "severity": "low",
+                            "check": "Budget ↔ Methodology",
+                            "message": f"Budget total ({budget_text}) doesn't match any numbers in methodology. "
+                            "Ensure budget aligns with described activities.",
+                        }
+                    )
             else:
                 passed += 1
         else:
             passed += 1
     elif not isinstance(budget, dict) or not budget.get("total"):
         if _has_content(methodology):
-            warnings.append({
-                "severity": "low",
-                "check": "Budget Total",
-                "message": "Budget has no total amount — add a total for consistency.",
-            })
+            warnings.append(
+                {
+                    "severity": "low",
+                    "check": "Budget Total",
+                    "message": "Budget has no total amount — add a total for consistency.",
+                }
+            )
 
     # ── Check 4: Risk Matrix ──
     total += 1
@@ -169,18 +193,22 @@ def validate_cross_sections(proposal_row: dict) -> dict:
         if not missing_mitigation:
             passed += 1
         else:
-            warnings.append({
-                "severity": "high",
-                "check": "Risk Matrix Mitigation",
-                "message": f"{len(missing_mitigation)} risk(s) have no mitigation strategy. "
-                           "Every risk must have a mitigation measure.",
-            })
+            warnings.append(
+                {
+                    "severity": "high",
+                    "check": "Risk Matrix Mitigation",
+                    "message": f"{len(missing_mitigation)} risk(s) have no mitigation strategy. "
+                    "Every risk must have a mitigation measure.",
+                }
+            )
     else:
-        warnings.append({
-            "severity": "low",
-            "check": "Risk Matrix",
-            "message": "Risk matrix is empty — identify at least 4-6 key project risks.",
-        })
+        warnings.append(
+            {
+                "severity": "low",
+                "check": "Risk Matrix",
+                "message": "Risk matrix is empty — identify at least 4-6 key project risks.",
+            }
+        )
 
     # ── Check 5: Needs Assessment ↔ Background data ──
     total += 1
@@ -192,12 +220,14 @@ def validate_cross_sections(proposal_row: dict) -> dict:
             if not major_discrepancy:
                 passed += 1
             else:
-                warnings.append({
-                    "severity": "medium",
-                    "check": "Needs Assessment ↔ Background",
-                    "message": "Large discrepancy between displacement numbers in background and needs assessment. "
-                               "Verify data consistency across sections.",
-                })
+                warnings.append(
+                    {
+                        "severity": "medium",
+                        "check": "Needs Assessment ↔ Background",
+                        "message": "Large discrepancy between displacement numbers in background and needs assessment. "
+                        "Verify data consistency across sections.",
+                    }
+                )
         else:
             passed += 1
     else:
@@ -214,12 +244,14 @@ def validate_cross_sections(proposal_row: dict) -> dict:
         if sustain_has_capacity or method_has_capacity:
             passed += 1
         else:
-            warnings.append({
-                "severity": "low",
-                "check": "Sustainability ↔ Methodology",
-                "message": "Neither sustainability nor methodology mention capacity building, training, or handover. "
-                           "Add capacity building components for a viable exit strategy.",
-            })
+            warnings.append(
+                {
+                    "severity": "low",
+                    "check": "Sustainability ↔ Methodology",
+                    "message": "Neither sustainability nor methodology mention capacity building, training, or handover. "
+                    "Add capacity building components for a viable exit strategy.",
+                }
+            )
     else:
         passed += 1
 
@@ -233,12 +265,14 @@ def validate_cross_sections(proposal_row: dict) -> dict:
         if has_clusters:
             passed += 1
         else:
-            warnings.append({
-                "severity": "low",
-                "check": "Coordination Clusters",
-                "message": "Coordination section doesn't mention specific clusters. "
-                           "Reference the relevant cluster(s) your project contributes to.",
-            })
+            warnings.append(
+                {
+                    "severity": "low",
+                    "check": "Coordination Clusters",
+                    "message": "Coordination section doesn't mention specific clusters. "
+                    "Reference the relevant cluster(s) your project contributes to.",
+                }
+            )
     else:
         passed += 1
 

@@ -19,8 +19,8 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Constants from original
-MU: float = 0.8          # Jaccard weight
-THRESHOLD: float = 0.3   # Minimum combined score
+MU: float = 0.8  # Jaccard weight
+THRESHOLD: float = 0.3  # Minimum combined score
 
 # Threshold to prevent forced assignment when match is meaningless
 # If no document even exceeds FORCE_THRESHOLD, original citations are preserved.
@@ -31,6 +31,7 @@ FORCE_THRESHOLD: float = 0.10
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _jaccard_similarity(text1: str, text2: str) -> float:
     """Word-level Jaccard similarity."""
@@ -46,6 +47,7 @@ def _jaccard_similarity(text1: str, text2: str) -> float:
 def _get_embeddings(texts: list[str]) -> np.ndarray:
     """Compute embeddings using DefaultEmbeddingFunction."""
     from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
     ef = DefaultEmbeddingFunction()
     embs = ef(texts)
     return np.array(embs, dtype=float)
@@ -59,6 +61,7 @@ def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 # Main processing
 # ---------------------------------------------------------------------------
+
 
 def _update_single_answer(answer: dict) -> dict:
     """
@@ -99,15 +102,10 @@ def _update_single_answer(answer: dict) -> dict:
         return answer
 
     # Extract original citations
-    old_citation_numbers = sorted({
-        int(m) for m in re.findall(r"\[(\d+)\]", response)
-        if 0 < int(m) <= len(retrieved_docs)
-    })
-    old_used_contexts = [
-        retrieved_docs[i - 1]
-        for i in old_citation_numbers
-        if 0 < i <= len(retrieved_docs)
-    ]
+    old_citation_numbers = sorted(
+        {int(m) for m in re.findall(r"\[(\d+)\]", response) if 0 < int(m) <= len(retrieved_docs)}
+    )
+    old_used_contexts = [retrieved_docs[i - 1] for i in old_citation_numbers if 0 < i <= len(retrieved_docs)]
 
     # Compute embeddings: question + all documents
     try:
@@ -157,9 +155,7 @@ def _update_single_answer(answer: dict) -> dict:
             piece_scores.sort(reverse=True, key=lambda x: x[0])
             top_k = piece_scores[:k]
 
-            new_valid_indices = [
-                idx for score, idx in top_k if score >= THRESHOLD
-            ]
+            new_valid_indices = [idx for score, idx in top_k if score >= THRESHOLD]
             if not new_valid_indices and top_k:
                 # No document exceeded THRESHOLD.
                 # If the best document exceeds FORCE_THRESHOLD, use it;
@@ -168,10 +164,7 @@ def _update_single_answer(answer: dict) -> dict:
                 if best_score >= FORCE_THRESHOLD:
                     new_valid_indices = [best_idx]
                 else:
-                    new_valid_indices = [
-                        idx for idx in orig_indices
-                        if 0 < idx <= len(retrieved_docs)
-                    ]
+                    new_valid_indices = [idx for idx in orig_indices if 0 < idx <= len(retrieved_docs)]
 
             new_valid_indices.sort()
             new_markers = "".join(f"[{idx}]" for idx in new_valid_indices)
@@ -185,11 +178,7 @@ def _update_single_answer(answer: dict) -> dict:
         current_offset += len(replacement) - (match.end() - match.start())
 
     final_citations = sorted(all_new_citation_indices)
-    new_used_contexts = [
-        retrieved_docs[i - 1]
-        for i in final_citations
-        if 0 < i <= len(retrieved_docs)
-    ]
+    new_used_contexts = [retrieved_docs[i - 1] for i in final_citations if 0 < i <= len(retrieved_docs)]
     new_used_contexts_meta = [
         retrieved_metas[i - 1] if 0 < i <= len(retrieved_metas) else {}
         for i in final_citations
@@ -237,6 +226,7 @@ def postprocess_citations(answers: list[dict]) -> list[dict]:
 
     logger.info(
         "Citation post-processing complete: %d/%d answers updated.",
-        changed, len(answers),
+        changed,
+        len(answers),
     )
     return updated

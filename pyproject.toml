@@ -1,6 +1,6 @@
 [project]
 name = "sightline"
-version = "1.0.0"
+version = "0.1.0"
 description = "Sightline — humanitarian analytics with RAG"
 requires-python = ">=3.12"
 
@@ -10,11 +10,30 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "S", "B", "UP"]
-ignore = ["E501"]  # line length handled by formatter
+ignore = [
+    "E501",   # line length handled by formatter
+    "E402",   # module imports not at top (conditional import pattern)
+    "E701",   # multiple statements on one line (compact style)
+    "E741",   # ambiguous variable name (l, I, O)
+    "S101",   # assert is fine
+    "S104",   # 0.0.0.0 binding is intentional in container
+    "S108",   # /tmp usage is fine in container
+    "S110",   # try-except-pass (optional features pattern)
+    "S112",   # try-except-continue
+    "S311",   # suspicious random (not crypto)
+    "S314",   # xml element tree usage
+    "S324",   # hashlib insecure hash (not for crypto)
+    "S603",   # subprocess calls are controlled
+    "S607",   # partial executable paths are fine
+    "S608",   # hardcoded SQL (parameterized queries)
+    "B008",   # function calls in defaults (Flask patterns)
+    "B007",   # unused loop control variable
+    "B904",   # raise without from
+]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"tests/*" = ["S101"]  # assert is fine in tests
+"tests/*" = ["S101", "S105", "S106"]
 
 [tool.ruff.format]
 quote-style = "double"

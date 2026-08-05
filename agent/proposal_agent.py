@@ -35,7 +35,7 @@ def _get_tools_for_step(step: str):
         return []
 
     try:
-        from agent.relief_agent import all_tools, tools_by_name
+        from agent.relief_agent import tools_by_name
     except ImportError:
         logger.warning("Could not import all_tools from relief_agent")
         return []
@@ -52,17 +52,18 @@ def _get_tools_for_step(step: str):
 
 def _get_model():
     """Get a fresh model instance for proposal generation.
-    
+
     Uses Gemini 2.5 Flash for better tool-calling and quality.
     Falls back to the default model if Gemini is unavailable.
     """
     try:
         from langchain_openai import ChatOpenAI
+
         from config import config as _cfg
-        
+
         # Use Gemini 2.5 Flash for proposal generation (better tool-calling, quality)
         proposal_model = os.environ.get("PROPOSAL_MODEL", "google/gemini-2.5-flash")
-        
+
         return ChatOpenAI(
             model=proposal_model,
             base_url=_cfg._LLM_BASE_URL,
@@ -126,8 +127,9 @@ def _parse_agent_output(response_text: str, step: str) -> dict:
     }
 
 
-def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
-                     instructions: str = "", manual_draft: str = "") -> dict:
+def generate_section(
+    prop_id: str, step: str, proposal_row: dict, uid: str, instructions: str = "", manual_draft: str = ""
+) -> dict:
     """Generate a proposal section using tools and LLM.
 
     Args:
@@ -151,7 +153,9 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
         if instructions:
             user_context += f"\n\n--- USER INSTRUCTIONS ---\n{instructions}"
         if manual_draft:
-            user_context += f"\n\n--- USER'S DRAFT (use as starting point, improve and expand) ---\n{manual_draft[:5000]}"
+            user_context += (
+                f"\n\n--- USER'S DRAFT (use as starting point, improve and expand) ---\n{manual_draft[:5000]}"
+            )
 
         model = _get_model()
         if model is None:
@@ -203,12 +207,19 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
             if not response_text:
                 tool_results = []
                 for msg in result.get("messages", []):
-                    if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content and getattr(msg, "name", ""):
+                    if (
+                        hasattr(msg, "content")
+                        and isinstance(msg.content, str)
+                        and msg.content
+                        and getattr(msg, "name", "")
+                    ):
                         tool_results.append(f"[{msg.name}]: {msg.content[:500]}")
                 if tool_results:
                     response_text = "Based on the research:\n\n" + "\n\n".join(tool_results)
                 else:
-                    return {"error": "Agent could not generate content for this section. Please try again or revise manually."}
+                    return {
+                        "error": "Agent could not generate content for this section. Please try again or revise manually."
+                    }
 
         else:
             messages = [
@@ -219,23 +230,31 @@ def generate_section(prop_id: str, step: str, proposal_row: dict, uid: str,
             response_text = response.content if hasattr(response, "content") else str(response)
 
         import re as _re2
+
         response_text = _re2.sub(r"<think>.*?</think>", "", response_text, flags=_re2.DOTALL).strip()
         response_text = _re2.sub(r"\u271d.*?\u271d", "", response_text, flags=_re2.DOTALL).strip()
         if not response_text:
-            return {"error": "Agent returned empty response after processing. Please try again or write the section manually."}
+            return {
+                "error": "Agent returned empty response after processing. Please try again or write the section manually."
+            }
 
         result = _parse_agent_output(response_text, step)
 
         try:
             from agent.me_reviewer import review_section
+
             toc_data = proposal_row.get("toc", [])
             logframe_data = proposal_row.get("logframe", {})
             if isinstance(toc_data, str):
-                try: toc_data = json.loads(toc_data)
-                except (json.JSONDecodeError, TypeError): pass
+                try:
+                    toc_data = json.loads(toc_data)
+                except (json.JSONDecodeError, TypeError):
+                    pass
             if isinstance(logframe_data, str):
-                try: logframe_data = json.loads(logframe_data)
-                except (json.JSONDecodeError, TypeError): pass
+                try:
+                    logframe_data = json.loads(logframe_data)
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
             review = review_section(
                 content=result.get("content", ""),
@@ -274,9 +293,7 @@ def revise_section_stream(prop_id: str, step: str, proposal_row: dict, feedback:
         prompt_cfg = get_section_prompt(step)
         system_prompt = prompt_cfg["system"]
 
-        current_content = proposal_row.get(
-            _get_db_field(step), ""
-        )
+        current_content = proposal_row.get(_get_db_field(step), "")
 
         revision_system = (
             f"{system_prompt}\n\n"
@@ -312,6 +329,7 @@ def revise_section_stream(prop_id: str, step: str, proposal_row: dict, feedback:
         if "error" not in parsed:
             try:
                 from agent.proposal_tools import _get_db
+
                 conn = _get_db()
                 db_field = _get_db_field(step)
                 content = parsed.get("content", "")
@@ -324,10 +342,7 @@ def revise_section_stream(prop_id: str, step: str, proposal_row: dict, feedback:
                 else:
                     stored = content if isinstance(content, str) else str(content)
 
-                conn.execute(
-                    f"UPDATE proposals SET {db_field} = ? WHERE id = ?",
-                    (stored, prop_id)
-                )
+                conn.execute(f"UPDATE proposals SET {db_field} = ? WHERE id = ?", (stored, prop_id))
                 conn.commit()
                 conn.close()
             except Exception as db_err:

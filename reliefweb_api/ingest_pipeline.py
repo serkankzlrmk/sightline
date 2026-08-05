@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 # DEDUP CHECK
 # ============================================================================
 
+
 def is_ingested(report_id: int, db_path: str = DEFAULT_DB_PATH) -> bool:
     """Return True if this report is already in the SQLite database."""
     db = DatabaseManager(db_path)
@@ -61,6 +62,7 @@ def is_ingested_with_pdf(report_id: int, db_path: str = DEFAULT_DB_PATH) -> bool
 # ============================================================================
 # AUTO-INGEST A DOWNLOADED REPORT
 # ============================================================================
+
 
 def auto_ingest(
     report_id: int,
@@ -87,10 +89,7 @@ def auto_ingest(
     root = Path(downloads_root)
 
     # Locate the report folder
-    matching = [
-        d for d in root.iterdir()
-        if d.is_dir() and d.name.startswith(str(report_id))
-    ]
+    matching = [d for d in root.iterdir() if d.is_dir() and d.name.startswith(str(report_id))]
     if not matching:
         return {
             "success": False,
@@ -147,7 +146,8 @@ def auto_ingest(
     try:
         db = DatabaseManager(db_path)
         db.insert_report(
-            metadata, chunks,
+            metadata,
+            chunks,
             has_pdf=has_pdf,
             has_content=has_content,
             pdf_pages=pdf_pages,
@@ -185,6 +185,7 @@ def auto_ingest(
 # ============================================================================
 # IN-MEMORY INGEST (no disk writes — PDF/HTML processed directly in RAM)
 # ============================================================================
+
 
 def ingest_from_api(
     report_id: int,
@@ -262,11 +263,7 @@ def ingest_from_api(
     pdf_pages = 0
 
     # ── 3. Process HTML body content in memory ────────────────────
-    body_html = (
-        fields.get("body-html")
-        or fields.get("body")
-        or ""
-    )
+    body_html = fields.get("body-html") or fields.get("body") or ""
     if body_html:
         try:
             clean_text = clean_html_body(body_html)
@@ -299,9 +296,7 @@ def ingest_from_api(
                 )
             elif pdf_url:
                 # Download PDF into memory (not to disk)
-                pdf_resp = retry_request(
-                    "get", pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify()
-                )
+                pdf_resp = retry_request("get", pdf_url, timeout=PDF_DOWNLOAD_TIMEOUT, verify=_ssl_verify())
                 pdf_resp.raise_for_status()
 
                 # Extract text from in-memory PDF bytes
@@ -329,7 +324,8 @@ def ingest_from_api(
     try:
         db = DatabaseManager(db_path)
         db.insert_report(
-            metadata, chunks,
+            metadata,
+            chunks,
             has_pdf=has_pdf,
             has_content=has_content,
             pdf_pages=pdf_pages,
@@ -355,8 +351,7 @@ def ingest_from_api(
         return {"success": False, "error": f"Vector store insert failed: {e}"}
 
     logger.info(
-        f"In-memory ingest complete: report {report_id} → "
-        f"{n_chunks} chunks (pdf={has_pdf}, html={has_content})"
+        f"In-memory ingest complete: report {report_id} → {n_chunks} chunks (pdf={has_pdf}, html={has_content})"
     )
 
     return {
@@ -393,6 +388,7 @@ def _extract_pdf_from_bytes(pdf_bytes: bytes) -> tuple:
         logger.warning(f"BytesIO PDF extraction failed, trying temp file: {e}")
         # Fallback: write to temp file, extract, delete
         import tempfile
+
         try:
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(pdf_bytes)
@@ -405,6 +401,7 @@ def _extract_pdf_from_bytes(pdf_bytes: bytes) -> tuple:
         finally:
             try:
                 import os
+
                 os.unlink(tmp_path)
             except Exception as e:
                 logger.debug(f"Could not delete temp file {tmp_path}: {e}")

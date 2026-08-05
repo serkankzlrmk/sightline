@@ -67,6 +67,7 @@ Question to evaluate:
 # Single question evaluation
 # ---------------------------------------------------------------------------
 
+
 def _evaluate_question(question: str) -> dict | None:
     """
     Evaluates a single question against 4 criteria.
@@ -88,7 +89,7 @@ def _evaluate_question(question: str) -> dict | None:
         raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
 
         # Model may have added explanation after JSON — take only the first { } block
-        match = re.search(r'\{.*?\}', raw, re.DOTALL)
+        match = re.search(r"\{.*?\}", raw, re.DOTALL)
         if not match:
             logger.warning("JSON not found | Response: %s", raw[:200])
             return None
@@ -98,9 +99,7 @@ def _evaluate_question(question: str) -> dict | None:
 
         score = result.get("score")
         if not isinstance(score, list) or len(score) != 4:
-            logger.warning(
-                "Invalid question evaluation format: %s → %s", question[:60], score
-            )
+            logger.warning("Invalid question evaluation format: %s → %s", question[:60], score)
             return None
 
         return result
@@ -126,6 +125,7 @@ def _passes_all_criteria(eval_result: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Main function
 # ---------------------------------------------------------------------------
+
 
 def filter_questions(questions_data: dict) -> dict:
     """
@@ -153,7 +153,9 @@ def filter_questions(questions_data: dict) -> dict:
 
         logger.info(
             "Filtering cluster %s: '%s' (%d questions)",
-            cluster_id, headline, len(questions),
+            cluster_id,
+            headline,
+            len(questions),
         )
 
         filtered: list[str] = []
@@ -173,19 +175,19 @@ def filter_questions(questions_data: dict) -> dict:
                 filtered.append(question)
                 logger.debug("  PASSED: %s", question[:60])
             else:
-                failed = [
-                    i + 1
-                    for i, s in enumerate(eval_result["score"])
-                    if s == 0
-                ]
+                failed = [i + 1 for i, s in enumerate(eval_result["score"]) if s == 0]
                 logger.info(
                     "  REJECTED (criterion %s | score=%s): %s",
-                    failed, eval_result["score"], question[:80],
+                    failed,
+                    eval_result["score"],
+                    question[:80],
                 )
 
         logger.info(
             "  Cluster %s: %d evaluated → %d passed",
-            cluster_id, evaluated, len(filtered),
+            cluster_id,
+            evaluated,
+            len(filtered),
         )
 
         result[cluster_id] = {

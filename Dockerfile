@@ -1,13 +1,13 @@
 # =============================================================================
-# Sightline — Dockerfile (ARM64 production + local dev)
-# Single-stage build for simplicity and reliability
+# Sightline — Dockerfile (multi-stage, ARM64 production + local dev)
 # =============================================================================
 # Build: docker build -t sightline:latest .
 # Run:   docker compose up -d
 
-FROM python:3.12-slim
+# ── Stage 1: Builder ─────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
 
-# Install system packages: Node.js 20 (MCP servers), uv (uvx for arxiv MCP), sqlite3, curl
+# Install build deps only (will not be in final image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl sqlite3 build-essential gcc g++ \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
@@ -25,19 +25,32 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu || true
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Set working directory
-WORKDIR /app
-
-# Copy application code
-COPY . .
-
 # Pre-install MCP server packages (avoids 30-60s cold start on first use)
 RUN uvx --no-cache arxiv-mcp-server --help 2>/dev/null || true
 RUN npx -y @modelcontextprotocol/server-sequential-thinking --help 2>/dev/null || true
 RUN npx -y @brave/brave-search-mcp-server --help 2>/dev/null || true
 
-# Clean up build deps
-RUN apt-get purge -y build-essential gcc g++ 2>/dev/null || true && apt-get autoremove -y 2>/dev/null || true
+# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+# Install runtime-only packages (no build-essential/gcc)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl sqlite3 nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy uv/uvx from builder
+COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+
+# Copy installed Python packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY . .
 
 # Environment defaults (overridden by docker-compose env_file)
 ENV PYTHONUNBUFFERED=1 \

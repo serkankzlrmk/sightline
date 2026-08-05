@@ -22,13 +22,21 @@ services:
       CHATS_DB_PATH: /app/data/chats.db
       CHROMA_DIR: /app/reliefweb_chroma
       DOWNLOADS_DIR: /app/reliefweb_downloads
+      # DESKTOP_MODE: bypass Firebase auth for local desktop use.
+      # Set to true for local use without Firebase. Default: false (Firebase active).
+      DESKTOP_MODE: ${DESKTOP_MODE:-false}
+      # Firebase service account path (env-driven)
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-service-account.json
     volumes:
       - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma
       - output_data:/app/output
       - mcp_cache:/tmp/uv-cache
       - npm_cache:/tmp/npm-cache
+      # Mount Firebase service account (optional — if absent, app runs in DESKTOP_MODE)
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+      # Mount Firebase web config (optional — if absent, frontend runs in DESKTOP_MODE)
+      - ./static/firebase-config.js:/app/static/firebase-config.js:ro
     ports:
       - "127.0.0.1:5001:5001"
     healthcheck:

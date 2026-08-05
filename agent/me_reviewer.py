@@ -19,8 +19,16 @@ logger = logging.getLogger(__name__)
 
 SECTION_REQUIREMENTS = {
     "cover": {
-        "required_fields": ["project_title", "country", "donor", "budget_summary",
-                           "target_beneficiaries", "sectors", "summary", "duration_months"],
+        "required_fields": [
+            "project_title",
+            "country",
+            "donor",
+            "budget_summary",
+            "target_beneficiaries",
+            "sectors",
+            "summary",
+            "duration_months",
+        ],
         "min_words": 20,
     },
     "background": {
@@ -179,13 +187,17 @@ def _check_source_quality(content: str, sources: list = None) -> dict:
         score += 1
         checks.append({"check": "Inline citations found", "valid": True})
     else:
-        checks.append({"check": "No inline citations found", "valid": False, "comment": "Add source links for data claims"})
+        checks.append(
+            {"check": "No inline citations found", "valid": False, "comment": "Add source links for data claims"}
+        )
 
     if sources and len(sources) > 0:
         score += 1
         checks.append({"check": f"{len(sources)} sources cited", "valid": True})
     else:
-        checks.append({"check": "No sources listed", "valid": False, "comment": "List data sources (ReliefWeb, HDX, WorldBank)"})
+        checks.append(
+            {"check": "No sources listed", "valid": False, "comment": "List data sources (ReliefWeb, HDX, WorldBank)"}
+        )
 
     authoritative_sources = ["reliefweb", "unhcr", "ocha", "who", "unicef", "wfp", "world bank", "hdx", "worldbank"]
     has_authoritative = any(a in text.lower() for a in authoritative_sources)
@@ -193,7 +205,13 @@ def _check_source_quality(content: str, sources: list = None) -> dict:
         score += 1
         checks.append({"check": "Authoritative sources referenced", "valid": True})
     else:
-        checks.append({"check": "No authoritative sources found", "valid": False, "comment": "Reference UN agencies, ReliefWeb, or HDX data"})
+        checks.append(
+            {
+                "check": "No authoritative sources found",
+                "valid": False,
+                "comment": "Reference UN agencies, ReliefWeb, or HDX data",
+            }
+        )
 
     comments = [c.get("comment", c["check"]) for c in checks if not c["valid"]]
     return {"score": score, "total": total, "checks": checks, "comments": comments}
@@ -223,7 +241,9 @@ def _check_completeness(content, step: str) -> dict:
             score += 1
             checks.append({"check": "Key concepts present", "valid": True})
         else:
-            checks.append({"check": f"Missing key concepts (expected: {', '.join(req['must_contain'])})", "valid": False})
+            checks.append(
+                {"check": f"Missing key concepts (expected: {', '.join(req['must_contain'])})", "valid": False}
+            )
 
     if "required_fields" in req:
         total += 1
@@ -276,7 +296,9 @@ def _check_completeness(content, step: str) -> dict:
             score += 1
             checks.append({"check": f"{len(indicators)} indicators (min: {req['min_indicators']})", "valid": True})
         else:
-            checks.append({"check": f"Only {len(indicators)} indicators (need {req['min_indicators']})", "valid": False})
+            checks.append(
+                {"check": f"Only {len(indicators)} indicators (need {req['min_indicators']})", "valid": False}
+            )
 
     if not checks:
         return {"score": 100, "total": 1, "checks": [], "comments": []}

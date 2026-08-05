@@ -73,8 +73,22 @@ static/ne_*_countries.geojson
 
 # CodeGraph index (tooling artifact)
 .codegraph/
+graphify-out/
 .gstack/
+
+# Local agent configs (not for public repo)
+.hermes/
+.opencode/
 _archive/
+
+# Firebase web config (contains real Firebase project credentials)
+# Copy firebase-config.example.js → firebase-config.js and fill in
+static/firebase-config.js
+
+# Firebase service account (server-side, SECRET)
+firebase-service-account.json
+**/firebase-service-account.json
+
 static/.DS_Store
 static/videos/intro_orig.mp4
 static/textures/earth_albedo_opt.webp

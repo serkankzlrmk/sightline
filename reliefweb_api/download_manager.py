@@ -23,13 +23,14 @@ from .reliefweb_utils import clean_html_body
 
 logger = logging.getLogger(__name__)
 
+
 class DownloadManager:
     """Manages downloading and storing ReliefWeb reports"""
 
     def __init__(self, base_download_dir: str = "reliefweb_downloads"):
         """
         Initialize download manager
-        
+
         Args:
             base_download_dir: Root directory for downloads
         """
@@ -68,11 +69,11 @@ class DownloadManager:
     def download_pdf(self, report_id: int, output_dir: Path) -> str | None:
         """
         Download PDF from report if available
-        
+
         Args:
             report_id: Report ID
             output_dir: Directory to save PDF
-            
+
         Returns:
             Path to downloaded PDF file or None
         """
@@ -125,11 +126,11 @@ class DownloadManager:
     def download_html_content(self, report_id: int, output_dir: Path) -> str | None:
         """
         Download HTML body content as text file
-        
+
         Args:
             report_id: Report ID
             output_dir: Directory to save file
-            
+
         Returns:
             Path to saved file or None
         """
@@ -140,12 +141,7 @@ class DownloadManager:
 
             fields = report_data.get("fields", {})
             # Try multiple field names for body content
-            body_html = (
-                fields.get("body-html") or
-                fields.get("body") or
-                fields.get("full_content") or
-                ""
-            )
+            body_html = fields.get("body-html") or fields.get("body") or fields.get("full_content") or ""
 
             if not body_html:
                 logger.warning(f"No HTML content in report {report_id}")
@@ -169,11 +165,11 @@ class DownloadManager:
     def download_metadata(self, report_id: int, output_dir: Path) -> str | None:
         """
         Save report metadata as JSON
-        
+
         Args:
             report_id: Report ID
             output_dir: Directory to save file
-            
+
         Returns:
             Path to saved metadata file or None
         """
@@ -211,32 +207,24 @@ class DownloadManager:
             return None
 
     def download_report(
-        self,
-        report_id: int,
-        include_pdf: bool = True,
-        include_content: bool = True,
-        include_metadata: bool = True
+        self, report_id: int, include_pdf: bool = True, include_content: bool = True, include_metadata: bool = True
     ) -> dict:
         """
         Download all content for a single report
-        
+
         Args:
             report_id: Report ID
             include_pdf: Download PDF if available
             include_content: Download HTML content as text
             include_metadata: Download metadata as JSON
-            
+
         Returns:
             Dictionary with download results
         """
         # Get metadata first
         report_data = self.get_report_metadata(report_id)
         if not report_data:
-            return {
-                "success": False,
-                "report_id": report_id,
-                "error": "Could not fetch report metadata"
-            }
+            return {"success": False, "report_id": report_id, "error": "Could not fetch report metadata"}
 
         fields = report_data.get("fields", {})
         title = fields.get("title", "")
@@ -244,13 +232,7 @@ class DownloadManager:
         # Create report directory
         report_dir = self._create_report_dir(report_id, title)
 
-        result = {
-            "success": True,
-            "report_id": report_id,
-            "title": title,
-            "directory": str(report_dir),
-            "files": {}
-        }
+        result = {"success": True, "report_id": report_id, "title": title, "directory": str(report_dir), "files": {}}
 
         # Download files
         if include_pdf:
@@ -276,17 +258,17 @@ class DownloadManager:
         report_ids: list[int],
         include_pdf: bool = True,
         include_content: bool = True,
-        include_metadata: bool = True
+        include_metadata: bool = True,
     ) -> dict:
         """
         Download multiple reports
-        
+
         Args:
             report_ids: List of report IDs
             include_pdf: Download PDFs
             include_content: Download content
             include_metadata: Download metadata
-            
+
         Returns:
             Summary of batch download
         """
@@ -297,10 +279,7 @@ class DownloadManager:
             logger.info(f"Downloading report {idx}/{len(report_ids)}: {report_id}")
 
             result = self.download_report(
-                report_id,
-                include_pdf=include_pdf,
-                include_content=include_content,
-                include_metadata=include_metadata
+                report_id, include_pdf=include_pdf, include_content=include_content, include_metadata=include_metadata
             )
             results.append(result)
 
@@ -312,22 +291,27 @@ class DownloadManager:
             "failed": sum(1 for r in results if not r.get("success")),
             "elapsed_seconds": elapsed,
             "base_directory": str(self.base_dir),
-            "results": results
+            "results": results,
         }
 
         return summary
 
     def get_download_summary(self) -> str:
         """Get summary of all downloads as JSON string"""
-        return json.dumps({
-            "base_directory": str(self.base_dir),
-            "total_downloads": len(self.download_log),
-            "downloads": self.download_log
-        }, indent=2, ensure_ascii=False)
+        return json.dumps(
+            {
+                "base_directory": str(self.base_dir),
+                "total_downloads": len(self.download_log),
+                "downloads": self.download_log,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 # Global download manager instance
 _manager = None
+
 
 def get_download_manager(base_dir: str = "reliefweb_downloads") -> DownloadManager:
     """Get or create global download manager"""
@@ -335,4 +319,3 @@ def get_download_manager(base_dir: str = "reliefweb_downloads") -> DownloadManag
     if _manager is None:
         _manager = DownloadManager(base_dir)
     return _manager
-

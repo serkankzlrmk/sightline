@@ -10,11 +10,11 @@ bind = "0.0.0.0:5001" if _container else "127.0.0.1:5001"
 backlog = 2048
 
 # Worker processes
-workers = 1          # Single worker — SQLite + ChromaDB don't support multi-process well
-threads = 4          # Threading for concurrent requests
+workers = 1  # Single worker — SQLite + ChromaDB don't support multi-process well
+threads = 4  # Threading for concurrent requests
 worker_class = "gthread"
 worker_connections = 1000
-timeout = 120        # Long timeout for SITREP pipeline SSE streams
+timeout = 120  # Long timeout for SITREP pipeline SSE streams
 keepalive = 5
 graceful_timeout = 30
 max_requests = 1000  # Restart workers after N requests (prevents memory leaks)
@@ -41,6 +41,6 @@ capture_output = True
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 
 # Security
-limit_request_line = 8190    # Max size of HTTP request line
-limit_request_fields = 100   # Max number of HTTP header fields
+limit_request_line = 8190  # Max size of HTTP request line
+limit_request_fields = 100  # Max number of HTTP header fields
 limit_request_field_size = 8190  # Max size of HTTP header field value

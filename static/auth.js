@@ -18,19 +18,19 @@ import {
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDPKhEe-ftF_Fm0Vp4X8SqqVgK5844ps8I",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "402718388379",
-  appId: "1:402718388379:web:3c546d2ff143052abbd63e",
-  measurementId: "G-S1D8L1CNTB"
-};
+// Firebase config is loaded from window.FIREBASE_CONFIG (set by firebase-config.js).
+// If firebase-config.js is absent, Sightline runs in DESKTOP_MODE (no Firebase auth).
+if (typeof window.FIREBASE_CONFIG === 'undefined') {
+  console.warn('[auth] No firebase-config.js found — running in DESKTOP_MODE (no Firebase auth)');
+  // Provide a no-op stub so the module doesn't crash on import
+  window.FIREBASE_CONFIG = null;
+}
 
-initializeApp(FIREBASE_CONFIG);
-const auth   = getAuth();
-const google = new GoogleAuthProvider();
+if (window.FIREBASE_CONFIG) {
+  initializeApp(window.FIREBASE_CONFIG);
+}
+const auth   = window.FIREBASE_CONFIG ? getAuth() : null;
+const google = window.FIREBASE_CONFIG ? new GoogleAuthProvider() : null;
 
 // ═══════════════════════════════════════════════════════════
 // Token storage

@@ -8,7 +8,6 @@ Shared state and helpers are accessed via `import server`.
 
 import logging
 import re
-import subprocess
 import sys
 import threading
 import time as _time
@@ -27,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _run_job(job_id: str, cmd: list):
     """Run a SITREP pipeline subprocess and stream its output to the job queue.
 
@@ -35,10 +35,12 @@ def _run_job(job_id: str, cmd: list):
     automatically picked up.
     """
     import server
+
     server._run_job(job_id, cmd)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
 
 @sitrep_bp.route("/themes")
 @require_auth
@@ -46,6 +48,7 @@ def api_sitrep_themes():
     """Return unique theme values — ChromaDB first, SQLite fallback."""
     try:
         from sitrep.chroma_adapter import ChromaAdapter
+
         db = ChromaAdapter()
         return jsonify(db.list_themes())
     except Exception as exc:
@@ -59,6 +62,7 @@ def api_sitrep_countries():
     """Return country values with chunk counts for SITREP dropdown."""
     try:
         import server
+
         db = server._get_chroma_adapter()
         return jsonify(db.list_countries_with_counts())
     except Exception as exc:
@@ -71,6 +75,7 @@ def api_sitrep_countries():
 def api_sitrep_date_range(country):
     try:
         import server
+
         db = server._get_chroma_adapter()
         return jsonify(db.get_date_range(country))
     except Exception as exc:
@@ -84,6 +89,7 @@ def api_sitrep_chunk_preview():
     """Return chunk count and theme breakdown matching the given filters."""
     try:
         from sitrep.chroma_adapter import ChromaAdapter
+
         db = ChromaAdapter()
         data = request.get_json(silent=True) or {}
         country = data.get("country", "").strip()
@@ -95,7 +101,10 @@ def api_sitrep_chunk_preview():
         date_to = (data.get("date_to") or "").strip()
 
         chunks = db.get_chunks_by_country_and_themes(
-            country, themes or None, date_from=date_from or None, date_to=date_to or None,
+            country,
+            themes or None,
+            date_from=date_from or None,
+            date_to=date_to or None,
         )
         theme_counts = Counter()
         for c in chunks:
@@ -107,11 +116,13 @@ def api_sitrep_chunk_preview():
                         theme_counts[t] += 1
         top_themes = [k for k, _ in theme_counts.most_common(5)]
 
-        return jsonify({
-            "count": len(chunks),
-            "themes_found": top_themes,
-            "filters": {"themes": themes, "date_from": date_from, "date_to": date_to},
-        })
+        return jsonify(
+            {
+                "count": len(chunks),
+                "themes_found": top_themes,
+                "filters": {"themes": themes, "date_from": date_from, "date_to": date_to},
+            }
+        )
     except Exception as exc:
         logger.error("api_sitrep_chunk_preview error: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load chunk preview"}), 500
@@ -122,18 +133,18 @@ def api_sitrep_chunk_preview():
 def api_sitrep_run():
     import server
 
-    data    = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True) or {}
     country = data.get("country", "").strip()[:100]
-    event   = data.get("event",   "").strip()[:200]
+    event = data.get("event", "").strip()[:200]
     if not country:
         return jsonify({"error": "country is required"}), 400
     if not event:
         event = country
 
-    themes     = [t.strip()[:80] for t in data.get("themes", []) if t.strip()][:10]
+    themes = [t.strip()[:80] for t in data.get("themes", []) if t.strip()][:10]
     skip_cache = bool(data.get("skip_cache", False))
-    date_from  = (data.get("date_from") or "").strip()[:10]
-    date_to    = (data.get("date_to")   or "").strip()[:10]
+    date_from = (data.get("date_from") or "").strip()[:10]
+    date_to = (data.get("date_to") or "").strip()[:10]
 
     _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
     if date_from and not _DATE_RE.match(date_from):
@@ -141,8 +152,7 @@ def api_sitrep_run():
     if date_to and not _DATE_RE.match(date_to):
         return jsonify({"error": "Invalid date_to format (YYYY-MM-DD)"}), 400
 
-    cmd = [sys.executable, str(server.BASE_DIR / "sitrep" / "pipeline.py"),
-           "--country", country, "--event", event]
+    cmd = [sys.executable, str(server.BASE_DIR / "sitrep" / "pipeline.py"), "--country", country, "--event", event]
     if themes:
         cmd += ["--themes"] + themes
     if date_from:
@@ -156,28 +166,37 @@ def api_sitrep_run():
     with server._jobs_lock:
         # Clean up old completed jobs to prevent memory leak
         now = _time.time()
-        stale = [jid for jid, j in server._jobs.items()
-                 if j.get("status") in ("done", "error") and
-                 now - j.get("finished_at", now) > server._JOBS_MAX_AGE]
+        stale = [
+            jid
+            for jid, j in server._jobs.items()
+            if j.get("status") in ("done", "error") and now - j.get("finished_at", now) > server._JOBS_MAX_AGE
+        ]
         for jid in stale:
             del server._jobs[jid]
 
         server._jobs[job_id] = {
-            "queue":   Queue(),
-            "status":  "running",
-            "proc":    None,
+            "queue": Queue(),
+            "status": "running",
+            "proc": None,
             "country": country,
-            "event":   event,
-            "uid":     current_uid(),  # bind job to creator for ownership check
+            "event": event,
+            "uid": current_uid(),  # bind job to creator for ownership check
         }
 
     t = threading.Thread(target=_run_job, args=(job_id, cmd), daemon=True)
     t.start()
     nonce = server._create_stream_nonce(current_uid(), job_id)
-    server._log_event(current_uid(), "sitrep_run_started", {
-        "job_id": job_id, "country": country, "event": event,
-        "themes": themes, "role": current_role(),
-    })
+    server._log_event(
+        current_uid(),
+        "sitrep_run_started",
+        {
+            "job_id": job_id,
+            "country": country,
+            "event": event,
+            "themes": themes,
+            "role": current_role(),
+        },
+    )
     return jsonify({"job_id": job_id, "stream_nonce": nonce})
 
 
@@ -221,11 +240,13 @@ def api_sitrep_stream(job_id):
         if job.get("uid", "") and requesting_uid != job["uid"]:
             logger.warning(
                 "SITREP stream access denied: uid=%s attempted to read job %s owned by uid=%s",
-                requesting_uid, job_id, job.get("uid"),
+                requesting_uid,
+                job_id,
+                job.get("uid"),
             )
             return jsonify({"error": "Access denied"}), 403
         q = job["queue"]
-        job_status = job.get("status", "running")
+        job.get("status", "running")
 
     def generate():
         while True:
@@ -266,12 +287,14 @@ def api_sitrep_job(job_id):
         if job.get("uid", "") and uid != job["uid"]:
             return jsonify({"error": "Access denied"}), 403
         j = job
-    return jsonify({
-        "job_id":  job_id,
-        "status":  j.get("status", "running"),
-        "country": j.get("country", ""),
-        "event":   j.get("event",   ""),
-    })
+    return jsonify(
+        {
+            "job_id": job_id,
+            "status": j.get("status", "running"),
+            "country": j.get("country", ""),
+            "event": j.get("event", ""),
+        }
+    )
 
 
 @sitrep_bp.route("/reports")
@@ -286,11 +309,13 @@ def api_sitrep_reports():
             key=lambda x: x.stat().st_mtime,
             reverse=True,
         ):
-            items.append({
-                "filename": f.name,
-                "size_kb":  round(f.stat().st_size / 1024, 1),
-                "mtime":    f.stat().st_mtime,
-            })
+            items.append(
+                {
+                    "filename": f.name,
+                    "size_kb": round(f.stat().st_size / 1024, 1),
+                    "mtime": f.stat().st_mtime,
+                }
+            )
     return jsonify(items)
 
 
@@ -318,11 +343,13 @@ def api_sitrep_report():
 # ROUTES — Weekly Bulletin
 # =============================================================================
 
+
 @sitrep_bp.route("/bulletins")
 @require_auth
 def api_bulletin_list():
     """List available weekly bulletins, sorted by date descending."""
     from sitrep.weekly_bulletin import list_bulletins
+
     bulletins = list_bulletins()
     return jsonify(bulletins)
 
@@ -331,8 +358,8 @@ def api_bulletin_list():
 @require_auth
 def api_bulletin_get(filename):
     """Get a specific bulletin JSON by filename."""
-    from sitrep.weekly_bulletin import get_bulletin
     import server
+    from sitrep.weekly_bulletin import get_bulletin
 
     if ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
@@ -356,8 +383,8 @@ def api_bulletin_generate():
     """
     from datetime import datetime, timedelta
 
-    from sitrep.weekly_bulletin import generate_weekly_bulletin
     import server
+    from sitrep.weekly_bulletin import generate_weekly_bulletin
 
     data = request.get_json(silent=True) or {}
     date_from = data.get("date_from", "")
@@ -376,7 +403,7 @@ def api_bulletin_generate():
     with server._jobs_lock:
         server._jobs[job_id] = {
             "status": "running",
-            "queue":   Queue(),
+            "queue": Queue(),
             "started_at": _time.time(),
             "type": "bulletin",
             "date_from": date_from,
@@ -410,13 +437,15 @@ def api_bulletin_generate():
     thread = threading.Thread(target=_run_bulletin, daemon=True)
     thread.start()
 
-    return jsonify({
-        "status": "started",
-        "job_id": job_id,
-        "message": f"Generating bulletin for {date_from} to {date_to}",
-        "date_from": date_from,
-        "date_to": date_to,
-    })
+    return jsonify(
+        {
+            "status": "started",
+            "job_id": job_id,
+            "message": f"Generating bulletin for {date_from} to {date_to}",
+            "date_from": date_from,
+            "date_to": date_to,
+        }
+    )
 
 
 @sitrep_bp.route("/bulletin/generate/status/<job_id>")

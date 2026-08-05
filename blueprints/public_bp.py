@@ -10,19 +10,17 @@ Register in server.py with:
 
 import json
 import logging
-import sqlite3
 import time as _time
-from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from auth import current_uid, require_admin, require_auth
-from blueprints.helpers import _db_conn, _log_event, _get_chroma_adapter
-from config import DB_PATH, OUTPUT_REPORTS_DIR
+from blueprints.helpers import _db_conn, _get_chroma_adapter, _log_event
+from config import OUTPUT_REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
-public_bp = Blueprint('public', __name__, url_prefix='/api')
+public_bp = Blueprint("public", __name__, url_prefix="/api")
 
 
 def _parse_countries(json_str):
@@ -61,6 +59,7 @@ _map_countries_cache_time = 0.0
 # ROUTES — Public stats & bulletins
 # =============================================================================
 
+
 @public_bp.route("/public/stats")
 def api_public_stats():
     """Public DB stats — aggregate counts only, no sensitive data.
@@ -69,7 +68,7 @@ def api_public_stats():
     conn = _db_conn()
     try:
         report_count = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
-        chunk_count  = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        chunk_count = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         # SQL-level aggregation: ~10x faster than loading 2000 rows into Python
         country_rows = conn.execute(
             "SELECT je.value, COUNT(*) as cnt FROM reports, json_each(countries) je "
@@ -89,17 +88,20 @@ def api_public_stats():
         except Exception:
             pass
 
-    return jsonify({
-        "report_count": report_count,
-        "chunk_count":  chunk_count,
-        "top_countries": top_countries,
-    })
+    return jsonify(
+        {
+            "report_count": report_count,
+            "chunk_count": chunk_count,
+            "top_countries": top_countries,
+        }
+    )
 
 
 @public_bp.route("/public/bulletins")
 def api_public_bulletins():
     """Public bulletin list — metadata only (titles, dates, counts)."""
     from sitrep.weekly_bulletin import list_bulletins
+
     bulletins = list_bulletins()
     return jsonify(bulletins)
 
@@ -108,6 +110,7 @@ def api_public_bulletins():
 def api_public_bulletin_get(filename):
     """Public bulletin — trimmed version (headlines + severity + coords only)."""
     from sitrep.weekly_bulletin import get_bulletin
+
     if ".." in filename or "/" in filename or "\\" in filename:
         return jsonify({"error": "Invalid filename"}), 400
     bulletin = get_bulletin(filename)
@@ -134,10 +137,12 @@ def api_public_sitrep_reports():
 # ROUTES — Country Intelligence Cards
 # =============================================================================
 
+
 @public_bp.route("/country/summaries")
 def api_country_summaries():
     """Public: lightweight list of all country summaries for map markers."""
     from sitrep.country_summary import list_country_summaries
+
     summaries = list_country_summaries()
     return jsonify(summaries)
 
@@ -145,6 +150,7 @@ def api_country_summaries():
 # =============================================================================
 # ROUTES — /api/map/* (Crisis Map — all-in-one data endpoint)
 # =============================================================================
+
 
 @public_bp.route("/map/countries")
 def api_map_countries():
@@ -167,15 +173,22 @@ def api_map_countries():
         return jsonify(_map_countries_cache)
 
     try:
-        from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
         from sitrep.country_summary import (
-            get_country_summary, COUNTRY_SUMMARY_DIR, _country_to_iso3,
+            COUNTRY_SUMMARY_DIR,
+            _country_to_iso3,
         )
+        from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
+
         db = _get_chroma_adapter()
         all_countries = db.list_countries_with_counts()
 
         # Sort by count, take top 60 (exclude non-country entries)
-        all_countries = [c for c in all_countries if c.get("name", c.get("country", "")).lower() not in ("world", "global", "international", "region", "unknown")]
+        all_countries = [
+            c
+            for c in all_countries
+            if c.get("name", c.get("country", "")).lower()
+            not in ("world", "global", "international", "region", "unknown")
+        ]
         all_countries.sort(key=lambda x: x.get("count", 0), reverse=True)
         top_countries = all_countries[:60]
 
@@ -242,12 +255,14 @@ def api_map_countries():
                         title = chunk.get("title", "")
                         if title and title not in seen_titles and len(recent_reports) < 3:
                             seen_titles.add(title)
-                            recent_reports.append({
-                                "title": title,
-                                "date": chunk.get("date", ""),
-                                "source": chunk.get("source", ""),
-                                "url": chunk.get("url", ""),
-                            })
+                            recent_reports.append(
+                                {
+                                    "title": title,
+                                    "date": chunk.get("date", ""),
+                                    "source": chunk.get("source", ""),
+                                    "url": chunk.get("url", ""),
+                                }
+                            )
                 except Exception:
                     pass
 
@@ -257,8 +272,10 @@ def api_map_countries():
             if not top_themes:
                 try:
                     chunks = db.get_chunks_by_country(country, limit=50)
-                    from sitrep.utils import parse_themes
                     from collections import Counter as _Counter
+
+                    from sitrep.utils import parse_themes
+
                     theme_counter = _Counter()
                     for chunk in chunks:
                         for t in parse_themes(chunk.get("themes", "")):
@@ -308,7 +325,8 @@ def api_map_countries():
 def api_public_countries():
     """Public: all countries with chunk counts + coordinates (for map markers)."""
     try:
-        from sitrep.countries import COUNTRY_COORDS, get_country_coords
+        from sitrep.countries import get_country_coords
+
         db = _get_chroma_adapter()
         countries = db.list_countries_with_counts()
         for c in countries:
@@ -326,6 +344,7 @@ def api_public_countries():
 def api_country_summary(country):
     """Auth-gated: full country intelligence card."""
     from sitrep.country_summary import get_country_summary
+
     # Sanitize country name — reject path traversal and multi-segment paths
     if ".." in country or country.startswith("/") or country.startswith("\\"):
         return jsonify({"error": "Invalid country name"}), 400
@@ -341,6 +360,7 @@ def api_country_summary(country):
 def api_country_refresh(country):
     """Admin only: force regenerate a country summary."""
     from sitrep.country_summary import generate_country_summary
+
     if ".." in country or country.startswith("/") or country.startswith("\\"):
         return jsonify({"error": "Invalid country name"}), 400
     result = generate_country_summary(country, force_hdx=True)

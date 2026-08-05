@@ -71,7 +71,7 @@ PAGE_SIZE = 100  # max per request (ReliefWeb API limit)
 
 def fetch_report_ids_for_date(target_date: str) -> list:
     """Fetch all report IDs from ReliefWeb API for a given date (YYYY-MM-DD).
-    
+
     Returns a list of report IDs.
     """
     from reliefweb_api.reliefweb_utils import retry_request
@@ -108,7 +108,8 @@ def fetch_report_ids_for_date(target_date: str) -> list:
 
         try:
             resp = retry_request(
-                "post", url,
+                "post",
+                url,
                 json=payload,
                 headers=headers,
                 timeout=30,
@@ -140,7 +141,7 @@ def fetch_report_ids_for_date(target_date: str) -> list:
 
 def ingest_reports(report_ids: list, dry_run: bool = False) -> dict:
     """Ingest a list of report IDs into SQLite + ChromaDB.
-    
+
     Returns: {ingested: int, skipped: int, errors: int, error_details: list}
     """
     from reliefweb_api.ingest_pipeline import ingest_from_api, is_ingested, is_ingested_with_pdf
@@ -187,7 +188,7 @@ def ingest_reports(report_ids: list, dry_run: bool = False) -> dict:
 
 def purge_old_data(days: int = PURGE_DAYS, dry_run: bool = False) -> dict:
     """Purge reports older than `days` from SQLite + ChromaDB.
-    
+
     Returns: {reports_purged: int, chunks_purged_chroma: int}
     """
     from reliefweb_api.db_manager import DatabaseManager

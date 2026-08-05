@@ -1,0 +1,53 @@
+name: 🔒 Security Report
+description: Report a security vulnerability (use this only if the issue is NOT critical enough for private disclosure)
+title: "[SECURITY] "
+labels: ["security", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **For critical security vulnerabilities, do NOT use this form.**
+
+        Instead, email **security@sightline.ai** (placeholder) privately.
+
+        Use this form only for non-critical security issues or security-related
+        improvements (e.g., missing rate limiting, insecure configuration).
+
+        See [SECURITY.md](../SECURITY.md) for the full policy.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the security concern.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential impact
+      description: What could an attacker do if this is exploited?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting, you agree to follow our [Code of Conduct](../CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

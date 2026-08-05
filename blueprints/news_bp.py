@@ -20,23 +20,29 @@ news_bp = Blueprint("news", __name__, url_prefix="/api/news")
 
 # ─── News API health check ──────────────────────────────────────────────────
 
+
 @news_bp.route("/health")
 def api_news_health():
     """News API connectivity check. No auth required."""
     news = get_news_client()
     if not news:
-        return jsonify({
-            "status": "not_configured",
-            "message": "NEWS_API_KEY not set. Set it in .env to enable news data.",
-        }), 503
-    return jsonify({
-        "status": "ok",
-        "base_url": news.base_url,
-        "cache_stats": news.cache.stats(),
-    })
+        return jsonify(
+            {
+                "status": "not_configured",
+                "message": "NEWS_API_KEY not set. Set it in .env to enable news data.",
+            }
+        ), 503
+    return jsonify(
+        {
+            "status": "ok",
+            "base_url": news.base_url,
+            "cache_stats": news.cache.stats(),
+        }
+    )
 
 
 # ─── Search ─────────────────────────────────────────────────────────────────
+
 
 @news_bp.route("/search")
 @require_auth
@@ -73,6 +79,7 @@ def api_news_search():
 
 # ─── Headlines ──────────────────────────────────────────────────────────────
 
+
 @news_bp.route("/headlines")
 @require_auth
 def api_news_headlines():
@@ -99,6 +106,7 @@ def api_news_headlines():
 
 # ─── Sources ────────────────────────────────────────────────────────────────
 
+
 @news_bp.route("/sources")
 @require_auth
 def api_news_sources():
@@ -122,6 +130,7 @@ def api_news_sources():
 
 
 # ─── Cache management (admin) ───────────────────────────────────────────────
+
 
 @news_bp.route("/cache/stats")
 @require_admin

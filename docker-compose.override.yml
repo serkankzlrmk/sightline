@@ -1,0 +1,31 @@
+# =============================================================================
+# Sightline — Docker Compose Override (local dev / public distribution)
+# =============================================================================
+# This file overrides docker-compose.yml for local development.
+# It is automatically loaded by `docker compose up` (no -f flag needed).
+#
+# Usage:
+#   docker compose up -d                          # With override (local dev)
+#   docker compose -f docker-compose.yml up -d   # Without override (production)
+
+services:
+  app:
+    # Local dev overrides
+    environment:
+      # Desktop mode — bypass Firebase auth for local use
+      DESKTOP_MODE: ${DESKTOP_MODE:-true}
+      SERVER_DEBUG: ${SERVER_DEBUG:-true}
+      SERVER_HOST: ${SERVER_HOST:-0.0.0.0}
+    ports:
+      # Bind to localhost only for local dev (no public exposure)
+      - "127.0.0.1:5001:5001"
+    volumes:
+      # Mount source code for hot reload during development
+      - .:/app
+      # Override the static firebase-config.js mount from base file
+      - ./static/firebase-config.js:/app/static/firebase-config.js:ro
+
+  # Disable Caddy for local dev (no TLS needed on localhost)
+  caddy:
+    profiles: ["production"]
+    restart: "no"

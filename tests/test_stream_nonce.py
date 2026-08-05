@@ -1,6 +1,7 @@
 """
 Tests for SITREP stream nonce lifecycle — single-use, TTL, UID + job_id binding.
 """
+
 import os
 import sys
 
@@ -11,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Use try/except to handle import gracefully.
 try:
     import server
+
     _create_stream_nonce = server._create_stream_nonce
     _consume_stream_nonce = server._consume_stream_nonce
     _STREAM_NONCE_TTL = server._STREAM_NONCE_TTL

@@ -16,6 +16,7 @@ import auth
 @pytest.fixture
 def app():
     import server
+
     return server.app
 
 
@@ -34,6 +35,7 @@ def _auth_headers(role="admin", uid="test-uid"):
 
 
 # ── Health endpoint (unauthenticated) ──────────────────────────────────────────
+
 
 class TestHealthEndpoint:
     def test_health_no_auth_required(self, client):
@@ -55,53 +57,51 @@ class TestHealthEndpoint:
 
 # ── Auth protection ────────────────────────────────────────────────────────────
 
+
 class TestAuthProtection:
     def test_db_reports_requires_auth(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/db/reports")
             assert resp.status_code == 401
 
     def test_db_stats_requires_auth(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/db/stats")
             assert resp.status_code == 401
 
     def test_agent_chats_requires_auth(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/agent/chats")
             assert resp.status_code == 401
 
     def test_sitrep_themes_requires_auth(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/sitrep/themes")
             assert resp.status_code == 401
 
     def test_admin_users_requires_auth(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/admin/users")
             assert resp.status_code == 401
 
     def test_auth_me_requires_auth(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/auth/me")
             assert resp.status_code == 401
 
 
 # ── Admin-only routes ──────────────────────────────────────────────────────────
 
+
 class TestAdminOnlyRoutes:
     def test_admin_users_free_role_denied(self, client):
         fake_token = {"uid": "free-user", "role": "free"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="free"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="free"),
+        ):
             resp = client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer token"},
@@ -110,10 +110,12 @@ class TestAdminOnlyRoutes:
 
     def test_daily_ingest_requires_admin(self, client):
         fake_token = {"uid": "premium-user", "role": "premium"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="premium"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
             resp = client.post(
                 "/api/ingest/daily",
                 headers={"Authorization": "Bearer token"},
@@ -122,10 +124,12 @@ class TestAdminOnlyRoutes:
 
     def test_upload_requires_admin(self, client):
         fake_token = {"uid": "premium-user", "role": "premium"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="premium"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
             resp = client.post(
                 "/api/ingest/upload",
                 headers={"Authorization": "Bearer token"},
@@ -134,10 +138,12 @@ class TestAdminOnlyRoutes:
 
     def test_chat_unlock_requires_admin(self, client):
         fake_token = {"uid": "premium-user", "role": "premium"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="premium"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
             resp = client.post(
                 "/api/agent/chat/unlock",
                 headers={"Authorization": "Bearer token"},
@@ -146,6 +152,7 @@ class TestAdminOnlyRoutes:
 
 
 # ── Dev mode bypass ────────────────────────────────────────────────────────────
+
 
 class TestDevModeBypass:
     def test_dev_mode_bypasses_auth(self, client):
@@ -163,13 +170,16 @@ class TestDevModeBypass:
 
 # ── Auth me endpoint ────────────────────────────────────────────────────────────
 
+
 class TestAuthMeEndpoint:
     def test_auth_me_returns_user_info(self, client):
         fake_token = {"uid": "user123", "email": "user@test.com", "role": "premium"}
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""), \
-             patch.object(auth, "verify_firebase_token", return_value=fake_token), \
-             patch.object(auth, "_resolve_role", return_value="premium"):
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
             resp = client.get(
                 "/api/auth/me",
                 headers={"Authorization": "Bearer token"},
@@ -180,7 +190,6 @@ class TestAuthMeEndpoint:
             assert data["role"] == "premium"
 
     def test_auth_me_no_token_returns_401(self, client):
-        with patch.object(auth, "_dev_mode", return_value=False), \
-             patch.object(auth, "_api_key", return_value=""):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/auth/me")
             assert resp.status_code == 401

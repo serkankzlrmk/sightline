@@ -25,6 +25,7 @@ CITATION_OFFSET_STEP: int = 10
 # Apply citation offset
 # ---------------------------------------------------------------------------
 
+
 def _apply_citation_offset(answer_text: str, offset: int) -> str:
     """
     Replaces all [n] citations in the answer text with [n + offset].
@@ -53,7 +54,7 @@ def _offset_contexts(
     {old_citation_num: context_text} → {old_citation_num + offset: context_text}
     """
     result: dict[int, str] = {}
-    for old_num, ctx in zip(new_citations, new_used_contexts):
+    for old_num, ctx in zip(new_citations, new_used_contexts, strict=False):
         result[old_num + offset] = ctx
     return result
 
@@ -68,7 +69,7 @@ def _offset_contexts_meta(
     meta_dict = {title: str, url: str, ...}
     """
     result: dict[int, dict] = {}
-    for old_num, meta in zip(new_citations, new_used_contexts_meta):
+    for old_num, meta in zip(new_citations, new_used_contexts_meta, strict=False):
         result[old_num + offset] = meta or {}
     return result
 
@@ -118,6 +119,7 @@ Return only the title, nothing else.
 # Main function
 # ---------------------------------------------------------------------------
 
+
 def generate_cluster_summaries(
     postprocessed_answers: list[dict],
     clusters: dict,
@@ -147,9 +149,7 @@ def generate_cluster_summaries(
     final_output: dict = {}
 
     for cluster_id, answers in cluster_groups.items():
-        logger.info(
-            "Generating summary for cluster %s (%d answers)", cluster_id, len(answers)
-        )
+        logger.info("Generating summary for cluster %s (%d answers)", cluster_id, len(answers))
 
         # 1. Apply citation offset
         modified_texts: list[str] = []
@@ -231,8 +231,6 @@ def generate_cluster_summaries(
             "title": title,
         }
 
-        logger.info(
-            "  Cluster %s completed: title='%s'", cluster_id, title
-        )
+        logger.info("  Cluster %s completed: title='%s'", cluster_id, title)
 
     return final_output
