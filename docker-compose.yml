@@ -11,7 +11,7 @@
 services:
   app:
     build: .
-    image: ghcr.io/serkankzlrmk/redagent:latest
+    image: ghcr.io/serkankzlrmk/sightline:latest
     container_name: sightline
     restart: unless-stopped
     env_file:

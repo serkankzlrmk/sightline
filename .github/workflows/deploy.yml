@@ -10,7 +10,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: serkankzlrmk/redagent
+  IMAGE_NAME: serkankzlrmk/sightline
 
 jobs:
   # ── Job 1: Test ──────────────────────────────────────────────────────────────
