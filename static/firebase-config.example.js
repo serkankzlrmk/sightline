@@ -16,10 +16,10 @@
  */
 
 window.FIREBASE_CONFIG = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
+  apiKey: "YOUR_API_KEY",
   authDomain: "your-project.firebaseapp.com",
   projectId: "your-project",
-  storageBucket: "your-project.appspot.com",
+  storageBucket: "your-project.firebasestorage.app",
   messagingSenderId: "YOUR_SENDER_ID",
   appId: "YOUR_APP_ID",
   measurementId: "YOUR_MEASUREMENT_ID"
