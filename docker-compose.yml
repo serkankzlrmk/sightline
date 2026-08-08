@@ -86,6 +86,8 @@ services:
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
       - ./scripts:/app/scripts:ro
     command: ["sh", "/app/scripts/daily_scheduler.sh"]
+    healthcheck:
+      disable: true
     depends_on:
       app:
         condition: service_healthy

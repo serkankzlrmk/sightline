@@ -22,8 +22,15 @@ def main() -> None:
         Path(f"{database}{suffix}").unlink(missing_ok=True)
     chroma = Path(config.CHROMA_DIR)
     if chroma.exists():
-        shutil.rmtree(chroma)
-    chroma.mkdir(parents=True, exist_ok=True)
+        # CHROMA_DIR is commonly a mounted Docker volume; remove its contents,
+        # not the mountpoint itself.
+        for child in chroma.iterdir():
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink(missing_ok=True)
+    else:
+        chroma.mkdir(parents=True, exist_ok=True)
     print(f"Reset complete: {database} and {chroma}; chats DB preserved at {config.CHATS_DB_PATH}")
 
 
