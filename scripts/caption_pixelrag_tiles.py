@@ -87,12 +87,13 @@ def main() -> None:
     results = {}
     for image in images:
         tile_index = image.stem.rsplit("_", 1)[-1]
+        article_key = image.parent.name.split(".", 1)[0]
         if args.provider == "ollama":
             result = classify_ollama(image, args.model, args.ollama_url)
         else:
             result = classify_openrouter(image, args.model, args.base_url, api_key)
-        results[tile_index] = result
-        print(f"classified tile {tile_index}: {result.get('visual_type')}")
+        results[f"{article_key}:{tile_index}"] = result
+        print(f"classified article {article_key} tile {tile_index}: {result.get('visual_type')}")
     args.output.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps({"tiles": len(results), "output": str(args.output)}))
 
