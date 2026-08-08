@@ -103,10 +103,12 @@ jobs:
             # Stop old container
             docker stop sightline 2>/dev/null || true
             docker rm sightline 2>/dev/null || true
+            docker stop sightline-daily-ingest 2>/dev/null || true
+            docker rm sightline-daily-ingest 2>/dev/null || true
 
             # Start new container
             docker run -d --name sightline \
-              --network sightline-build_default \
+              --network current_default \
               --network-alias app \
               --env-file /opt/reliefagent/data/.env \
               -e DB_PATH=/app/data/reliefweb.db \
@@ -119,9 +121,29 @@ jobs:
               -v mcp_cache:/tmp/uv-cache \
               -v npm_cache:/tmp/npm-cache \
               -v /opt/reliefagent/data/firebase-service-account.json:/app/firebase-service-account.json:ro \
+              -v /opt/reliefagent/current/static/firebase-config.js:/app/static/firebase-config.js:ro \
               --restart unless-stopped \
               -p 127.0.0.1:5001:5001 \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+            # Run previous-day ingest at 06:00 UTC outside the request worker.
+            docker run -d --name sightline-daily-ingest \
+              --network current_default \
+              --env-file /opt/reliefagent/data/.env \
+              -e DB_PATH=/app/data/reliefweb.db \
+              -e CHATS_DB_PATH=/app/data/chats.db \
+              -e CHROMA_DIR=/app/reliefweb_chroma \
+              -e CONTAINER_MODE=true \
+              -e DESKTOP_MODE=false \
+              -v reliefweb_db:/app/data \
+              -v chroma_data:/app/reliefweb_chroma \
+              -v output_data:/app/output \
+              -v mcp_cache:/tmp/uv-cache \
+              -v npm_cache:/tmp/npm-cache \
+              -v /opt/reliefagent/data/firebase-service-account.json:/app/firebase-service-account.json:ro \
+              --restart unless-stopped \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+              sh /app/scripts/daily_scheduler.sh
 
             # Health check (up to 10 retries, 3s apart)
             for i in $(seq 1 10); do
@@ -133,9 +155,11 @@ jobs:
                 echo "Health check failed — rolling back"
                 docker stop sightline 2>/dev/null || true
                 docker rm sightline 2>/dev/null || true
+                docker stop sightline-daily-ingest 2>/dev/null || true
+                docker rm sightline-daily-ingest 2>/dev/null || true
                 if [ -n "$PREV_TAG" ]; then
                   docker run -d --name sightline \
-                    --network sightline-build_default \
+                    --network current_default \
                     --network-alias app \
                     --env-file /opt/reliefagent/data/.env \
                     -e DB_PATH=/app/data/reliefweb.db \
@@ -146,9 +170,10 @@ jobs:
                     -v chroma_data:/app/reliefweb_chroma \
                     -v output_data:/app/output \
                     -v mcp_cache:/tmp/uv-cache \
-                    -v npm_cache:/tmp/npm-cache \
-                    -v /opt/reliefagent/data/firebase-service-account.json:/app/firebase-service-account.json:ro \
-                    --restart unless-stopped \
+                     -v npm_cache:/tmp/npm-cache \
+                     -v /opt/reliefagent/data/firebase-service-account.json:/app/firebase-service-account.json:ro \
+                     -v /opt/reliefagent/current/static/firebase-config.js:/app/static/firebase-config.js:ro \
+                     --restart unless-stopped \
                     -p 127.0.0.1:5001:5001 \
                     "$PREV_TAG"
                   echo "Rollback to $PREV_TAG complete"
