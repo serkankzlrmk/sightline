@@ -131,6 +131,29 @@ class VectorStore:
         self.collection.add(ids=ids, documents=documents, metadatas=metadatas)
         return len(chunks)
 
+    def add_visual_units(self, units: list[dict]) -> int:
+        """Index visual captions as traceable ChromaDB units."""
+        eligible = [unit for unit in units if unit.get("index_for_retrieval", True) and not unit.get("is_decorative")]
+        if not eligible:
+            return 0
+        ids = [f"visual_{unit['unit_id']}" for unit in eligible]
+        documents = [unit["caption"] for unit in eligible]
+        metadatas = [
+            {
+                "report_id": int(unit["report_id"]),
+                "page_number": int(unit["page_number"]),
+                "visual_type": unit.get("visual_type", "unknown"),
+                "modality": "visual",
+                "source_type": "visual_caption",
+                "caption": unit["caption"],
+                "asset_key": unit.get("asset_key") or "",
+                "pipeline_version": unit.get("pipeline_version", "visual-v1"),
+            }
+            for unit in eligible
+        ]
+        self.collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        return len(eligible)
+
     # -------------------------------------------------------------------------
     # SEARCH
     # -------------------------------------------------------------------------
@@ -197,6 +220,10 @@ class VectorStore:
                     "source": meta.get("source"),
                     "countries": meta.get("all_countries"),
                     "source_type": meta.get("source_type"),
+                    "modality": meta.get("modality", "text"),
+                    "page_number": meta.get("page_number"),
+                    "visual_type": meta.get("visual_type"),
+                    "asset_key": meta.get("asset_key"),
                     "url": meta.get("url"),
                     "chunk_preview": doc[:400],
                 }

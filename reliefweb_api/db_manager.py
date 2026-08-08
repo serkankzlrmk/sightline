@@ -92,6 +92,35 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_chunks_report_id ON chunks(report_id);
             CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(date);
             CREATE INDEX IF NOT EXISTS idx_reports_source ON reports(source);
+
+            CREATE TABLE IF NOT EXISTS document_pages (
+                page_id          TEXT PRIMARY KEY,
+                report_id        INTEGER NOT NULL,
+                page_number      INTEGER NOT NULL,
+                text_char_count  INTEGER DEFAULT 0,
+                visual_density   REAL DEFAULT 0,
+                page_type        TEXT DEFAULT 'unknown',
+                processing_state TEXT DEFAULT 'pending',
+                pipeline_version TEXT,
+                UNIQUE (report_id, page_number)
+            );
+
+            CREATE TABLE IF NOT EXISTS visual_units (
+                unit_id            TEXT PRIMARY KEY,
+                report_id          INTEGER NOT NULL,
+                page_number        INTEGER NOT NULL,
+                visual_type        TEXT NOT NULL,
+                caption            TEXT NOT NULL,
+                asset_key          TEXT,
+                relevance          REAL DEFAULT 0,
+                is_decorative      INTEGER DEFAULT 0,
+                index_for_retrieval INTEGER DEFAULT 1,
+                pipeline_version   TEXT NOT NULL,
+                checksum           TEXT,
+                created_at         TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_visual_units_report ON visual_units(report_id);
+            CREATE INDEX IF NOT EXISTS idx_visual_units_type ON visual_units(visual_type);
         """)
         columns = {row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()}
         if "source_object_key" not in columns:
