@@ -42,6 +42,9 @@ def main() -> None:
             report_id = int(row["report_id"])
             if not db.report_exists(report_id):
                 raise ValueError(f"Unknown report_id: {report_id}")
+            report_meta = conn.execute(
+                "SELECT title, date, source, url FROM reports WHERE report_id = ?", (report_id,)
+            ).fetchone()
             unit_id = str(row.get("unit_id") or f"{report_id}-p{int(row['page_number']):04d}-{row['visual_type']}")
             caption = str(row["caption"]).strip()
             if not caption:
@@ -67,7 +70,17 @@ def main() -> None:
                  checksum, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 values,
             )
-            units.append({**row, "unit_id": unit_id, "pipeline_version": values[9]})
+            units.append(
+                {
+                    **row,
+                    "unit_id": unit_id,
+                    "pipeline_version": values[9],
+                    "title": report_meta[0] if report_meta else "",
+                    "date": report_meta[1] if report_meta else "",
+                    "source": report_meta[2] if report_meta else "",
+                    "url": report_meta[3] if report_meta else "",
+                }
+            )
         conn.commit()
     finally:
         conn.close()
