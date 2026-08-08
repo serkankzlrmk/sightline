@@ -75,6 +75,7 @@ static/ne_*_countries.geojson
 .codegraph/
 graphify-out/
 backups/
+.tmp-*
 .gstack/
 
 # Local agent configs (not for public repo)
