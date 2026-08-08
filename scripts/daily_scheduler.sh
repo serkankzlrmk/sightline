@@ -13,3 +13,4 @@ while :; do
     python scripts/daily_ingest.py --no-purge || true
     rmdir /tmp/sightline-daily-ingest.lock 2>/dev/null || true
   fi
+done

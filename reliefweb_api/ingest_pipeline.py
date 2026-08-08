@@ -290,6 +290,7 @@ def ingest_from_api(
     has_content = False
     has_pdf = False
     pdf_pages = 0
+    source_object_key = None
 
     # ── 3. Process HTML body content in memory ────────────────────
     body_html = fields.get("body-html") or fields.get("body") or ""
