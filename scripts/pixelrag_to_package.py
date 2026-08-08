@@ -32,7 +32,9 @@ def main() -> None:
         source = next((path / f"tile_{tile_index:04d}.jpg" for path in tile_dirs if (path / f"tile_{tile_index:04d}.jpg").exists()), None)
         if source is None:
             continue
-        caption_data = captions.get(str(tile_index), captions.get(tile_index, {}))
+        caption_data = captions.get(
+            f"{int(tile_index):04d}", captions.get(str(tile_index), captions.get(tile_index, {}))
+        )
         if isinstance(caption_data, str):
             caption_data = {"caption": caption_data}
         asset_name = f"tile_{tile_index:04d}.jpg"
