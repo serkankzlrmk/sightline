@@ -164,6 +164,7 @@ class VectorStore:
         n_results: int = 5,
         country: str | None = None,
         source: str | None = None,
+        modality: str | None = None,
     ) -> list[dict]:
         """
         Semantic search over all ingested chunks.
@@ -190,6 +191,8 @@ class VectorStore:
             conditions.append({"primary_country": {"$eq": country}})
         if source:
             conditions.append({"source": {"$eq": source}})
+        if modality:
+            conditions.append({"modality": {"$eq": modality}})
 
         if len(conditions) == 1:
             where = conditions[0]

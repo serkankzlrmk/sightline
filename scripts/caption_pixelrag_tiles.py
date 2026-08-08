@@ -14,6 +14,9 @@ import os
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 PROMPT = """Classify this humanitarian report page tile. Return JSON only with:
 visual_type: one of chart, map, table, diagram, infographic, scanned_document, evidence_photo, decorative
