@@ -93,6 +93,9 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(date);
             CREATE INDEX IF NOT EXISTS idx_reports_source ON reports(source);
         """)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()}
+        if "source_object_key" not in columns:
+            conn.execute("ALTER TABLE reports ADD COLUMN source_object_key TEXT")
         conn.commit()
 
     # -------------------------------------------------------------------------
@@ -130,6 +133,7 @@ class DatabaseManager:
         has_pdf: bool = False,
         has_content: bool = False,
         pdf_pages: int = 0,
+        source_object_key: str | None = None,
     ) -> bool:
         """
         Insert a report and its text chunks.
@@ -179,8 +183,8 @@ class DatabaseManager:
                     INSERT INTO reports
                         (report_id, title, date, source, url, countries, themes,
                          format_type, language, has_pdf, has_content, pdf_pages,
-                         total_chunks, ingested_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         total_chunks, ingested_at, source_object_key)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         report_id,
@@ -197,6 +201,7 @@ class DatabaseManager:
                         pdf_pages,
                         len(chunks),
                         now,
+                        source_object_key,
                     ),
                 )
 

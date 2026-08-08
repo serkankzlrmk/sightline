@@ -1076,7 +1076,7 @@ def health():
     status flags — no model names, no release info, no dev_mode flag (which
     would be a banner saying 'auth is disabled here').
     """
-    from config import CHROMA_DIR, VECTOR_BACKEND
+    from config import CHROMA_DIR
 
     checks = {"status": "ok", "version": "1.2"}
 
@@ -1091,16 +1091,8 @@ def health():
         pass
     checks["db"] = db_ok
 
-    # Vector store check (boolean only — no backend name leak)
-    if VECTOR_BACKEND == "pgvector":
-        try:
-            from config import SUPABASE_DB_URL, SUPABASE_URL
-
-            checks["vector"] = bool(SUPABASE_URL and SUPABASE_DB_URL)
-        except Exception:
-            checks["vector"] = False
-    else:
-        checks["vector"] = Path(str(CHROMA_DIR)).exists()
+    # ChromaDB is the only live vector store.
+    checks["vector"] = Path(str(CHROMA_DIR)).exists()
 
     # LLM config check (boolean only — no model/provider name leak)
     checks["llm"] = bool(_LLM_API_KEY)

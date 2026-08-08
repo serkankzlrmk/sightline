@@ -8,12 +8,13 @@ Used by:
   - server.py /api/ingest/download route (in-memory ingest, no disk writes)
 """
 
+import hashlib
 import io
 import json
 import logging
 from pathlib import Path
 
-from config import VECTOR_BACKEND
+import config
 
 from .db_manager import (
     CHUNK_OVERLAP,
@@ -36,6 +37,32 @@ from .reliefweb_utils import clean_html_body, retry_request
 from .vector_store import CHROMA_DIR, VectorStore
 
 logger = logging.getLogger(__name__)
+
+
+def _archive_pdf_to_r2(report_id: int, pdf_bytes: bytes) -> str | None:
+    """Archive a source PDF off-server without making R2 part of live ingest."""
+    if not config.R2_BACKUP_ENABLED:
+        return None
+    required = (config.R2_ACCESS_KEY_ID, config.R2_SECRET_ACCESS_KEY, config.R2_BUCKET, config.R2_ENDPOINT_URL)
+    if not all(required):
+        logger.warning("R2 backup enabled but credentials are incomplete; continuing without archive")
+        return None
+    try:
+        import boto3
+
+        digest = hashlib.sha256(pdf_bytes).hexdigest()
+        key = f"{config.R2_BACKUP_PREFIX}/source-pdfs/{report_id}-{digest}.pdf"
+        client = boto3.client(
+            "s3",
+            endpoint_url=config.R2_ENDPOINT_URL,
+            aws_access_key_id=config.R2_ACCESS_KEY_ID,
+            aws_secret_access_key=config.R2_SECRET_ACCESS_KEY,
+        )
+        client.put_object(Bucket=config.R2_BUCKET, Key=key, Body=pdf_bytes, ContentType="application/pdf")
+        return key
+    except Exception as exc:
+        logger.warning("R2 source archive failed for report %s; ingest continues: %s", report_id, exc)
+        return None
 
 
 # ============================================================================
@@ -116,6 +143,7 @@ def auto_ingest(
     chunks = []
     has_content = False
     has_pdf = False
+    source_object_key = None
     pdf_pages = 0
 
     # HTML content chunks
@@ -151,6 +179,7 @@ def auto_ingest(
             has_pdf=has_pdf,
             has_content=has_content,
             pdf_pages=pdf_pages,
+            source_object_key=source_object_key,
         )
         db.close()
     except Exception as e:
@@ -159,7 +188,7 @@ def auto_ingest(
     # --- Insert into Vector Store (ChromaDB or pgvector) ---
     n_chunks = 0
     try:
-        vs = VectorStore(chroma_dir, backend=VECTOR_BACKEND)
+        vs = VectorStore(chroma_dir)
         n_chunks = vs.add_report(report_id, chunks, metadata)
     except Exception as e:
         # Vector store failed — rollback SQLite insert to avoid orphaned records
@@ -301,6 +330,7 @@ def ingest_from_api(
 
                 # Extract text from in-memory PDF bytes
                 pdf_bytes = pdf_resp.content
+                source_object_key = _archive_pdf_to_r2(report_id, pdf_bytes)
                 pdf_text, pdf_pages = _extract_pdf_from_bytes(pdf_bytes)
 
                 if pdf_text.strip():
@@ -337,7 +367,7 @@ def ingest_from_api(
     # ── 7. Insert into Vector Store (ChromaDB or pgvector) ──────
     n_chunks = 0
     try:
-        vs = VectorStore(chroma_dir, backend=VECTOR_BACKEND)
+        vs = VectorStore(chroma_dir)
         n_chunks = vs.add_report(report_id, chunks, metadata)
     except Exception as e:
         # Rollback the SQLite insert to avoid orphaned records (matches auto_ingest behavior)
@@ -360,6 +390,7 @@ def ingest_from_api(
         "chunks_added": n_chunks,
         "has_pdf": has_pdf,
         "has_content": has_content,
+        "source_object_key": source_object_key,
     }
 
 

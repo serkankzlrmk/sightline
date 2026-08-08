@@ -61,6 +61,35 @@ services:
       app:
         condition: service_healthy
 
+  # Daily previous-day ReliefWeb ingestion. This service is intentionally
+  # separate from the request worker and never sits on the user request path.
+  daily-ingest:
+    build: .
+    image: ghcr.io/serkankzlrmk/sightline:latest
+    container_name: sightline-daily-ingest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_PATH: /app/data/reliefweb.db
+      CHATS_DB_PATH: /app/data/chats.db
+      CHROMA_DIR: /app/reliefweb_chroma
+      DOWNLOADS_DIR: /app/reliefweb_downloads
+      DESKTOP_MODE: "false"
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-service-account.json
+    volumes:
+      - reliefweb_db:/app/data
+      - chroma_data:/app/reliefweb_chroma
+      - output_data:/app/output
+      - mcp_cache:/tmp/uv-cache
+      - npm_cache:/tmp/npm-cache
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./scripts:/app/scripts:ro
+    command: ["sh", "/app/scripts/daily_scheduler.sh"]
+    depends_on:
+      app:
+        condition: service_healthy
+
 volumes:
   reliefweb_db:
     external: true

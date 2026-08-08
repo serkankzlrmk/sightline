@@ -74,6 +74,7 @@ static/ne_*_countries.geojson
 # CodeGraph index (tooling artifact)
 .codegraph/
 graphify-out/
+backups/
 .gstack/
 
 # Local agent configs (not for public repo)

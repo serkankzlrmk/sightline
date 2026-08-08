@@ -2,11 +2,7 @@
 sitrep_pipeline/chroma_adapter.py
 Data retrieval and semantic retrieval operations on vector store.
 
-Supports two backends:
-  - 'chromadb' (default): Uses local ChromaDB for vector storage
-  - 'pgvector': Uses Supabase PostgreSQL + pgvector for cloud-hosted storage
-
-Controlled by VECTOR_BACKEND env var (default: 'chromadb').
+    Uses local ChromaDB for live vector storage.
 """
 
 import os
@@ -18,7 +14,6 @@ from config import (
     CHROMA_COLLECTION,
     CHROMA_DIR,
     RETRIEVAL_TOP_K,
-    VECTOR_BACKEND,
 )
 
 
@@ -41,8 +36,10 @@ class ChromaAdapter:
     """
 
     def __init__(self, backend: str = None) -> None:
-        self.backend = backend or VECTOR_BACKEND
-        self._pgvector = None  # Lazy init for pgvector
+        if backend and backend != "chromadb":
+            raise ValueError("Only ChromaDB is supported by this deployment")
+        self.backend = "chromadb"
+        self._pgvector = None
         self._countries_cache = None  # Cache for list_countries()
         self._countries_with_counts_cache = None  # Cache for list_countries_with_counts()
 
@@ -57,12 +54,8 @@ class ChromaAdapter:
                 embedding_function=self.ef,
                 metadata={"hnsw:space": "cosine"},
             )
-        elif self.backend == "pgvector":
-            # Lazy init — will connect on first use
-            self._pgvector = None
-            self.ef = None  # Will be set when pgvector store is initialized
         else:
-            raise ValueError(f"Unknown VECTOR_BACKEND: {self.backend!r}. Use 'chromadb' or 'pgvector'.")
+            raise ValueError("Only ChromaDB is supported by this deployment")
 
     def _get_pgvector(self):
         """Lazy-initialize pgvector store."""

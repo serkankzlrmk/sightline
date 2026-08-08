@@ -82,9 +82,9 @@ CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))
 # and no files are written to disk. The directory is NOT auto-created anymore.
 
 # ============================================================================
-# VECTOR STORE BACKEND — 'chromadb' (default) or 'pgvector'
+# VECTOR STORE — ChromaDB is the live vector store.
 # ============================================================================
-VECTOR_BACKEND: str = os.getenv("VECTOR_BACKEND", "chromadb")  # 'chromadb' or 'pgvector'
+VECTOR_BACKEND: str = "chromadb"
 
 # ============================================================================
 # CHROMA DB — shared by both the agent and the SITREP pipeline
@@ -96,14 +96,6 @@ CHROMA_DIR: str = os.getenv(
 CHROMA_COLLECTION: str = os.getenv("CHROMA_COLLECTION", "reliefweb_chunks")
 
 # ============================================================================
-# SUPABASE / PGVECTOR — used when VECTOR_BACKEND=pgvector
-# ============================================================================
-SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
-# Direct PostgreSQL connection string (for pgvector operations)
-# Format: postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
-SUPABASE_DB_URL: str = os.getenv("SUPABASE_DB_URL", "")
 EMBEDDING_DIM: int = int(os.getenv("EMBEDDING_DIM", "384"))  # all-MiniLM-L6-v2
 
 # ============================================================================
@@ -333,6 +325,16 @@ SERVER_PORT: int = int(os.getenv("SERVER_PORT", "5001"))
 SERVER_DEBUG: bool = os.getenv("SERVER_DEBUG", "false").lower() == "true"
 SERVER_API_KEY: str = os.getenv("SERVER_API_KEY", "")
 CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
+
+# Optional off-server backup storage. Live reads and writes never use R2.
+R2_BACKUP_ENABLED: bool = os.getenv("R2_BACKUP_ENABLED", "false").lower() == "true"
+R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY_ID: str = os.getenv("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY: str = os.getenv("R2_SECRET_ACCESS_KEY", "")
+R2_BUCKET: str = os.getenv("R2_BUCKET", "")
+R2_ENDPOINT_URL: str = os.getenv("R2_ENDPOINT_URL", "")
+R2_BACKUP_PREFIX: str = os.getenv("R2_BACKUP_PREFIX", "sightline-backups")
+R2_BACKUP_RETENTION_DAYS: int = int(os.getenv("R2_BACKUP_RETENTION_DAYS", "30"))
 
 # DESKTOP_MODE: bypass Firebase auth for local desktop use (loopback only).
 # When true, all requests get a mock admin user — no Firebase SA file needed.
