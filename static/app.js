@@ -6806,6 +6806,10 @@ function initGuidedProposalPipelineStep1Reference() {
     }
   });
   document.getElementById('btn-new-proposal')?.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); create(); },true);
+  const legacyMarkupGuard = new MutationObserver(() => {
+    if (steps.querySelector('[data-guided-action]')) render();
+  });
+  legacyMarkupGuard.observe(panel, { childList: true, subtree: true });
   (async () => { try { const [countryData,donorData] = await Promise.all([guidedRequest('/api/db/countries'),guidedRequest('/api/proposals/donors')]); guidedProposalState.countries = Array.isArray(countryData) ? countryData : []; donors = Array.isArray(donorData) ? donorData : []; await refresh(); } catch (error) { review.innerHTML = `<div class="proposal-review-message error">${guidedEsc(error.message)}</div>`; } })();
 }
 
