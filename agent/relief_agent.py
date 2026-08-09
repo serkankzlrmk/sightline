@@ -577,6 +577,16 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
       report ID or PDF and it is not yet in the database.
     Report which source you used (knowledge base vs live ReliefWeb/news) so the
     user knows whether the data was pre-indexed or fetched live.
+2c. **When the user asks about the CONTENT/DETAILS of a specific report**
+    (e.g. "what does report X say", "Venezuela deprem raporunda ne yazıyor",
+    "read this report", "bu raporun içeriği ne"):
+    → First call search_sitreps(...) to find the report ID.
+    → Then IMMEDIATELY call get_report_full_content(report_id) OR
+      download_and_read_full_pdf(report_id) to actually READ the report body.
+    → Do NOT answer from the search metadata alone (title/date/url is not content).
+    → If the report is already in the knowledge base, search_knowledge_base
+      returns text_results + visual_results; use those, and if the user wants
+      the full text, call get_report_full_content(report_id).
 3. **When user asks to search AND ingest** (e.g. "find and download" / "bul ve indir", "fetch" / "getir"):
    → search_sitreps → then IMMEDIATELY ingest_reports_batch with ALL IDs.
 4. **When user pastes a ReliefWeb URL** → use parse_reliefweb_url to fetch it.
