@@ -6553,6 +6553,13 @@ function guidedTechnicalMatrixHtml(active, locked) {
   const levels = [['impact','Impact',''],['outcome','Outcome','impact'],['output','Output','outcome'],['activity','Activity','output']];
   return `<div class="guided-logframe-builder"><div class="guided-logframe-builder-head"><strong>Impact → Outcome → Output → Activity</strong><span>${rows.length} rows</span></div>${levels.map(([level,label,parentLevel]) => { const items = rows.filter(row => row.level === level); const add = locked ? '' : `<button class="btn btn-secondary btn-sm" data-guided-logframe-action="add" data-level="${level}">+ Add ${label}</button>`; const cards = items.map(row => { const parents = rows.filter(parent => parent.level === parentLevel); const parent = level === 'impact' ? '<span class="guided-logframe-root">Top level</span>' : `<select class="guided-input guided-logframe-parent" data-guided-logframe-action="parent" data-id="${guidedEsc(row.id)}" ${locked ? 'disabled' : ''}><option value="">Select parent</option>${parents.map(p => `<option value="${guidedEsc(p.id)}" ${p.id === row.parent_id ? 'selected' : ''}>${guidedEsc(p.id)}</option>`).join('')}</select>`; return `<article class="guided-logframe-card guided-logframe-${level}"><div class="guided-logframe-card-head"><strong>${guidedEsc(row.id || level)}</strong>${parent}${locked ? '' : `<button class="guided-icon-btn danger" data-guided-logframe-action="remove" data-id="${guidedEsc(row.id)}">×</button>`}</div><div class="guided-logframe-fields"><label>Intervention logic<textarea class="guided-input" data-guided-logframe-action="text" data-field="intervention_logic" data-id="${guidedEsc(row.id)}" ${locked ? 'disabled' : ''}>${guidedEsc(row.intervention_logic || '')}</textarea></label><label>Means of verification<textarea class="guided-input" data-guided-logframe-action="text" data-field="means_of_verification" data-id="${guidedEsc(row.id)}" ${locked ? 'disabled' : ''}>${guidedEsc(row.means_of_verification || '')}</textarea></label><label>Assumptions<textarea class="guided-input" data-guided-logframe-action="text" data-field="assumptions" data-id="${guidedEsc(row.id)}" ${locked ? 'disabled' : ''}>${guidedEsc(row.assumptions || '')}</textarea></label><label>SMART indicator<input class="guided-input" data-guided-logframe-action="indicator" data-id="${guidedEsc(row.id)}" value="${guidedEsc(row.indicators?.[0]?.indicator_title || row.indicators?.[0] || '')}" ${locked ? 'disabled' : ''}></label></div></article>`; }).join(''); return `<section class="guided-logframe-tier"><header><div><strong>${label}s</strong><small>${items.length} row${items.length === 1 ? '' : 's'}</small></div>${add}</header>${cards || `<div class="guided-logframe-empty">No ${label.toLowerCase()} added yet.</div>`}</section>`; }).join('')}</div>`;
 }
+function guidedScheduleHtml(active, locked) {
+  const data = active?.technical_data || {};
+  const activities = (Array.isArray(data.logframe) ? data.logframe : []).filter(row => row.level === 'activity');
+  const schedule = Array.isArray(data.gantt) ? data.gantt : [];
+  const months = Array.from({length: 12}, (_, i) => i + 1);
+  return `<div class="guided-schedule-builder"><div class="guided-schedule-head"><div><span class="proposal-v2-kicker">Activity schedule</span><strong>Project timeline · 12 months</strong></div><span>${activities.length} activities</span></div>${activities.length ? `<div class="guided-schedule-table-wrap"><table class="guided-schedule-table"><thead><tr><th>Activity</th>${months.map(m => `<th>M${m}</th>`).join('')}</tr></thead><tbody>${activities.map(activity => { const item = schedule.find(entry => entry.activity_id === activity.id) || {}; const activeMonths = new Set(item.months || []); return `<tr><th>${guidedEsc(activity.id)}</th>${months.map(m => `<td><input type="checkbox" data-guided-schedule-month="${m}" data-activity-id="${guidedEsc(activity.id)}" ${activeMonths.has(m) ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="${guidedEsc(activity.id)} month ${m}"></td>`).join('')}</tr>`; }).join('')}</tbody></table></div>` : '<div class="guided-schedule-empty">Add an Activity above to place it on the schedule.</div>'}</div>`;
+}
 function guidedRender() {
   const active = guidedProposalState.active; const content = document.getElementById('guided-content'); if (!content) return; guidedRenderList(); guidedRenderStepper(); if (!active) { content.innerHTML = '<div class="guided-empty large">Select a proposal or create a new one.</div>'; return; }
   document.getElementById('guided-title').textContent = active.project_title || 'Untitled proposal'; document.getElementById('guided-subtitle').textContent = `${active.country || 'Country pending'} · ${active.donor || 'Donor pending'} · ${active.reference_filename || 'No call document attached'}`; document.getElementById('guided-delete').hidden = !active.can_delete; document.getElementById('guided-call-brief').hidden = !active.reference_text;
@@ -6845,7 +6852,7 @@ document.addEventListener('click', event => {
   } else if (button.dataset.guidedLogframeAction === 'remove') {
     const id = button.dataset.id; const removed = new Set([id]); let changed = true; while (changed) { changed = false; rows.forEach(row => { if (removed.has(row.parent_id) && !removed.has(row.id)) { removed.add(row.id); changed = true; } }); } data.logframe = rows.filter(row => !removed.has(row.id));
   } else return;
-  event.preventDefault(); event.stopPropagation(); const host = document.querySelector('.guided-logframe-upgraded'); if (host) host.innerHTML = guidedTechnicalMatrixHtml(proposal, proposal.step3_state === 'locked');
+  event.preventDefault(); event.stopPropagation(); const host = document.querySelector('.guided-logframe-upgraded'); if (host) host.innerHTML = guidedTechnicalMatrixHtml(proposal, proposal.step3_state === 'locked'); const scheduleHost = document.querySelector('.guided-schedule-upgraded'); if (scheduleHost) scheduleHost.innerHTML = guidedScheduleHtml(proposal, proposal.step3_state === 'locked');
 }, true);
 document.addEventListener('input', event => {
   const el = event.target.closest('[data-guided-logframe-action]'); if (!el || !guidedProposalState.active) return;
@@ -6854,17 +6861,21 @@ document.addEventListener('input', event => {
   else if (el.dataset.guidedLogframeAction === 'text') row[el.dataset.field] = el.value;
 }, true);
 document.addEventListener('change', event => {
+  const checkbox = event.target.closest('[data-guided-schedule-month]'); if (!checkbox || !guidedProposalState.active) return;
+  const data = guidedProposalState.active.technical_data || (guidedProposalState.active.technical_data = {}); const schedule = Array.isArray(data.gantt) ? data.gantt : (data.gantt = []); const id = checkbox.dataset.activityId; let item = schedule.find(entry => entry.activity_id === id); if (!item) { item = {activity_id:id, months:[]}; schedule.push(item); } const month = Number(checkbox.dataset.guidedScheduleMonth); const months = new Set(item.months || []); checkbox.checked ? months.add(month) : months.delete(month); item.months = [...months].sort((a,b) => a - b);
+}, true);
+document.addEventListener('change', event => {
   const el = event.target.closest('[data-guided-logframe-action="parent"]'); if (!el || !guidedProposalState.active) return;
   const row = (guidedProposalState.active.technical_data?.logframe || []).find(item => item.id === el.dataset.id); if (row) row.parent_id = el.value;
 }, true);
 function upgradeVisibleTechnicalMatrix() {
   const content = document.getElementById('wizard-section-content');
-  const area = content?.querySelector('[data-guided-field="logframe"]');
-  if (!area || guidedProposalState.step !== 3 || area.dataset.matrixUpgraded === 'true') return;
-  const wrapper = area.closest('.guided-field, .form-group, label') || area.parentElement;
-  if (!wrapper) return;
-  const host = document.createElement('div'); host.className = 'guided-logframe-upgraded'; host.innerHTML = guidedTechnicalMatrixHtml(guidedProposalState.active, guidedProposalState.active?.step3_state === 'locked');
-  area.dataset.matrixUpgraded = 'true'; wrapper.replaceWith(host);
+  if (!content || guidedProposalState.step !== 3) return;
+  const locked = guidedProposalState.active?.step3_state === 'locked';
+  const area = content.querySelector('[data-guided-field="logframe"]');
+  if (area && area.dataset.matrixUpgraded !== 'true') { const wrapper = area.closest('.guided-field, .form-group, label') || area.parentElement; if (wrapper) { const host = document.createElement('div'); host.className = 'guided-logframe-upgraded'; host.innerHTML = guidedTechnicalMatrixHtml(guidedProposalState.active, locked); area.dataset.matrixUpgraded = 'true'; wrapper.replaceWith(host); } }
+  const scheduleArea = content.querySelector('[data-guided-field="gantt"]');
+  if (scheduleArea && scheduleArea.dataset.scheduleUpgraded !== 'true') { const wrapper = scheduleArea.closest('.guided-field, .form-group, label') || scheduleArea.parentElement; if (wrapper) { const host = document.createElement('div'); host.className = 'guided-schedule-upgraded'; host.innerHTML = guidedScheduleHtml(guidedProposalState.active, locked); scheduleArea.dataset.scheduleUpgraded = 'true'; wrapper.replaceWith(host); } }
 }
 setInterval(upgradeVisibleTechnicalMatrix, 250);
 
