@@ -1325,13 +1325,17 @@ def search_knowledge_base(
         source_org: Optional source org filter (e.g., 'UNHCR', 'WHO', 'WFP')
 
     Returns:
-        JSON list of relevant chunks ranked by similarity, each with:
-        report_id, title, date, source, countries, chunk_preview, similarity score
+        JSON with two result groups:
+        - text_results: relevant text chunks from reports
+        - visual_results: page caption/description hits (page_number, visual_type,
+          asset_key) for reports that have been visually enriched
+        Each report's visual context is included when the user asks for details
+        about a specific report.
 
     Examples:
         search_knowledge_base.invoke({"query": "health situation Sudan"})
         search_knowledge_base.invoke({"query": "displacement figures", "country": "Sudan"})
-        search_knowledge_base.invoke({"query": "food insecurity", "source_org": "WFP"})
+        search_knowledge_base.invoke({"query": "what does the Venezuela earthquake report say", "source_org": "OCHA"})
     """
     try:
         from .vector_store import CHROMA_DIR, VectorStore
@@ -1343,12 +1347,28 @@ def search_knowledge_base(
             return format_response(
                 {
                     "message": "Knowledge base is empty. Download some reports first.",
-                    "results": [],
+                    "text_results": [],
+                    "visual_results": [],
                 }
             )
 
-        results = vs.search(query, n_results=n_results, country=country, source=source_org)
-        return format_response({"total_chunks_in_db": stats["total_chunks"], "results": results})
+        text_results = vs.search(query, n_results=n_results, country=country, source=source_org)
+        # Also retrieve visual caption hits so the agent can cite pages/charts.
+        visual_results = vs.search(query, n_results=n_results, country=country, source=source_org, modality="visual")
+        # Prefer visual hits tied to reports already surfaced in text_results.
+        text_report_ids = {r.get("report_id") for r in text_results if r.get("report_id")}
+        visual_results = [
+            v
+            for v in visual_results
+            if v.get("report_id") in text_report_ids
+        ][: max(1, n_results // 2)]
+        return format_response(
+            {
+                "total_chunks_in_db": stats["total_chunks"],
+                "text_results": text_results,
+                "visual_results": visual_results,
+            }
+        )
 
     except Exception as e:
         return format_error("SearchError", str(e))
