@@ -35,7 +35,12 @@ CHROMA_DIR = str(config.CHROMA_DIR)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_VISION_MODEL", "gemini-flash-latest")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-PIPELINE_VERSION = "gemini-daily-v1"
+# OpenRouter vision provider
+VISION_PROVIDER = os.getenv("VISION_PROVIDER", "gemini")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = os.getenv("VISION_MODEL", "google/gemma-3-4b-it")
+PIPELINE_VERSION = "visual-daily-v1"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,31 +67,77 @@ def parse_result(content: str) -> dict:
         return {"visual_type": "unknown", "caption": "Could not classify.", "relevance": 0.0, "is_decorative": True}
 
 
-def classify_image(image_bytes: bytes) -> dict:
+def _classify_gemini(image_bytes: bytes) -> dict:
+    import base64
+    import time
+
+    import requests
+
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    time.sleep(4.2)  # Gemini free tier ~15 RPM.
+    for attempt in range(5):
+        response = requests.post(
+            GEMINI_URL.format(model=GEMINI_MODEL),
+            headers={"X-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+            json={
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": PROMPT},
+                            {"inline_data": {"mime_type": "image/jpeg", "data": encoded}},
+                        ]
+                    }
+                ],
+                "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
+            },
+            timeout=120,
+        )
+        if response.status_code == 429:
+            retry = response.headers.get("Retry-After")
+            wait = float(retry) if retry else 15 + (attempt * 10)
+            log.warning("Gemini rate limit, backing off %.1fs", wait)
+            time.sleep(wait)
+            continue
+        response.raise_for_status()
+        text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(text) if text.strip().startswith("{") else parse_result(text)
+    raise RuntimeError("Gemini rate limit retries exhausted")
+
+
+def _classify_openrouter(image_bytes: bytes) -> dict:
     import base64
 
     import requests
 
     encoded = base64.b64encode(image_bytes).decode("ascii")
     response = requests.post(
-        GEMINI_URL.format(model=GEMINI_MODEL),
-        headers={"X-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+        f"{OPENROUTER_BASE_URL.rstrip('/')}/chat/completions",
+        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
         json={
-            "contents": [
+            "model": OPENROUTER_MODEL,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
                 {
-                    "parts": [
-                        {"text": PROMPT},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": encoded}},
-                    ]
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": PROMPT},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
+                    ],
                 }
             ],
-            "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
         },
         timeout=120,
     )
     response.raise_for_status()
-    text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return json.loads(text) if text.strip().startswith("{") else parse_result(text)
+    content = response.json()["choices"][0]["message"]["content"]
+    return parse_result(content)
+
+
+def classify_image(image_bytes: bytes) -> dict:
+    if VISION_PROVIDER == "openrouter":
+        return _classify_openrouter(image_bytes)
+    return _classify_gemini(image_bytes)
 
 
 def render_pdf_pages(pdf_bytes: bytes, max_pages: int = 40) -> list[bytes]:
@@ -265,7 +316,10 @@ def main() -> None:
             if not os.getenv(var):
                 raise SystemExit(f"Missing R2 env var: {var}")
 
-    if not GEMINI_API_KEY:
+    if VISION_PROVIDER == "openrouter":
+        if not OPENROUTER_API_KEY:
+            raise SystemExit("OPENROUTER_API_KEY is required (VISION_PROVIDER=openrouter)")
+    elif not GEMINI_API_KEY:
         raise SystemExit("GEMINI_API_KEY is required")
 
     import sqlite3
