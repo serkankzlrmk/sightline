@@ -64,11 +64,11 @@ CREATE TABLE IF NOT EXISTS proposal_v2_setups (
 def _ensure_schema():
     """Create the proposal_v2_setups table if it does not exist."""
     try:
-        import server as _srv
+        import sqlite3
 
-        if not hasattr(_srv, "_chats_db"):
-            return  # server not fully initialized yet — retry on next request
-        conn = _srv._chats_db()
+        from config import CHATS_DB_PATH
+
+        conn = sqlite3.connect(str(CHATS_DB_PATH))
         conn.execute(_PROPOSAL_SCHEMA)
         conn.commit()
         conn.close()
