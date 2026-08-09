@@ -272,7 +272,7 @@ Public endpoints (no auth): `/api/health`, `/api/public/stats`, `/api/public/bul
 ssh root@YOUR_SERVER_IP
 
 # Check production health
-curl -sfk https://YOUR_DOMAIN/api/health
+curl -sfk https://YOUR_PROJECT_ID.com/api/health
 
 # Check production logs
 ssh root@YOUR_SERVER_IP "docker logs sightline --tail 50"

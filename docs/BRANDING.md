@@ -75,7 +75,6 @@ Tabs : Database | Sightline | SITREP
 | `reliefagent` (user/service) | `sightline` |
 | `/var/log/reliefagent` | `/var/log/sightline` |
 | `reliefagent.service` | `sightline.service` |
-| `YOUR_DOMAIN` | `sightline.duckdns.org` |
 | `redagent_platform` | `sightline_platform` |
 | `novasphere_platform` | `sightline_platform` |
 

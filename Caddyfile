@@ -2,8 +2,8 @@
 # Sightline — Caddyfile (reverse proxy with automatic TLS)
 # =============================================================================
 
-# Production domains — Caddy gets TLS certs automatically
-YOUR_DOMAIN, YOUR_PROJECT_ID.com {
+# Production domain — Caddy gets TLS certs automatically
+YOUR_PROJECT_ID.com {
     encode zstd gzip
 
     @static_assets {

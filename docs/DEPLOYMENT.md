@@ -15,7 +15,7 @@ User → Caddy (80/443, auto-TLS) → Docker app (5001, gunicorn)
 ### Server
 - **Hetzner CAX11 ARM64** (2 vCPU, 4GB RAM, Falkenstein)
 - **IP:** YOUR_SERVER_IP
-- **Domains:** YOUR_DOMAIN, YOUR_PROJECT_ID.com
+- **Domains:** YOUR_PROJECT_ID.com
 - **OS:** Ubuntu 24.04 ARM64
 
 ### Docker Services
