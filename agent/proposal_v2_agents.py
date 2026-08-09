@@ -387,6 +387,30 @@ Do not include markdown, source lists, or explanatory text outside the JSON."""
     return parsed
 
 
+def generate_step_four_draft(setup: dict) -> dict:
+    """Create an editable budget, risk and compliance draft for Step 4."""
+    donor = DONOR_PROFILES.get(setup.get("donor"), DONOR_PROFILES["generic"])
+    source = {
+        "locked_setup": {key: setup.get(key, "") for key in ("project_title", "country", "donor", "budget_amount", "budget_currency")},
+        "technical_design": setup.get("technical_data", {}),
+        "current_financial_data": setup.get("financial_data", {}),
+        "donor_rules": donor.get("financial_rules", {}),
+        "call_document": str(setup.get("reference_text", ""))[:10000],
+    }
+    prompt = f"""{donor.get('prompt_directive', '')}
+Create an editable Step 4 commitments and financials draft. Return JSON only:
+{{"budget_items":[{{"item_code":"1.1","category":1,"description":"...","unit_type":"month","quantity":1,"unit_cost":0,"duration_frequency":1,"donor_grant_share":0,"co_financing_share":0}}],"risks":[{{"category":"Operational","risk_description":"...","likelihood":3,"impact":4,"mitigation_strategy":"..."}}],"psea_signoff":false,"sphere_standards_narrative":"...","draft_notes":["..."]}}
+Use 4-8 realistic itemized lines tied to the activities, valid categories 1-5, positive quantities and costs, and keep category 5 indirect overhead within the donor ceiling. Add 3-5 risks with actionable mitigation. Do not claim that a policy is signed: leave psea_signoff false and draft the commitment text for user confirmation. Preserve current_financial_data values when present. Never invent donor commitments."""
+    raw, _ = _run_generator_with_tools(prompt, json.dumps(source, ensure_ascii=False), "4", max_tokens=5000)
+    parsed = _json(raw)
+    if not isinstance(parsed.get("budget_items"), list): parsed["budget_items"] = []
+    if not isinstance(parsed.get("risks"), list): parsed["risks"] = []
+    parsed["psea_signoff"] = bool(parsed.get("psea_signoff"))
+    parsed.setdefault("sphere_standards_narrative", "")
+    parsed.setdefault("draft_notes", [])
+    return parsed
+
+
 def analyze_step_one(setup, rules):
     """Generate a normalized intent then verify it blind, capped at three refinements."""
     donor = DONOR_PROFILES[setup["donor"]]

@@ -430,6 +430,31 @@ def api_guided_proposal_generate_step3_draft(setup_id):
         conn.close()
 
 
+@guided_proposal_bp.route("/setups/<setup_id>/generate-step4-draft", methods=["POST"])
+@require_role("premium")
+def api_guided_proposal_generate_step4_draft(setup_id):
+    """Create an editable budget, risks and commitments draft."""
+    uid, role = current_uid(), current_role()
+    conn, row = _owned_setup(setup_id, uid, role)
+    try:
+        if not row:
+            return jsonify({"error": "Setup not found."}), 404
+        if row["step3_state"] != "locked":
+            return jsonify({"error": "Lock Step 3 before generating the financial draft."}), 409
+        if row["step4_state"] == "locked":
+            return jsonify({"error": "Step 4 is locked; create a new proposal to draft it again."}), 409
+        from agent.proposal_v2_agents import generate_step_four_draft
+
+        draft = generate_step_four_draft(_serialize(row))
+        _log_event(uid, "guided_proposal_step4_draft_generated", {"setup_id": setup_id})
+        return jsonify({"draft": draft, "generated_at": time.time()})
+    except Exception:
+        logger.exception("Step 4 financial draft generation failed for setup %s", setup_id)
+        return jsonify({"error": "AI financial draft is temporarily unavailable. Please try again."}), 503
+    finally:
+        conn.close()
+
+
 @guided_proposal_bp.route("/setups/<setup_id>/lock", methods=["POST"])
 @require_role("premium")
 def api_guided_proposal_lock_setup(setup_id):
