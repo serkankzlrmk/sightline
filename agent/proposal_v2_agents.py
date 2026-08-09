@@ -329,12 +329,12 @@ def generate_step_three_draft(setup: dict) -> dict:
 Create an editable Step 3 technical design from the locked setup, context and uploaded call.
 Return JSON only with this shape:
 {{"toc_narrative":"...","hypotheses":["..."],"grant_months":12,
-"logframe":[{{"id":"impact-1","level":"impact","parent_id":"","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}},
-{{"id":"outcome-1","level":"outcome","parent_id":"impact-1","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}},
-{{"id":"output-1","level":"output","parent_id":"outcome-1","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}},
-{{"id":"activity-1","level":"activity","parent_id":"output-1","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}}],
+"logframe":[{{"id":"impact-1","level":"impact","parent_id":"","intervention_logic":"...","indicators":[{{"indicator_title":"...","baseline_value":"...","target_value":"...","unit_of_measure":"...","disaggregation":"...","data_source_and_frequency":"..."}}],"means_of_verification":"...","assumptions":"..."}},
+{{"id":"outcome-1","level":"outcome","parent_id":"impact-1","intervention_logic":"...","indicators":[{{"indicator_title":"...","baseline_value":"...","target_value":"...","unit_of_measure":"...","disaggregation":"...","data_source_and_frequency":"..."}}],"means_of_verification":"...","assumptions":"..."}},
+{{"id":"output-1","level":"output","parent_id":"outcome-1","intervention_logic":"...","indicators":[{{"indicator_title":"...","baseline_value":"...","target_value":"...","unit_of_measure":"...","disaggregation":"...","data_source_and_frequency":"..."}}],"means_of_verification":"...","assumptions":"..."}},
+{{"id":"activity-1","level":"activity","parent_id":"output-1","intervention_logic":"...","indicators":[{{"indicator_title":"...","baseline_value":"...","target_value":"...","unit_of_measure":"...","disaggregation":"...","data_source_and_frequency":"..."}}],"means_of_verification":"...","assumptions":"..."}}],
 "gantt":[{{"activity_id":"activity-1","months":[1,2,3]}}],"draft_notes":["..."]}}
-Use short sequential IDs, preserve parent relationships, and do not invent donor commitments.
+Use short sequential IDs, preserve parent relationships, and do not invent donor commitments. Draft at least one complete SMART indicator for every row; for outcome/output rows all six indicator fields are mandatory. Use clearly labelled assumptions when a baseline is unknown (for example, "To be established in inception survey") rather than leaving fields blank.
 Keep every narrative field under 500 characters and return at most 2 indicators per row.
 Return exactly 1 impact, 1 outcome, 2 outputs, and 2 activities; do not add extra rows.
 Do not include markdown, source lists, or explanatory text outside the JSON."""
