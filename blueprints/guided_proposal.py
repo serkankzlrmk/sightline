@@ -336,20 +336,33 @@ def api_guided_proposal_update_setup(setup_id):
         if row["state"] == "locked":
             return jsonify({"error": "Locked setup is immutable. Create a new revision to change it."}), 409
 
-        setup = normalize_setup(request.get_json(silent=True) or {})
+        incoming = normalize_setup(request.get_json(silent=True) or {})
+        # Merge: only overwrite fields that the client explicitly sent (non-empty).
+        # Keep existing DB values for any field the client omits or sends empty.
+        existing = _serialize(row)
+        for key in ("project_title", "country", "region", "donor", "executive_intent"):
+            if not incoming.get(key):
+                incoming[key] = existing.get(key, "")
+        if incoming.get("budget_amount") is None:
+            incoming["budget_amount"] = existing.get("budget_amount")
+        if incoming.get("budget_currency") is None or incoming["budget_currency"] == "":
+            incoming["budget_currency"] = existing.get("budget_currency", "USD")
+        if not incoming.get("sectors"):
+            incoming["sectors"] = existing.get("sectors", [])
+
         conn.execute(
             """UPDATE proposal_v2_setups SET project_title = ?, country = ?, region = ?, donor = ?,
                budget_amount = ?, budget_currency = ?, executive_intent = ?, sectors = ?,
                state = 'draft', analysis = '{}', updated_at = ? WHERE id = ?""",
             (
-                setup["project_title"],
-                setup["country"],
-                setup["region"],
-                setup["donor"],
-                setup["budget_amount"],
-                setup["budget_currency"],
-                setup["executive_intent"],
-                json.dumps(setup["sectors"]),
+                incoming["project_title"],
+                incoming["country"],
+                incoming["region"],
+                incoming["donor"],
+                incoming["budget_amount"],
+                incoming["budget_currency"],
+                incoming["executive_intent"],
+                json.dumps(incoming["sectors"]),
                 time.time(),
                 setup_id,
             ),
