@@ -15,6 +15,7 @@ const CHAT_MODELS = {
   thinking: { name: 'Thinking', desc: 'Balanced', premium: false },
   ultra: { name: 'Ultra', desc: 'Best quality — Premium', premium: true },
   deep_think: { name: 'Deep Think', desc: 'Deep analysis — Premium', premium: true },
+  vision: { name: 'Vision', desc: 'Görsel + belge analizi — Premium', premium: true, vision: true },
 };
 
 // ── Shared state ────────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ const chatState = {
   mode: 'analyst',         // analyst | proposal | me_reviewer
   proposalId: null,       // active proposal for proposal/review modes
   proposalsLoaded: false,
+  attachment: null,       // { name, dataUrl, mime } for Vision model
 };
 
 // SITREP tab state
@@ -467,6 +469,10 @@ async function sendMessage() {
   try {
     const body = { message: text, model: chatState.selectedModel, mode: chatState.mode };
     if (chatState.proposalId) body.proposal_id = chatState.proposalId;
+    if (chatState.attachment) {
+      body.attachment = chatState.attachment;
+      chatState.attachment = null;
+    }
 
     const resp = await api('/api/agent/chat', {
       method: 'POST',
@@ -3009,6 +3015,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatNewBtn = document.getElementById('chat-new-btn');
   if (chatNewBtn) chatNewBtn.addEventListener('click', newChat);
   if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+
+  // Attach image for Vision model
+  const attachBtn = document.getElementById('attach-btn');
+  const attachInput = document.getElementById('attach-input');
+  if (attachBtn && attachInput) {
+    attachBtn.addEventListener('click', () => {
+      if (chatState.selectedModel !== 'vision') {
+        toast('Görsel eklemek için Vision modelini seçin (Premium)', 'warning');
+        return;
+      }
+      attachInput.click();
+    });
+    attachInput.addEventListener('change', () => {
+      const file = attachInput.files && attachInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        chatState.attachment = { name: file.name, mime: file.type || 'application/octet-stream', dataUrl: reader.result };
+        toast(`📎 ${file.name} eklendi`, 'success', 3000);
+      };
+      reader.readAsDataURL(file);
+      attachInput.value = '';
+    });
+  }
 
   // Mode selector
   document.querySelectorAll('.mode-btn').forEach(btn => {

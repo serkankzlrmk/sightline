@@ -157,6 +157,7 @@ def api_agent_chat():
     user_message = (data.get("message") or "").strip()
     if not user_message:
         return jsonify({"error": "empty message"}), 400
+    attachment = data.get("attachment") or None
 
     # ── Pre-flight checks (BEFORE setting busy flag) ──────────────────────
     # Do all validation that can return early here so we never leave the
@@ -273,6 +274,22 @@ def api_agent_chat():
 
                     if not messages or not isinstance(messages[0], SystemMessage):
                         messages = [SystemMessage(content=_system_prompt_text)] + messages
+                    # Vision model: attach image to the last user message if provided.
+                    if model_config.get("vision") and attachment and messages:
+                        from langchain_core.messages import HumanMessage
+
+                        last = messages[-1]
+                        if isinstance(last, HumanMessage):
+                            img = attachment.get("dataUrl", "")
+                            mime = attachment.get("mime", "image/jpeg")
+                            if img.startswith("data:"):
+                                img = img.split(",", 1)[-1]
+                            messages[-1] = HumanMessage(
+                                content=[
+                                    {"type": "text", "text": last.content if isinstance(last.content, str) else str(last.content)},
+                                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img}"}},
+                                ]
+                            )
                     return {"messages": temp_llm_with_tools.invoke(messages)}
 
                 _temp_builder = StateGraph(MessagesState)

@@ -212,6 +212,13 @@ CHAT_MODELS: dict = {
         "premium": True,
         "sequential": True,
     },
+    "vision": {
+        "name": "Vision",
+        "model": "google/gemini-2.5-flash",
+        "desc": "Görsel + belge analizi (PDF/DOC/Resim)",
+        "premium": True,
+        "vision": True,
+    },
 }
 
 # ============================================================================
