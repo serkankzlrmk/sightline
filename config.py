@@ -215,7 +215,7 @@ CHAT_MODELS: dict = {
     "vision": {
         "name": "Vision",
         "model": "google/gemini-2.5-flash",
-        "desc": "Görsel + belge analizi (PDF/DOC/Resim)",
+        "desc": "Image + document analysis (PDF/DOC/Image)",
         "premium": True,
         "vision": True,
     },

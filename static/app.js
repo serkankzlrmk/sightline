@@ -15,7 +15,7 @@ const CHAT_MODELS = {
   thinking: { name: 'Thinking', desc: 'Balanced', premium: false },
   ultra: { name: 'Ultra', desc: 'Best quality — Premium', premium: true },
   deep_think: { name: 'Deep Think', desc: 'Deep analysis — Premium', premium: true },
-  vision: { name: 'Vision', desc: 'Görsel + belge analizi — Premium', premium: true, vision: true },
+  vision: { name: 'Vision', desc: 'Image + document analysis — Premium', premium: true, vision: true },
 };
 
 // ── Shared state ────────────────────────────────────────────────────────────
@@ -3022,7 +3022,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (attachBtn && attachInput) {
     attachBtn.addEventListener('click', () => {
       if (chatState.selectedModel !== 'vision') {
-        toast('Görsel eklemek için Vision modelini seçin (Premium)', 'warning');
+        toast('Select the Vision model to attach an image (Premium)', 'warning');
         return;
       }
       attachInput.click();
@@ -3033,7 +3033,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const reader = new FileReader();
       reader.onload = () => {
         chatState.attachment = { name: file.name, mime: file.type || 'application/octet-stream', dataUrl: reader.result };
-        toast(`📎 ${file.name} eklendi`, 'success', 3000);
+        toast(`📎 ${file.name} attached`, 'success', 3000);
       };
       reader.readAsDataURL(file);
       attachInput.value = '';
