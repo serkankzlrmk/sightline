@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import json
 import os
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from PIL import Image
 
 load_dotenv()
 
@@ -28,8 +30,17 @@ If this is a logo, stock photo, cover decoration, background, or layout-only pag
 use visual_type=decorative, is_decorative=true, relevance <= 0.2."""
 
 
-def classify_openrouter(image: Path, model: str, base_url: str, api_key: str) -> dict:
-    encoded = base64.b64encode(image.read_bytes()).decode("ascii")
+def image_base64(image: Path, max_size: int) -> str:
+    with Image.open(image) as source:
+        source = source.convert("RGB")
+        source.thumbnail((max_size, max_size))
+        buffer = io.BytesIO()
+        source.save(buffer, format="JPEG", quality=85)
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def classify_openrouter(image: Path, model: str, base_url: str, api_key: str, max_size: int) -> dict:
+    encoded = image_base64(image, max_size)
     response = requests.post(
         f"{base_url.rstrip('/')}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -54,8 +65,8 @@ def classify_openrouter(image: Path, model: str, base_url: str, api_key: str) ->
     return json.loads(content)
 
 
-def classify_ollama(image: Path, model: str, base_url: str) -> dict:
-    encoded = base64.b64encode(image.read_bytes()).decode("ascii")
+def classify_ollama(image: Path, model: str, base_url: str, max_size: int) -> dict:
+    encoded = image_base64(image, max_size)
     response = requests.post(
         f"{base_url.rstrip('/')}/api/chat",
         json={
@@ -79,20 +90,26 @@ def main() -> None:
     parser.add_argument("--base-url", default=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
     parser.add_argument("--ollama-url", default=os.getenv("LOCAL_OLLAMA_URL", "http://127.0.0.1:11434"))
     parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--max-size", type=int, default=1600)
+    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     api_key = os.getenv("OPENROUTER_API_KEY", "")
     if args.provider == "openrouter" and not api_key:
         raise SystemExit("OPENROUTER_API_KEY is required; no request was sent")
     images = sorted(args.tiles_dir.glob("**/tile_*.jpg"))[: args.limit]
-    results = {}
+    results = json.loads(args.output.read_text(encoding="utf-8")) if args.resume and args.output.exists() else {}
     for image in images:
         tile_index = image.stem.rsplit("_", 1)[-1]
         article_key = image.parent.name.split(".", 1)[0]
+        result_key = f"{article_key}:{tile_index}"
+        if result_key in results:
+            continue
         if args.provider == "ollama":
-            result = classify_ollama(image, args.model, args.ollama_url)
+            result = classify_ollama(image, args.model, args.ollama_url, args.max_size)
         else:
-            result = classify_openrouter(image, args.model, args.base_url, api_key)
-        results[f"{article_key}:{tile_index}"] = result
+            result = classify_openrouter(image, args.model, args.base_url, api_key, args.max_size)
+        results[result_key] = result
+        args.output.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"classified article {article_key} tile {tile_index}: {result.get('visual_type')}")
     args.output.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps({"tiles": len(results), "output": str(args.output)}))
