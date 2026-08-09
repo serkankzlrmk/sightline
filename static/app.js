@@ -6872,9 +6872,9 @@ function upgradeVisibleTechnicalMatrix() {
   const content = document.getElementById('wizard-section-content');
   if (!content || guidedProposalState.step !== 3) return;
   const locked = guidedProposalState.active?.step3_state === 'locked';
-  const area = content.querySelector('[data-guided-field="logframe"]');
+  const area = content.querySelector('[data-guided-field="logframe"]:not([hidden])');
   if (area && area.dataset.matrixUpgraded !== 'true') { const wrapper = area.closest('.guided-field, .form-group, label') || area.parentElement; if (wrapper) { const host = document.createElement('div'); host.className = 'guided-logframe-upgraded'; host.innerHTML = guidedTechnicalMatrixHtml(guidedProposalState.active, locked); area.dataset.matrixUpgraded = 'true'; wrapper.replaceWith(host); } }
-  const scheduleArea = content.querySelector('[data-guided-field="gantt"]');
+  const scheduleArea = content.querySelector('[data-guided-field="gantt"]:not([hidden])');
   if (scheduleArea && scheduleArea.dataset.scheduleUpgraded !== 'true') { const wrapper = scheduleArea.closest('.guided-field, .form-group, label') || scheduleArea.parentElement; if (wrapper) { const host = document.createElement('div'); host.className = 'guided-schedule-upgraded'; host.innerHTML = guidedScheduleHtml(guidedProposalState.active, locked); scheduleArea.dataset.scheduleUpgraded = 'true'; wrapper.replaceWith(host); } }
   syncTechnicalPayloadFields();
 }
