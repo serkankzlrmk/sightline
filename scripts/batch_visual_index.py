@@ -22,6 +22,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--model", default="gemma4:e4b")
+    parser.add_argument("--provider", choices=("ollama", "openrouter"), default="ollama")
+    parser.add_argument("--base-url", default=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
     parser.add_argument("--device", choices=("mps", "cpu"), default="mps")
     parser.add_argument("--tile-limit", type=int, default=5000)
     args = parser.parse_args()
@@ -77,10 +79,12 @@ def main() -> None:
                 str(index_dir / "tiles"),
                 "--output",
                 str(captions),
-                "--provider",
-                "ollama",
-                "--model",
-                args.model,
+                        "--provider",
+                        args.provider,
+                        "--model",
+                        args.model,
+                        "--base-url",
+                        args.base_url,
                 "--ollama-url",
                 os.getenv("LOCAL_OLLAMA_URL", "http://127.0.0.1:11434"),
                 "--limit",
