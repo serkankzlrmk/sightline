@@ -6857,6 +6857,16 @@ document.addEventListener('change', event => {
   const el = event.target.closest('[data-guided-logframe-action="parent"]'); if (!el || !guidedProposalState.active) return;
   const row = (guidedProposalState.active.technical_data?.logframe || []).find(item => item.id === el.dataset.id); if (row) row.parent_id = el.value;
 });
+function upgradeVisibleTechnicalMatrix() {
+  const content = document.getElementById('wizard-section-content');
+  const area = content?.querySelector('[data-guided-field="logframe"]');
+  if (!area || guidedProposalState.step !== 3 || area.dataset.matrixUpgraded === 'true') return;
+  const wrapper = area.closest('.guided-field, .form-group, label') || area.parentElement;
+  if (!wrapper) return;
+  const host = document.createElement('div'); host.className = 'guided-logframe-upgraded'; host.innerHTML = guidedTechnicalMatrixHtml(guidedProposalState.active, guidedProposalState.active?.step3_state === 'locked');
+  area.dataset.matrixUpgraded = 'true'; wrapper.replaceWith(host);
+}
+setInterval(upgradeVisibleTechnicalMatrix, 250);
 
 /* ── Walkthrough Scroll Reveal ── */
 document.addEventListener('DOMContentLoaded', function initWalkthroughObserver() {
