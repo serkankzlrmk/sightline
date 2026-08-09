@@ -937,7 +937,7 @@ def api_guided_proposal_evaluate(setup_id):
     )
 
 
-@guided_proposal_bp.route("/setups/<setup_id>/compile-pdf", methods=["POST"])
+@guided_proposal_bp.route("/setups/<setup_id>/compile-pdf", methods=["GET", "POST"])
 @require_role("premium")
 def api_guided_proposal_compile_pdf(setup_id):
     if disabled := _enabled_response():
