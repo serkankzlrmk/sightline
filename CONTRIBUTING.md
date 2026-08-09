@@ -213,7 +213,7 @@ once you sign, all future PRs are covered.
 
 ## 7. Project Structure (quick reference)
 
-See [`docs/CODEMAP.md`](./docs/CODEMAP.md) for the full code map.
+See the directory structure in `CONTRIBUTING.md` for an overview.
 
 ```
 server.py                  — Flask app, all API routes

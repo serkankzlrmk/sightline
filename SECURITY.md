@@ -122,7 +122,7 @@ credit reporters in release notes.
 
 ## Contact
 
-- **Security reports:** security@sightline.ai (placeholder — update before publication)
+- **Security reports:** [GitHub Security Advisories](https://github.com/serkankzlrmk/sightline/security) (preferred)
 - **General questions:** open a [GitHub Discussion](https://github.com/serkankzlrmk/sightline/discussions)
 
 ---

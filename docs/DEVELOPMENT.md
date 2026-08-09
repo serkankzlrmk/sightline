@@ -184,7 +184,7 @@ RedAgent/
 ├── deploy/                   # Deployment configs
 ├── .github/workflows/        # CI/CD (deploy.yml)
 ├── docs/                     # All documentation (deploy, dev, roadmap, codemap, etc.)
-├── AGENTS.md                 # Agent instructions (read this first!)
+├── AGENTS.md                 # Agent instructions (local only, not in repo)
 ├── Dockerfile                # Single-stage ARM64 build
 ├── docker-compose.yml        # app + caddy services
 ├── Caddyfile                 # Reverse proxy + auto-TLS

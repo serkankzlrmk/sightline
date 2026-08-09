@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Contributor Covenant 2.1 Code of Conduct** (`CODE_OF_CONDUCT.md`)
 - **Security policy** with responsible disclosure process (`SECURITY.md`)
 - **BDFL governance model** document (`GOVERNANCE.md`)
-- **Open-source roadmap** — 4-phase plan (`docs/OPEN_SOURCE_ROADMAP.md`)
+- **Open-source roadmap** — 4-phase plan (removed — see README for roadmap overview)
 - `DESKTOP_MODE` env flag — bypass Firebase auth for local/desktop use (loopback only)
 - `FIREBASE_SERVICE_ACCOUNT_PATH` env var — env-driven Firebase SA path (no more hardcoded paths)
 - `static/firebase-config.example.js` — template for Firebase web SDK config

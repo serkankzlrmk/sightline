@@ -1,16 +1,11 @@
 <div align="center">
 
-<!-- TODO: Replace with actual hero image (generate with Gemini/design tool) -->
-<!-- Recommended: 1200x400px, dark theme, dashboard screenshot or abstract humanitarian+AI visual -->
-<img src="docs/assets/hero.png" alt="Sightline — AI-powered humanitarian intelligence platform" width="100%">
+<img src="static/logo.webp" alt="Sightline — AI-powered humanitarian intelligence platform" width="120">
 
 # Sightline
 
 **AI-powered humanitarian intelligence platform.**
 54-tool LLM agent · 10-stage SITREP pipeline · donor-specific proposal generator.
-
-<!-- TODO: Replace with actual GIF demo (30-second screen recording) -->
-<!-- Recommended: agent chat + SITREP generation + proposal wizard, compressed to <5MB -->
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Commercial License](https://img.shields.io/badge/Commercial-Dual_License-green.svg)](LICENSES/Commercial-LICENSE.md)
@@ -19,7 +14,7 @@
 [![Tests](https://img.shields.io/badge/tests-197+-brightgreen.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](VERSION)
 
-[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](docs/SELF_HOSTING.md) · [Roadmap](docs/OPEN_SOURCE_ROADMAP.md) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](docs/SELF_HOSTING.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -203,8 +198,6 @@ graph TB
     Proposal --> LLM
 ```
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture deep-dive.
-
 ---
 
 ## Configuration
@@ -292,33 +285,17 @@ Sightline is **dual-licensed**:
    for use cases where AGPL v3's copyleft obligations are incompatible with your needs
    (proprietary products, SaaS without source disclosure, enterprise internal use).
 
-See the [Commercial License](LICENSES/Commercial-LICENSE.md) for pricing tiers, or contact
-**commercial@sightline.ai** (placeholder) for custom agreements.
+See the [Commercial License](LICENSES/Commercial-LICENSE.md) for pricing tiers.
 
 All contributions require signing the [CLA](CLA.md).
-
----
-
-## Roadmap
-
-Sightline is preparing for open-source release. See [`docs/OPEN_SOURCE_ROADMAP.md`](docs/OPEN_SOURCE_ROADMAP.md)
-for the 4-phase plan:
-
-| Phase | Timeline | Goal |
-|---|---|---|
-| **1. Infrastructure** | 0-2 months | License, governance, docs, public-readiness |
-| **2. Launch** | 2-6 months | Public release, first 300-500 stars |
-| **3. Commercial** | 6-18 months | Open-core SaaS, first paying customers, grants |
-| **4. Scale** | 18-36 months | VC seed or foundation spin-off |
 
 ---
 
 ## Security
 
 See [`SECURITY.md`](SECURITY.md) for the vulnerability disclosure policy.
-
-**Do not open public GitHub issues for security vulnerabilities.** Email
-**security@sightline.ai** (placeholder) instead.
+**Do not open public GitHub issues for security vulnerabilities.** Use
+[GitHub Security Advisories](https://github.com/serkankzlrmk/sightline/security) instead.
 
 ---
 

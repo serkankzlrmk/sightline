@@ -178,10 +178,10 @@ Without MCP servers, the agent still works with its 35 native tools.
 
 ## Next Steps
 
-- Read [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) to understand the system
+- Read `server.py` and `config.py` to understand the system
 - Read [`docs/SELF_HOSTING.md`](SELF_HOSTING.md) for production deployment
 - Read [`CONTRIBUTING.md`](../CONTRIBUTING.md) to contribute
-- Read [`docs/ROADMAP.md`](ROADMAP.md) for the feature roadmap
+- See the GitHub Issues for the feature roadmap
 
 ---
 
