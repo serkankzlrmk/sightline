@@ -60,6 +60,42 @@ def _json(text: str) -> dict:
     raise ValueError("No JSON object returned")
 
 
+def _normalize_indicator_drafts(logframe: list) -> list:
+    """Make model indicator output editable and validation-ready.
+
+    Models sometimes return a plain indicator string despite the requested
+    object schema. Keep that text as the title and add explicit, reviewable
+    draft metadata so the user can analyze and refine it instead of receiving
+    an empty indicator array.
+    """
+    fields = {
+        "indicator_type": "standard",
+        "baseline_value": "To be established in inception survey",
+        "target_value": "To be finalized after baseline",
+        "unit_of_measure": "Number or percentage",
+        "disaggregation": "Sex, age and disability",
+        "data_source_and_frequency": "Project monitoring records / quarterly",
+        "itt_reference": "",
+        "pirs_reference": "",
+    }
+    for row in logframe:
+        if not isinstance(row, dict):
+            continue
+        raw = row.get("indicators") if isinstance(row.get("indicators"), list) else []
+        normalized = []
+        for item in raw[:2]:
+            if isinstance(item, str):
+                item = {"indicator_title": item}
+            if not isinstance(item, dict):
+                continue
+            indicator = dict(fields)
+            indicator.update({key: str(value or "").strip() for key, value in item.items()})
+            if indicator["indicator_title"]:
+                normalized.append(indicator)
+        row["indicators"] = normalized
+    return logframe
+
+
 def _get_tools_for_step(step: str):
     """Resolve the tool subset for a generator step from ReliefAgent's registry."""
     names = _STEP_TOOLS.get(step, [])
@@ -342,6 +378,7 @@ Do not include markdown, source lists, or explanatory text outside the JSON."""
     raw, _ = _run_generator_with_tools(prompt, json.dumps(source, ensure_ascii=False), "3", max_tokens=7000)
     parsed = _json(raw)
     if not isinstance(parsed.get("logframe"), list): parsed["logframe"] = []
+    _normalize_indicator_drafts(parsed["logframe"])
     if not isinstance(parsed.get("gantt"), list): parsed["gantt"] = []
     if not isinstance(parsed.get("hypotheses"), list): parsed["hypotheses"] = []
     parsed["grant_months"] = int(parsed.get("grant_months") or 12)
