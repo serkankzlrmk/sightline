@@ -72,9 +72,6 @@ def _ensure_schema():
         logger.error("Failed to ensure proposal schema: %s", exc)
 
 
-_ensure_schema()
-
-
 def _enabled_response():
     """V2 is now the sole proposal system — always enabled."""
     return None
@@ -101,6 +98,7 @@ def _serialize(row):
 
 
 def _owned_setup(setup_id: str, uid: str, role: str):
+    _ensure_schema()
     conn = _chats_db()
     if role == "admin":
         row = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
@@ -218,6 +216,7 @@ def api_guided_proposal_call_brief(setup_id):
 def api_guided_proposal_create_setup():
     if disabled := _enabled_response():
         return disabled
+    _ensure_schema()
     uid = current_uid()
     setup = normalize_setup(request.get_json(silent=True) or {})
     now = time.time()
@@ -256,6 +255,7 @@ def api_guided_proposal_create_setup():
 @require_auth
 def api_guided_proposal_list_setups():
     """List all proposal setups for the current user, newest first."""
+    _ensure_schema()
     uid, role = current_uid(), current_role()
     conn = _chats_db()
     try:
