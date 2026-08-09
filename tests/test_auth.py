@@ -61,10 +61,10 @@ class TestResolveRole:
             token = {"uid": "abc123", "role": "superuser"}
             assert auth._resolve_role(token) == "free"
 
-    def test_custom_claim_takes_priority_over_admin_uids(self):
+    def test_admin_uid_allowlist_overrides_lower_privilege_claim(self):
         with patch.object(auth, "_admins", return_value={"abc123"}):
             token = {"uid": "abc123", "role": "premium"}
-            assert auth._resolve_role(token) == "premium"
+            assert auth._resolve_role(token) == "admin"
 
 
 # ── _dev_mode ──────────────────────────────────────────────────────────────────

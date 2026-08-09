@@ -2294,6 +2294,10 @@ async function loadDashboard() {
     const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     el('dash-reports', d.report_count != null ? d.report_count.toLocaleString() : '—');
     el('dash-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '—');
+    el('cc-stat-chunks', d.chunk_count != null ? d.chunk_count.toLocaleString() : '24,955');
+    if (Array.isArray(mapCountries) && mapCountries.length > 0) {
+      el('cc-stat-countries', mapCountries.length.toString());
+    }
   } catch { /* ignore */ }
 
   // ── Load latest bulletin data (for map markers, not displayed on map page) ──
@@ -2737,6 +2741,23 @@ function viewCrisisSitrep(country) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Menu navigation hint tooltip logic (appears on load, fades out after 5s or on click)
+  const menuHint = document.getElementById('menu-hint-tooltip');
+  if (menuHint) {
+    setTimeout(() => {
+      menuHint.classList.add('visible');
+    }, 600);
+
+    const hideHint = () => {
+      menuHint.classList.remove('visible');
+    };
+
+    setTimeout(hideHint, 5000);
+    const hamBtn = document.getElementById('hamburger-btn');
+    if (hamBtn) hamBtn.addEventListener('click', hideHint, { once: true });
+    document.addEventListener('click', hideHint, { once: true });
+  }
+
   // Legal modal
   const termsLink = document.getElementById('terms-link');
   const privacyLink = document.getElementById('privacy-link');
@@ -3085,7 +3106,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  initProposalPipeline();
+  // Mount the established Proposal design against the Guided V2 setup store.
+  // The legacy proposals table remains intact for migration/export safety but
+  // is no longer loaded into this workspace.
+  initGuidedProposalPipeline();
 
   // ── Event delegation for dynamic elements ──────────────────────────────
   document.addEventListener('click', e => {
@@ -3650,21 +3674,14 @@ document.addEventListener('click', (e) => {
 });
 
 // ── Proposal Wizard — Step-by-step donor proposal generator ──
-const OPTIONAL_STEPS = ['background', 'needs_assessment', 'toc', 'logframe', 'methodology', 'budget', 'mne_framework', 'risk_matrix', 'sustainability', 'coordination'];
+const OPTIONAL_STEPS = [];
 
 const PROPOSAL_STEPS = [
-  { key: 'cover', label: 'Cover Page', num: 1 },
-  { key: 'background', label: 'Context & Background', num: 2 },
-  { key: 'needs_assessment', label: 'Needs Assessment', num: 3 },
-  { key: 'toc', label: 'Theory of Change', num: 4 },
-  { key: 'logframe', label: 'Logical Framework', num: 5 },
-  { key: 'methodology', label: 'Methodology', num: 6 },
-  { key: 'budget', label: 'Budget Summary', num: 7 },
-  { key: 'mne_framework', label: 'Monitoring & Evaluation', num: 8 },
-  { key: 'risk_matrix', label: 'Risk Matrix', num: 9 },
-  { key: 'sustainability', label: 'Sustainability & Exit', num: 10 },
-  { key: 'coordination', label: 'Coordination', num: 11 },
-  { key: 'final_review', label: 'Final Review & Export', num: 12 },
+  { key: 'setup', label: 'Project Setup', num: 1 },
+  { key: 'context', label: 'Context & Needs', num: 2 },
+  { key: 'technical', label: 'Technical Design', num: 3 },
+  { key: 'financial', label: 'Commitments & Financials', num: 4 },
+  { key: 'review', label: 'Final Review & Export', num: 5 },
 ];
 
 let proposalState = {
@@ -6485,6 +6502,201 @@ async function saveActiveProposal() {
   catch (err) { console.warn("Save proposal failed:", err); }
 }
 
+
+/* ── Guided Proposal workspace ────────────────────────────────────────────
+ * The legacy proposal editor is no longer mounted. Guided Proposal is the
+ * single user-facing proposal workspace and talks to /api/proposals/setups.
+ */
+let guidedProposalState = { setups: [], active: null, step: 1, busy: false, countries: [] };
+function guidedJson(value, fallback) { try { return JSON.parse(value); } catch (_) { return fallback; } }
+async function guidedRequest(path, options = {}) { const response = await api(path, options); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`); return data; }
+function guidedEsc(value) { return escHtml(value == null ? '' : String(value)); }
+function guidedSetAlert(message, kind = '') { const el = document.getElementById('guided-alert'); if (el) { el.textContent = message || ''; el.className = `guided-alert ${kind}`; } }
+function guidedShell() {
+  const panel = document.getElementById('panel-proposal'); if (!panel) return null;
+  panel.innerHTML = `<div class="guided-proposal-shell" id="guided-proposal-shell"><aside class="guided-proposal-list"><div class="guided-list-head"><div><span class="eyebrow">Proposal studio</span><h2>Guided proposals</h2></div><button class="guided-icon-btn" data-guided-action="new" title="New proposal">+</button></div><div class="guided-list-items" id="guided-list-items"><div class="guided-empty">Loading proposals…</div></div></aside><main class="guided-proposal-main"><header class="guided-main-head"><div><span class="eyebrow">Forward-only workflow</span><h1 id="guided-title">Start a donor-ready proposal</h1><p id="guided-subtitle">Draft with the agent, review the evidence, then lock each stage.</p></div><div class="guided-head-actions"><button class="guided-btn secondary" data-guided-action="call-brief" id="guided-call-brief" hidden>Call brief</button><button class="guided-btn secondary" data-guided-action="delete" id="guided-delete" hidden>Delete</button></div></header><nav class="guided-stepper" id="guided-stepper"></nav><div class="guided-alert" id="guided-alert" aria-live="polite"></div><section class="guided-content" id="guided-content"><div class="guided-empty">Create a proposal to begin.</div></section></main><aside class="guided-review" id="guided-review"><div class="guided-review-head"><span class="eyebrow">Live review</span><h3>Agent feedback</h3></div><div id="guided-review-body"><p class="guided-muted">Analysis and donor rule feedback will appear here.</p></div></aside></div>`;
+  return panel;
+}
+function guidedRenderList() { const el = document.getElementById('guided-list-items'); if (!el) return; if (!guidedProposalState.setups.length) { el.innerHTML = '<div class="guided-empty">No proposals yet.</div>'; return; } el.innerHTML = guidedProposalState.setups.map(item => { const active = item.id === guidedProposalState.active?.id ? ' active' : ''; const states = [item.state, item.step2_state, item.step3_state, item.step4_state].map(x => x === 'locked' ? '✓' : '○').join(' '); return `<button class="guided-list-item${active}" data-guided-action="select" data-id="${guidedEsc(item.id)}"><strong>${guidedEsc(item.project_title || 'Untitled proposal')}</strong><span>${guidedEsc(item.country || 'Country pending')} · ${states}</span></button>`; }).join(''); }
+function guidedRenderStepper() { const el = document.getElementById('guided-stepper'); if (!el) return; const labels = ['Project setup','Context & needs','Technical matrix','Budget & risks','Final review']; el.innerHTML = labels.map((label, i) => { const num = i + 1; const locked = guidedProposalState.active && (num === 1 ? guidedProposalState.active.state : guidedProposalState.active[`step${num}_state`]) === 'locked'; const current = num === guidedProposalState.step ? ' current' : ''; return `<button class="guided-step${current}${locked ? ' locked' : ''}" data-guided-action="step" data-step="${num}" ${num > guidedProposalState.step ? 'disabled' : ''}><span>${locked ? '✓' : num}</span>${label}</button>`; }).join(''); }
+function guidedField(label, field, value, type = 'text', extra = '') { if (type === 'select') { const options = field === 'donor' ? '<option value="">Choose donor</option><option value="ocha_cbpf">OCHA CBPF</option><option value="usaid_bha">USAID / BHA</option><option value="europeaid_prag">EuropeAid (PRAG)</option><option value="generic">Generic donor</option>' : field === 'budget_currency' ? '<option value="USD">USD</option><option value="EUR">EUR</option><option value="TRY">TRY</option>' : '<option value="">Choose country</option>' + guidedProposalState.countries.map(c => `<option value="${guidedEsc(c)}">${guidedEsc(c)}</option>`).join(''); return `<label class="guided-field"><span>${label}</span><select class="guided-input" data-guided-field="${field}" ${extra}>${options}</select></label>`; } return `<label class="guided-field ${type === 'textarea' ? 'full' : ''}"><span>${label}</span><${type === 'textarea' ? 'textarea' : 'input'} class="guided-input" data-guided-field="${field}" ${type !== 'textarea' ? `type="${type}"` : ''} ${extra}>${type === 'textarea' ? guidedEsc(value) : ''}</${type === 'textarea' ? 'textarea' : 'input'}>`; }
+function guidedAnalysisCard(analysis) { if (!analysis) return '<p class="guided-muted">Run analysis to receive donor-specific feedback.</p>'; const score = Number(analysis.donor_compliance_score || 0); const notes = [...(analysis.critique_notes || []), ...(analysis.suggested_improvements || [])]; const violations = (analysis.violations || []).map(v => typeof v === 'string' ? v : v.message).filter(Boolean); return `<div class="guided-score"><strong>${score}</strong><span>/ 100 compliance</span></div><div class="guided-analysis-status ${analysis.is_valid ? 'ok' : 'bad'}">${analysis.is_valid ? 'Ready to lock' : 'Needs attention'}</div>${violations.length ? `<ul class="guided-violations">${violations.map(v => `<li>${guidedEsc(v)}</li>`).join('')}</ul>` : ''}${notes.length ? `<ul class="guided-notes">${notes.map(v => `<li>${guidedEsc(v)}</li>`).join('')}</ul>` : ''}`; }
+function guidedActionBar(step, locked = false) { if (locked) return `<div class="guided-locked-banner">Step ${step} is locked and immutable.</div>`; return `<div class="guided-action-bar"><button class="guided-btn secondary" data-guided-action="generate" data-step="${step}">Generate draft</button><button class="guided-btn secondary" data-guided-action="analyze" data-step="${step}">Analyze with AI</button><button class="guided-btn primary" data-guided-action="lock" data-step="${step}">Confirm & lock Step ${step}</button></div>`; }
+function guidedRender() {
+  const active = guidedProposalState.active; const content = document.getElementById('guided-content'); if (!content) return; guidedRenderList(); guidedRenderStepper(); if (!active) { content.innerHTML = '<div class="guided-empty large">Select a proposal or create a new one.</div>'; return; }
+  document.getElementById('guided-title').textContent = active.project_title || 'Untitled proposal'; document.getElementById('guided-subtitle').textContent = `${active.country || 'Country pending'} · ${active.donor || 'Donor pending'} · ${active.reference_filename || 'No call document attached'}`; document.getElementById('guided-delete').hidden = !active.can_delete; document.getElementById('guided-call-brief').hidden = !active.reference_text;
+  const step = guidedProposalState.step; const locked = step === 1 ? active.state === 'locked' : active[`step${step}_state`] === 'locked'; const analysis = step === 1 ? active.analysis : active[`step${step}_analysis`]; let html = `<div class="guided-step-heading"><div><span class="eyebrow">Step ${step} of 5</span><h2>${['Project setup','Context & needs','Technical matrix','Budget & risks','Final review'][step - 1]}</h2></div>${locked ? '<span class="guided-lock-pill">Locked</span>' : ''}</div>`;
+  if (step === 1) { html += `<div class="guided-form-grid">${guidedField('Project title','project_title',active.project_title,'text','required minlength="10" maxlength="150" placeholder="A clear, geographically specific title"')}${guidedField('Target country','country',active.country,'select','required')}${guidedField('Region / location','region',active.region)}${guidedField('Primary donor','donor',active.donor,'select','required')}${guidedField('Estimated budget','budget_amount',active.budget_amount,'number','min="0.01" step="0.01" required')}${guidedField('Currency','budget_currency',active.budget_currency,'select')}</div>${guidedField('Executive intent (100–500 characters)','executive_intent',active.executive_intent,'textarea','minlength="100" maxlength="500" rows="6" placeholder="Describe the humanitarian problem, target group and intended change."')}<label class="guided-field full"><span>Sectors</span><input class="guided-input" data-guided-field="sectors" value="${guidedEsc((active.sectors || []).join(', '))}" placeholder="Protection, Health, WASH"></label><div class="guided-upload"><span>Grant call</span><input id="guided-reference" type="file" accept=".docx,.txt,.md"><small>${guidedEsc(active.reference_filename || 'Attach a call document to ground the agent in the actual requirements.')}</small></div>${guidedActionBar(1, locked)}`; }
+  else if (step === 2) { const d = active.context_data || {}; html += `<p class="guided-help">The agent can draft this stage from your locked setup and attached call. Edit the text, then analyze and lock it.</p>${guidedField('Humanitarian context','humanitarian_context',d.humanitarian_context || '','textarea','rows="8"')}${guidedField('Needs assessment','needs_assessment',d.needs_assessment || '','textarea','rows="8"')}${guidedField('Strategic justification','strategic_justification',d.strategic_justification || '','textarea','rows="8"')}<label class="guided-field full"><span>Beneficiary matrix (JSON)</span><textarea class="guided-input" data-guided-field="beneficiaries" rows="7">${guidedEsc(JSON.stringify(d.beneficiaries || {host_communities:{},idps:{},refugees_returnees:{}}, null, 2))}</textarea></label>${guidedActionBar(2, locked)}`; }
+  else if (step === 3) { const d = active.technical_data || {}; html += `<p class="guided-help">Build the four-level matrix as JSON. Use short IDs and parent_id links for Impact → Outcome → Output → Activity.</p>${guidedField('Theory of change narrative','toc_narrative',d.toc_narrative || '','textarea','rows="5"')}<label class="guided-field full"><span>Logframe matrix (JSON)</span><textarea class="guided-input" data-guided-field="logframe" rows="15">${guidedEsc(JSON.stringify(d.logframe || [], null, 2))}</textarea></label><label class="guided-field full"><span>Activity schedule (JSON)</span><textarea class="guided-input" data-guided-field="gantt" rows="5">${guidedEsc(JSON.stringify(d.gantt || [], null, 2))}</textarea></label>${guidedActionBar(3, locked)}`; }
+  else if (step === 4) { const d = active.financial_data || {}; html += `<p class="guided-help">Every budget line is calculated and checked against the donor overhead ceiling.</p><label class="guided-field full"><span>Budget items (JSON)</span><textarea class="guided-input" data-guided-field="budget_items" rows="12">${guidedEsc(JSON.stringify(d.budget_items || [], null, 2))}</textarea></label><label class="guided-field full"><span>Risk matrix (JSON)</span><textarea class="guided-input" data-guided-field="risks" rows="9">${guidedEsc(JSON.stringify(d.risks || [], null, 2))}</textarea></label><label class="guided-check"><input type="checkbox" data-guided-field="psea_signoff" ${d.psea_signoff ? 'checked' : ''}> I confirm the PSEA / six IASC core principles commitment.</label>${guidedField('Sphere standards narrative','sphere_standards_narrative',d.sphere_standards_narrative || '','textarea','rows="4"')}${guidedActionBar(4, locked)}`; }
+  else { html += `<p class="guided-help">All four stages must be locked before the final review can be generated.</p><div class="guided-final-actions"><button class="guided-btn secondary" data-guided-action="summary">Refresh locked summary</button><button class="guided-btn secondary" data-guided-action="evaluate">Run PRAG evaluation</button><button class="guided-btn primary" data-guided-action="pdf">Compile donor-ready PDF</button></div><pre id="guided-final-output" class="guided-final-output"></pre>`; }
+  content.innerHTML = html;
+  if (step === 1) { ['project_title','country','region','donor','budget_amount','budget_currency','executive_intent','sectors'].forEach(field => { const el = content.querySelector(`[data-guided-field="${field}"]`); if (el && active[field] != null) el.value = field === 'sectors' ? (active.sectors || []).join(', ') : active[field]; }); }
+  document.getElementById('guided-review-body').innerHTML = guidedAnalysisCard(analysis);
+}
+function guidedPayload(step) { const fields = {}; document.querySelectorAll('#guided-content [data-guided-field]').forEach(el => { const key = el.dataset.guidedField; if (el.type === 'checkbox') fields[key] = el.checked; else fields[key] = el.value; }); if (step === 1) { fields.sectors = fields.sectors.split(',').map(x => x.trim()).filter(Boolean); } if (step === 2) fields.beneficiaries = guidedJson(fields.beneficiaries, {}); for (const key of ['logframe','gantt','budget_items','risks']) if (key in fields) fields[key] = guidedJson(fields[key], []); return fields; }
+async function guidedRefresh() { guidedProposalState.setups = await guidedRequest('/api/proposals/setups'); guidedRenderList(); if (!guidedProposalState.active && guidedProposalState.setups[0]) { guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${guidedProposalState.setups[0].id}`); guidedRender(); } }
+async function guidedCreate() { const data = await guidedRequest('/api/proposals/setups', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ project_title:'New guided proposal', donor:'generic', budget_currency:'USD', sectors:[] }) }); guidedProposalState.active = data; guidedProposalState.step = 1; await guidedRefresh(); guidedRender(); }
+async function guidedSaveStep1() { const data = guidedPayload(1); const updated = await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }); guidedProposalState.active = updated; }
+async function guidedHandle(action, target) {
+  const active = guidedProposalState.active; if (action === 'new') return guidedCreate(); if (action === 'select') { guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${target.dataset.id}`); guidedProposalState.step = guidedProposalState.active.state === 'locked' ? 2 : 1; return guidedRender(); } if (!active) return;
+  if (action === 'delete') { if (!confirm('Delete this guided proposal permanently?')) return; await guidedRequest(`/api/proposals/setups/${active.id}`, {method:'DELETE'}); guidedProposalState.active = null; guidedProposalState.step = 1; return guidedRefresh(); }
+  if (action === 'step') { const n = Number(target.dataset.step); if (n <= guidedProposalState.step) { guidedProposalState.step = n; guidedRender(); } return; }
+  if (action === 'call-brief') { const result = await guidedRequest(`/api/proposals/setups/${active.id}/call-brief`, {method:'POST'}); document.getElementById('guided-review-body').innerHTML = `<h4>Call brief</h4><p>${guidedEsc(result.brief?.overview || '')}</p><pre class="guided-final-output">${guidedEsc(JSON.stringify(result.brief, null, 2))}</pre>`; return; }
+  const step = Number(target.dataset.step || guidedProposalState.step); const base = step === 1 ? `/api/proposals/setups/${active.id}` : `/api/proposals/steps/${step}`; let payload = step === 1 ? guidedPayload(1) : guidedPayload(step); if (step > 1) payload.setup_id = active.id;
+  if (action === 'generate') { const path = step === 1 ? `/api/proposals/setups/${active.id}/generate-draft` : `/api/proposals/setups/${active.id}/generate-step2-draft`; const result = await guidedRequest(path,{method:'POST'}); if (step === 1 && result.draft) Object.assign(active, result.draft); if (step === 2 && result.draft) active.context_data = result.draft; guidedRender(); return; }
+  if (action === 'analyze') { if (step === 1) await guidedSaveStep1(); const result = await guidedRequest(`${base}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if (step === 1) active.analysis = result; else active[`step${step}_analysis`] = result; guidedSetAlert(result.is_valid ? 'Analysis complete. Review the feedback before locking.' : 'Analysis found issues to address.', result.is_valid ? 'success' : 'error'); guidedRender(); return; }
+  if (action === 'lock') { const result = await guidedRequest(`${base}/lock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); guidedProposalState.active = result; guidedProposalState.step = Math.min(5, step + 1); guidedSetAlert(`Step ${step} locked.`, 'success'); await guidedRefresh(); guidedRender(); return; }
+  if (action === 'summary' || action === 'evaluate' || action === 'pdf') { const path = action === 'summary' ? `/api/proposals/setups/${active.id}/summary` : action === 'evaluate' ? `/api/proposals/setups/${active.id}/evaluate` : `/api/proposals/setups/${active.id}/compile-pdf`; if (action === 'pdf') { const response = await api(path, {method:'POST'}); if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error || `PDF compilation failed (${response.status})`); } const blob = await response.blob(); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${active.project_title || 'proposal'}.pdf`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); guidedSetAlert('PDF compiled and downloaded.', 'success'); return; } const result = await guidedRequest(path,{method:'POST'}); const out = document.getElementById('guided-final-output'); if (out) out.textContent = JSON.stringify(result, null, 2); }
+}
+function initGuidedProposalPipeline() { const panel = guidedShell(); if (!panel) return; panel.addEventListener('click', async e => { const target = e.target.closest('[data-guided-action]'); if (!target || guidedProposalState.busy) return; guidedProposalState.busy = true; guidedSetAlert('Working…'); try { await guidedHandle(target.dataset.guidedAction, target); } catch (err) { guidedSetAlert(err.message, 'error'); } finally { guidedProposalState.busy = false; } }); panel.addEventListener('change', async e => { if (e.target.id !== 'guided-reference' || !guidedProposalState.active) return; const fd = new FormData(); fd.append('file', e.target.files[0]); try { await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}/upload-reference`, {method:'POST', body:fd}); guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}`); guidedRender(); guidedSetAlert('Call document attached.', 'success'); } catch (err) { guidedSetAlert(err.message, 'error'); } }); (async () => { try { const countries = await guidedRequest('/api/db/countries'); guidedProposalState.countries = Array.isArray(countries) ? countries : []; await guidedRefresh(); guidedRender(); } catch (err) { guidedSetAlert(err.message, 'error'); } })(); }
+
+// V2 adapter: keep the established Proposal page layout and replace only its
+// data/step behaviour with the five-stage Guided Proposal contract.
+function initGuidedProposalPipeline() {
+  const panel = document.getElementById('panel-proposal');
+  if (!panel) return;
+  const list = document.getElementById('proposal-list');
+  const steps = document.getElementById('wizard-steps-list');
+  const content = document.getElementById('wizard-section-content');
+  const title = document.getElementById('proposal-project-title');
+  const context = document.getElementById('proposal-project-context');
+  if (!list || !steps || !content) return;
+  const setNotice = (message, error = false) => { const review = document.getElementById('review-content'); if (review) review.innerHTML = `<div class="proposal-review-message ${error ? 'error' : ''}">${guidedEsc(message)}</div>`; };
+  const statusFor = (n) => { const p = guidedProposalState.active; if (!p) return 'empty'; return (n === 1 ? p.state : n === 2 ? p.step2_state : n === 3 ? p.step3_state : n === 4 ? p.step4_state : 'draft') || 'draft'; };
+  const renderList = () => { list.innerHTML = guidedProposalState.setups.length ? guidedProposalState.setups.map(p => `<div class="report-item ${p.id === guidedProposalState.active?.id ? 'active' : ''}" data-guided-action="select" data-id="${guidedEsc(p.id)}" style="cursor:pointer;padding:10px;border-bottom:1px solid var(--border-light);"><div class="report-item-title" style="font-weight:600;font-size:13px">${guidedEsc(p.project_title || 'Untitled proposal')}</div><div class="report-item-meta" style="font-size:11px;color:var(--text-muted)">${guidedEsc(p.country || 'Country pending')} · ${guidedEsc(p.donor || 'Donor pending')}</div></div>`).join('') : '<div class="empty-state">No guided proposals yet</div>'; };
+  const renderSteps = () => { if (!guidedProposalState.active) { steps.innerHTML = ''; return; } const current = guidedProposalState.step; steps.innerHTML = PROPOSAL_STEPS.map((s, i) => { const locked = statusFor(i + 1) === 'locked'; const active = i + 1 === current; return `<div class="wizard-step ${active ? 'active' : ''} ${locked ? 'complete' : ''}" data-guided-action="step" data-step="${i + 1}" ${i + 1 > current ? 'aria-disabled="true"' : ''}><span class="wizard-step-num">${locked ? '✓' : s.num}</span><span class="wizard-step-label">${s.label}</span><span class="wizard-step-icon">${locked ? '✓' : '○'}</span></div>`; }).join(''); const fill = document.getElementById('wizard-progress-fill'); if (fill) fill.style.width = `${((guidedProposalState.step - 1) / 4) * 100}%`; };
+  const field = (label, key, value, type = 'text', extra = '') => `<label class="form-group" style="display:block;margin-bottom:14px"><span style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px">${label}</span>${type === 'textarea' ? `<textarea class="fi" data-guided-field="${key}" ${extra} style="width:100%;resize:vertical">${guidedEsc(value)}</textarea>` : `<input class="fi" data-guided-field="${key}" type="${type}" value="${guidedEsc(value)}" ${extra} style="width:100%">`}</label>`;
+  const payload = (step) => { const out = {}; content.querySelectorAll('[data-guided-field]').forEach(el => { out[el.dataset.guidedField] = el.type === 'checkbox' ? el.checked : el.value; }); if (step === 1) out.sectors = String(out.sectors || '').split(',').map(x => x.trim()).filter(Boolean); if (step === 2) out.beneficiaries = guidedJson(out.beneficiaries, {}); ['logframe','gantt','budget_items','risks'].forEach(k => { if (k in out) out[k] = guidedJson(out[k], []); }); return out; };
+  const actionBar = (step, locked) => locked ? `<div class="wizard-section-actions"><span class="wizard-status-badge wizard-status-complete">Locked — immutable</span></div>` : `<div class="wizard-section-actions" style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--border-light)"><button class="btn btn-secondary btn-sm" data-guided-action="generate" data-step="${step}">Generate draft</button><button class="btn btn-primary btn-sm" data-guided-action="analyze" data-step="${step}">Analyze with AI</button><button class="btn btn-green btn-sm" data-guided-action="lock" data-step="${step}">Confirm &amp; Lock Step ${step}</button></div>`;
+    const render = () => { const p = guidedProposalState.active; renderList(); renderSteps(); if (!p) { title.textContent = 'Select or Create a Proposal'; context.textContent = 'Five-stage AI-assisted donor proposal workspace'; content.innerHTML = '<div class="proposal-welcome-placeholder"><div class="welcome-icon">📋</div><h3>Guided Proposal Workspace</h3><p>Build a complete donor-ready proposal through five locked stages. Your existing document view and review panel stay in place.</p><button class="btn btn-primary" data-guided-action="new">Create Guided Proposal</button></div>'; return; } title.textContent = p.project_title || 'Untitled proposal'; context.textContent = `${p.country || 'Country pending'} · ${p.donor || 'Donor pending'}${p.reference_filename ? ` · ${p.reference_filename}` : ''}`; const n = guidedProposalState.step; const locked = statusFor(n) === 'locked'; const analysis = n === 1 ? p.analysis : p[`step${n}_analysis`]; let body = `<div class="wizard-section-inner"><div class="wizard-section-header-row"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><h3>${PROPOSAL_STEPS[n - 1].num}. ${PROPOSAL_STEPS[n - 1].label}</h3><span class="wizard-status-badge wizard-status-${locked ? 'complete' : (analysis ? 'reviewing' : 'draft')}">${locked ? 'locked' : (analysis ? 'analyzed' : 'draft')}</span></div></div>`; if (n === 1) body += `<div class="up-grid">${field('Project title','project_title',p.project_title,'text','required minlength="10" maxlength="150"')}${field('Target country','country',p.country)}${field('Region / location','region',p.region)}${field('Primary donor','donor',p.donor)}${field('Estimated budget','budget_amount',p.budget_amount,'number','min="0.01" step="0.01"')}${field('Currency','budget_currency',p.budget_currency)}</div>${field('Executive intent','executive_intent',p.executive_intent,'textarea','minlength="100" maxlength="500" rows="6"')}${field('Sectors (comma separated)','sectors',(p.sectors || []).join(', '))}<div class="form-group"><label>Grant call document</label><input id="guided-reference-existing" type="file" accept=".docx,.txt,.md"><small>${guidedEsc(p.reference_filename || 'No document attached')}</small></div>`; else if (n === 2) { const d = p.context_data || {}; body += `${field('Humanitarian context','humanitarian_context',d.humanitarian_context || '','textarea','rows="9"')}${field('Needs assessment','needs_assessment',d.needs_assessment || '','textarea','rows="9"')}${field('Strategic justification','strategic_justification',d.strategic_justification || '','textarea','rows="9"')}${field('Beneficiary matrix (JSON)','beneficiaries',JSON.stringify(d.beneficiaries || {}, null, 2),'textarea','rows="8"')}`; } else if (n === 3) { const d = p.technical_data || {}; body += `${field('Theory of Change narrative','toc_narrative',d.toc_narrative || '','textarea','rows="6"')}${field('Logframe matrix (JSON)','logframe',JSON.stringify(d.logframe || [], null, 2),'textarea','rows="16"')}${field('Activity schedule (JSON)','gantt',JSON.stringify(d.gantt || [], null, 2),'textarea','rows="6"')}`; } else if (n === 4) { const d = p.financial_data || {}; body += `${field('Budget items (JSON)','budget_items',JSON.stringify(d.budget_items || [], null, 2),'textarea','rows="14"')}${field('Risk matrix (JSON)','risks',JSON.stringify(d.risks || [], null, 2),'textarea','rows="10"')}<label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input type="checkbox" data-guided-field="psea_signoff" ${d.psea_signoff ? 'checked' : ''}> PSEA / IASC core principles sign-off</label>${field('Sphere standards narrative','sphere_standards_narrative',d.sphere_standards_narrative || '','textarea','rows="5"')}`; } else body += `<div class="proposal-narrative-card"><p>All four stages must be locked before final review.</p><button class="btn btn-primary" data-guided-action="summary">Refresh locked summary</button> <button class="btn btn-secondary" data-guided-action="evaluate">Run PRAG evaluation</button> <button class="btn btn-primary" data-guided-action="pdf">Compile PDF</button><pre id="guided-final-output" style="white-space:pre-wrap;margin-top:16px"></pre></div>`; body += actionBar(n, locked) + '</div>'; content.innerHTML = body; document.getElementById('review-content').innerHTML = guidedAnalysisCard(analysis); };
+  const refresh = async () => { guidedProposalState.setups = await guidedRequest('/api/proposals/setups'); if (!guidedProposalState.active && guidedProposalState.setups[0]) guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${guidedProposalState.setups[0].id}`); render(); };
+  const create = async () => { guidedProposalState.active = await guidedRequest('/api/proposals/setups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_title:'New guided proposal',donor:'generic',budget_currency:'USD',sectors:[]})}); guidedProposalState.step = 1; render(); };
+  panel.addEventListener('click', async e => { const target = e.target.closest('[data-guided-action]'); if (!target) return; e.preventDefault(); e.stopImmediatePropagation(); try { const a = target.dataset.guidedAction; if (a === 'new') return create(); if (a === 'select') { guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${target.dataset.id}`); guidedProposalState.step = guidedProposalState.active.state === 'locked' ? 2 : 1; return render(); } if (a === 'step') { const n = Number(target.dataset.step); if (n <= guidedProposalState.step) { guidedProposalState.step = n; render(); } return; } const p = guidedProposalState.active; if (!p) return; const step = Number(target.dataset.step || guidedProposalState.step); const base = step === 1 ? `/api/proposals/setups/${p.id}` : `/api/proposals/steps/${step}`; const data = payload(step); if (a === 'generate') { const result = await guidedRequest(step === 1 ? `/api/proposals/setups/${p.id}/generate-draft` : `/api/proposals/setups/${p.id}/generate-step2-draft`,{method:'POST'}); if (step === 1 && result.draft) Object.assign(p,result.draft); if (step === 2 && result.draft) p.context_data = result.draft; return render(); } if (step === 1 && (a === 'analyze' || a === 'lock')) { await guidedRequest(`/api/proposals/setups/${p.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); } if (a === 'analyze') { const result = await guidedRequest(`${base}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data, ...(step > 1 ? {setup_id:p.id} : {})})}); if (step === 1) p.analysis = result; else p[`step${step}_analysis`] = result; setNotice(result.is_valid ? 'Analysis complete. Review the feedback before locking.' : 'Analysis found issues to address.', !result.is_valid); return render(); } if (a === 'lock') { const result = await guidedRequest(`${base}/lock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data, ...(step > 1 ? {setup_id:p.id} : {})})}); guidedProposalState.active = result; guidedProposalState.step = Math.min(5, step + 1); await refresh(); return render(); } if (a === 'summary' || a === 'evaluate') { const result = await guidedRequest(`/api/proposals/setups/${p.id}/${a === 'summary' ? 'summary' : 'evaluate'}`,{method:a === 'summary' ? 'GET' : 'POST'}); const out = document.getElementById('guided-final-output'); if (out) out.textContent = JSON.stringify(result,null,2); } if (a === 'pdf') { const response = await api(`/api/proposals/setups/${p.id}/compile-pdf`,{method:'POST'}); if (!response.ok) throw new Error('PDF compilation failed'); const link = document.createElement('a'); link.href = URL.createObjectURL(await response.blob()); link.download = `${p.project_title || 'proposal'}.pdf`; link.click(); } } catch (err) { setNotice(err.message, true); } });
+  panel.addEventListener('change', async e => { if (e.target.id !== 'guided-reference-existing' || !guidedProposalState.active || !e.target.files[0]) return; const fd = new FormData(); fd.append('file',e.target.files[0]); try { await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}/upload-reference`,{method:'POST',body:fd}); guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}`); render(); } catch (err) { setNotice(err.message,true); } });
+  document.getElementById('btn-new-proposal')?.addEventListener('click', e => { e.preventDefault(); e.stopImmediatePropagation(); create(); }, true);
+  (async () => { try { const countries = await guidedRequest('/api/db/countries'); guidedProposalState.countries = Array.isArray(countries) ? countries : []; await refresh(); } catch (err) { setNotice(err.message,true); } })();
+}
+
+// Final V2 mount: deliberately keeps the established Proposal page DOM and
+// visual language. This definition supersedes the earlier compatibility mount.
+function initGuidedProposalPipeline() {
+  const panel = document.getElementById('panel-proposal');
+  const list = document.getElementById('proposal-list');
+  const steps = document.getElementById('wizard-steps-list');
+  const content = document.getElementById('wizard-section-content');
+  const title = document.getElementById('proposal-project-title');
+  const context = document.getElementById('proposal-project-context');
+  const review = document.getElementById('review-content');
+  if (!panel || !list || !steps || !content || !title || !context || !review) return;
+
+  let donors = [];
+  const stepState = (proposal, step) => step === 1 ? proposal.state : proposal[`step${step}_state`];
+  const unlockedStep = proposal => {
+    if (!proposal || proposal.state !== 'locked') return 1;
+    if (proposal.step2_state !== 'locked') return 2;
+    if (proposal.step3_state !== 'locked') return 3;
+    if (proposal.step4_state !== 'locked') return 4;
+    return 5;
+  };
+  const donorFor = id => donors.find(d => d.id === id) || donors.find(d => d.id === 'generic') || {};
+  const options = (items, selected) => items.map(item => `<option value="${guidedEsc(item.value)}" ${item.value === selected ? 'selected' : ''}>${guidedEsc(item.label)}</option>`).join('');
+  const showReview = analysis => {
+    if (!analysis) { review.innerHTML = '<div style="text-align:center;padding:34px 12px;color:var(--text-muted);font-size:13px">Choose a donor and run <strong>Analyze setup</strong> to see compliance feedback here.</div>'; return; }
+    review.innerHTML = guidedAnalysisCard(analysis);
+  };
+  const showCallBrief = brief => {
+    const modal = document.getElementById('proposal-diff-modal');
+    const body = document.getElementById('proposal-diff-content');
+    if (!modal || !body) return;
+    body.innerHTML = `<div class="call-brief-modal"><p>${guidedEsc(brief.overview || '')}</p>${['eligible_applicants','priority_outcomes','required_deliverables','financial_and_timing','evaluation_criteria','open_questions'].map(key => `<section><h4>${guidedEsc(key.replaceAll('_',' '))}</h4><ul>${(brief[key] || []).map(item => `<li>${guidedEsc(item)}</li>`).join('')}</ul></section>`).join('')}</div>`;
+    modal.querySelector('.modal-hdr .modal-title').textContent = 'Call Brief';
+    modal.classList.add('open');
+  };
+  const readStep1 = () => {
+    const values = {};
+    content.querySelectorAll('[data-v2-field]').forEach(el => { values[el.dataset.v2Field] = el.value; });
+    values.sectors = String(values.sectors || '').split(',').map(x => x.trim()).filter(Boolean);
+    values.budget_amount = values.budget_amount || null;
+    return values;
+  };
+  const renderList = () => {
+    list.innerHTML = guidedProposalState.setups.length
+      ? guidedProposalState.setups.map(p => `<div class="report-item ${p.id === guidedProposalState.active?.id ? 'active' : ''}" data-v2-action="select" data-id="${guidedEsc(p.id)}" style="cursor:pointer;padding:10px;border-bottom:1px solid var(--border-light);position:relative"><div class="report-item-title" style="font-weight:600;font-size:13px">${guidedEsc(p.project_title || 'Untitled proposal')}</div><div class="report-item-meta" style="font-size:11px;color:var(--text-muted)">${guidedEsc(p.country || 'Country pending')} · Step ${unlockedStep(p)} of 5</div></div>`).join('')
+      : '<div class="empty-state">No guided proposals yet</div>';
+  };
+  const renderSteps = () => {
+    const active = guidedProposalState.active;
+    if (!active) { steps.innerHTML = ''; return; }
+    steps.innerHTML = PROPOSAL_STEPS.map(step => {
+      const state = stepState(active, step.num) || 'draft';
+      const locked = state === 'locked';
+      const current = guidedProposalState.step === step.num;
+      const reachable = step.num <= unlockedStep(active);
+      return `<div class="wizard-step ${current ? 'active' : ''} ${locked ? 'complete' : ''}" ${reachable ? `data-v2-action="step" data-step="${step.num}"` : 'aria-disabled="true"'}><span class="wizard-step-num">${locked ? '✓' : step.num}</span><span class="wizard-step-label">${step.label}</span><span class="wizard-step-icon">${locked ? '✓' : '○'}</span></div>`;
+    }).join('');
+    const fill = document.getElementById('wizard-progress-fill');
+    if (fill) fill.style.width = `${((unlockedStep(active) - 1) / 4) * 100}%`;
+  };
+  const actionBar = (step, isLocked) => isLocked
+    ? '<div class="wizard-section-actions"><span class="wizard-status-badge wizard-status-complete">Locked — this stage is now immutable</span></div>'
+    : `<div class="wizard-section-actions" style="display:flex;gap:8px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border-light)"><button class="btn btn-secondary btn-sm" data-v2-action="generate" data-step="${step}">Generate draft</button><button class="btn btn-primary btn-sm" data-v2-action="analyze" data-step="${step}">Analyze setup</button><button class="btn btn-green btn-sm" data-v2-action="lock" data-step="${step}">Confirm &amp; Lock Step ${step}</button></div>`;
+  const renderSetup = (proposal, locked) => {
+    const donor = donorFor(proposal.donor);
+    const currencies = donor.currency_options || ['USD', 'EUR'];
+    const donorOptions = donors.map(d => ({ value:d.id, label:d.label }));
+    const countryOptions = guidedProposalState.countries.map(c => ({ value:c, label:c }));
+    return `<div class="wizard-section-inner"><div class="wizard-section-header-row"><div><h3>1. Project Setup</h3><p class="text-muted" style="margin-top:4px;font-size:13px">Set the contract the next stages will follow. After lock, these inputs cannot be changed.</p></div><span class="wizard-status-badge wizard-status-${locked ? 'complete' : proposal.analysis ? 'reviewing' : 'draft'}">${locked ? 'locked' : proposal.analysis ? 'analyzed' : 'draft'}</span></div><div class="proposal-v2-donor-card"><div><span class="proposal-v2-kicker">Active donor framework</span><h4>${guidedEsc(donor.full_name || 'Choose a donor')}</h4><p>${guidedEsc(donor.framework_standard || 'Select a primary donor to load its proposal rules.')}</p></div><div class="proposal-v2-rule-stats"><span><b>${guidedEsc((donor.currency_options || []).join(' / ') || '—')}</b>Currency</span><span><b>${donor.max_duration_months || '—'} mo</b>Max duration</span><span><b>${donor.overhead_ceiling_percent ?? '—'}%</b>Overhead ceiling</span></div>${donor.special_requirements?.length ? `<details open><summary>Key donor requirements</summary><ul>${donor.special_requirements.slice(0,5).map(item => `<li>${guidedEsc(item)}</li>`).join('')}</ul></details>` : ''}</div><div class="up-grid"><label class="form-group"><span>Project title</span><input class="fi" data-v2-field="project_title" value="${guidedEsc(proposal.project_title)}" ${locked ? 'disabled' : ''} minlength="10" maxlength="150"></label><label class="form-group"><span>Target country</span><input class="fi" list="proposal-v2-countries" data-v2-field="country" value="${guidedEsc(proposal.country)}" ${locked ? 'disabled' : ''}></label><label class="form-group"><span>Region / location</span><input class="fi" data-v2-field="region" value="${guidedEsc(proposal.region)}" ${locked ? 'disabled' : ''}></label><label class="form-group"><span>Primary donor</span><select class="fi" data-v2-field="donor" ${locked ? 'disabled' : ''}>${options(donorOptions,proposal.donor)}</select></label><label class="form-group"><span>Estimated budget</span><input class="fi" type="number" min="0.01" step="0.01" data-v2-field="budget_amount" value="${guidedEsc(proposal.budget_amount || '')}" ${locked ? 'disabled' : ''}></label><label class="form-group"><span>Currency</span><select class="fi" data-v2-field="budget_currency" ${locked ? 'disabled' : ''}>${options(currencies.map(value => ({value,label:value})),proposal.budget_currency)}</select></label></div><datalist id="proposal-v2-countries">${countryOptions.map(item => `<option value="${guidedEsc(item.value)}">`).join('')}</datalist><label class="form-group" style="display:block"><span>Executive intent <em style="font-style:normal;font-weight:400">100–500 characters</em></span><textarea class="fi" data-v2-field="executive_intent" rows="6" ${locked ? 'disabled' : ''}>${guidedEsc(proposal.executive_intent)}</textarea></label><label class="form-group" style="display:block"><span>Sectors <em style="font-style:normal;font-weight:400">comma separated</em></span><input class="fi" data-v2-field="sectors" value="${guidedEsc((proposal.sectors || []).join(', '))}" ${locked ? 'disabled' : ''}></label><div class="proposal-v2-call-row"><div><strong>Grant call document</strong><small>${guidedEsc(proposal.reference_filename || 'No call document attached yet')}</small></div>${locked ? '' : '<input type="file" id="proposal-v2-reference" accept=".docx,.txt,.md">'}${proposal.reference_text ? '<button class="btn btn-secondary btn-sm" data-v2-action="call-brief">Open call brief</button>' : ''}</div>${actionBar(1,locked)}</div>`;
+  };
+  const render = () => {
+    const proposal = guidedProposalState.active;
+    renderList(); renderSteps();
+    if (!proposal) { title.textContent = 'Select or Create a Proposal'; context.textContent = 'Five-stage donor proposal workflow'; content.innerHTML = '<div class="proposal-welcome-placeholder"><div class="welcome-icon">📋</div><h3>Guided Proposal Workspace</h3><p>Start from the call document, co-write with AI, and lock each validated stage.</p><button class="btn btn-primary" data-v2-action="new">Create Guided Proposal</button></div>'; showReview(null); return; }
+    title.textContent = proposal.project_title || 'Untitled proposal';
+    context.textContent = `${proposal.country || 'Country pending'} · ${donorFor(proposal.donor).label || 'Donor pending'}`;
+    const step = guidedProposalState.step;
+    const locked = stepState(proposal,step) === 'locked';
+    if (step === 1) content.innerHTML = renderSetup(proposal,locked);
+    else content.innerHTML = `<div class="wizard-section-inner"><div class="wizard-section-header-row"><h3>${step}. ${PROPOSAL_STEPS[step - 1].label}</h3></div><div class="empty-state" style="padding:52px 20px">Step 1 is being finalized first. This stage will retain the existing document and matrix design in the next pass.</div></div>`;
+    showReview(step === 1 ? proposal.analysis : proposal[`step${step}_analysis`]);
+  };
+  const refresh = async () => { guidedProposalState.setups = await guidedRequest('/api/proposals/setups'); if (!guidedProposalState.active && guidedProposalState.setups[0]) guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${guidedProposalState.setups[0].id}`); render(); };
+  const create = async () => { guidedProposalState.active = await guidedRequest('/api/proposals/setups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_title:'New guided proposal',donor:'generic',budget_currency:'USD',sectors:[]})}); guidedProposalState.step = 1; await refresh(); render(); };
+  panel.addEventListener('click', async event => {
+    const target = event.target.closest('[data-v2-action]'); if (!target) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    try {
+      const action = target.dataset.v2Action;
+      if (action === 'new') return create();
+      if (action === 'select') { guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${target.dataset.id}`); guidedProposalState.step = unlockedStep(guidedProposalState.active); return render(); }
+      if (action === 'step') { guidedProposalState.step = Number(target.dataset.step); return render(); }
+      const proposal = guidedProposalState.active; if (!proposal) return;
+      if (action === 'call-brief') { const result = await guidedRequest(`/api/proposals/setups/${proposal.id}/call-brief`,{method:'POST'}); return showCallBrief(result.brief); }
+      const step = Number(target.dataset.step || guidedProposalState.step);
+      if (step !== 1) return;
+      const data = readStep1();
+      if (action === 'generate') { await guidedRequest(`/api/proposals/setups/${proposal.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); const result = await guidedRequest(`/api/proposals/setups/${proposal.id}/generate-draft`,{method:'POST'}); Object.assign(proposal,result.draft || {}); return render(); }
+      await guidedRequest(`/api/proposals/setups/${proposal.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+      if (action === 'analyze') { proposal.analysis = await guidedRequest(`/api/proposals/setups/${proposal.id}/analyze`,{method:'POST'}); return render(); }
+      if (action === 'lock') { guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${proposal.id}/lock`,{method:'POST'}); guidedProposalState.step = 2; await refresh(); return render(); }
+    } catch (error) { review.innerHTML = `<div class="proposal-review-message error">${guidedEsc(error.message)}</div>`; }
+  });
+  panel.addEventListener('change', async event => {
+    if (event.target.matches('[data-v2-field="donor"]') && guidedProposalState.active) {
+      Object.assign(guidedProposalState.active,readStep1());
+      const selected = donorFor(guidedProposalState.active.donor);
+      if (!(selected.currency_options || []).includes(guidedProposalState.active.budget_currency)) guidedProposalState.active.budget_currency = selected.currency_options?.[0] || 'USD';
+      render();
+    }
+    if (event.target.id === 'proposal-v2-reference' && guidedProposalState.active && event.target.files[0]) {
+      const form = new FormData(); form.append('file',event.target.files[0]);
+      try { await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}/upload-reference`,{method:'POST',body:form}); guidedProposalState.active = await guidedRequest(`/api/proposals/setups/${guidedProposalState.active.id}`); render(); } catch (error) { review.innerHTML = `<div class="proposal-review-message error">${guidedEsc(error.message)}</div>`; }
+    }
+  });
+  document.getElementById('btn-new-proposal')?.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); create(); },true);
+  (async () => { try { const [countryData,donorData] = await Promise.all([guidedRequest('/api/db/countries'),guidedRequest('/api/proposals/donors')]); guidedProposalState.countries = Array.isArray(countryData) ? countryData : []; donors = Array.isArray(donorData) ? donorData : []; await refresh(); } catch (error) { review.innerHTML = `<div class="proposal-review-message error">${guidedEsc(error.message)}</div>`; } })();
+}
 
 /* ── Walkthrough Scroll Reveal ── */
 document.addEventListener('DOMContentLoaded', function initWalkthroughObserver() {

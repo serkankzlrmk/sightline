@@ -144,18 +144,20 @@ def _resolve_role(decoded_token: dict) -> str:
     """Determine the effective role for a decoded Firebase token.
 
     Priority:
-      1. Firebase Custom Claims 'role' field (set by set_user_role)
-      2. ADMIN_UIDS env var → admin
+      1. ADMIN_UIDS env var → admin (explicit emergency/admin allowlist)
+      2. Firebase Custom Claims 'role' field (set by set_user_role)
       3. Default → free
     """
-    # Custom claims take precedence
-    custom_claims = decoded_token.get("role", "")
-    if custom_claims and custom_claims in ROLE_HIERARCHY:
-        return custom_claims
-    # Fallback: check ADMIN_UIDS env var
+    # An explicit UID allowlist must override a stale lower-privilege claim.
+    # Firebase tokens can retain a cached `role=free`/`premium` claim even
+    # after an operator adds the UID to ADMIN_UIDS.
     uid = decoded_token.get("uid", "")
     if uid and uid in _admins():
         return "admin"
+
+    custom_claims = decoded_token.get("role", "")
+    if custom_claims and custom_claims in ROLE_HIERARCHY:
+        return custom_claims
     return "free"
 
 
