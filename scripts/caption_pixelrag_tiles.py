@@ -30,6 +30,19 @@ If this is a logo, stock photo, cover decoration, background, or layout-only pag
 use visual_type=decorative, is_decorative=true, relevance <= 0.2."""
 
 
+def parse_result(content: str) -> dict:
+    content = content.strip().removeprefix("```json").removesuffix("```").strip()
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return {
+            "visual_type": "unknown",
+            "caption": "Visual tile could not be classified reliably.",
+            "relevance": 0.0,
+            "is_decorative": True,
+        }
+
+
 def image_base64(image: Path, max_size: int) -> str:
     with Image.open(image) as source:
         source = source.convert("RGB")
@@ -62,7 +75,7 @@ def classify_openrouter(image: Path, model: str, base_url: str, api_key: str, ma
     )
     response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"]
-    return json.loads(content)
+    return parse_result(content)
 
 
 def classify_ollama(image: Path, model: str, base_url: str, max_size: int) -> dict:
@@ -78,7 +91,7 @@ def classify_ollama(image: Path, model: str, base_url: str, max_size: int) -> di
         timeout=180,
     )
     response.raise_for_status()
-    return json.loads(response.json()["message"]["content"])
+    return parse_result(response.json()["message"]["content"])
 
 
 def main() -> None:
