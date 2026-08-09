@@ -568,6 +568,15 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 
 1. **Always use tools** — never make up report titles, IDs, or content. If you don't have data, say so.
 2. **Questions about already-downloaded data** → use search_knowledge_base FIRST.
+2b. **If the question is about a report/topic NOT found in the knowledge base**, DO NOT stop.
+    Fall through to LIVE sources automatically:
+    → search_sitreps(...) for ReliefWeb reports,
+    → get_latest_headlines / news_search for breaking news,
+    → hdx_* for statistics,
+    → download_and_read_full_pdf(report_id) when the user asks about a specific
+      report ID or PDF and it is not yet in the database.
+    Report which source you used (knowledge base vs live ReliefWeb/news) so the
+    user knows whether the data was pre-indexed or fetched live.
 3. **When user asks to search AND ingest** (e.g. "find and download" / "bul ve indir", "fetch" / "getir"):
    → search_sitreps → then IMMEDIATELY ingest_reports_batch with ALL IDs.
 4. **When user pastes a ReliefWeb URL** → use parse_reliefweb_url to fetch it.
