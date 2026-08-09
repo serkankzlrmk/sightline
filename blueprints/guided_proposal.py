@@ -989,7 +989,7 @@ def api_guided_proposal_evaluate(setup_id):
     )
 
 
-@guided_proposal_bp.route("/setups/<setup_id>/compile-pdf", methods=["GET", "POST"])
+@guided_proposal_bp.route("/setups/<setup_id>/compile-pdf", methods=["POST"])
 @require_role("premium")
 def api_guided_proposal_compile_pdf(setup_id):
     if disabled := _enabled_response():
@@ -1085,3 +1085,255 @@ def api_guided_proposal_compile_pdf(setup_id):
     pdf = build_proposal_pdf(proposal)
     filename = f"Proposal_{step1['donor']}_{step1['project_title'][:40]}.pdf"
     return send_file(pdf, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+
+# ── V2 Advisor Chat ───────────────────────────────────────────────────────────
+# Mirrors the V1 advisor but reads from proposal_v2_setups instead of proposals.
+
+import threading as _threading
+
+_ADVISOR_BUSY_TIMEOUT = 120
+_advisor_busy: dict[str, bool] = {}
+_advisor_busy_lock = _threading.Lock()
+
+
+def _serialize_setup_for_context(row) -> str:
+    """Build a human-readable context string from a V2 setup row."""
+    setup = dict(row)
+    parts = [
+        f"Project: {setup.get('project_title', '?')}",
+        f"Country: {setup.get('country', '?')}",
+        f"Region: {setup.get('region', '?')}",
+        f"Donor: {setup.get('donor', '?')}",
+        f"Budget: {setup.get('budget_amount', '?')} {setup.get('budget_currency', '?')}",
+        f"Executive Intent: {setup.get('executive_intent', '?')}",
+        f"Sectors: {setup.get('sectors', '?')}",
+    ]
+
+    # Step state labels
+    states = {
+        1: setup.get("state", "draft"),
+        2: setup.get("step2_state", "draft"),
+        3: setup.get("step3_state", "draft"),
+        4: setup.get("step4_state", "draft"),
+    }
+    parts.append("Step states: " + ", ".join(f"Step {k}={v}" for k, v in states.items()))
+
+    # Context data
+    for field in ("context_data", "technical_data", "financial_data"):
+        raw = setup.get(field)
+        if raw and raw not in ("{}", "", None):
+            try:
+                parsed = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(parsed, dict):
+                    parts.append(f"\n{field}:\n" + json.dumps(parsed, indent=2, ensure_ascii=False)[:2000])
+            except (json.JSONDecodeError, TypeError):
+                parts.append(f"\n{field}: {str(raw)[:500]}")
+
+    # Analysis results
+    for field in ("analysis", "step2_analysis", "step3_analysis", "step4_analysis"):
+        raw = setup.get(field)
+        if raw and raw not in ("{}", "", None):
+            try:
+                parsed = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(parsed, dict):
+                    score = parsed.get("donor_compliance_score")
+                    valid = parsed.get("is_valid")
+                    if score is not None or valid is not None:
+                        parts.append(f"{field}: score={score}, valid={valid}")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    return "\n".join(parts)
+
+
+@guided_proposal_bp.route("/setups/<setup_id>/advisor/chat", methods=["POST"])
+@require_role("premium")
+def api_guided_proposal_advisor_chat(setup_id):
+    """Advisor chat for Guided Proposal V2."""
+    import time as _time
+
+    uid, role = current_uid(), current_role()
+    data = request.get_json(silent=True) or {}
+    message = data.get("message", "").strip()
+
+    if not message:
+        return jsonify({"error": "Message is required."}), 400
+
+    # Per-user busy flag
+    with _advisor_busy_lock:
+        if uid in _advisor_busy and (_time.time() - _advisor_busy.get(uid + "_since", 0)) > _ADVISOR_BUSY_TIMEOUT:
+            _advisor_busy[uid] = False
+        if _advisor_busy.get(uid, False):
+            return jsonify({"error": "Advisor is busy processing your previous request. Please wait."}), 429
+        _advisor_busy[uid] = True
+        _advisor_busy[uid + "_since"] = _time.time()
+
+    conn = None
+    try:
+        conn, row = _owned_setup(setup_id, uid, role)
+        if not row:
+            return jsonify({"error": "Setup not found."}), 404
+
+        setup = _serialize(row)
+        chat_id = f"v2_advisor_{setup_id}"
+
+        # Ensure chat session
+        conn.execute(
+            "INSERT OR IGNORE INTO chats (id, uid, title, created) VALUES (?, ?, ?, ?)",
+            (chat_id, uid, f"V2 Advisor: {setup.get('project_title', 'Proposal')}", _time.time()),
+        )
+        conn.commit()
+
+        # Load history
+        db_rows = conn.execute(
+            "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY ts ASC",
+            (chat_id,),
+        ).fetchall()
+
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+        messages = []
+        for r in db_rows[-20:]:
+            if r["role"] == "user":
+                messages.append(HumanMessage(content=r["content"]))
+            elif r["role"] == "assistant":
+                messages.append(AIMessage(content=r["content"]))
+
+        messages.append(HumanMessage(content=message))
+
+        # Save user message
+        conn.execute(
+            "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'user', ?, ?)",
+            (chat_id, message, _time.time()),
+        )
+        conn.commit()
+
+        # Build context from setup
+        setup_context = _serialize_setup_for_context(row)
+
+        # Fetch context chunks from ChromaDB
+        chunks_text = ""
+        try:
+            from sitrep.chroma_adapter import ChromaAdapter
+
+            chroma = ChromaAdapter()
+            country = setup.get("country", "")
+            sectors = setup.get("sectors", [])
+            if isinstance(sectors, str):
+                try:
+                    sectors = json.loads(sectors)
+                except (json.JSONDecodeError, TypeError):
+                    sectors = [s.strip() for s in sectors.split(",") if s.strip()]
+            chunks = chroma.get_chunks_by_country_and_themes(country, sectors or None)
+            if chunks:
+                chunks_text = "\n\n".join(
+                    [f"- {c.get('title', 'Report')}: {c.get('text', '')}" for c in chunks[:10]]
+                )
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunks for V2 advisor: {e}")
+
+        # Load donor profile for context
+        from agent.proposal_v2_rules import DONOR_PROFILES
+
+        donor = DONOR_PROFILES.get(setup.get("donor", ""), DONOR_PROFILES.get("generic", {}))
+        donor_context = (
+            f"Donor: {donor.get('full_name', 'Generic')}\n"
+            f"Framework: {donor.get('framework_standard', '')}\n"
+            f"Overhead ceiling: {donor.get('overhead_ceiling_percent', '?')}%\n"
+            f"Max duration: {donor.get('max_duration_months', '?')} months\n"
+            f"Special requirements: {'; '.join(donor.get('special_requirements', [])[:5])}"
+        )
+
+        system_prompt = f"""You are the Sightline Proposal Advisor for a Guided Proposal (V2). The user is actively working on a humanitarian proposal.
+
+Current proposal state:
+{setup_context}
+
+Donor rules:
+{donor_context}
+
+Relevant humanitarian context:
+{chunks_text}
+
+You can see the full proposal state above. Help the user improve their proposal based on donor compliance rules, humanitarian best practices, and the context data. Be specific and constructive. When suggesting edits, describe what to change and why."""
+
+        messages.insert(0, SystemMessage(content=system_prompt))
+
+        # Invoke agent
+        from blueprints.helpers import _get_agent
+
+        agent = _get_agent()
+        config = {"recursion_limit": 25, "configurable": {"uid": uid, "proposal_id": setup_id}}
+
+        result = agent.invoke({"messages": messages}, config=config)
+
+        # Extract final response
+        final_response = ""
+        for msg in reversed(result.get("messages", [])):
+            if isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
+                final_response = msg.content
+                break
+
+        if not final_response:
+            final_response = "I have reviewed your proposal. Let me know if you'd like specific suggestions."
+
+        # Save assistant message
+        conn.execute(
+            "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, 'assistant', ?, ?)",
+            (chat_id, final_response, _time.time()),
+        )
+        conn.commit()
+
+        # Check if proposal tools were used (for auto-refresh)
+        proposal_edited = False
+        for msg in result.get("messages", []):
+            if hasattr(msg, "name") and msg.name in (
+                "edit_proposal_toc",
+                "edit_proposal_logframe",
+                "edit_proposal_narrative",
+            ):
+                proposal_edited = True
+                break
+
+        command_data = {"action": "refresh"} if proposal_edited else None
+
+        return jsonify({"response": final_response, "command": command_data})
+
+    except Exception as e:
+        logger.error("V2 advisor chat error for setup %s: %s", setup_id, e)
+        return jsonify({"error": "Advisor failed. Please try again."}), 500
+    finally:
+        with _advisor_busy_lock:
+            _advisor_busy.pop(uid, None)
+            _advisor_busy.pop(uid + "_since", None)
+        if conn:
+            conn.close()
+
+
+@guided_proposal_bp.route("/setups/<setup_id>/advisor/history", methods=["GET"])
+@require_auth
+def api_guided_proposal_advisor_history(setup_id):
+    """Retrieve advisor chat history for a Guided Proposal V2 setup."""
+    uid, role = current_uid(), current_role()
+    conn, row = _owned_setup(setup_id, uid, role)
+    if not row:
+        conn.close()
+        return jsonify({"error": "Setup not found."}), 404
+    conn.close()
+
+    chat_id = f"v2_advisor_{setup_id}"
+    conn = _chats_db()
+    try:
+        db_rows = conn.execute(
+            "SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY ts ASC",
+            (chat_id,),
+        ).fetchall()
+
+        history = [{"role": r["role"], "content": r["content"]} for r in db_rows]
+        return jsonify(history)
+    except Exception as e:
+        logger.error("V2 advisor history error for setup %s: %s", setup_id, e)
+        return jsonify([])
+    finally:
+        conn.close()
