@@ -82,6 +82,7 @@ backups/
 .hermes/
 .opencode/
 _archive/
+.agents/
 
 # Firebase web config (contains real Firebase project credentials)
 # Copy firebase-config.example.js → firebase-config.js and fill in
@@ -90,6 +91,17 @@ static/firebase-config.js
 # Firebase service account (server-side, SECRET)
 firebase-service-account.json
 **/firebase-service-account.json
+
+# Internal documents (not for public release)
+FINAL_REVIEW_PLAN.md
+PROPOSAL_REDESIGN.md
+GOVERNANCE.md
+docs/AGENT_NOTES.md
+docs/COMMAND_CENTER_PLAN.md
+docs/STITCH_PROMPT.md
+docs/STITCH_LOGIN_PROMPT.md
+deploy/backup.sh
+deploy/cloud-init.yaml
 
 static/.DS_Store
 static/videos/intro_orig.mp4

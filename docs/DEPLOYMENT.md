@@ -14,7 +14,7 @@ User → Caddy (80/443, auto-TLS) → Docker app (5001, gunicorn)
 
 ### Server
 - **Hetzner CAX11 ARM64** (2 vCPU, 4GB RAM, Falkenstein)
-- **IP:** YOUR_SERVER_IP
+- **IP:** <your-server-ip>
 - **Domains:** YOUR_PROJECT_ID.com
 - **OS:** Ubuntu 24.04 ARM64
 
@@ -55,7 +55,7 @@ git push origin main
 ### GitHub Secrets (Settings → Secrets → Actions)
 | Secret | Value | Purpose |
 |--------|-------|---------|
-| `SERVER_HOST` | `YOUR_SERVER_IP` | SSH host |
+| `SERVER_HOST` | `<your-server-ip>` | SSH host |
 | `SERVER_USER` | `root` | SSH user |
 | `SERVER_SSH_KEY` | Full content of `~/.ssh/id_ed25519` | SSH private key |
 
@@ -75,7 +75,7 @@ If health check fails after deploy, the workflow automatically:
 
 ### Manual rollback
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 docker stop sightline
 docker run -d --name sightline ... ghcr.io/serkankzlrmk/redagent:<prev_sha>
 ```
@@ -94,7 +94,7 @@ docker buildx build --platform linux/arm64 \
   --push .
 
 # 2. SSH to production and restart
-ssh root@YOUR_SERVER_IP "
+ssh root@<your-server-ip> "
   docker pull ghcr.io/serkankzlrmk/redagent:latest
   cd /tmp/sightline-build && docker compose down
   docker compose up -d
@@ -104,7 +104,7 @@ ssh root@YOUR_SERVER_IP "
 ### Option B: Build on production directly
 
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 cd /opt/reliefagent/repo && git fetch origin main:main
 rm -rf /tmp/sightline-build
 git clone -b main /opt/reliefagent/repo /tmp/sightline-build
@@ -120,7 +120,7 @@ docker compose up -d --build
 
 ### Check status
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 docker ps                          # See running containers
 docker logs sightline --tail 50    # App logs
 docker logs sightline-caddy --tail 50  # Caddy logs
@@ -129,7 +129,7 @@ curl http://localhost:5001/api/health  # Health check
 
 ### Restart app
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 cd /tmp/sightline-build
 docker compose restart app
 ```
@@ -142,7 +142,7 @@ docker logs sightline 2>&1 | grep "MCP:"
 
 ### Update .env
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 nano /opt/reliefagent/data/.env     # Edit env vars
 cd /tmp/sightline-build
 docker compose restart app          # Restart to pick up changes
@@ -165,7 +165,7 @@ cd /tmp/sightline-build && bash deploy/setup-crons-docker.sh
 
 ### Manual cron trigger
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 docker exec sightline python /app/scripts/daily_ingest.py
 docker exec sightline python /app/scripts/generate_bulletin.py --last-week
 docker exec sightline python /app/scripts/generate_country_summaries.py
@@ -173,7 +173,7 @@ docker exec sightline python /app/scripts/generate_country_summaries.py
 
 ### Backup
 ```bash
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 docker exec sightline sqlite3 /app/data/reliefweb.db ".backup /app/data/reliefweb_backup.db"
 docker exec sightline cp /app/data/reliefweb_backup.db /backup/
 ```

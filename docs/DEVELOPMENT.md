@@ -269,13 +269,13 @@ Public endpoints (no auth): `/api/health`, `/api/public/stats`, `/api/public/bul
 
 ```bash
 # SSH to production
-ssh root@YOUR_SERVER_IP
+ssh root@<your-server-ip>
 
 # Check production health
 curl -sfk https://YOUR_PROJECT_ID.com/api/health
 
 # Check production logs
-ssh root@YOUR_SERVER_IP "docker logs sightline --tail 50"
+ssh root@<your-server-ip> "docker logs sightline --tail 50"
 
 # Run tests locally
 pytest tests/ -v

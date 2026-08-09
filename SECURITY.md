@@ -12,7 +12,7 @@ acknowledge your contributions.
 
 Instead, please report vulnerabilities privately:
 
-1. **Email:** **security@sightline.ai** (placeholder — update before publication)
+1. **Email:** See [GitHub Security Advisories](https://github.com/serkankzlrmk/sightline/security) (preferred)
 2. **Subject line:** `[SECURITY] Sightline — <short description>`
 3. **Include in your report:**
    - Description of the vulnerability and its potential impact
