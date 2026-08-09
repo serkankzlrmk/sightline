@@ -323,6 +323,7 @@ def generate_step_three_draft(setup: dict) -> dict:
     source = {
         "locked_setup": {key: setup.get(key, "") for key in ("project_title", "country", "region", "donor", "sectors")},
         "context_and_needs": setup.get("context_data", {}),
+        "current_technical_design": setup.get("technical_data", {}),
         "call_document": str(setup.get("reference_text", ""))[:12000],
     }
     prompt = f"""{donor.get('prompt_directive', '')}
@@ -334,7 +335,7 @@ Return JSON only with this shape:
 {{"id":"output-1","level":"output","parent_id":"outcome-1","intervention_logic":"...","indicators":[{{"indicator_title":"...","baseline_value":"...","target_value":"...","unit_of_measure":"...","disaggregation":"...","data_source_and_frequency":"..."}}],"means_of_verification":"...","assumptions":"..."}},
 {{"id":"activity-1","level":"activity","parent_id":"output-1","intervention_logic":"...","indicators":[{{"indicator_title":"...","baseline_value":"...","target_value":"...","unit_of_measure":"...","disaggregation":"...","data_source_and_frequency":"..."}}],"means_of_verification":"...","assumptions":"..."}}],
 "gantt":[{{"activity_id":"activity-1","months":[1,2,3]}}],"draft_notes":["..."]}}
-Use short sequential IDs, preserve parent relationships, and do not invent donor commitments. Draft at least one complete SMART indicator for every row; for outcome/output rows all six indicator fields are mandatory. Use clearly labelled assumptions when a baseline is unknown (for example, "To be established in inception survey") rather than leaving fields blank.
+Use short sequential IDs, preserve parent relationships, and do not invent donor commitments. If current_technical_design contains rows, preserve their IDs, parent links and user text, and complete or improve their indicators instead of deleting them. Draft at least one complete SMART indicator for every row; for outcome/output rows all six indicator fields are mandatory. Use clearly labelled assumptions when a baseline is unknown (for example, "To be established in inception survey") rather than leaving fields blank.
 Keep every narrative field under 500 characters and return at most 2 indicators per row.
 Return exactly 1 impact, 1 outcome, 2 outputs, and 2 activities; do not add extra rows.
 Do not include markdown, source lists, or explanatory text outside the JSON."""
