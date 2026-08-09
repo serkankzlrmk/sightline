@@ -94,14 +94,38 @@ def classify_ollama(image: Path, model: str, base_url: str, max_size: int) -> di
     return parse_result(response.json()["message"]["content"])
 
 
+def classify_gemini(image: Path, model: str, api_key: str, max_size: int) -> dict:
+    encoded = image_base64(image, max_size)
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        headers={"X-goog-api-key": api_key, "Content-Type": "application/json"},
+        json={
+            "contents": [
+                {
+                    "parts": [
+                        {"text": PROMPT},
+                        {"inline_data": {"mime_type": "image/jpeg", "data": encoded}},
+                    ]
+                }
+            ],
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
+        },
+        timeout=180,
+    )
+    response.raise_for_status()
+    text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return parse_result(text)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tiles_dir", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--provider", choices=("ollama", "openrouter"), default=os.getenv("VISION_PROVIDER", "ollama"))
+    parser.add_argument("--provider", choices=("ollama", "openrouter", "gemini"), default=os.getenv("VISION_PROVIDER", "ollama"))
     parser.add_argument("--model", default=os.getenv("VISION_MODEL", "gemma4:e4b"))
     parser.add_argument("--base-url", default=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
     parser.add_argument("--ollama-url", default=os.getenv("LOCAL_OLLAMA_URL", "http://127.0.0.1:11434"))
+    parser.add_argument("--gemini-api-key", default=os.getenv("GEMINI_API_KEY", ""))
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--max-size", type=int, default=1600)
     parser.add_argument("--resume", action="store_true")
@@ -109,6 +133,8 @@ def main() -> None:
     api_key = os.getenv("OPENROUTER_API_KEY", "")
     if args.provider == "openrouter" and not api_key:
         raise SystemExit("OPENROUTER_API_KEY is required; no request was sent")
+    if args.provider == "gemini" and not args.gemini_api_key:
+        raise SystemExit("GEMINI_API_KEY is required; no request was sent")
     images = sorted(args.tiles_dir.glob("**/tile_*.jpg"))[: args.limit]
     results = json.loads(args.output.read_text(encoding="utf-8")) if args.resume and args.output.exists() else {}
     for image in images:
@@ -119,6 +145,8 @@ def main() -> None:
             continue
         if args.provider == "ollama":
             result = classify_ollama(image, args.model, args.ollama_url, args.max_size)
+        elif args.provider == "gemini":
+            result = classify_gemini(image, args.model, args.gemini_api_key, args.max_size)
         else:
             result = classify_openrouter(image, args.model, args.base_url, api_key, args.max_size)
         results[result_key] = result

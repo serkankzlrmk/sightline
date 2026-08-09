@@ -22,10 +22,12 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--model", default="gemma4:e4b")
-    parser.add_argument("--provider", choices=("ollama", "openrouter"), default="ollama")
+    parser.add_argument("--provider", choices=("ollama", "openrouter", "gemini"), default="ollama")
     parser.add_argument("--base-url", default=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
+    parser.add_argument("--gemini-api-key", default=os.getenv("GEMINI_API_KEY", ""))
     parser.add_argument("--device", choices=("mps", "cpu"), default="mps")
     parser.add_argument("--tile-limit", type=int, default=5000)
+    parser.add_argument("--work", type=Path)
     args = parser.parse_args()
     load_dotenv()
     required = ("R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
@@ -35,7 +37,8 @@ def main() -> None:
     if args.limit:
         records = records[: args.limit]
     args.output.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix="sightline-visual-batch-"))
+    work = args.work if args.work else Path(tempfile.mkdtemp(prefix="sightline-visual-batch-"))
+    work.mkdir(parents=True, exist_ok=True)
     client = boto3.client(
         "s3",
         endpoint_url=os.environ["R2_ENDPOINT_URL"],
@@ -72,26 +75,26 @@ def main() -> None:
             check=True,
         )
         captions = work / "captions.json"
-        subprocess.run(
-            [
-                os.environ.get("PYTHON", "python3"),
-                "scripts/caption_pixelrag_tiles.py",
-                str(index_dir / "tiles"),
-                "--output",
-                str(captions),
-                        "--provider",
-                        args.provider,
-                        "--model",
-                        args.model,
-                        "--base-url",
-                        args.base_url,
-                "--ollama-url",
-                os.getenv("LOCAL_OLLAMA_URL", "http://127.0.0.1:11434"),
-                "--limit",
-                str(args.tile_limit),
-            ],
-            check=True,
-        )
+        caption_cmd = [
+            os.environ.get("PYTHON", "python3"),
+            "scripts/caption_pixelrag_tiles.py",
+            str(index_dir / "tiles"),
+            "--output",
+            str(captions),
+            "--provider",
+            args.provider,
+            "--model",
+            args.model,
+            "--base-url",
+            args.base_url,
+            "--ollama-url",
+            os.getenv("LOCAL_OLLAMA_URL", "http://127.0.0.1:11434"),
+            "--limit",
+            str(args.tile_limit),
+        ]
+        if args.provider == "gemini":
+            caption_cmd += ["--gemini-api-key", args.gemini_api_key]
+        subprocess.run(caption_cmd, check=True)
         caption_map = json.loads(captions.read_text(encoding="utf-8"))
         metadata = np.load(index_dir / "metadata.npz", allow_pickle=True)
         units = []
@@ -117,7 +120,7 @@ def main() -> None:
         )
         (args.output / "manifest.json").write_text(
             json.dumps(
-                {"pipeline_version": "pixelrag-ollama-v1", "model": args.model, "reports": len(records), "units": len(units)},
+                {"pipeline_version": f"pixelrag-{args.provider}-v1", "model": args.model, "reports": len(records), "units": len(units)},
                 indent=2,
             )
             + "\n",
@@ -125,7 +128,8 @@ def main() -> None:
         )
         print(json.dumps({"reports": len(records), "units": len(units), "output": str(args.output)}))
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        if not args.work:
+            shutil.rmtree(work, ignore_errors=True)
 
 
 if __name__ == "__main__":
