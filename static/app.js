@@ -6845,18 +6845,18 @@ document.addEventListener('click', event => {
   } else if (button.dataset.guidedLogframeAction === 'remove') {
     const id = button.dataset.id; const removed = new Set([id]); let changed = true; while (changed) { changed = false; rows.forEach(row => { if (removed.has(row.parent_id) && !removed.has(row.id)) { removed.add(row.id); changed = true; } }); } data.logframe = rows.filter(row => !removed.has(row.id));
   } else return;
-  event.preventDefault(); event.stopPropagation(); guidedRender();
-});
+  event.preventDefault(); event.stopPropagation(); const host = document.querySelector('.guided-logframe-upgraded'); if (host) host.innerHTML = guidedTechnicalMatrixHtml(proposal, proposal.step3_state === 'locked');
+}, true);
 document.addEventListener('input', event => {
   const el = event.target.closest('[data-guided-logframe-action]'); if (!el || !guidedProposalState.active) return;
   const row = (guidedProposalState.active.technical_data?.logframe || []).find(item => item.id === el.dataset.id); if (!row) return;
   if (el.dataset.guidedLogframeAction === 'indicator') { row.indicators = [{ ...(row.indicators?.[0] && typeof row.indicators[0] === 'object' ? row.indicators[0] : {}), indicator_title: el.value }]; }
   else if (el.dataset.guidedLogframeAction === 'text') row[el.dataset.field] = el.value;
-});
+}, true);
 document.addEventListener('change', event => {
   const el = event.target.closest('[data-guided-logframe-action="parent"]'); if (!el || !guidedProposalState.active) return;
   const row = (guidedProposalState.active.technical_data?.logframe || []).find(item => item.id === el.dataset.id); if (row) row.parent_id = el.value;
-});
+}, true);
 function upgradeVisibleTechnicalMatrix() {
   const content = document.getElementById('wizard-section-content');
   const area = content?.querySelector('[data-guided-field="logframe"]');
