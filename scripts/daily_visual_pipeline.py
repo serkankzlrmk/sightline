@@ -106,32 +106,40 @@ def _classify_gemini(image_bytes: bytes) -> dict:
 
 def _classify_openrouter(image_bytes: bytes) -> dict:
     import base64
+    import time
 
     import requests
 
     encoded = base64.b64encode(image_bytes).decode("ascii")
-    response = requests.post(
-        f"{OPENROUTER_BASE_URL.rstrip('/')}/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-        json={
-            "model": OPENROUTER_MODEL,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": PROMPT},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
-                    ],
-                }
-            ],
-        },
-        timeout=120,
-    )
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
-    return parse_result(content)
+    for attempt in range(6):
+        response = requests.post(
+            f"{OPENROUTER_BASE_URL.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "model": OPENROUTER_MODEL,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": PROMPT},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
+                        ],
+                    }
+                ],
+            },
+            timeout=120,
+        )
+        if response.status_code == 429:
+            wait = 10 + (attempt * 15)
+            log.warning("OpenRouter rate limit, backing off %.1fs", wait)
+            time.sleep(wait)
+            continue
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        return parse_result(content)
+    raise RuntimeError("OpenRouter rate limit retries exhausted")
 
 
 def classify_image(image_bytes: bytes) -> dict:
