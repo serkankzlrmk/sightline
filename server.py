@@ -589,6 +589,13 @@ def _init_chats_db():
     for col, coldef in _new_prop_cols.items():
         if col not in prop_cols:
             conn.execute(f"ALTER TABLE proposals ADD COLUMN {col} {coldef}")
+    # Guided Proposal V2 keeps the expensive call brief alongside the uploaded
+    # reference so it is generated once and reused by the UI.
+    guided_tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+    if "proposal_v2_setups" in guided_tables:
+        guided_cols = {r[1] for r in conn.execute("PRAGMA table_info(proposal_v2_setups)").fetchall()}
+        if "call_brief" not in guided_cols:
+            conn.execute("ALTER TABLE proposal_v2_setups ADD COLUMN call_brief TEXT NOT NULL DEFAULT '{}'")
     conn.commit()
     conn.close()
 

@@ -79,14 +79,14 @@ def _get_tools_for_step(step: str):
     return selected
 
 
-def _run_generator_with_tools(system_prompt: str, user_content: str, step: str) -> tuple[str, list]:
+def _run_generator_with_tools(system_prompt: str, user_content: str, step: str, max_tokens: int = 4096) -> tuple[str, list]:
     """Run the generator as a LangGraph agent with tool-calling.
 
     Returns (response_text, sources).  Falls back to plain invoke if tools
     are unavailable or the agent loop fails.
     """
     tools = _get_tools_for_step(step)
-    model = _model(0.2, max_tokens=4096)
+    model = _model(0.2, max_tokens=max_tokens)
 
     if not tools:
         response = model.invoke(
@@ -314,6 +314,38 @@ Return JSON only:
         parsed["draft_notes"] = []
     if not isinstance(parsed.get("sources"), list):
         parsed["sources"] = discovered_sources
+    return parsed
+
+
+def generate_step_three_draft(setup: dict) -> dict:
+    """Create an editable ToC/logframe draft after Context & Needs is locked."""
+    donor = DONOR_PROFILES.get(setup.get("donor"), DONOR_PROFILES["generic"])
+    source = {
+        "locked_setup": {key: setup.get(key, "") for key in ("project_title", "country", "region", "donor", "sectors")},
+        "context_and_needs": setup.get("context_data", {}),
+        "call_document": str(setup.get("reference_text", ""))[:12000],
+    }
+    prompt = f"""{donor.get('prompt_directive', '')}
+Create an editable Step 3 technical design from the locked setup, context and uploaded call.
+Return JSON only with this shape:
+{{"toc_narrative":"...","hypotheses":["..."],"grant_months":12,
+"logframe":[{{"id":"impact-1","level":"impact","parent_id":"","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}},
+{{"id":"outcome-1","level":"outcome","parent_id":"impact-1","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}},
+{{"id":"output-1","level":"output","parent_id":"outcome-1","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}},
+{{"id":"activity-1","level":"activity","parent_id":"output-1","intervention_logic":"...","indicators":[],"means_of_verification":"...","assumptions":"..."}}],
+"gantt":[{{"activity_id":"activity-1","months":[1,2,3]}}],"draft_notes":["..."]}}
+Use short sequential IDs, preserve parent relationships, and do not invent donor commitments.
+Keep every narrative field under 500 characters and return at most 2 indicators per row.
+Return exactly 1 impact, 1 outcome, 2 outputs, and 2 activities; do not add extra rows.
+Do not include markdown, source lists, or explanatory text outside the JSON."""
+    raw, _ = _run_generator_with_tools(prompt, json.dumps(source, ensure_ascii=False), "3", max_tokens=7000)
+    parsed = _json(raw)
+    if not isinstance(parsed.get("logframe"), list): parsed["logframe"] = []
+    if not isinstance(parsed.get("gantt"), list): parsed["gantt"] = []
+    if not isinstance(parsed.get("hypotheses"), list): parsed["hypotheses"] = []
+    parsed["grant_months"] = int(parsed.get("grant_months") or 12)
+    parsed.setdefault("toc_narrative", "")
+    parsed.setdefault("draft_notes", [])
     return parsed
 
 

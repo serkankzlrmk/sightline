@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 
@@ -23,6 +24,7 @@ from auth import current_role, current_uid, require_auth, require_role
 from blueprints.helpers import _chats_db, _log_event
 
 guided_proposal_bp = Blueprint("guided_proposal", __name__, url_prefix="/api/proposals")
+logger = logging.getLogger(__name__)
 
 
 def _enabled_response():
@@ -41,6 +43,7 @@ def _serialize(row):
         ("step3_analysis", {}),
         ("financial_data", {}),
         ("step4_analysis", {}),
+        ("call_brief", {}),
     ):
         try:
             data[field] = json.loads(data[field]) if data[field] else default
@@ -123,7 +126,7 @@ def api_guided_proposal_upload_reference(setup_id):
         if not text:
             return jsonify({"error": "No readable text found in the call document."}), 400
         conn.execute(
-            "UPDATE proposal_v2_setups SET reference_text = ?, reference_filename = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_v2_setups SET reference_text = ?, reference_filename = ?, call_brief = '{}', updated_at = ? WHERE id = ?",
             (text, filename, time.time(), setup_id),
         )
         conn.commit()
@@ -144,9 +147,16 @@ def api_guided_proposal_call_brief(setup_id):
         setup = _serialize(row)
         if not setup.get("reference_text"):
             return jsonify({"error": "Upload a grant call before requesting its briefing."}), 422
+        if setup.get("call_brief"):
+            return jsonify({"brief": setup["call_brief"], "filename": setup.get("reference_filename"), "cached": True})
         from agent.proposal_v2_agents import summarize_call_document
 
         brief = summarize_call_document(setup)
+        conn.execute(
+            "UPDATE proposal_v2_setups SET call_brief = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(brief, ensure_ascii=False), time.time(), setup_id),
+        )
+        conn.commit()
         _log_event(uid, "guided_proposal_call_brief_generated", {"setup_id": setup_id})
         return jsonify({"brief": brief, "filename": setup.get("reference_filename"), "generated_at": time.time()})
     except Exception:
@@ -391,6 +401,31 @@ def api_guided_proposal_generate_step2_draft(setup_id):
         return jsonify({"draft": draft, "generated_at": time.time()})
     except Exception:
         return jsonify({"error": "AI context draft generation is temporarily unavailable. Please try again."}), 503
+    finally:
+        conn.close()
+
+
+@guided_proposal_bp.route("/setups/<setup_id>/generate-step3-draft", methods=["POST"])
+@require_role("premium")
+def api_guided_proposal_generate_step3_draft(setup_id):
+    """Create a first editable technical design after Context & Needs is locked."""
+    uid, role = current_uid(), current_role()
+    conn, row = _owned_setup(setup_id, uid, role)
+    try:
+        if not row:
+            return jsonify({"error": "Setup not found."}), 404
+        if row["state"] != "locked" or row["step2_state"] != "locked":
+            return jsonify({"error": "Lock Step 1 and Context & Needs before generating the technical draft."}), 409
+        if row["step3_state"] == "locked":
+            return jsonify({"error": "Step 3 is locked; create a new proposal to draft it again."}), 409
+        from agent.proposal_v2_agents import generate_step_three_draft
+
+        draft = generate_step_three_draft(_serialize(row))
+        _log_event(uid, "guided_proposal_step3_draft_generated", {"setup_id": setup_id})
+        return jsonify({"draft": draft, "generated_at": time.time()})
+    except Exception:
+        logger.exception("Step 3 technical design draft generation failed for setup %s", setup_id)
+        return jsonify({"error": "AI technical design draft is temporarily unavailable. Please try again."}), 503
     finally:
         conn.close()
 

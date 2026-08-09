@@ -704,14 +704,6 @@
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
                 <span>Sidebars</span>
               </button>
-              <button class="btn btn-xs btn-secondary btn-with-icon" id="btn-toggle-right-chat" title="Toggle Chat Advisor Panel" aria-pressed="false">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <span>Chat</span>
-              </button>
-              <button class="btn btn-xs btn-secondary btn-with-icon" id="btn-focus-mode" title="Full Screen Document Focus Mode" aria-pressed="false">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                <span>Focus Mode</span>
-              </button>
             </div>
           </div>
 
@@ -719,16 +711,6 @@
             <div>
               <h2 id="proposal-project-title">Select or Create a Proposal</h2>
               <p id="proposal-project-context" class="text-muted">Step-by-step AI-assisted donor proposal wizard</p>
-            </div>
-            <div class="proposal-actions">
-              <button class="btn btn-secondary btn-sm btn-with-icon" id="btn-proposal-export" disabled>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <span>Export MD</span>
-              </button>
-              <button class="btn btn-primary btn-sm btn-with-icon" id="btn-proposal-export-pdf" disabled>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                <span>Export PDF</span>
-              </button>
             </div>
           </div>
 
@@ -753,9 +735,7 @@
               <span>Proposal Assistant</span>
             </div>
             <div style="display:flex; gap:6px; align-items:center;">
-              <!-- Review / Chat tabs -->
-              <button class="btn btn-xs btn-secondary proposal-tab-btn active" id="tab-btn-review" onclick="switchAdvisorTab('review')" style="font-size:11px; padding:2px 8px;">Review</button>
-              <button class="btn btn-xs btn-secondary proposal-tab-btn" id="tab-btn-chat" onclick="switchAdvisorTab('chat')" style="font-size:11px; padding:2px 8px;">Chat</button>
+              <span class="proposal-review-label">Assistant review</span>
               <button class="btn btn-xs btn-secondary" id="btn-run-review" title="Run AI review on entire proposal" style="font-size:11px; padding:2px 8px;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:3px;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Analyze
@@ -776,21 +756,6 @@
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:12px;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               <p style="font-size:13px;">Click <strong>Analyze</strong> to get AI feedback<br>on your entire proposal</p>
               <p style="font-size:11px; margin-top:8px;">Section scores, priorities & suggestions</p>
-            </div>
-          </div>
-          <!-- Chat Tab Content -->
-          <div id="advisor-chat-content" style="display:none; flex-direction:column; flex:1 1 0%; min-height:0; overflow:hidden;">
-            <div id="advisor-chat-messages" style="flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:8px;">
-              <div style="text-align:center; padding:30px 20px; color:var(--text-muted);">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4; margin-bottom:8px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                <p style="font-size:13px;">Ask questions about your proposal,<br>get suggestions and help</p>
-              </div>
-            </div>
-            <div style="padding:8px 12px; border-top:1px solid var(--border-color); display:flex; gap:6px;">
-              <input type="text" id="advisor-chat-input" placeholder="Ask about your proposal..." style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:6px; font-size:13px; background:var(--bg-light); color:var(--text-primary);" onkeydown="if(event.key==='Enter')sendAdvisorChat()">
-              <button class="btn btn-primary btn-xs" onclick="sendAdvisorChat()" id="btn-send-advisor-chat" style="padding:6px 12px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 10 10 2 15"/></svg>
-              </button>
             </div>
           </div>
         </div>
@@ -1028,91 +993,6 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════
-     PROPOSAL CREATE MODAL
-     ═══════════════════════════════════════════════ -->
-<div class="modal-overlay" id="proposal-create-modal">
-  <div class="modal" style="max-width: 480px;">
-    <div class="modal-hdr">
-      <div class="modal-title">Create New Proposal</div>
-      <button class="modal-close" id="proposal-create-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="modal-bdy">
-      <form id="proposal-create-form" style="display:flex; flex-direction:column; gap:16px;">
-        <div class="form-group">
-          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Project Title *</label>
-          <input class="fi" id="prop-create-title" type="text" required placeholder="e.g. Emergency Health Response Sudan" style="width:100%;">
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Country Context *</label>
-          <select class="fi" id="prop-create-country" required style="width:100%;">
-            <option value="">— Select Country —</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Donor Framework</label>
-          <select class="fi" id="prop-create-donor" style="width:100%;">
-            <option value="ECHO">ECHO (European Commission)</option>
-            <option value="USAID">USAID / BHA</option>
-            <option value="OCHA">UN OCHA (CBPF)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">Target Sectors / Themes</label>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;" id="prop-create-themes-check">
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Protection"> Protection</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Health"> Health</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Water Sanitation Hygiene"> WASH</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Food and Nutrition"> Food & Nutrition</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Shelter and Non-Food Items"> Shelter / NFI</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Education"> Education</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Cash Assistance"> Cash Assistance</label>
-            <label style="font-weight:normal; display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" value="Camp Management"> Camp Management (CCCM)</label>
-          </div>
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">
-            Project Briefing (optional)
-            <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-muted)"> — describe your project or paste CFP/concept note</span>
-          </label>
-          <textarea class="fi" id="prop-create-briefing" rows="5" placeholder="e.g. We plan to provide emergency health services to 15,000 IDPs in Darfur. The project will run for 12 months with a budget around $500k. We're partnering with local NGO X. The main focus is maternal health and outbreak response..." style="width:100%; font-size:13px; resize:vertical;"></textarea>
-        </div>
-        <div class="form-group">
-          <label style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:block;">
-            Reference Document (optional)
-            <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-muted)"> — PDF, DOCX, or TXT</span>
-          </label>
-          <input type="file" id="prop-create-reference" accept=".pdf,.docx,.doc,.txt,.md" multiple style="font-size:12px;">
-        </div>
-        <div class="up-submit-row" style="margin-top:10px; display:flex; gap:10px;">
-          <button type="submit" class="btn btn-primary">Create Proposal</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════
-     PROPOSAL DIFF MODAL
-     ═══════════════════════════════════════════════ -->
-<div class="modal-overlay" id="proposal-diff-modal">
-  <div class="modal" style="max-width: 800px; width: 90%;">
-    <div class="modal-hdr">
-      <div class="modal-title">Review Proposed AI Edits</div>
-      <button class="modal-close" id="proposal-diff-modal-close-btn" aria-label="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div class="modal-bdy">
-      <div id="proposal-diff-content">
-        <!-- Diff items will be injected here -->
-      </div>
-    </div>
-    <div class="modal-hdr" style="border-top: 1px solid var(--border); border-bottom: none; justify-content: flex-end; gap: 12px; padding-top: 12px;">
-      <button type="button" class="btn btn-secondary" id="proposal-diff-reject-btn">Reject All</button>
-      <button type="button" class="btn btn-primary" id="proposal-diff-approve-btn">Approve Changes</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ═══════════════════════════════════════════════
@@ -1157,6 +1037,5 @@
 <script src="/static/firebase-config.js?v={{ v }}"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script src="/static/app.js?v={{ v }}"></script>
-<script src="/static/advisor-chat.js?v={{ v }}"></script>
 </body>
 </html>
