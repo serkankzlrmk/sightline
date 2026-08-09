@@ -35,8 +35,9 @@ services:
       - npm_cache:/tmp/npm-cache
       # Mount Firebase service account (optional — if absent, app runs in DESKTOP_MODE)
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
-      # Mount Firebase web config (optional — if absent, frontend runs in DESKTOP_MODE)
-      - ./static/firebase-config.js:/app/static/firebase-config.js:ro
+      # Mount frontend assets so design changes persist across recreates
+      - ./static:/app/static:ro
+      - ./templates:/app/templates:ro
     ports:
       - "127.0.0.1:5001:5001"
     healthcheck:
