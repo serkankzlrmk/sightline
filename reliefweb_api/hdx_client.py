@@ -69,7 +69,7 @@ API Key Nasıl Alınır?
 4. .env dosyasına ekle: HDX_APP_IDENTIFIER=<key>
 
 Örnek: base64("hdx-mcp-agent:your-email@example.com")
-       = "aGR4LW1jcC1hZ2VudDp5b3VyLWVtYWlsQGV4YW1wbGUuY29t=="
+       = "aGR4LW1jcC1hZ2VudDp5b3VyLWVtYWlsQGV4YW1wbGUuY29t"
 """
 
 import logging
