@@ -6584,6 +6584,9 @@ function initGuidedProposalPipelineActive() {
   if (!panel) return;
   if (panel.dataset.guidedMounted === 'true') return;
   panel.dataset.guidedMounted = 'true';
+  // The earlier experimental renderer is retained only as source reference;
+  // prevent any late async callback from repainting the V2 workspace.
+  window.guidedRender = () => {};
   const reviewPanel = document.getElementById('proposal-advisor-panel');
   const reviewToggle = document.getElementById('btn-toggle-proposal-chat');
   const reviewCollapsedBar = document.getElementById('proposal-chat-collapsed-bar');
