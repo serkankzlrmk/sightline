@@ -3138,7 +3138,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mount the established Proposal design against the Guided V2 setup store.
   // The legacy proposals table remains intact for migration/export safety but
   // is no longer loaded into this workspace.
-  initGuidedProposalPipeline();
+  initGuidedProposalPipelineActive();
 
   // ── Event delegation for dynamic elements ──────────────────────────────
   document.addEventListener('click', e => {
@@ -6579,7 +6579,7 @@ function initGuidedProposalPipeline() { const panel = guidedShell(); if (!panel)
 
 // V2 adapter: keep the established Proposal page layout and replace only its
 // data/step behaviour with the five-stage Guided Proposal contract.
-function initGuidedProposalPipeline() {
+function initGuidedProposalPipelineActive() {
   const panel = document.getElementById('panel-proposal');
   if (!panel) return;
   if (panel.dataset.guidedMounted === 'true') return;
@@ -6814,7 +6814,7 @@ function initGuidedProposalPipelineStep1Reference() {
 // that must never prevent the proposal workspace from initializing.
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
-    try { initGuidedProposalPipeline(); }
+    try { initGuidedProposalPipelineActive(); }
     catch (error) { console.error('Guided Proposal mount failed', error); }
   }, 50);
 });
