@@ -1,42 +1,11 @@
-# Clean local staging stack. It never uses production Docker volumes.
-#
-# Start:
-#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build app
-#
-# App URL: http://127.0.0.1:5002
-
 services:
   app:
     environment:
       DESKTOP_MODE: "true"
-      SERVER_DEBUG: "true"
-      SERVER_HOST: "0.0.0.0"
-      DB_PATH: /app/data/reliefweb.db
-      CHATS_DB_PATH: /app/data/chats.db
-      CHROMA_DIR: /app/reliefweb_chroma
-    ports:
-      - "127.0.0.1:5002:5001"
     volumes:
-      - .:/app
-      - local_reliefweb_db:/app/data
-      - local_chroma_data:/app/reliefweb_chroma
-      - local_output_data:/app/output
-      - local_mcp_cache:/tmp/uv-cache
-      - local_npm_cache:/tmp/npm-cache
-
-  daily-ingest:
-    profiles: ["scheduled"]
-    volumes:
-      - .:/app
-      - local_reliefweb_db:/app/data
-      - local_chroma_data:/app/reliefweb_chroma
-      - local_output_data:/app/output
-      - local_mcp_cache:/tmp/uv-cache
-      - local_npm_cache:/tmp/npm-cache
-
-volumes:
-  local_reliefweb_db:
-  local_chroma_data:
-  local_output_data:
-  local_mcp_cache:
-  local_npm_cache:
+      - ./reliefweb.db:/app/data/reliefweb.db
+      - ./chats.db:/app/data/chats.db
+      - ./reliefweb_chroma:/app/reliefweb_chroma
+      - ./output:/app/output
+      - ./static:/app/static:ro
+      - ./templates:/app/templates:ro
