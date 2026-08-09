@@ -26,6 +26,54 @@ from blueprints.helpers import _chats_db, _log_event
 guided_proposal_bp = Blueprint("guided_proposal", __name__, url_prefix="/api/proposals")
 logger = logging.getLogger(__name__)
 
+_PROPOSAL_SCHEMA = """
+CREATE TABLE IF NOT EXISTS proposal_v2_setups (
+    id                  TEXT PRIMARY KEY,
+    uid                 TEXT NOT NULL,
+    project_title       TEXT,
+    country             TEXT,
+    region              TEXT,
+    donor               TEXT,
+    budget_amount       REAL,
+    budget_currency     TEXT,
+    executive_intent    TEXT,
+    sectors             TEXT,
+    state               TEXT DEFAULT 'draft',
+    analysis            TEXT,
+    context_data        TEXT,
+    step2_analysis      TEXT,
+    step2_state         TEXT,
+    step2_locked_at     TEXT,
+    technical_data      TEXT,
+    step3_analysis      TEXT,
+    step3_state         TEXT,
+    step3_locked_at     TEXT,
+    financial_data      TEXT,
+    step4_analysis      TEXT,
+    step4_state         TEXT,
+    step4_locked_at     TEXT,
+    call_brief          TEXT,
+    reference_text      TEXT,
+    reference_filename  TEXT,
+    created_at          TEXT,
+    updated_at          TEXT
+);
+"""
+
+
+def _ensure_schema():
+    """Create the proposal_v2_setups table if it does not exist."""
+    try:
+        conn = _chats_db()
+        conn.execute(_PROPOSAL_SCHEMA)
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        logger.error("Failed to ensure proposal schema: %s", exc)
+
+
+_ensure_schema()
+
 
 def _enabled_response():
     """V2 is now the sole proposal system — always enabled."""
