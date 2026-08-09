@@ -108,3 +108,5 @@ static/videos/intro_orig.mp4
 static/textures/earth_albedo_opt.webp
 static/textures/earth_bump_opt.webp
 static/textures/earth_clouds_opt.webp
+cleanup-expressions.txt
+cleanup-paths.txt
