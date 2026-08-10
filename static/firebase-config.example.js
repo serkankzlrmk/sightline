@@ -12,14 +12,16 @@
  *
  * If firebase-config.js is absent, Sightline runs in DESKTOP_MODE
  * (no Firebase auth, local admin bypass).
- * See docs/OPEN_SOURCE_ROADMAP.md for details.
+ *
+ * IMPORTANT: Set authDomain to your custom domain (not the firebaseapp.com default).
+ * This is required for redirect-based auth to work correctly.
  */
 
 window.FIREBASE_CONFIG = {
   apiKey: "YOUR_API_KEY",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project",
-  storageBucket: "your-project.firebasestorage.app",
+  authDomain: "your-domain.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.firebasestorage.app",
   messagingSenderId: "YOUR_SENDER_ID",
   appId: "YOUR_APP_ID",
   measurementId: "YOUR_MEASUREMENT_ID"

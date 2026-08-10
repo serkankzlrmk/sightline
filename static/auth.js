@@ -12,8 +12,6 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -324,12 +322,7 @@ async function doSignIn() {
   } catch (err) {
     console.error("Login failed:", err);
     if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
-      console.log("[auth] Popup blocked, falling back to redirect...");
-      try {
-        await signInWithRedirect(auth, google);
-      } catch (redirectErr) {
-        setAuthError("Redirect sign-in failed: " + redirectErr.message);
-      }
+      setAuthError("Popup was blocked by your browser. Please allow popups for this site and try again.");
     } else if (err.code === "auth/popup-closed-by-user") {
       setAuthError("Sign-in popup was closed before completing.");
     } else if (err.code === "auth/configuration-not-found") {
@@ -429,22 +422,8 @@ function _initFirebase() {
   const btnBottom = document.getElementById("auth-google-btn-bottom");
   if (btnBottom) btnBottom.addEventListener("click", doSignIn);
 
-  // Check for redirect sign-in result (page reload after redirect)
-  getRedirectResult(auth).then(async (result) => {
-    if (result && result.user) {
-      console.log("[auth] Redirect sign-in successful, uid=", result.user.uid);
-      const token = await result.user.getIdToken(true);
-      setToken(token);
-      await checkAdminStatus();
-      updateVisibility();
-      hideOverlay();
-      showUserBar(result.user);
-      window.__authReady = true;
-      window.dispatchEvent(new Event('auth-ready'));
-    }
-  }).catch((err) => {
-    console.error("[auth] Redirect result error:", err);
-  });
+  // NOTE: signInWithRedirect removed — was causing blank page on firebaseapp.com/__/auth/handler.
+  // signInWithPopup is the only auth method now. If popup is blocked, user is prompted to allow popups.
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
