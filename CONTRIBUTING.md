@@ -27,9 +27,7 @@ must sign the CLA (Section 5 below).
 - Python 3.12+
 - Node.js 20+ and npm (for MCP servers — optional, see below)
 - `uv` or `uvx` (for arxiv MCP server — optional)
-- Docker (recommended) or local Python
-
-### Option A — Docker (recommended)
+- Docker
 
 ```bash
 git clone https://github.com/serkankzlrmk/sightline.git
@@ -37,19 +35,6 @@ cd sightline
 cp .env.example .env
 # Edit .env — fill in your API keys (see .env.example for all ~75 variables)
 docker compose up -d --build
-# → http://localhost:5001
-```
-
-### Option B — Local Python (if you can't use Docker)
-
-```bash
-git clone https://github.com/serkankzlrmk/sightline.git
-cd sightline
-pip install -r requirements.txt
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-cp .env.example .env
-# Edit .env — fill in your API keys
-SERVER_HOST=127.0.0.1 DESKTOP_MODE=true python server.py
 # → http://localhost:5001
 ```
 

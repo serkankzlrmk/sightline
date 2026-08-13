@@ -38,27 +38,12 @@ donor-compliance-aware proposal generator.
 
 ## Quick Start
 
-### Option A — Docker (recommended)
-
 ```bash
 git clone https://github.com/serkankzlrmk/sightline.git
 cd sightline
 cp .env.example .env
 # Edit .env — fill in your API keys (see .env.example for all variables)
 docker compose up -d --build
-# → http://localhost:5001
-```
-
-### Option B — Local Python (if you can't use Docker)
-
-```bash
-git clone https://github.com/serkankzlrmk/sightline.git
-cd sightline
-pip install -r requirements.txt
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-cp .env.example .env
-# Edit .env — fill in your API keys
-SERVER_HOST=127.0.0.1 DESKTOP_MODE=true python server.py
 # → http://localhost:5001
 ```
 
