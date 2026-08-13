@@ -30,7 +30,7 @@ def api_auth_me():
     is_admin = role == "admin" or uid in admins or _dev_mode()
     if is_admin and role != "admin":
         role = "admin"
-    logger.info(f"auth/me: uid={uid!r}, role={role}, is_admin={is_admin}")
+    logger.info("auth/me: uid=%r, role=%s, is_admin=%s, email=%s", uid, role, is_admin, user.get("email", ""))
     # Track user (upsert) + log login event
     _upsert_user(uid, user.get("email", ""), role)
     rate = _check_rate_limit(uid, role)
