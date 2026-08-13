@@ -40,7 +40,7 @@ docker compose up -d --build
 # → http://localhost:5001
 ```
 
-### Option B — Local Python (faster iteration)
+### Option B — Local Python (if you can't use Docker)
 
 ```bash
 git clone https://github.com/serkankzlrmk/sightline.git
