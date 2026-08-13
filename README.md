@@ -4,14 +4,15 @@
 
 # Sightline
 
-**AI-powered humanitarian intelligence platform.**
-54-tool LLM agent · 10-stage SITREP pipeline · donor-specific proposal generator.
+**Humanitarian intelligence platform for crisis response teams.**
+
+Real-time data aggregation · 10-stage SITREP pipeline · donor-compliant proposal generator.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Commercial License](https://img.shields.io/badge/Commercial-Dual_License-green.svg)](LICENSES/Commercial-LICENSE.md)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-197+-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-169+-brightgreen.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](VERSION)
 
 [Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](#self-hosting) · [Contributing](CONTRIBUTING.md)
@@ -23,15 +24,15 @@
 ## Why Sightline?
 
 Humanitarian professionals spend **30-60% of their time** collecting, synthesizing, and formatting
-information from scattered sources (ReliefWeb, HDX, GDACS, news, field reports). Sightline
-automates this with an AI agent that has **direct API access to humanitarian data sources** and
-a **donor-compliance-aware proposal generator**.
+information from scattered sources — ReliefWeb, HDX, GDACS, news feeds, field reports. Sightline
+automates this workflow with direct API integrations to humanitarian data sources and a
+donor-compliance-aware proposal generator.
 
-| Differentiator | What it means |
+| What | How |
 |---|---|
-| **54-tool agent with real humanitarian APIs** | Not a generic chatbot. The agent directly queries ReliefWeb (17 tools), HDX (7), GDACS, World Bank, news — and reasons over the results with RAG. |
-| **Donor-specific proposal generator** | 6 donor manifests (OCHA CBPF, USAID BHA, ECHO, EuropeAID PRAG, UNFPA, generic) with deterministic rule enforcement. Not generic grant writing — actual compliance validation. |
-| **10.5-stage SITREP pipeline** | UMAP + HDBSCAN clustering → question generation → RRF retrieval → LLM synthesis. Produces structured situation reports from raw report corpora. |
+| **54-tool data agent** | Directly queries ReliefWeb (17 tools), HDX (7), GDACS, World Bank, news — reasons over results with retrieval-augmented generation. Not a generic chatbot. |
+| **Donor-specific proposal generator** | 6 donor manifests (OCHA CBPF, USAID BHA, ECHO, EuropeAID PRAG, UNFPA, generic) with deterministic rule enforcement. Actual compliance validation, not generic grant writing. |
+| **10-stage SITREP pipeline** | UMAP + HDBSCAN clustering → question generation → RRF retrieval → synthesis. Produces structured situation reports from raw report corpora. |
 
 ---
 
@@ -75,9 +76,9 @@ See [`.env.example`](.env.example) for all configuration variables.
 
 ## Features
 
-### AI Agent (54 tools)
+### Data Agent (54 tools)
 
-The LangGraph agent has 35 native tools + 19 MCP tools, covering:
+The LangGraph agent has 35 native tools + 19 MCP tools:
 
 | Group | Tools | API Key Required | Source |
 |---|---|---|---|
@@ -94,19 +95,18 @@ The LangGraph agent has 35 native tools + 19 MCP tools, covering:
 
 ### SITREP Pipeline
 
-A 10.5-stage automated situation report generator:
+A 10-stage automated situation report generator:
 
 1. **Ingest** — ReliefWeb reports → ChromaDB chunks (in-memory, no disk writes)
 2. **Embed** — all-MiniLM-L6-v2 (384-dim, CPU-only)
 3. **Cluster** — UMAP (10D) → HDBSCAN (adaptive cluster count)
-4. **Question generation** — LLM generates research questions per cluster
+4. **Question generation** — research questions per cluster
 5. **Question filtering** — dedup + relevance scoring
 6. **RRF retrieval** — reciprocal rank fusion across sub-queries
-7. **LLM answering** — RAG-grounded answers with citations
+7. **Answering** — RAG-grounded answers with citations
 8. **Synthesis** — per-cluster summaries + global overview
 9. **Report assembly** — structured SITREP with themes, countries, severity
-10. **Export** — JSON + PDF (via StreamEvent stream)
-10.5. **Post-process** — citation verification, country normalization
+10. **Export** — JSON + PDF (via stream events)
 
 ### Guided Proposal V2
 
@@ -115,14 +115,14 @@ Donor-specific proposal generator with manifest-driven compliance:
 - **6 donor manifests:** OCHA CBPF, USAID BHA, EuropeAID PRAG, ECHO, UNFPA, generic
 - **4-step wizard:** Situational Overview → Strategic Approach → Implementation & Coordination → Budget & Compliance
 - **Tool-calling generator:** uses ReliefWeb + HDX + Brave to gather evidence
-- **Blind verifier:** checks compliance against donor manifest (no LLM in validation)
+- **Blind verifier:** checks compliance against donor manifest (deterministic, no generation in validation)
 - **M&E reviewer:** reviews monitoring & evaluation sections on Step 3 lock
 - **Cross-section validation:** checks consistency across all 4 steps on Step 4 lock
 - **PDF export:** compiled proposal with all 4 steps
 
 ### Country Intelligence Cards
 
-- Aggregates ReliefWeb + HDX + GDACS + World Bank + LLM narrative per country
+- Aggregates ReliefWeb + HDX + GDACS + World Bank data per country
 - 30 country summaries generated, 143 countries visible on map
 - Weekly cron (Mon 07:00 UTC): only updates countries with changed `report_count`
 
@@ -135,12 +135,48 @@ SITREP report list. Login panel appears when accessing Chat, SITREP, Bulletin, D
 
 ## Architecture
 
+```
+sightline/
+├── server.py                 # Flask app entry (378 lines — config, middleware, blueprint registration)
+├── config.py                 # Environment-driven configuration
+├── auth.py                   # Firebase token verification, RBAC decorators
+├── blueprints/
+│   ├── helpers.py             # Shared utilities (DB, rate limit, chat CRUD, event logging)
+│   ├── main_bp.py             # Landing, SPA, /api/health
+│   ├── auth_route.py          # /api/auth/me
+│   ├── agent_bp.py            # Chat agent + model selection
+│   ├── sitrep.py              # 10-stage SITREP pipeline
+│   ├── proposal.py            # Proposal V1 CRUD + generation
+│   ├── guided_proposal.py     # Proposal V2 guided wizard (4-step)
+│   ├── proposal_pdf.py        # PDF export
+│   ├── public_bp.py           # Map, dashboard, country data
+│   ├── db_bp.py               # Database search & reports
+│   ├── admin_bp.py            # Admin panel & user management
+│   ├── hdx_bp.py              # HDX data endpoints
+│   ├── news_bp.py             # News endpoints
+│   └── ingest_bp.py           # Knowledge base ingestion
+├── agent/
+│   ├── relief_agent.py        # LangGraph agent definition (54 tools)
+│   └── mcp_integration.py     # MCP server integration (arxiv, brave, sequential)
+├── static/
+│   ├── app.js                 # Core frontend (chat, SITREP, map, admin — 3700 lines)
+│   ├── proposal.js            # Proposal wizard frontend (3300 lines, independently developable)
+│   ├── auth.js                # Firebase auth (popup, token refresh)
+│   └── firebase-config.js     # Firebase config (gitignored — see firebase-config.example.js)
+├── templates/
+│   └── index.html             # SPA shell
+├── reliefweb_api/             # ReliefWeb + HDX API wrappers
+├── tests/                     # 169 tests (pytest)
+├── docker-compose.yml         # Production compose (app + Caddy)
+└── .env.example               # All ~75 configuration variables
+```
+
 ```mermaid
 graph TB
     User["User (Browser)"]
 
     subgraph "Sightline (Docker / Python)"
-        Flask["Flask + Gunicorn<br/>(server.py)"]
+        Flask["Flask + Gunicorn<br/>(server.py → blueprints)"]
 
         subgraph "Agent"
             LG["LangGraph Agent<br/>(54 tools)"]
@@ -160,7 +196,7 @@ graph TB
         end
 
         subgraph "Pipelines"
-            SITREP["SITREP Pipeline<br/>(10.5 stages)"]
+            SITREP["SITREP Pipeline<br/>(10 stages)"]
             Proposal["Guided Proposal V2<br/>(6 donor manifests)"]
             Bulletin["Weekly Bulletin"]
             Country["Country Summaries"]
@@ -174,7 +210,7 @@ graph TB
         GDACSAPI["GDACS RSS"]
         OMAPI["Open-Meteo"]
         WBAPI["World Bank API"]
-        LLM["OpenRouter / Ollama<br/>(Gemini 2.5 Flash/Pro)"]
+        LLM["OpenRouter / Ollama"]
         FB["Firebase Auth"]
     end
 
@@ -216,7 +252,7 @@ for all ~75 variables. Key ones:
 | `LLM_PROVIDER` | Optional | `openrouter` (default) or `ollama` (local LLM) |
 | `ACTIVE_MODEL` | Optional | `google/gemini-2.5-flash` (default) |
 
-### LLM Models
+### Models
 
 | Key | Model | Premium | Sequential |
 |---|---|---|---|
@@ -233,7 +269,7 @@ for all ~75 variables. Key ones:
 # Install dependencies
 pip install -r requirements.txt
 
-# Run tests (197+ tests)
+# Run tests
 pytest tests/ -v
 
 # Lint
@@ -243,13 +279,17 @@ ruff check .
 SERVER_HOST=127.0.0.1 DESKTOP_MODE=true SERVER_DEBUG=true python server.py
 ```
 
+The frontend is split into two files:
+- `static/app.js` — core UI (chat, SITREP, map, admin)
+- `static/proposal.js` — proposal wizard (independently developable)
+
+Both are plain `<script>` tags — no build step required.
+
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide.
 
 ---
 
 ## Self-Hosting
-
-See the **Self-Hosting** section below for production deployment:
 
 - **Docker Compose** — app + Caddy (auto-TLS) on a VPS
 - **Manual deployment** — gunicorn + systemd + nginx
@@ -309,6 +349,6 @@ a pull request. All contributors must sign the [CLA](CLA.md).
 
 Built by [Serkan Kizilirmak](https://github.com/serkankzlrmk)
 
-**Sightline** — *AI-powered humanitarian intelligence platform*
+**Sightline** — *Humanitarian intelligence for crisis response*
 
 </div>
