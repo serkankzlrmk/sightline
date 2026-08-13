@@ -3,7 +3,7 @@ blueprints/sitrep.py — Flask Blueprint for /api/sitrep/* routes.
 
 Extracted from server.py lines 2186–2585.
 All routes use url_prefix='/api/sitrep', so route strings omit that prefix.
-Shared state and helpers are accessed via `import server`.
+Shared state and helpers are imported from blueprints.helpers.
 """
 
 import logging
@@ -13,11 +13,25 @@ import threading
 import time as _time
 import uuid
 from collections import Counter
+from pathlib import Path
 from queue import Empty, Queue
 
 from flask import Blueprint, Response, jsonify, request
 
 from auth import _dev_mode, current_role, current_uid, require_admin, require_auth, require_role
+from blueprints.helpers import (
+    _cleanup_stream_nonces,
+    _consume_stream_nonce,
+    _create_stream_nonce,
+    _get_chroma_adapter,
+    _jobs,
+    _jobs_lock,
+    _JOBS_MAX_AGE,
+    _log_event,
+    _run_job,
+)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 sitrep_bp = Blueprint("sitrep", __name__, url_prefix="/api/sitrep")
 
@@ -27,16 +41,14 @@ logger = logging.getLogger(__name__)
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _run_job(job_id: str, cmd: list):
+def _run_sitrep_job(job_id: str, cmd: list):
     """Run a SITREP pipeline subprocess and stream its output to the job queue.
 
-    Delegates to ``server._run_job`` so the single implementation stays in one
-    place and any future changes (timeout handling, ANSI stripping, etc.) are
-    automatically picked up.
+    Delegates to ``blueprints.helpers._run_job`` so the single implementation
+    stays in one place and any future changes are automatically picked up.
     """
-    import server
 
-    server._run_job(job_id, cmd)
+    _run_job(job_id, cmd)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -61,9 +73,8 @@ def api_sitrep_themes():
 def api_sitrep_countries():
     """Return country values with chunk counts for SITREP dropdown."""
     try:
-        import server
 
-        db = server._get_chroma_adapter()
+        db = _get_chroma_adapter()
         return jsonify(db.list_countries_with_counts())
     except Exception as exc:
         logger.error("api_sitrep_countries error: %s", exc, exc_info=True)
@@ -74,9 +85,8 @@ def api_sitrep_countries():
 @require_auth
 def api_sitrep_date_range(country):
     try:
-        import server
 
-        db = server._get_chroma_adapter()
+        db = _get_chroma_adapter()
         return jsonify(db.get_date_range(country))
     except Exception as exc:
         logger.error("api_sitrep_date_range error: %s", exc, exc_info=True)
@@ -131,7 +141,6 @@ def api_sitrep_chunk_preview():
 @sitrep_bp.route("/run", methods=["POST"])
 @require_role("premium")
 def api_sitrep_run():
-    import server
 
     data = request.get_json(silent=True) or {}
     country = data.get("country", "").strip()[:100]
@@ -152,7 +161,7 @@ def api_sitrep_run():
     if date_to and not _DATE_RE.match(date_to):
         return jsonify({"error": "Invalid date_to format (YYYY-MM-DD)"}), 400
 
-    cmd = [sys.executable, str(server.BASE_DIR / "sitrep" / "pipeline.py"), "--country", country, "--event", event]
+    cmd = [sys.executable, str(BASE_DIR / "sitrep" / "pipeline.py"), "--country", country, "--event", event]
     if themes:
         cmd += ["--themes"] + themes
     if date_from:
@@ -163,18 +172,18 @@ def api_sitrep_run():
         cmd.append("--skip-cache")
 
     job_id = uuid.uuid4().hex[:8]
-    with server._jobs_lock:
+    with _jobs_lock:
         # Clean up old completed jobs to prevent memory leak
         now = _time.time()
         stale = [
             jid
-            for jid, j in server._jobs.items()
-            if j.get("status") in ("done", "error") and now - j.get("finished_at", now) > server._JOBS_MAX_AGE
+            for jid, j in _jobs.items()
+            if j.get("status") in ("done", "error") and now - j.get("finished_at", now) > _JOBS_MAX_AGE
         ]
         for jid in stale:
-            del server._jobs[jid]
+            del _jobs[jid]
 
-        server._jobs[job_id] = {
+        _jobs[job_id] = {
             "queue": Queue(),
             "status": "running",
             "proc": None,
@@ -183,10 +192,10 @@ def api_sitrep_run():
             "uid": current_uid(),  # bind job to creator for ownership check
         }
 
-    t = threading.Thread(target=_run_job, args=(job_id, cmd), daemon=True)
+    t = threading.Thread(target=_run_sitrep_job, args=(job_id, cmd), daemon=True)
     t.start()
-    nonce = server._create_stream_nonce(current_uid(), job_id)
-    server._log_event(
+    nonce = _create_stream_nonce(current_uid(), job_id)
+    _log_event(
         current_uid(),
         "sitrep_run_started",
         {
@@ -209,7 +218,6 @@ def api_sitrep_stream(job_id):
     The old ?token=<JWT> and ?api_key= query-param fallbacks were removed
     because they leaked secrets to access logs, browser history, and referrers.
     """
-    import server
 
     # Dev mode: no auth required, but still bind to the job
     if _dev_mode():
@@ -221,19 +229,19 @@ def api_sitrep_stream(job_id):
         # We don't know the UID yet — the nonce carries it.
         # _consume_stream_nonce checks the nonce's UID against the job's owner UID.
         # First, look up the job to get the owner UID, then validate the nonce against it.
-        with server._jobs_lock:
-            job = server._jobs.get(job_id)
+        with _jobs_lock:
+            job = _jobs.get(job_id)
             owner_uid = job.get("uid", "") if job else ""
         if not owner_uid:
             return jsonify({"error": "Unknown job id"}), 404
-        if not server._consume_stream_nonce(nonce, owner_uid, job_id):
+        if not _consume_stream_nonce(nonce, owner_uid, job_id):
             return jsonify({"error": "Invalid, expired, or mismatched nonce."}), 401
         requesting_uid = owner_uid
 
-    server._cleanup_stream_nonces()
+    _cleanup_stream_nonces()
 
-    with server._jobs_lock:
-        job = server._jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
         if job is None:
             return jsonify({"error": "Unknown job id"}), 404
         # Ownership check: the requesting UID must match the job creator
@@ -253,8 +261,8 @@ def api_sitrep_stream(job_id):
             try:
                 line = q.get(timeout=25)
                 if line is None:
-                    with server._jobs_lock:
-                        status = server._jobs.get(job_id, {}).get("status", "done")
+                    with _jobs_lock:
+                        status = _jobs.get(job_id, {}).get("status", "done")
                     yield f"data: __DONE__{status}\n\n"
                     break
                 safe = line.replace("\n", " ").replace("\r", "")
@@ -276,10 +284,9 @@ def api_sitrep_stream(job_id):
 @sitrep_bp.route("/job/<job_id>")
 @require_auth
 def api_sitrep_job(job_id):
-    import server
 
-    with server._jobs_lock:
-        job = server._jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
         if job is None:
             return jsonify({"error": "Unknown job id"}), 404
         # Ownership check
@@ -358,7 +365,6 @@ def api_bulletin_list():
 @require_auth
 def api_bulletin_get(filename):
     """Get a specific bulletin JSON by filename."""
-    import server
     from sitrep.weekly_bulletin import get_bulletin
 
     if ".." in filename or "/" in filename or "\\" in filename:
@@ -366,7 +372,7 @@ def api_bulletin_get(filename):
     bulletin = get_bulletin(filename)
     if bulletin is None:
         return jsonify({"error": "Bulletin not found"}), 404
-    server._log_event(current_uid(), "bulletin_viewed", {"filename": filename})
+    _log_event(current_uid(), "bulletin_viewed", {"filename": filename})
     return jsonify(bulletin)
 
 
@@ -383,7 +389,6 @@ def api_bulletin_generate():
     """
     from datetime import datetime, timedelta
 
-    import server
     from sitrep.weekly_bulletin import generate_weekly_bulletin
 
     data = request.get_json(silent=True) or {}
@@ -400,8 +405,8 @@ def api_bulletin_generate():
 
     # Create a job for background generation
     job_id = f"bulletin-{_time.time():.0f}"
-    with server._jobs_lock:
-        server._jobs[job_id] = {
+    with _jobs_lock:
+        _jobs[job_id] = {
             "status": "running",
             "queue": Queue(),
             "started_at": _time.time(),
@@ -411,15 +416,15 @@ def api_bulletin_generate():
         }
 
     def _run_bulletin():
-        q = server._jobs[job_id]["queue"]
+        q = _jobs[job_id]["queue"]
         try:
             q.put(f"Generating bulletin for {date_from} to {date_to}...")
             path = generate_weekly_bulletin(date_from=date_from, date_to=date_to)
             q.put(f"Bulletin saved: {path.name}")
-            with server._jobs_lock:
-                server._jobs[job_id]["status"] = "done"
-                server._jobs[job_id]["finished_at"] = _time.time()
-                server._jobs[job_id]["result"] = {
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "done"
+                _jobs[job_id]["finished_at"] = _time.time()
+                _jobs[job_id]["result"] = {
                     "filename": path.name,
                     "date_from": date_from,
                     "date_to": date_to,
@@ -427,10 +432,10 @@ def api_bulletin_generate():
         except Exception as exc:
             logging.exception("Bulletin generation failed")
             q.put(f"[ERROR] {exc}")
-            with server._jobs_lock:
-                server._jobs[job_id]["status"] = "error"
-                server._jobs[job_id]["finished_at"] = _time.time()
-                server._jobs[job_id]["error"] = str(exc)
+            with _jobs_lock:
+                _jobs[job_id]["status"] = "error"
+                _jobs[job_id]["finished_at"] = _time.time()
+                _jobs[job_id]["error"] = str(exc)
         finally:
             q.put(None)  # sentinel
 
@@ -452,10 +457,9 @@ def api_bulletin_generate():
 @require_admin
 def api_bulletin_generate_status(job_id):
     """Poll bulletin generation job status (admin only)."""
-    import server
 
-    with server._jobs_lock:
-        job = server._jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
