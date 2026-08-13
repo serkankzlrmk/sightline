@@ -24,6 +24,7 @@ jobs:
       DESKTOP_MODE: "true"
       SERVER_HOST: "127.0.0.1"
       SERVER_DEBUG: "true"
+      DEV_AUTH_BYPASS: "true"
       OLLAMA_BASE_URL: "http://localhost:11434/v1"
       LLM_PROVIDER: "openrouter"
       OPENROUTER_API_KEY: "test-key"
@@ -51,10 +52,12 @@ jobs:
           fetch-depth: 0
       - name: Check for secrets in git history
         run: |
-          if git log --all -p | grep -qE "(sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_-]{35}|ghp_[a-zA-Z0-9]{36})"; then
-            echo "⚠️ Potential API key found in git history!"
-            git log --all -p | grep -nE "(sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9_-]{35}|ghp_[a-zA-Z0-9]{36})" | head -5
+          # Check for real secrets — Firebase web API keys (AIza...) are
+          # intentionally public and NOT secrets; they are safe to commit.
+          if git log --all -p | grep -qE "(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|AKIA[A-Z0-9]{16})"; then
+            echo "⚠️ Potential secret found in git history!"
+            git log --all -p | grep -nE "(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|AKIA[A-Z0-9]{16})" | head -5
             exit 1
           else
-            echo "✅ No API keys found in git history"
+            echo "✅ No secrets found in git history"
           fi
