@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 import requests
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from .reliefweb_config import API_TIMEOUT_LONG, RELIEFWEB_APPNAME, RELIEFWEB_REPORTS_API, _ssl_verify
 

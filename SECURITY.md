@@ -79,8 +79,8 @@ release):
   logs only.
 - **Stream auth:** SITREP stream uses single-use nonce (not JWT in URL), bound
   to `(uid, job_id)` with 5-minute TTL.
-- **Test coverage:** 200+ tests, including security tests (path traversal, dev
-  mode safety, stream nonce).
+- **Test coverage:** 250 tests, including security tests (path traversal, dev
+  mode safety, stream nonce, SQL read-only, PII redaction, role-based tool filtering).
 
 ---
 

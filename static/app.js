@@ -104,12 +104,19 @@ function esc(s) {
 }
 
 function sanitizeHtml(html) {
+  // Use DOMPurify if available (preferred — battle-tested XSS prevention)
+  if (typeof DOMPurify !== 'undefined') {
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'hr', 'sup', 'sub', 'del', 'details', 'summary', 'span', 'div'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'id', 'data-url', 'colspan', 'rowspan'],
+      ALLOW_DATA_ATTR: false,
+    });
+  }
+  // Fallback: manual sanitization (less robust, but better than nothing)
   const tmp = document.createElement('div');
   tmp.innerHTML = html;
-  // Remove dangerous elements
   const dangerous = tmp.querySelectorAll('script, iframe, object, embed, form, svg, math, style, link, meta, base');
   dangerous.forEach(el => el.remove());
-  // Remove dangerous attributes (on* event handlers, javascript: URLs)
   const all = tmp.querySelectorAll('*');
   all.forEach(el => {
     const attrs = Array.from(el.attributes);
@@ -118,7 +125,6 @@ function sanitizeHtml(html) {
         el.removeAttribute(attr.name);
       }
     });
-    // Also strip href/src attributes with javascript: protocol
     ['href', 'src', 'action', 'formaction', 'xlink:href'].forEach(attrName => {
       const val = el.getAttribute(attrName);
       if (val && val.trim().toLowerCase().startsWith('javascript:')) {

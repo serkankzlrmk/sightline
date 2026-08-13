@@ -21,7 +21,7 @@ import tempfile
 
 import requests
 from langchain.tools import tool
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from .pdf_converter import ReportFormatConverter
 from .reliefweb_config import (

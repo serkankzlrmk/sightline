@@ -399,14 +399,14 @@ def _extract_pdf_from_bytes(pdf_bytes: bytes) -> tuple:
     """
     Extract text from PDF bytes in memory (no disk I/O).
 
-    Falls back to writing to a temporary file only if PyPDF2
+    Falls back to writing to a temporary file only if pypdf
     cannot read from BytesIO (rare edge case with some PDFs).
 
     Returns:
         (text: str, page_count: int)
     """
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
 
         # Try BytesIO first (no disk write)
         reader = PdfReader(io.BytesIO(pdf_bytes))

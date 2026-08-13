@@ -423,7 +423,7 @@ def extract_pdf_text(pdf_path: str) -> tuple[str, int]:
     Returns (text, page_count).
     """
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
 
         reader = PdfReader(pdf_path)
         pages = []
