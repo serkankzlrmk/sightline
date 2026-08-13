@@ -8,9 +8,9 @@ contributions.
 
 ## 1. Project Context
 
-Sightline is an AI-powered humanitarian intelligence platform: an LLM agent
-with 54 tools, a 10.5-stage SITREP pipeline, a donor-specific proposal
-generator, and a country intelligence dashboard.
+Sightline is a humanitarian intelligence platform: a 54-tool data agent,
+a 10-stage SITREP pipeline, a donor-specific proposal generator, and a
+country intelligence dashboard.
 
 **License:** AGPL v3 (open core) + Commercial dual-license. All contributors
 must sign the CLA (Section 5 below).
@@ -49,14 +49,14 @@ pip install -r requirements.txt
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 cp .env.example .env
 # Edit .env — fill in your API keys
-SERVER_HOST=127.0.0.1 DEV_AUTH_BYPASS=true python server.py
+SERVER_HOST=127.0.0.1 DESKTOP_MODE=true python server.py
 # → http://localhost:5001
 ```
 
 ### Running Tests
 
 ```bash
-pytest tests/ -v   # 171+ tests
+pytest tests/ -v   # 169+ tests
 ```
 
 ### Linting
@@ -202,7 +202,7 @@ once you sign, all future PRs are covered.
   `pyproject.toml` or `ruff.toml` at the repo root.
 - **JavaScript:** No enforced linter yet, but please follow the style of
   existing files in `static/`.
-- **Type hints:**新增 / 改 public API surface (server.py, blueprints/*,
+- **Type hints:** New or changed public API surface (server.py, blueprints/*,
   agent/relief_agent.py, reliefweb_api/*_tools.py) must have type hints.
 - **Comments:** Code should be self-documenting. Comments should explain
   "why", not "what". Avoid big blocks of commented-out dead code.
@@ -216,15 +216,27 @@ once you sign, all future PRs are covered.
 See the directory structure in `CONTRIBUTING.md` for an overview.
 
 ```
-server.py                  — Flask app, all API routes
-config.py                  — All env vars + configuration
+server.py                  — Flask app entry (config, middleware, blueprint registration)
+config.py                  — Environment-driven configuration
+auth.py                    — Firebase token verification, RBAC decorators
 agent/                     — LangGraph agent (54 tools)
 reliefweb_api/             — Tool groups (ReliefWeb, HDX, News, etc.)
-sitrep/                    — SITREP pipeline + bulletin + country summaries
-blueprints/                — Flask blueprints (auth, db, admin, etc.)
+blueprints/                — Flask blueprints + shared helpers
+  helpers.py               — Shared utilities (DB, rate limit, chat CRUD)
+  agent_bp.py              — Chat agent + model selection
+  sitrep.py                — SITREP pipeline
+  proposal.py              — Proposal V1
+  guided_proposal.py       — Proposal V2 guided wizard
+  proposal_pdf.py          — PDF export
+  public_bp.py             — Map, dashboard, country data
+  db_bp.py                 — Database search & reports
+  admin_bp.py              — Admin panel & user management
 templates/index.html       — SPA frontend
-static/                    — Frontend assets (app.js, auth.js, etc.)
-tests/                     — Pytest tests (~171 tests)
+static/
+  app.js                   — Core frontend (chat, SITREP, map, admin)
+  proposal.js              — Proposal wizard (independently developable)
+  auth.js                  — Firebase auth
+tests/                     — Pytest tests (169 tests)
 scripts/                   — Cron scripts (daily_ingest, bulletin)
 ```
 
