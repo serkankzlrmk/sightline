@@ -14,8 +14,8 @@ from flask import Blueprint, Response, jsonify, request
 from auth import current_role, current_uid, require_admin, require_auth
 from blueprints.helpers import (
     _AGENT_BUSY_TIMEOUT,
-    _check_and_increment_rate_limit,
     _chats_db,
+    _check_and_increment_rate_limit,
     _db_add_message,
     _db_chat_belongs_to,
     _db_clear_messages,
@@ -271,7 +271,9 @@ def api_agent_chat():
                 from langgraph.graph.message import MessagesState
                 from langgraph.prebuilt import ToolNode
 
-                from agent.relief_agent import _build_system_prompt, all_tools
+                from agent.relief_agent import _build_system_prompt, get_tools_for_mode
+
+                user_tools = get_tools_for_mode(mode=agent_mode, role=role)
 
                 temp_llm = ChatOpenAI(
                     model=selected_model_name,
@@ -281,7 +283,7 @@ def api_agent_chat():
                     max_tokens=MODEL_MAX_TOKENS,
                     timeout=OLLAMA_TIMEOUT,
                 )
-                temp_llm_with_tools = temp_llm.bind_tools(all_tools)
+                temp_llm_with_tools = temp_llm.bind_tools(user_tools)
                 _system_prompt_text = _build_system_prompt(use_sequential=use_sequential, mode=agent_mode)
 
                 def temp_llm_call(state: MessagesState):
@@ -310,7 +312,7 @@ def api_agent_chat():
 
                 _temp_builder = StateGraph(MessagesState)
                 _temp_builder.add_node("llm_call", temp_llm_call)
-                _temp_builder.add_node("tool_node", ToolNode(all_tools))
+                _temp_builder.add_node("tool_node", ToolNode(user_tools))
                 _temp_builder.add_edge(START, "llm_call")
                 _temp_builder.add_conditional_edges(
                     "llm_call",

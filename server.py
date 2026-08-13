@@ -11,11 +11,10 @@ Run:
 """
 
 import logging
-import time
-from pathlib import Path
 
 # ── Suppress ONNX / TensorRT log noise before any onnxruntime import ─────────
 import os
+from pathlib import Path
 
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
@@ -43,6 +42,10 @@ from config import (
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# ── Import shared helpers (single source of truth) ────────────────────────────
+from blueprints.helpers import (
+    check_api_rate_limit as _check_api_rate_limit,
+)
 from config import (
     HDX_APP_IDENTIFIER,
     HDX_BASE_URL,
@@ -56,64 +59,11 @@ from config import (
     NEWS_TIMEOUT,
 )
 
-# ── Import shared helpers (single source of truth) ────────────────────────────
-from blueprints.helpers import (  # noqa: E402
-    MANUAL_ID_BASE,
-    PROPOSAL_SECTION_LABELS,
-    PROPOSAL_SECTIONS,
-    SECTION_DB_FIELDS,
-    _AGENT_BUSY_TIMEOUT,
-    _api_rate_counts,
-    _api_rate_lock,
-    _jobs,
-    _jobs_lock,
-    _stream_nonces,
-    _stream_nonces_lock,
-    _user_active_chat,
-    _user_active_chat_lock,
-    _user_agent_busy,
-    _user_agent_busy_lock,
-    _user_agent_busy_since,
-    chats_db as _chats_db,
-    check_and_increment_rate_limit as _check_and_increment_rate_limit,
-    check_api_rate_limit as _check_api_rate_limit,
-    check_rate_limit as _check_rate_limit,
-    consume_stream_nonce as _consume_stream_nonce,
-    create_stream_nonce as _create_stream_nonce,
-    db_add_message as _db_add_message,
-    db_chat_belongs_to as _db_chat_belongs_to,
-    db_clear_messages as _db_clear_messages,
-    db_conn as _db_conn,
-    db_create_chat as _db_create_chat,
-    db_delete_chat as _db_delete_chat,
-    db_get_chats_by_uid as _db_get_chats_by_uid,
-    db_get_messages as _db_get_messages,
-    db_rename_chat as _db_rename_chat,
-    ensure_active_chat as _ensure_active_chat,
-    generate_chat_title as _generate_chat_title,
-    get_agent as _get_agent,
-    get_chroma_adapter as _get_chroma_adapter,
-    get_proposal_for_edit as _get_proposal_for_edit,
-    increment_rate_limit as _increment_rate_limit,
-    init_chats_db as _init_chats_db,
-    is_gpu_noise as _is_gpu_noise,
-    load_langchain_messages as _load_langchain_messages,
-    log_event as _log_event,
-    new_chat_id as _new_chat_id,
-    parse_countries as _parse_countries,
-    row_to_dict as _row_to_dict,
-    run_job as _run_job,
-    strip_ansi as _strip_ansi,
-    trim_bulletin_for_preview as _trim_bulletin_for_preview,
-    update_step_status as _update_step_status,
-    upsert_user as _upsert_user,
-)
-
 # ── HDX Client (Humanitarian Data Exchange) ──────────────────────────────────
-from reliefweb_api.hdx_tools import get_hdx_client, init_hdx_tools
+from reliefweb_api.hdx_tools import init_hdx_tools
 
 # ── News Client (NewsAPI.org — World News) ──────────────────────────────────
-from reliefweb_api.news_tools import get_news_client, init_news_tools
+from reliefweb_api.news_tools import init_news_tools
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -352,8 +302,8 @@ def _apply_api_rate_limit():
 
 # ── Register remaining routes via blueprints ─────────────────────────────────
 # Auth/me, chat/models, landing, health are now in their own blueprints:
-from blueprints.main_bp import main_bp  # landing, spa, health
 from blueprints.auth_route import auth_route_bp  # /api/auth/me
+from blueprints.main_bp import main_bp  # landing, spa, health
 
 app.register_blueprint(main_bp)
 app.register_blueprint(auth_route_bp)

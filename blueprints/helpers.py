@@ -18,12 +18,11 @@ import subprocess
 import threading
 import time
 import uuid
-from pathlib import Path
 
 from config import (
     CHATS_DB_PATH,
-    DB_PATH,
     DAILY_MESSAGE_LIMIT,
+    DB_PATH,
     PREMIUM_MESSAGE_LIMIT,
     SITREP_JOB_TIMEOUT,
 )
@@ -124,7 +123,9 @@ def parse_countries(json_str):
 def check_api_rate_limit():
     """Per-IP rate limit for API endpoints. Returns (ok, remaining)."""
     from datetime import date
+
     from flask import request
+
     from auth import _dev_mode
 
     if _dev_mode():
@@ -546,6 +547,7 @@ def generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
     def _do():
         try:
             from langchain_openai import ChatOpenAI
+
             from config import config as _cfg
 
             mini = ChatOpenAI(

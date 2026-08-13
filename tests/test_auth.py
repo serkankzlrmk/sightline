@@ -331,7 +331,7 @@ class TestRequireRole:
             patch.object(auth, "verify_firebase_token", return_value=fake_token),
             patch.object(auth, "_resolve_role", return_value="premium"),
         ):
-            with patch("server.get_hdx_client", return_value=None):
+            with patch("reliefweb_api.hdx_tools.get_hdx_client", return_value=None):
                 resp = self.client.get(
                     "/api/hdx/availability/TUR",
                     headers={"Authorization": "Bearer token"},
@@ -346,7 +346,7 @@ class TestRequireRole:
             patch.object(auth, "verify_firebase_token", return_value=fake_token),
             patch.object(auth, "_resolve_role", return_value="admin"),
         ):
-            with patch("server.get_hdx_client", return_value=None):
+            with patch("reliefweb_api.hdx_tools.get_hdx_client", return_value=None):
                 resp = self.client.get(
                     "/api/hdx/availability/TUR",
                     headers={"Authorization": "Bearer token"},

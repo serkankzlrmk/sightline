@@ -5,6 +5,9 @@ Provides a single @tool function that lets the agent run read-only SQL queries
 against the reliefweb.db SQLite database. SELECT-only enforcement, 5s timeout.
 
 This is a custom alternative to mcp-server-sqlite — simpler, safer, no subprocess.
+
+SECURITY: This tool only queries the reports database (reliefweb.db).
+The chats database is NOT accessible to prevent user data leakage.
 """
 
 import logging
@@ -29,6 +32,9 @@ _FORBIDDEN_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+# Columns that contain PII or sensitive data — redact from results
+_SENSITIVE_COLUMNS = {"uid", "email", "phone", "password", "token", "secret"}
+
 # Default DB path — resolved lazily to avoid import-time config dependency
 _DB_PATH = None
 
@@ -47,8 +53,8 @@ def _get_db_path():
 
 
 @tool
-def sql_query(query: str, database: str = "reports") -> str:
-    """Run a read-only SQL query on the Sightline database.
+def sql_query(query: str) -> str:
+    """Run a read-only SQL query on the Sightline reports database.
 
     Useful for quantitative questions about the report database:
     - "How many reports per country?"
@@ -58,8 +64,6 @@ def sql_query(query: str, database: str = "reports") -> str:
     Args:
         query: A SELECT or WITH SQL query. Only read-only queries are allowed.
                INSERT/UPDATE/DELETE/DROP/ALTER/CREATE will be rejected.
-        database: Which database to query: 'reports' (reliefweb.db, default) or
-                  'chats' (chats.db with events/users/chats tables).
 
     Returns query results as a formatted table (first 50 rows max).
     """
@@ -71,16 +75,11 @@ def sql_query(query: str, database: str = "reports") -> str:
     forbidden_match = _FORBIDDEN_KEYWORDS.search(query)
     if forbidden_match:
         return (
-            f"Error: Forbidden keyword '{forbidden_match.group()}' detected. Only read-only SELECT queries are allowed."
+            f"Error: Forbidden keyword '{forbidden_match.group()}' detected. "
+            "Only read-only SELECT queries are allowed."
         )
 
-    # Resolve DB path
-    if database == "chats":
-        from server import CHATS_DB_PATH
-
-        db_path = str(CHATS_DB_PATH)
-    else:
-        db_path = _get_db_path()
+    db_path = _get_db_path()
 
     if not Path(db_path).exists():
         return f"Error: Database file not found: {db_path}"
@@ -106,17 +105,30 @@ def sql_query(query: str, database: str = "reports") -> str:
         columns = [desc[0] for desc in cursor.description] if cursor.description else []
         elapsed = time.time() - start
 
+        # Redact sensitive columns
+        redacted_indices = set()
+        for i, col in enumerate(columns):
+            if col.lower() in _SENSITIVE_COLUMNS:
+                redacted_indices.add(i)
+
         conn.close()
 
         if not rows:
             return "Query returned 0 rows."
 
-        # Format as a simple table
+        # Format as a simple table (redacting sensitive columns)
         header = " | ".join(columns)
         separator = "-+-".join("-" * len(c) for c in columns)
         lines = [header, separator]
         for row in rows[:50]:
-            lines.append(" | ".join(str(row[c] if c in row.keys() else row[i]) for i, c in enumerate(columns)))
+            cells = []
+            for i, c in enumerate(columns):
+                val = row[c] if c in row.keys() else row[i]
+                if i in redacted_indices:
+                    cells.append("[REDACTED]")
+                else:
+                    cells.append(str(val))
+            lines.append(" | ".join(cells))
 
         result = "\n".join(lines)
         result += f"\n\n({len(rows)} row(s) shown, {elapsed:.2f}s)"

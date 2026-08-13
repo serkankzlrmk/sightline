@@ -228,33 +228,52 @@ except Exception as e:
     logger.critical(f"Failed to bind tools to model: {e}")
 
 
-def get_tools_for_mode(mode: str = "analyst") -> list:
-    """Return the tool set appropriate for the given agent mode.
+def get_tools_for_mode(mode: str = "analyst", role: str = "free") -> list:
+    """Return the tool set appropriate for the given agent mode and user role.
 
     Modes:
     - analyst: All humanitarian data tools (default)
     - proposal: All tools + proposal editing tools
     - me_reviewer: All tools + proposal read-only tools
-    """
-    if mode == "analyst":
-        return all_tools
 
+    Roles:
+    - free: Excludes proposal editing tools and SQL tool.
+            Free users can still use humanitarian data tools (ReliefWeb, HDX, etc.)
+            and proposal read-only tools (get_proposal_details, get_section_content).
+    - premium/admin: Full tool set including proposal editing and SQL.
+    """
+    # Base: all tools
+    tools = list(all_tools)
+
+    # Role-based filtering: restrict proposal editing and SQL for free users
+    _premium_only_tools = {
+        "edit_proposal_toc",
+        "edit_proposal_logframe",
+        "edit_proposal_narrative",
+        "propose_edits",
+        "sql_query",
+    }
+    if role == "free":
+        tools = [t for t in tools if t.name not in _premium_only_tools]
+
+    # Mode-based additions
     from agent.proposal_tools import PROPOSAL_TOOLS
 
-    {t.name for t in PROPOSAL_TOOLS}
-
     if mode == "proposal":
-        existing = {t.name for t in all_tools}
+        existing = {t.name for t in tools}
         extra = [t for t in PROPOSAL_TOOLS if t.name not in existing]
-        return all_tools + extra
+        # For free users, still exclude premium-only proposal tools
+        if role == "free":
+            extra = [t for t in extra if t.name not in _premium_only_tools]
+        tools = tools + extra
 
     if mode == "me_reviewer":
         review_tools = [t for t in PROPOSAL_TOOLS if t.name in ("get_proposal_details", "get_section_content")]
-        existing = {t.name for t in all_tools}
+        existing = {t.name for t in tools}
         extra = [t for t in review_tools if t.name not in existing]
-        return all_tools + extra
+        tools = tools + extra
 
-    return all_tools
+    return tools
 
 
 # Background MCP tool loader — when MCP tools finish loading, add them to the agent

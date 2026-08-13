@@ -10,8 +10,8 @@ import logging
 from flask import Blueprint, g, jsonify
 
 from auth import _admins, require_auth
-from config import CHAT_MODELS
 from blueprints.helpers import _check_rate_limit, _upsert_user
+from config import CHAT_MODELS
 
 logger = logging.getLogger(__name__)
 

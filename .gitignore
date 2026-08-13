@@ -133,12 +133,6 @@ docs/STITCH_LOGIN_PROMPT.md
 docs/STITCH_PROMPT.md
 
 # ========================================
-# Internal deployment scripts (production-specific)
-# ========================================
-deploy/setup-crons-docker.sh
-deploy/gunicorn.conf.py
-deploy/backup.sh
-deploy/cloud-init.yaml
 
 # ========================================
 # Internal CI/CD (production-specific)
