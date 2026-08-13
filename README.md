@@ -12,7 +12,7 @@ Real-time data aggregation · 10-stage SITREP pipeline · donor-compliant propos
 [![Commercial License](https://img.shields.io/badge/Commercial-Dual_License-green.svg)](LICENSES/Commercial-LICENSE.md)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-169+-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-200+-brightgreen.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](VERSION)
 
 [Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](#self-hosting) · [Contributing](CONTRIBUTING.md)
@@ -270,6 +270,9 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide.
 - **Docker Compose** — app + Caddy (auto-TLS) on a VPS
 - **Manual deployment** — gunicorn + systemd + nginx
 - **Local desktop** — `DESKTOP_MODE=true` for offline/local use
+
+> **Before deploying:** Edit `Caddyfile` and replace `your-domain.com` with your
+> actual domain. Caddy automatically obtains TLS certificates — no certbot needed.
 
 ---
 

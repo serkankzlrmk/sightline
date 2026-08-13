@@ -156,7 +156,7 @@ def api_get_proposals():
     try:
         if role == "free":
             rows = conn.execute(
-                """SELECT id, title, country, event, themes, donor, date_from, date_to,
+                """SELECT id, uid, title, country, event, themes, donor, date_from, date_to,
                           current_step, step_status, created_at, completed_at
                    FROM proposals
                    WHERE uid = ? OR completed_at IS NOT NULL
@@ -165,7 +165,7 @@ def api_get_proposals():
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT id, title, country, event, themes, donor, date_from, date_to,
+                """SELECT id, uid, title, country, event, themes, donor, date_from, date_to,
                           current_step, step_status, created_at, completed_at
                    FROM proposals
                    WHERE uid = ?
@@ -199,7 +199,7 @@ def api_get_proposals():
                     "step_status": step_status,
                     "created_at": r["created_at"],
                     "completed_at": r["completed_at"],
-                    "is_owner": r["id"] and uid and True or False,
+                    "is_owner": r["uid"] == uid,
                 }
             )
         return jsonify(proposals)
@@ -542,7 +542,7 @@ def api_delete_proposal(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/pin-source", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_pin_source(prop_id):
     uid = current_uid()
     data = request.json or {}
@@ -578,7 +578,7 @@ def api_pin_source(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/pin-source/<int:index>", methods=["DELETE"])
-@require_auth
+@require_role("premium")
 def api_delete_pinned_source(prop_id, index):
     uid = current_uid()
     conn = _chats_db()
@@ -613,7 +613,7 @@ def api_delete_pinned_source(prop_id, index):
 
 
 @proposal_bp.route("/proposals/<prop_id>/toc", methods=["PUT"])
-@require_auth
+@require_role("premium")
 def api_update_toc(prop_id):
     uid = current_uid()
     data = request.json or {}
@@ -631,7 +631,7 @@ def api_update_toc(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/logframe", methods=["PUT"])
-@require_auth
+@require_role("premium")
 def api_update_logframe(prop_id):
     uid = current_uid()
     data = request.json or {}
@@ -678,7 +678,7 @@ def api_update_logframe(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/budget-calc", methods=["PUT"])
-@require_auth
+@require_role("premium")
 def api_budget_calc(prop_id):
     uid = current_uid()
     data = request.json or {}
@@ -732,7 +732,7 @@ def api_budget_calc(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/apply-suggestion", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_apply_suggestion(prop_id):
     uid = current_uid()
     data = request.json or {}
@@ -804,7 +804,7 @@ def api_admin_delete_proposal(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/generate-toc", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_proposal_generate_toc(prop_id):
     uid = current_uid()
     conn = _chats_db()
@@ -880,7 +880,7 @@ def api_proposal_generate_toc(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/generate-logframe", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_proposal_generate_logframe(prop_id):
     uid = current_uid()
     conn = _chats_db()
@@ -1048,7 +1048,7 @@ def api_proposal_chunks(prop_id):
 
 
 @proposal_bp.route("/proposals/<prop_id>/advisor/chat", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_proposal_advisor_chat(prop_id):
     uid = current_uid()
     role = current_role()
@@ -1250,7 +1250,7 @@ Provide specific, constructive feedback and suggestions. Use your tools (edit_pr
 
 
 @proposal_bp.route("/proposals/<prop_id>/advisor/background-review", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_proposal_advisor_background_review(prop_id):
     uid = current_uid()
     conn = _chats_db()
@@ -1827,7 +1827,7 @@ def api_donor_templates():
 
 
 @proposal_bp.route("/proposals/<prop_id>/export", methods=["POST"])
-@require_auth
+@require_role("premium")
 def api_proposal_export(prop_id):
     """Compile all sections into a full markdown proposal."""
     uid = current_uid()

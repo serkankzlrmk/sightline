@@ -166,7 +166,8 @@ def check_rate_limit(uid: str, role: str = "free") -> dict:
     else:
         limit = DAILY_MESSAGE_LIMIT
     remaining = max(0, limit - used)
-    return {"remaining": remaining, "limit": limit, "used": used}
+    allowed = remaining > 0
+    return {"remaining": remaining, "limit": limit, "used": used, "allowed": allowed}
 
 
 def check_and_increment_rate_limit(uid: str, role: str = "free") -> dict:

@@ -7,6 +7,13 @@
 #   docker compose logs -f app    # Follow app logs
 #   docker compose exec app pytest tests/  # Run tests
 #   docker compose down            # Stop everything
+#
+# WITHOUT Firebase (local/desktop mode):
+#   1. Set DESKTOP_MODE=true in .env
+#   2. Create an empty placeholder so Docker doesn't create a directory:
+#      touch firebase-service-account.json
+#   3. docker compose up -d --build
+#   → Auth is bypassed, all requests get a mock admin user.
 
 services:
   app:
@@ -33,7 +40,10 @@ services:
       - output_data:/app/output
       - mcp_cache:/tmp/uv-cache
       - npm_cache:/tmp/npm-cache
-      # Mount Firebase service account (optional — if absent, app runs in DESKTOP_MODE)
+      # Mount Firebase service account JSON.
+      # For production with Firebase auth: place your file at ./firebase-service-account.json
+      # For local use without Firebase: set DESKTOP_MODE=true and create a placeholder:
+      #   touch firebase-service-account.json
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
       # Mount frontend assets so design changes persist across recreates
       - ./static:/app/static:ro

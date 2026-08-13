@@ -239,7 +239,10 @@ from mcp_integration import init_mcp_tools as _init_mcp
 _mcp_ok = _init_mcp()
 logger.info("MCP: Background init started — arxiv/sequential/brave tools will be available shortly")
 
-_cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()] or ["*"]
+_cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
+# If no origins configured, default to same-origin only (no wildcard in production)
+if not _cors_origins:
+    _cors_origins = []  # Flask-CORS with empty list = same-origin only
 CORS(app, origins=_cors_origins, supports_credentials=False)
 Compress(app)
 

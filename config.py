@@ -371,12 +371,18 @@ SSL_VERIFY: bool = os.getenv("SSL_VERIFY", "true").lower() == "true"
 SSL_CA_BUNDLE: str = os.getenv("SSL_CA_BUNDLE", "")
 if not SSL_VERIFY and not SERVER_DEBUG:
     import logging as _ssl_log
+    import sys
 
-    _ssl_log.getLogger(__name__).warning(
+    _ssl_log.getLogger(__name__).error(
         "SSL_VERIFY=false in production (SERVER_DEBUG=false) — all outbound "
         "HTTPS calls (ReliefWeb, HDX, Supabase) are vulnerable to MITM. "
         "Set SSL_VERIFY=true or configure SSL_CA_BUNDLE for corporate proxies."
     )
+    print(
+        "FATAL: SSL_VERIFY=false in production. Set SSL_VERIFY=true in your .env file.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 SECRET_KEY: str = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
     if os.getenv("SERVER_DEBUG", "").lower() == "true":
@@ -392,19 +398,16 @@ if not SECRET_KEY:
             stacklevel=2,
         )
     else:
-        # Production without SECRET_KEY — generate random ephemeral key and warn.
-        # Don't sys.exit — the server should stay up (auto-rollback on crash is worse).
-        # The operator should set SECRET_KEY in .env and restart for persistent sessions.
-        import secrets as _secrets
+        # Production without SECRET_KEY — fail fast. A missing SECRET_KEY means
+        # sessions reset on every restart, which is an operational hazard.
+        import sys
 
-        SECRET_KEY = _secrets.token_hex(32)
-        import warnings
-
-        warnings.warn(
-            "SECRET_KEY not set in production! Generated random ephemeral key — "
-            "sessions will reset on restart. Set SECRET_KEY in .env for persistent sessions.",
-            stacklevel=2,
+        print(
+            "FATAL: SECRET_KEY is not set in production. "
+            "Set SECRET_KEY in your .env file and restart.",
+            file=sys.stderr,
         )
+        sys.exit(1)
 
 # Aliases for reliefwebapi compatibility
 FLASK_PORT = SERVER_PORT
