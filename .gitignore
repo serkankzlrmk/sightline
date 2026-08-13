@@ -48,6 +48,7 @@ __pycache__/
 Thumbs.db
 Desktop.ini
 .DS_Store
+static/.DS_Store
 
 # ========================================
 # Virtual Environments
@@ -68,6 +69,7 @@ build/
 # ========================================
 ruff_cache/
 .pytest_cache/
+
 # World map generator data (large)
 static/ne_*_countries.geojson
 
@@ -78,63 +80,99 @@ backups/
 .tmp-*
 .gstack/
 
-# Local agent configs (not for public repo)
+# ========================================
+# Agent / AI tool configs (not for public repo)
+# ========================================
+.agents/
 .hermes/
 .opencode/
-_archive/
-.agents/
+opencode.json
+skills-lock.json
+.cgcignore
 
-# Firebase web config (contains real Firebase project credentials)
-# Copy firebase-config.example.js → firebase-config.js and fill in
+# ========================================
+# Firebase config (real credentials — use example template)
+# ========================================
 static/firebase-config.js
-
-# Firebase service account (server-side, SECRET)
 firebase-service-account.json
 **/firebase-service-account.json
 
-# Internal documents (not for public release)
-FINAL_REVIEW_PLAN.md
-PROPOSAL_REDESIGN.md
-GOVERNANCE.md
+# ========================================
+# Internal docs (kept locally, not for public repo)
+# ========================================
 AGENTS.md
 ARCHITECTURE.md
 OVERVIEW.md
 ROADMAP.md
 DEPLOY.md
+CHANGELOG.md
+FINAL_REVIEW_PLAN.md
+PROPOSAL_REDESIGN.md
+GOVERNANCE.md
 docs/AGENT_NOTES.md
-docs/COMMAND_CENTER_PLAN.md
-docs/STITCH_PROMPT.md
-docs/STITCH_LOGIN_PROMPT.md
 docs/ARCHITECTURE.md
 docs/BACKUP_AND_RECOVERY.md
+docs/BRANDING.md
 docs/CODEMAP.md
+docs/COMMAND_CENTER_PLAN.md
 docs/DEPLOY.md
+docs/DEPLOYMENT.md
 docs/DESIGN_DIRECTIVES.md
+docs/DEVELOPMENT.md
 docs/FRONTEND_CHANGELOG.md
 docs/KNOWLEDGE_INGEST_ROADMAP.md
 docs/LOCAL_STAGING.md
 docs/OPEN_SOURCE_ROADMAP.md
 docs/PROPOSAL_PIPELINE_SPEC.md
 docs/PROPOSAL_WIZARD_SPEC.md
-docs/ROADMAP.md
 docs/proposal_pcm_design_spec.md
+docs/QUICKSTART.md
+docs/ROADMAP.md
+docs/SELF_HOSTING.md
+docs/STITCH_LOGIN_PROMPT.md
+docs/STITCH_PROMPT.md
+
+# ========================================
+# Internal deployment scripts (production-specific)
+# ========================================
+deploy/setup-crons-docker.sh
+deploy/gunicorn.conf.py
 deploy/backup.sh
 deploy/cloud-init.yaml
 
-static/.DS_Store
-static/videos/intro_orig.mp4
+# ========================================
+# Internal CI/CD (production-specific)
+# ========================================
+.github/workflows/deploy.yml
+.github/workflows/rollback.yml
+
+# ========================================
+# Internal scripts (visual pipeline, migration, legacy)
+# ========================================
+scripts/assemble_visual_package.py
+scripts/batch_visual_index.py
+scripts/batch_visual_ingest.py
+scripts/caption_pixelrag_tiles.py
+scripts/daily_visual_pipeline.py
+scripts/export_visual_manifest.py
+scripts/import_visual_package.py
+scripts/migrate_v1_proposals.py
+scripts/pixelrag_to_package.py
+scripts/visual_worker.py
+scripts/run.bat
+
+# ========================================
+# Archive (old code, not for public)
+# ========================================
+_archive/
+
+# ========================================
+# Temp files
+# ========================================
+cleanup-expressions.txt
+cleanup-paths.txt
+cleanup-expressions2.txt
 static/textures/earth_albedo_opt.webp
 static/textures/earth_bump_opt.webp
 static/textures/earth_clouds_opt.webp
-cleanup-expressions.txt
-cleanup-paths.txt
-cleanup-expressions.txt
-cleanup-expressions2.txt
-
-# Internal docs — kept locally, not for public repo
-CHANGELOG.md
-docs/BRANDING.md
-docs/DEPLOYMENT.md
-docs/DEVELOPMENT.md
-docs/QUICKSTART.md
-docs/SELF_HOSTING.md
+static/videos/intro_orig.mp4
