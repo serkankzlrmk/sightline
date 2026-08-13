@@ -296,8 +296,8 @@ def require_auth(f):
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             _log.debug("require_auth: no Bearer header for %s", request.path)
-            return jsonify({"error": "Missing Authorization: Bearer token"}), 401
-        token = auth_header[len("Bearer ") :].strip()
+            return jsonify({"error": "Missing Authorization: Bearer ***"}), 401
+        token = auth_header[len("Bearer "):].strip()
         if not token:
             _log.debug("require_auth: empty token for %s", request.path)
             return jsonify({"error": "Empty token"}), 401

@@ -2,8 +2,8 @@
 blueprints/ingest_bp.py — Flask Blueprint for /api/ingest/* routes.
 
 Extracted from server.py lines 2823–3025.
-All shared helpers (DB functions, state dicts, etc.) are accessed
-via `import server` to avoid circular imports and duplication.
+All shared helpers (DB functions, state dicts, etc.) are imported
+from blueprints.helpers to avoid circular imports.
 """
 
 import logging
@@ -16,6 +16,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from auth import current_uid, require_admin
+from blueprints.helpers import _db_conn, _log_event
 from config import DB_PATH
 
 logger = logging.getLogger(__name__)
@@ -24,9 +25,7 @@ ingest_bp = Blueprint("ingest", __name__, url_prefix="/api/ingest")
 
 MANUAL_ID_BASE = 9_000_000_000  # manual TR-prefixed IDs start above this
 
-
 # ─── Daily ingestion ────────────────────────────────────────────────────────
-
 
 @ingest_bp.route("/daily", methods=["POST"])
 @require_admin
@@ -36,7 +35,6 @@ def api_ingest_daily():
     Accepts optional JSON body: {"date": "YYYY-MM-DD", "purge_days": 90, "no_purge": false}
     Returns: {fetched, ingested, skipped, errors, purged_sql, purged_chroma}
     """
-    import server
 
     data = request.get_json(silent=True) or {}
     target_date = data.get("date", "")  # empty = yesterday
@@ -106,7 +104,7 @@ def api_ingest_daily():
         if result.returncode != 0:
             summary["warning"] = "Script exited with non-zero code (some errors occurred)"
 
-        server._log_event(
+        _log_event(
             current_uid(),
             "ingest_daily_completed",
             {
@@ -126,9 +124,7 @@ def api_ingest_daily():
         logger.exception("Daily ingest failed: %s", e)
         return jsonify({"error": "Ingest failed. Check server logs for details."}), 500
 
-
 # ─── Manual PDF upload ──────────────────────────────────────────────────────
-
 
 @ingest_bp.route("/upload", methods=["POST"])
 @require_admin
@@ -137,7 +133,6 @@ def api_ingest_upload():
     import shutil
     import tempfile
 
-    import server
     from reliefweb_api.db_manager import (
         CHUNK_OVERLAP,
         CHUNK_SIZE,
@@ -183,7 +178,7 @@ def api_ingest_upload():
     if header != b"%PDF-":
         return jsonify({"error": "File does not appear to be a valid PDF"}), 400
 
-    conn = server._db_conn()
+    conn = _db_conn()
     try:
         max_row = conn.execute("SELECT MAX(report_id) FROM reports WHERE report_id > ?", (MANUAL_ID_BASE,)).fetchone()
     finally:

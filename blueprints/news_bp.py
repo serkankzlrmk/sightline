@@ -2,8 +2,6 @@
 blueprints/news_bp.py — Flask Blueprint for /api/news/* routes.
 
 Extracted from server.py lines 2703–2821.
-All shared helpers (DB functions, state dicts, etc.) are accessed
-via `import server` to avoid circular imports and duplication.
 """
 
 import logging
