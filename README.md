@@ -14,7 +14,7 @@
 [![Tests](https://img.shields.io/badge/tests-197+-brightgreen.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](VERSION)
 
-[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](docs/SELF_HOSTING.md) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](#self-hosting) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -69,7 +69,7 @@ SERVER_HOST=127.0.0.1 DESKTOP_MODE=true python server.py
 > `/api/health`. GDACS, Open-Meteo, and World Bank work keyless. Add keys for
 > ReliefWeb, HDX, News, Brave, and LLM as you get them.
 
-See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for a 5-minute walkthrough.
+See [`.env.example`](.env.example) for all configuration variables.
 
 ---
 
@@ -243,14 +243,13 @@ ruff check .
 SERVER_HOST=127.0.0.1 DESKTOP_MODE=true SERVER_DEBUG=true python server.py
 ```
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide, and
-[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for detailed dev notes.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide.
 
 ---
 
 ## Self-Hosting
 
-See [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) for production deployment:
+See the **Self-Hosting** section below for production deployment:
 
 - **Docker Compose** — app + Caddy (auto-TLS) on a VPS
 - **Manual deployment** — gunicorn + systemd + nginx

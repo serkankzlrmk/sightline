@@ -226,7 +226,6 @@ templates/index.html       — SPA frontend
 static/                    — Frontend assets (app.js, auth.js, etc.)
 tests/                     — Pytest tests (~171 tests)
 scripts/                   — Cron scripts (daily_ingest, bulletin)
-docs/                      — All markdown documentation
 ```
 
 ---
