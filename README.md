@@ -237,15 +237,6 @@ for all ~75 variables. Key ones:
 | `LLM_PROVIDER` | Optional | `openrouter` (default) or `ollama` (local LLM) |
 | `ACTIVE_MODEL` | Optional | `google/gemini-2.5-flash` (default) |
 
-### Models
-
-| Key | Model | Premium | Sequential |
-|---|---|---|---|
-| flash | gemini-2.5-flash | No | No |
-| thinking | gemini-2.5-flash-lite | No | No |
-| ultra | gemini-2.5-pro | Yes | No |
-| deep_think | gemini-2.5-pro | Yes | Yes (sequential_thinking tool) |
-
 ---
 
 ## Development
