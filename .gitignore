@@ -130,3 +130,11 @@ cleanup-expressions.txt
 cleanup-paths.txt
 cleanup-expressions.txt
 cleanup-expressions2.txt
+
+# Internal docs — kept locally, not for public repo
+CHANGELOG.md
+docs/BRANDING.md
+docs/DEPLOYMENT.md
+docs/DEVELOPMENT.md
+docs/QUICKSTART.md
+docs/SELF_HOSTING.md

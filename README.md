@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="static/logo.webp" alt="Sightline — AI-powered humanitarian intelligence platform" width="120">
+<img src="static/logo-signal-horizon.webp" alt="Sightline — Humanitarian Intelligence Platform" width="120">
 
 # Sightline
 
