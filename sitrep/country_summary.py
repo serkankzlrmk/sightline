@@ -3,13 +3,14 @@ country_summary.py — Per-country intelligence summary generator.
 
 Aggregates all available data for a country into a single JSON card:
 - ReliefWeb: report count, date range, top themes, top sources, recent reports
-- HDX: refugees, IDPs, funding, conflict events (if available)
-- GDACS: active disaster alerts
-- World Bank: key economic indicators (if available)
-- LLM: 2-3 paragraph narrative summary synthesizing all sources
+- HDX: refugees, IDPs, funding, conflict events (if available, 30-day TTL)
+- GDACS: active disaster alerts (refreshed every run)
+- World Bank: key economic indicators (if available, 30-day TTL)
+- Headline + narrative: deterministic, data-driven templates (NO LLM)
 
-Generated weekly via cron (scripts/generate_country_summaries.py).
-Only regenerates countries with changed report_count (skip unchanged).
+Generated daily via cron (scripts/generate_country_summaries.py).
+DB-derived fields are recomputed every run; external APIs (HDX, World Bank)
+are only refetched when older than EXTERNAL_DATA_TTL_DAYS (default 30).
 
 Output: output/country_summaries/{Country}.json
 """
@@ -37,6 +38,11 @@ MIN_REPORTS = int(os.getenv("COUNTRY_SUMMARY_MIN_REPORTS", "3"))
 
 # Only fetch HDX for top N countries (by report count) to respect rate limits
 HDX_TOP_COUNTRIES = int(os.getenv("COUNTRY_SUMMARY_HDX_TOP", "30"))
+
+# External data (HDX, World Bank) is refetched only when older than this.
+# These datasets change slowly (monthly at best) — 30 days is the sweet spot.
+EXTERNAL_DATA_TTL_DAYS = int(os.getenv("COUNTRY_SUMMARY_EXTERNAL_TTL_DAYS", "30"))
+EXTERNAL_DATA_TTL = EXTERNAL_DATA_TTL_DAYS * 86400
 
 
 def _get_db():
@@ -148,67 +154,41 @@ def _fetch_worldbank_profile(iso3: str) -> dict:
     return {}
 
 
-def _generate_narrative(
+def _build_data_narrative(
     country: str,
     report_count: int,
     themes: list[str],
-    sources: list[str],
+    sources: list[dict],
     hdx_data: dict,
     gdacs_alerts: list[dict],
     date_range: str,
 ) -> dict:
-    """Use LLM to generate a 2-3 paragraph narrative summary for the country."""
-    try:
-        from sitrep.llm_client import llm_complete
-    except ImportError:
-        return {"headline": f"{country} humanitarian situation", "narrative": ""}
+    """Build a compact, deterministic headline + one-line narrative (NO LLM).
 
-    # Build context text
-    context_parts = [f"Country: {country}"]
-    context_parts.append(f"Reports: {report_count} ({date_range})")
+    Replaces the old LLM narrative. The card UI renders these as short
+    "hap" chips/badges rather than long paragraphs — the headline is a
+    one-liner (count + top theme), the narrative a single summary line.
+    """
+    # --- Headline: compact — count + top theme (country name shown in panel) ---
+    theme_hint = ""
     if themes:
-        context_parts.append(f"Themes: {', '.join(themes[:6])}")
-    if sources:
-        context_parts.append(f"Sources: {', '.join(sources[:5])}")
-    if hdx_data:
-        hdx_text = "; ".join(f"{k.get('label', k)}: {k.get('value', '')}" for k in hdx_data)
-        context_parts.append(f"Key figures: {hdx_text}")
+        theme_hint = f" · {themes[0]}"
+    headline = f"{report_count} reports{theme_hint}"
+
+    # --- Narrative: single data-driven line, no filler ---
+    # NOTE: organizations are NOT listed here — the card renders them in the
+    # dedicated "Reporting Organizations" section (avoids duplication).
+    bits = []
+    hdx_figures = (hdx_data or {}).get("key_figures", [])
+    if hdx_figures:
+        fig_text = "; ".join(f"{f.get('label', '')} {f.get('value', '')}" for f in hdx_figures[:3])
+        bits.append(f"HDX: {fig_text}")
     if gdacs_alerts:
-        alert_text = "; ".join(f"{a['alert_level']} {a['event_type']}" for a in gdacs_alerts[:3])
-        context_parts.append(f"Active alerts: {alert_text}")
+        alert_text = "; ".join(f"{a['alert_level']} {a['event_type']}" for a in gdacs_alerts[:2])
+        bits.append(f"Alerts: {alert_text}")
 
-    context = "\n".join(context_parts)
-
-    prompt = f"""You are a humanitarian analyst. Write a concise intelligence summary for {country}.
-
-Based on the following data:
-{context}
-
-Generate:
-1. A headline (max 12 words) summarizing the current humanitarian situation
-2. A narrative summary (2-3 paragraphs) synthesizing all available information
-
-Respond with this exact JSON format:
-{{"headline": "...", "narrative": "..."}}
-"""
-
-    system = "You are a humanitarian analyst writing country intelligence briefings. Respond ONLY with valid JSON."
-    result = llm_complete(prompt, system=system, temperature=0.3, max_tokens=500)
-    if result:
-        try:
-            parsed = json.loads(result)
-            return parsed
-        except json.JSONDecodeError:
-            # Try to extract JSON from response
-            import re
-
-            match = re.search(r"\{.*\}", result, re.DOTALL)
-            if match:
-                try:
-                    return json.loads(match.group())
-                except json.JSONDecodeError:
-                    pass
-    return {"headline": f"{country} humanitarian situation", "narrative": ""}
+    narrative = " · ".join(bits)
+    return {"headline": headline, "narrative": narrative}
 
 
 def generate_country_summary(country: str, force_hdx: bool = False) -> dict | None:
@@ -269,25 +249,57 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
             )
 
     top_themes = [t for t, _ in theme_counter.most_common(8)]
-    top_sources = [s for s, _ in source_counter.most_common(5)]
+    # top_sources: list of {name, count} dicts (LLM-free, straight from DB)
+    top_sources = [
+        {"name": s, "count": c} for s, c in source_counter.most_common(5)
+    ]
     severity = _determine_severity(report_count, top_themes)
     coords = _get_country_coords(country)
     iso3 = _country_to_iso3(country)
 
-    # 3. HDX data (only for top countries or if forced)
+    # --- External data with TTL: reuse cached values when fresh ---
+    # Load previous summary if it exists (for TTL reuse of HDX/World Bank)
+    existing = {}
+    safe_name = safe_filename(country)
+    existing_path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"
+    if existing_path.exists():
+        try:
+            existing = json.loads(existing_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    # 3. HDX data (only for top countries or if forced) — 30-day TTL
+    hdx_fetched_at = 0
     hdx_data = {}
     if force_hdx or report_count >= 10:  # Fetch HDX for countries with 10+ reports
-        hdx_data = _fetch_hdx_data(country, iso3)
+        prev_fetched = existing.get("hdx_fetched_at", 0) or 0
+        if force_hdx or (time.time() - prev_fetched) > EXTERNAL_DATA_TTL:
+            hdx_data = _fetch_hdx_data(country, iso3)
+            hdx_fetched_at = time.time()
+        else:
+            # Reuse cached HDX figures (still fresh)
+            hdx_data = existing.get("hdx_data", {})
+            hdx_fetched_at = prev_fetched
 
-    # 4. GDACS alerts
+    # 4. GDACS alerts — always fresh (disaster alerts change daily)
     gdacs_alerts = _fetch_gdacs_alerts(iso3)
+    gdacs_fetched_at = time.time()
 
-    # 5. World Bank (quick, cached)
-    worldbank = _fetch_worldbank_profile(iso3)
+    # 5. World Bank (quick, cached) — 30-day TTL
+    worldbank_fetched_at = 0
+    worldbank = {}
+    prev_wb_fetched = existing.get("worldbank_fetched_at", 0) or 0
+    if force_hdx or (time.time() - prev_wb_fetched) > EXTERNAL_DATA_TTL:
+        worldbank = _fetch_worldbank_profile(iso3)
+        worldbank_fetched_at = time.time()
+    else:
+        # Reuse cached World Bank indicators (still fresh)
+        worldbank = existing.get("worldbank_indicators", {})
+        worldbank_fetched_at = prev_wb_fetched
 
-    # 6. LLM narrative
+    # 6. Data-driven narrative (NO LLM — deterministic templates)
     date_str = f"{date_range.get('min_date', '?')} to {date_range.get('max_date', '?')}"
-    narrative = _generate_narrative(country, report_count, top_themes, top_sources, hdx_data, gdacs_alerts, date_str)
+    narrative = _build_data_narrative(country, report_count, top_themes, top_sources, hdx_data, gdacs_alerts, date_str)
 
     # 7. Check for existing SITREP reports
     sitrep_reports = []
@@ -313,9 +325,17 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
         "top_themes": top_themes,
         "top_sources": top_sources,
         "recent_reports": recent_reports[:5],
-        "hdx_key_figures": hdx_data,
+        # hdx_key_figures is a LIST of {label, value, icon} dicts (frontend
+        # renders it directly). Raw HDX payload stored separately for TTL reuse.
+        "hdx_key_figures": (hdx_data or {}).get("key_figures", []),
+        "hdx_context_text": (hdx_data or {}).get("context_text", ""),
+        "hdx_data_sources": (hdx_data or {}).get("data_sources", {}),
+        "hdx_data": hdx_data,
+        "hdx_fetched_at": hdx_fetched_at,
         "gdacs_alerts": gdacs_alerts,
+        "gdacs_fetched_at": gdacs_fetched_at,
         "worldbank_indicators": worldbank,
+        "worldbank_fetched_at": worldbank_fetched_at,
         "sitrep_reports": sitrep_reports,
         "has_sitrep": len(sitrep_reports) > 0,
         "generated_at": datetime.now(UTC).isoformat(),
@@ -334,8 +354,12 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
 def generate_all_country_summaries(max_countries: int = 80) -> dict:
     """Generate summaries for all countries with sufficient data.
 
-    Only regenerates countries where report_count has changed since last summary.
-    Skip countries with no new reports (compare report_count + max_date).
+    Runs daily via cron. DB-derived fields (report count, severity, themes,
+    sources, recent reports, GDACS alerts) are recomputed every run; HDX and
+    World Bank payloads are only refetched when older than EXTERNAL_DATA_TTL
+    (see generate_country_summary). Countries are only skipped when they were
+    regenerated within the same 12h window with an unchanged report count
+    (protects against accidental double-runs of the cron).
 
     Args:
         max_countries: Maximum number of countries to process (sorted by report count)
@@ -364,14 +388,14 @@ def generate_all_country_summaries(max_countries: int = 80) -> dict:
         country = entry["name"]
         count = entry.get("count", 0)
 
-        # Check if we should skip (unchanged since last summary)
+        # Skip only if regenerated within the last 12h AND report count unchanged
+        # (guards against cron double-fires; daily runs still refresh everything)
         safe_name = safe_filename(country)
         existing_path = COUNTRY_SUMMARY_DIR / f"{safe_name}.json"
         if existing_path.exists():
             try:
                 existing = json.loads(existing_path.read_text(encoding="utf-8"))
-                # Skip if report count unchanged AND generated within 7 days
-                if existing.get("report_count") == count and time.time() - existing.get("generated_ts", 0) < 7 * 86400:
+                if existing.get("report_count") == count and time.time() - existing.get("generated_ts", 0) < 12 * 3600:
                     skipped += 1
                     continue
             except Exception:

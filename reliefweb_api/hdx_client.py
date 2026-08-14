@@ -845,6 +845,11 @@ class HDXClient:
             context["summary"]["overall_risk"] = risk.get("overall_risk")
             context["data_sources"]["national_risk"] = overview["national_risk"].to_sitrep_context()
 
+        # Operasyonel varlık özeti — aktif çalışan kurumlar.
+        # En yaygın HDX verisi; çoğu ülkede mevcut (refugees/funding'e göre).
+        if overview["operational_presence"].success and overview["operational_presence"].data:
+            context["data_sources"]["operational_presence"] = overview["operational_presence"].to_sitrep_context()
+
         return context
 
     # =========================================================================

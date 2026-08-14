@@ -2282,8 +2282,12 @@ async function loadDashboard() {
               last_updated: c.last_updated || '',
               recent_reports: c.recent_reports || [],
               top_themes: c.top_themes || [],
-              hdx_key_figures: c.hdx_key_figures || {},
+              top_sources: c.top_sources || [],
+              hdx_key_figures: c.hdx_key_figures || [],
               gdacs_alerts: c.gdacs_alerts || [],
+              hdx_fetched_at: c.hdx_fetched_at || 0,
+              gdacs_fetched_at: c.gdacs_fetched_at || 0,
+              worldbank_fetched_at: c.worldbank_fetched_at || 0,
               has_summary: c.has_summary || false,
               date_range: c.date_range || {},
             };
@@ -2528,17 +2532,31 @@ function updateMapMarkers() {
 
   const sevColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
 
+  // GDACS-driven marker color: Red alert → red, Orange → orange,
+  // no active alert → green (calm state). Severity does NOT drive the
+  // marker color — only live GDACS alerts do.
+  function crisisColor(c) {
+    const alerts = (c && c.gdacs_alerts) || [];
+    const top = alerts.find(a => a.alert_level === 'Red') || alerts.find(a => a.alert_level === 'Orange') || alerts[0];
+    if (top) {
+      if (top.alert_level === 'Red') return '#ef4444';
+      if (top.alert_level === 'Orange') return '#f59e0b';
+      return '#22c55e'; // Green alert level — still an event, calm-ish
+    }
+    return '#22c55e'; // No active alert → calm green
+  }
+
   crises.forEach(c => {
     const lat = c.coords?.lat;
     const lng = c.coords?.lng;
     if (!lat || !lng) return;
 
+    const color = crisisColor(c);
     const sevClass = (c.severity === 'high') ? 'severity-high' : (c.severity === 'medium') ? 'severity-medium' : 'severity-low';
-    const color = sevColors[c.severity] || '#007AFF';
 
     const icon = L.divIcon({
       className: 'crisis-marker',
-      html: `<div class="crisis-marker-dot ${sevClass}"></div>`,
+      html: `<div class="crisis-marker-dot ${sevClass}" style="background:${color};box-shadow:0 0 6px ${color}aa;"></div>`,
       iconSize: [16, 16],
       iconAnchor: [8, 8],
     });
@@ -2587,9 +2605,10 @@ function openCountryCard(crisis) {
   // Note: don't add panel-open class to map — it causes resize/marker lag
   // The crisis panel overlays the map absolutely, no layout shift needed
 
-  // If we have full summary data from /api/map/countries, render immediately
-  if (hasSummary && fullData.narrative) {
-    renderCountryCard(bodyEl, fullData, color, sevLabels);
+  // If we have narrative data from /api/map/countries (now always generated
+  // deterministically server-side), render the full card immediately.
+  if (fullData.narrative || fullData.headline) {
+    renderCountryCard(bodyEl, fullData, color, sevLabels, isAuthed);
   } else if (isAuthed) {
     // Authed: fetch full country summary
     api('/api/country/' + encodeURIComponent(country) + '/summary')
@@ -2599,7 +2618,7 @@ function openCountryCard(crisis) {
           renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
           return;
         }
-        renderCountryCard(bodyEl, data, color, sevLabels);
+        renderCountryCard(bodyEl, data, color, sevLabels, isAuthed);
       })
       .catch(() => {
         renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels);
@@ -2610,10 +2629,36 @@ function openCountryCard(crisis) {
   }
 }
 
-function renderCountryCard(bodyEl, data, color, sevLabels) {
+function renderCountryCard(bodyEl, data, color, sevLabels, isAuthed) {
   let html = '';
   const severity = data.severity || 'low';
 
+  // ── GDACS Active Disaster Banner (priority over severity badge) ──
+  // If there's a live disaster alert, surface it prominently with
+  // alert-level color coding (Red/Orange/Green). If NOT, show a calm
+  // green "no active alert" state instead of a loud severity label.
+  const gdacs = data.gdacs_alerts || [];
+  const topAlert = gdacs.find(a => a.alert_level === 'Red') || gdacs.find(a => a.alert_level === 'Orange') || gdacs[0] || null;
+  if (topAlert) {
+    const alertColor = topAlert.alert_level === 'Red' ? '#ef4444' : topAlert.alert_level === 'Orange' ? '#f59e0b' : '#22c55e';
+    html += `<div class="crisis-gdacs-banner" style="display:flex;align-items:center;gap:10px;background:${alertColor}14;border:1px solid ${alertColor}55;border-left:4px solid ${alertColor};border-radius:8px;padding:10px 12px;margin-bottom:10px;">`;
+    html += `<div style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:${alertColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;">⚠️</div>`;
+    html += `<div style="flex:1;min-width:0;">`;
+    html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="color:${alertColor};font-weight:800;font-size:12px;letter-spacing:.8px;">${esc(topAlert.alert_level || 'ACTIVE')} ALERT</span><span style="font-size:11px;color:var(--text-muted);">${esc(topAlert.event_type || 'Disaster')}</span></div>`;
+    html += `<div style="font-size:13px;font-weight:600;color:var(--text);margin-top:2px;">${esc(topAlert.title || '')}</div>`;
+    if (topAlert.from_date) html += `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${esc(String(topAlert.from_date).substring(0, 10))}${topAlert.to_date ? ' → ' + esc(String(topAlert.to_date).substring(0, 10)) : ''}</div>`;
+    html += `</div></div>`;
+  } else {
+    // No active disaster — calm green state (no loud severity color)
+    html += `<div class="crisis-gdacs-banner" style="display:flex;align-items:center;gap:10px;background:#22c55e14;border:1px solid #22c55e44;border-left:4px solid #22c55e;border-radius:8px;padding:10px 12px;margin-bottom:10px;">`;
+    html += `<div style="flex-shrink:0;width:34px;height:34px;border-radius:8px;background:#22c55e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;">✓</div>`;
+    html += `<div style="flex:1;min-width:0;">`;
+    html += `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="color:#22c55e;font-weight:800;font-size:12px;letter-spacing:.8px;">NO ACTIVE ALERT</span><span style="font-size:11px;color:var(--text-muted);">GDACS monitored</span></div>`;
+    html += `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">No live disaster alert for this country.</div>`;
+    html += `</div></div>`;
+  }
+
+  // Severity badge (compact — informational, not the primary signal)
   html += `<span class="crisis-severity-badge" style="background:${color}1a;color:${color};border:1px solid ${color}44">${sevLabels[severity] || ''}</span>`;
 
   // Last updated date
@@ -2622,6 +2667,20 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
     const dateStr = lastUpdated.length > 10 ? lastUpdated.substring(0, 10) : lastUpdated;
     html += `<div class="crisis-meta" style="margin-bottom:8px;"><span class="crisis-meta-item" style="color:var(--text-muted);font-size:11px;">Updated ${esc(dateStr)}</span>`;
     if (data.report_count) html += `<span class="crisis-meta-item" style="font-size:11px;"><strong>${data.report_count}</strong> reports</span>`;
+
+    // Per-source freshness (HDX / GDACS)
+    const freshParts = [];
+    if (data.hdx_fetched_at) {
+      const daysAgo = Math.floor((Date.now() / 1000 - data.hdx_fetched_at) / 86400);
+      freshParts.push(`HDX ${daysAgo <= 0 ? 'today' : daysAgo + 'd ago'}`);
+    }
+    if (data.gdacs_fetched_at) {
+      const daysAgo = Math.floor((Date.now() / 1000 - data.gdacs_fetched_at) / 86400);
+      freshParts.push(`GDACS ${daysAgo <= 0 ? 'today' : daysAgo + 'd ago'}`);
+    }
+    if (freshParts.length) {
+      html += `<span class="crisis-meta-item" style="color:var(--text-muted);font-size:11px;">${freshParts.map(esc).join(' · ')}</span>`;
+    }
     html += `</div>`;
   }
 
@@ -2629,8 +2688,18 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
     html += `<div class="crisis-headline">${esc(data.headline)}</div>`;
   }
 
-  if (data.narrative) {
-    html += `<div class="crisis-summary">${esc(data.narrative)}</div>`;
+  // (narrative line removed — same info already shown as chips/sections)
+
+  // Reporting Organizations — straight from DB, no LLM
+  if (data.top_sources && data.top_sources.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Reporting Organizations</div>`;
+    html += `<div class="country-card-sources">`;
+    data.top_sources.slice(0, 5).forEach(s => {
+      const name = (typeof s === 'string') ? s : (s.name || '');
+      const count = (typeof s === 'string') ? '' : (s.count != null ? ` · ${s.count}` : '');
+      if (name) html += `<span class="crisis-theme-tag">${esc(name)}${esc(String(count))}</span>`;
+    });
+    html += `</div></div>`;
   }
 
   if (data.hdx_key_figures && data.hdx_key_figures.length > 0) {
@@ -2639,7 +2708,17 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
     data.hdx_key_figures.forEach(f => {
       html += `<div class="country-card-figure"><span class="country-card-figure-value">${esc(String(f.value || ''))}</span><span class="country-card-figure-label">${esc(f.label || '')}</span></div>`;
     });
-    html += `</div></div>`;
+    html += `</div>`;
+    // Active organizations (from HDX operational presence) — shown as chips
+    const activeOrgFig = data.hdx_key_figures.find(f => f.orgs && f.orgs.length);
+    if (activeOrgFig && activeOrgFig.orgs && activeOrgFig.orgs.length) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;">`;
+      activeOrgFig.orgs.slice(0, 6).forEach(o => {
+        html += `<span class="crisis-theme-tag" style="font-size:10px;">${esc(o)}</span>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
   }
 
   if (data.gdacs_alerts && data.gdacs_alerts.length > 0) {
@@ -2693,6 +2772,13 @@ function renderCountryCard(bodyEl, data, color, sevLabels) {
     html += `</div>`;
   }
 
+  // Preview lock — anonymous users see the card but get a register prompt
+  if (!isAuthed) {
+    html += `<div class="preview-lock-msg"><div class="preview-lock-text">Register to view full report sources and SITREP analysis.</div><button class="preview-lock-btn">Register</button></div>`;
+  } else if (data.has_sitrep) {
+    html += `<button class="crisis-sitrep-btn" data-action="dash-view-crisis" data-country="${esc(data.country)}">View SITREP →</button>`;
+  }
+
   bodyEl.innerHTML = html;
 }
 
@@ -2714,6 +2800,17 @@ function renderCrisisPanelContent(bodyEl, crisis, isAuthed, color, sevLabels) {
     html += `<div class="crisis-themes">${crisis.themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
   } else if (crisis.top_themes && crisis.top_themes.length) {
     html += `<div class="crisis-themes">${crisis.top_themes.map(t => `<span class="crisis-theme-tag">${esc(t)}</span>`).join('')}</div>`;
+  }
+  // Reporting Organizations (from map data, DB-driven)
+  if (crisis.top_sources && crisis.top_sources.length > 0) {
+    html += `<div class="country-card-section"><div class="country-card-section-title">Reporting Organizations</div>`;
+    html += `<div class="country-card-sources">`;
+    crisis.top_sources.slice(0, 5).forEach(s => {
+      const name = (typeof s === 'string') ? s : (s.name || '');
+      const count = (typeof s === 'string') ? '' : (s.count != null ? ` · ${s.count}` : '');
+      if (name) html += `<span class="crisis-theme-tag">${esc(name)}${esc(String(count))}</span>`;
+    });
+    html += `</div></div>`;
   }
   // Show recent reports (from map data)
   if (crisis.recent_reports && crisis.recent_reports.length > 0) {

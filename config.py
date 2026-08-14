@@ -73,6 +73,8 @@ os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 # PROJECT PATHS
 # ============================================================================
 PROJECT_ROOT = Path(__file__).parent
+# Alias used by blueprints/helpers.py run_job() — must live in config, not server
+BASE_DIR = PROJECT_ROOT
 DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", str(PROJECT_ROOT / "reliefweb_downloads")))
 DB_PATH = Path(os.getenv("DB_PATH", str(PROJECT_ROOT / "reliefweb.db")))
 CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))

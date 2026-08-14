@@ -42,13 +42,14 @@ EOF
 chmod 644 /etc/cron.d/reliefagent-bulletin
 echo "  ✓ Installed /etc/cron.d/reliefagent-bulletin"
 
-# ── 3. Weekly Country Summaries Cron ─────────────────────────────
-echo "[3/4] Installing weekly country summaries cron (Monday 07:00 UTC)..."
+# ── 3. Daily Country Summaries Cron ─────────────────────────────
+echo "[3/4] Installing daily country summaries cron (06:15 UTC)..."
 cat > /etc/cron.d/reliefagent-country-summaries << 'EOF'
-# Sightline — Weekly Country Intelligence Summaries (Docker)
+# Sightline — Daily Country Intelligence Summaries (Docker)
+# DB-derived fields refresh daily; HDX + World Bank respect a 30-day TTL.
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
-0 7 * * 1 root docker exec sightline python /app/scripts/generate_country_summaries.py >> /var/log/reliefagent/country-summaries.log 2>&1
+15 6 * * * root docker exec sightline python /app/scripts/generate_country_summaries.py >> /var/log/reliefagent/country-summaries.log 2>&1
 EOF
 chmod 644 /etc/cron.d/reliefagent-country-summaries
 echo "  ✓ Installed /etc/cron.d/reliefagent-country-summaries"
@@ -72,7 +73,7 @@ echo "============================================================"
 echo ""
 echo "  Daily ingest:        06:00 UTC → docker exec sightline"
 echo "  Weekly bulletin:     Mon 06:30 UTC → docker exec sightline"
-echo "  Country summaries:  Mon 07:00 UTC → docker exec sightline"
+echo "  Country summaries:  daily 06:15 UTC → docker exec sightline"
 echo "  Daily backup:       03:00 UTC → backup.sh"
 echo ""
 echo "  Logs: /var/log/reliefagent/"

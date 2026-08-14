@@ -285,28 +285,80 @@ def api_map_countries():
                     pass
 
             # HDX key figures + GDACS alerts from summary
-            hdx_key_figures = (summary_data or {}).get("hdx_key_figures", {})
+            hdx_key_figures = (summary_data or {}).get("hdx_key_figures", [])
             gdacs_alerts = (summary_data or {}).get("gdacs_alerts", [])
             has_sitrep = (summary_data or {}).get("has_sitrep", False)
+
+            # Top sources (name + count) from summary — LLM-free, straight from DB
+            top_sources = (summary_data or {}).get("top_sources", [])
+            if not top_sources:
+                try:
+                    from collections import Counter as _Counter
+
+                    chunks = db.get_chunks_by_country(country, limit=50)
+                    src_counter = _Counter()
+                    for chunk in chunks:
+                        src = chunk.get("source", "")
+                        if src:
+                            src_counter[src] += 1
+                    top_sources = [{"name": s, "count": c} for s, c in src_counter.most_common(5)]
+                except Exception:
+                    pass
+
+            # Freshness timestamps (per-source)
+            hdx_fetched_at = (summary_data or {}).get("hdx_fetched_at", 0)
+            gdacs_fetched_at = (summary_data or {}).get("gdacs_fetched_at", 0)
+            worldbank_fetched_at = (summary_data or {}).get("worldbank_fetched_at", 0)
+
+            # If no headline/narrative and no summary exists, generate them
+            # deterministically from DB data (NO LLM — data-driven templates)
+            if (not headline and not narrative) and (top_themes or top_sources):
+                try:
+                    from sitrep.country_summary import _build_data_narrative
+
+                    date_str = ""
+                    if date_range:
+                        date_str = f"{date_range.get('min_date', '?')} to {date_range.get('max_date', '?')}"
+                    built = _build_data_narrative(
+                        country,
+                        count,
+                        top_themes or [],
+                        top_sources or [],
+                        {"key_figures": hdx_key_figures or []},
+                        gdacs_alerts or [],
+                        date_str,
+                    )
+                    headline = built.get("headline", "")
+                    narrative = built.get("narrative", "")
+                except Exception:
+                    pass
 
             # If no generated_at date, use date_range max_date
             if not last_updated and date_range:
                 last_updated = date_range.get("max_date", "")
+
+            # Use summary report_count when available (consistent with headline/narrative)
+            summary_count = (summary_data or {}).get("report_count", 0)
+            display_count = summary_count if summary_count else count
 
             result = {
                 "country": country,
                 "iso3": iso3,
                 "coords": coords,
                 "severity": severity,
-                "report_count": count,
+                "report_count": display_count,
                 "headline": headline,
                 "narrative": narrative,
                 "date_range": date_range,
                 "last_updated": last_updated,
                 "recent_reports": recent_reports[:3],
                 "top_themes": top_themes[:5],
+                "top_sources": top_sources,
                 "hdx_key_figures": hdx_key_figures,
                 "gdacs_alerts": gdacs_alerts,
+                "hdx_fetched_at": hdx_fetched_at,
+                "gdacs_fetched_at": gdacs_fetched_at,
+                "worldbank_fetched_at": worldbank_fetched_at,
                 "has_sitrep": has_sitrep,
                 "has_summary": summary_data is not None,
             }

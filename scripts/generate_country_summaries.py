@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-generate_country_summaries.py — Weekly country intelligence summary generator.
+generate_country_summaries.py — Daily country intelligence summary generator.
 
-Cron: Monday 07:00 UTC (after bulletin generation at 06:30)
+Cron: daily 06:15 UTC (after daily_ingest at 06:00)
+DB-derived fields refresh every run; HDX + World Bank respect a 30-day TTL
+(see EXTERNAL_DATA_TTL_DAYS in sitrep/country_summary.py).
+
 Usage: python scripts/generate_country_summaries.py
 """
 

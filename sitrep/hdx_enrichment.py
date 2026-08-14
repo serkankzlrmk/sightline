@@ -332,6 +332,31 @@ def format_hdx_for_bulletin(hdx_context: dict[str, Any] | None) -> dict[str, Any
         )
         context_parts.append(f"INFORM risk class: {risk}, global rank: {rank}")
 
+    # Operational presence — active organizations working in the country.
+    # This is HDX's most widely-available dataset (present for far more
+    # countries than refugees/funding), so it fills the gap on cards where
+    # the quantitative figures above are missing.
+    op_presence = (data_sources or {}).get("operational_presence", {})
+    if isinstance(op_presence, dict) and op_presence.get("record_count", 0):
+        org_names = set()
+        for rec in op_presence.get("data_preview", []) or []:
+            if not isinstance(rec, dict):
+                continue
+            org = rec.get("org_name") or rec.get("organization") or rec.get("name") or rec.get("org_acronym")
+            if org:
+                org_names.add(str(org))
+        if org_names:
+            org_list = sorted(org_names)[:6]
+            key_figures.append(
+                {
+                    "label": "Active Orgs",
+                    "value": f"{len(org_names)}",
+                    "icon": "groups",
+                    "orgs": org_list,
+                }
+            )
+            context_parts.append(f"active organizations: {', '.join(org_list[:4])}")
+
     context_text = ""
     if context_parts:
         context_text = "HDX data: " + "; ".join(context_parts) + "."

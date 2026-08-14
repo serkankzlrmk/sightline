@@ -110,6 +110,7 @@ FINAL_REVIEW_PLAN.md
 PROPOSAL_REDESIGN.md
 GOVERNANCE.md
 docs/AGENT_NOTES.md
+docs/OUTREACH.md
 docs/ARCHITECTURE.md
 docs/BACKUP_AND_RECOVERY.md
 docs/BRANDING.md
@@ -170,3 +171,4 @@ static/textures/earth_albedo_opt.webp
 static/textures/earth_bump_opt.webp
 static/textures/earth_clouds_opt.webp
 static/videos/intro_orig.mp4
+uv.lock
