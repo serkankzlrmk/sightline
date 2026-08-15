@@ -1217,6 +1217,7 @@ async function loadSitrepReportsList() {
       return;
     }
     list.innerHTML = '';
+    const canDelete = (window.__userRole || 'free') === 'admin';
     items.forEach(item => {
       const div = document.createElement('div');
       div.className = 'report-item';
@@ -1224,7 +1225,7 @@ async function loadSitrepReportsList() {
       div.dataset.action = 'open-sitrep-report';
       const country = item.filename.split('_')[0].replace(/\(/g, ' ').replace(/\)/g, '').trim();
       div.innerHTML = `<span>${escHtml(country)}</span>` +
-        `<button class="report-item-delete" data-action="delete-sitrep-report" data-file="${escHtml(item.filename)}" title="Delete report">✕</button>`;
+        (canDelete ? `<button class="report-item-delete" data-action="delete-sitrep-report" data-file="${escHtml(item.filename)}" title="Delete report (admin)">✕</button>` : '');
       list.appendChild(div);
     });
   } catch {

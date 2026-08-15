@@ -347,9 +347,12 @@ def api_sitrep_report():
 
 
 @sitrep_bp.route("/report", methods=["DELETE"])
-@require_role("premium")
+@require_admin
 def api_sitrep_report_delete():
     """Delete a SITREP report (JSON + Markdown) by filename.
+
+    ADMIN ONLY — SITREP reports are shared platform content; regular users
+    (free/premium) can generate and view them but not delete.
 
     Only files matching ``*_report.json`` / ``*_report.md`` inside the
     reports output dir can be deleted — path-traversal-safe like GET.
