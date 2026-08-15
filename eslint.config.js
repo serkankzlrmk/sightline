@@ -39,7 +39,10 @@ export default [
     // is never parsed as script.
     files: [
       'static/app.js',
-      'static/proposal.js',
+      'static/proposal/proposal-wizard.js',
+      'static/proposal/proposal-advisor.js',
+      'static/proposal/proposal-export.js',
+      'static/proposal/proposal-guided.js',
       'static/shared.js',
       'static/chat.js',
       'static/database.js',
@@ -103,6 +106,18 @@ export default [
         guidedRender: 'readonly',
         editTocNode: 'readonly',
         currentTab: 'writable',
+        // Cross-file: proposal module internals (split into proposal/*.js)
+        saveActiveProposal: 'readonly',
+        showAdvisorMessage: 'readonly',
+        exportProposalMarkdown: 'readonly',
+        exportProposalPDF: 'readonly',
+        getSectionContent: 'readonly',
+        renderFinalReviewStep: 'readonly',
+        renderJsonSection: 'readonly',
+        renderProposalWorkspace: 'readonly',
+        renderProposalList: 'readonly',
+        PROPOSAL_STEPS: 'readonly',
+        debouncedSaveProposal: 'readonly',
         // Module-level cross-references (script-tag global scope): states
         chatState: 'readonly',
         chatDiv: 'writable',

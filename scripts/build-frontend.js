@@ -63,8 +63,16 @@ const appMin = await minify(appSource, 'app.js');
 version.app = sha8(appMin);
 writeFileSync(join(DIST, 'app.js'), appMin);
 
-// ── proposal.js ──────────────────────────────────────────────────────────────
-const propSource = readFileSync(join(SRC, 'proposal.js'), 'utf8');
+// ── proposal.js (modular — concat proposal/*.js in order, then minify) ──────
+// All functions are declarations (hoisted), so order only matters for the
+// const dependency resolution at the top of proposal-wizard.js.
+const PROPOSAL_BUNDLE = [
+  'proposal/proposal-wizard.js',
+  'proposal/proposal-advisor.js',
+  'proposal/proposal-export.js',
+  'proposal/proposal-guided.js',
+];
+const propSource = PROPOSAL_BUNDLE.map(f => readFileSync(join(SRC, f), 'utf8')).join('\n;\n');
 const propMin = await minify(propSource, 'proposal.js');
 version.proposal = sha8(propMin);
 writeFileSync(join(DIST, 'proposal.js'), propMin);
