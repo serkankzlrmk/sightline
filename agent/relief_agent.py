@@ -824,7 +824,70 @@ According to recent reports, approximately 2.1 million people in Sudan face acut
 
 
 # ============================================================================
-# LANGGRAPH AGENT NODES
+# LANGGRAPH AGENT FACTORY
+# ============================================================================
+
+
+def build_agent(
+    model,
+    mode: str = "analyst",
+    role: str = "free",
+    use_sequential: bool = False,
+    vision: bool = False,
+    attachment: dict | None = None,
+):
+    """Build a LangGraph agent for the given model / mode / role.
+
+    Single factory that replaces the duplicated graph construction in
+    agent_bp.py (per-request temp_llm_call + ToolNode). The module-level
+    singleton below (relief_agent) remains for the conversational CLI and the
+    _get_agent() fallback path.
+
+    Node names are kept as "llm_call" / "tool_node" so the SSE stream loop in
+    agent_bp.py keeps working without changes.
+    """
+    from langgraph.graph import START, MessagesState, StateGraph
+    from langgraph.prebuilt import ToolNode
+
+    user_tools = get_tools_for_mode(mode=mode, role=role)
+    llm_with_tools = model.bind_tools(user_tools)
+    system_prompt = _build_system_prompt(use_sequential=use_sequential, mode=mode)
+
+    def _llm_call(state: MessagesState):
+        messages = state["messages"]
+        if not messages or not isinstance(messages[0], SystemMessage):
+            messages = [SystemMessage(content=system_prompt)] + messages
+        # Vision model: attach image to the last user message if provided.
+        if vision and attachment and messages:
+            last = messages[-1]
+            if isinstance(last, HumanMessage):
+                img = attachment.get("dataUrl", "")
+                mime = attachment.get("mime", "image/jpeg")
+                if img.startswith("data:"):
+                    img = img.split(",", 1)[-1]
+                messages[-1] = HumanMessage(
+                    content=[
+                        {"type": "text", "text": last.content if isinstance(last.content, str) else str(last.content)},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img}"}},
+                    ]
+                )
+        return {"messages": llm_with_tools.invoke(messages)}
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("llm_call", _llm_call)
+    builder.add_node("tool_node", ToolNode(user_tools))
+    builder.add_edge(START, "llm_call")
+    builder.add_conditional_edges(
+        "llm_call",
+        lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__",
+        ["tool_node", "__end__"],
+    )
+    builder.add_edge("tool_node", "llm_call")
+    return builder.compile()
+
+
+# ============================================================================
+# LANGGRAPH AGENT NODES (module-level singleton — CLI + fallback)
 # ============================================================================
 
 

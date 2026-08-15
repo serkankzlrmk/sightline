@@ -268,15 +268,10 @@ def api_agent_chat():
             # Use selected model or default agent
             selected_model_name = model_config["model"]
             if selected_model_name != OLLAMA_MODEL:
-                # Create a temporary agent with the selected model
+                # Build a per-request agent with the selected model (single factory)
                 from langchain_openai import ChatOpenAI
-                from langgraph.graph import START, StateGraph
-                from langgraph.graph.message import MessagesState
-                from langgraph.prebuilt import ToolNode
 
-                from agent.relief_agent import _build_system_prompt, get_tools_for_mode
-
-                user_tools = get_tools_for_mode(mode=agent_mode, role=role)
+                from agent.relief_agent import build_agent
 
                 temp_llm = ChatOpenAI(
                     model=selected_model_name,
@@ -287,44 +282,14 @@ def api_agent_chat():
                     timeout=OLLAMA_TIMEOUT,
                     stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
                 )
-                temp_llm_with_tools = temp_llm.bind_tools(user_tools)
-                _system_prompt_text = _build_system_prompt(use_sequential=use_sequential, mode=agent_mode)
-
-                def temp_llm_call(state: MessagesState):
-                    messages = state["messages"]
-                    from langchain_core.messages import SystemMessage
-
-                    if not messages or not isinstance(messages[0], SystemMessage):
-                        messages = [SystemMessage(content=_system_prompt_text)] + messages
-                    # Vision model: attach image to the last user message if provided.
-                    if model_config.get("vision") and attachment and messages:
-                        from langchain_core.messages import HumanMessage
-
-                        last = messages[-1]
-                        if isinstance(last, HumanMessage):
-                            img = attachment.get("dataUrl", "")
-                            mime = attachment.get("mime", "image/jpeg")
-                            if img.startswith("data:"):
-                                img = img.split(",", 1)[-1]
-                            messages[-1] = HumanMessage(
-                                content=[
-                                    {"type": "text", "text": last.content if isinstance(last.content, str) else str(last.content)},
-                                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img}"}},
-                                ]
-                            )
-                    return {"messages": temp_llm_with_tools.invoke(messages)}
-
-                _temp_builder = StateGraph(MessagesState)
-                _temp_builder.add_node("llm_call", temp_llm_call)
-                _temp_builder.add_node("tool_node", ToolNode(user_tools))
-                _temp_builder.add_edge(START, "llm_call")
-                _temp_builder.add_conditional_edges(
-                    "llm_call",
-                    lambda s: "tool_node" if s["messages"][-1].tool_calls else "__end__",
-                    ["tool_node", "__end__"],
+                agent = build_agent(
+                    temp_llm,
+                    mode=agent_mode,
+                    role=role,
+                    use_sequential=use_sequential,
+                    vision=model_config.get("vision", False),
+                    attachment=attachment,
                 )
-                _temp_builder.add_edge("tool_node", "llm_call")
-                agent = _temp_builder.compile()
             else:
                 agent = _get_agent()
             full_response = ""
