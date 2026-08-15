@@ -343,7 +343,7 @@ _threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
 # ============================================================================
 
 
-def _build_system_prompt(use_sequential: bool = False, mode: str = "analyst") -> str:
+def _build_system_prompt(use_sequential: bool = False, mode: str = "analyst", memory_context: str = "") -> str:
     today = _date.today().isoformat()  # e.g. "2026-04-01"
     sequential_section = ""
     if use_sequential:
@@ -496,6 +496,20 @@ You evaluate proposals against 6 criteria:
         mode_intro = ""
         mode_tools = ""
         mode_behavior = ""
+
+    # ── Cross-chat memory context ──
+    memory_section = ""
+    if memory_context:
+        memory_section = f"""
+## MEMORY (FROM EARLIER CONVERSATIONS)
+
+Relevant things you and this user discussed in previous chats:
+
+{memory_context}
+
+Use these only as background context — they are NOT live data. Re-verify any
+fact with your tools before stating it, and never cite memory as a source.
+"""
 
     return f"""You are Sightline — a specialized humanitarian data analyst. You operate exclusively within the domain of humanitarian aid, disaster response, and relief operations. Your sole purpose is to search, analyze, and discuss humanitarian reports and data using your tools.
 {mode_intro}
@@ -820,6 +834,7 @@ According to recent reports, approximately 2.1 million people in Sudan face acut
 {mode_tools}
 {mode_behavior}
 {sequential_section}
+{memory_section}
 """
 
 
@@ -835,6 +850,7 @@ def build_agent(
     use_sequential: bool = False,
     vision: bool = False,
     attachment: dict | None = None,
+    memory_context: str = "",
 ):
     """Build a LangGraph agent for the given model / mode / role.
 
@@ -851,7 +867,7 @@ def build_agent(
 
     user_tools = get_tools_for_mode(mode=mode, role=role)
     llm_with_tools = model.bind_tools(user_tools)
-    system_prompt = _build_system_prompt(use_sequential=use_sequential, mode=mode)
+    system_prompt = _build_system_prompt(use_sequential=use_sequential, mode=mode, memory_context=memory_context)
 
     def _llm_call(state: MessagesState):
         messages = state["messages"]

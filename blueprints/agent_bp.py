@@ -48,6 +48,7 @@ from config import (
     OLLAMA_TIMEOUT,
 )
 from agent.pricing import compute_cost
+from agent.memory import recall, remember_turn
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +266,15 @@ def api_agent_chat():
             _db_add_message(chat_id, "user", user_message)
             messages_snapshot = _load_langchain_messages(chat_id)
 
+            # ── Cross-chat memory recall (best-effort — never breaks chat) ──
+            memory_context = ""
+            try:
+                memories = recall(uid, user_message, n=3)
+                if memories:
+                    memory_context = "\n\n".join(f"- {m[:300]}" for m in memories)
+            except Exception:
+                pass
+
             # Use selected model or default agent
             selected_model_name = model_config["model"]
             if selected_model_name != OLLAMA_MODEL:
@@ -289,6 +299,7 @@ def api_agent_chat():
                     use_sequential=use_sequential,
                     vision=model_config.get("vision", False),
                     attachment=attachment,
+                    memory_context=memory_context,
                 )
             else:
                 agent = _get_agent()
@@ -377,6 +388,12 @@ def api_agent_chat():
 
             if full_response:
                 _db_add_message(chat_id, "assistant", full_response, meta=turn_meta)
+
+                # Persist this turn to cross-chat episodic memory (best-effort)
+                try:
+                    remember_turn(uid, chat_id, user_message, full_response)
+                except Exception:
+                    pass
 
                 # Auto-generate title with LLM after first exchange
                 conn = _chats_db()
