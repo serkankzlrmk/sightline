@@ -57,15 +57,57 @@ function addToolInd(name) {
     chatDiv.appendChild(center);
   }
   const el = document.createElement('div');
-  el.className = 'tool-ind';
-  el.innerHTML = `<div class="spin"></div><span><strong>${esc(name)}</strong> running...</span>`;
+  el.className = 'tool-ind pending';
+  el.dataset.toolName = name;
+  el.innerHTML = `<div class="spin"></div><span class="tool-ind-label"><strong>${esc(name)}</strong> running...</span>`;
   center.appendChild(el);
   chatDiv.scrollTop = chatDiv.scrollHeight;
   return el;
 }
 
+function finalizeToolInd(name, data) {
+  const inds = chatDiv.querySelectorAll('.tool-ind');
+  for (const ind of inds) {
+    if (ind.dataset.toolName !== name) continue;
+    ind.classList.remove('pending');
+    ind.classList.add('done');
+    if (data && data.status === 'error') ind.classList.add('error');
+    const label = ind.querySelector('.tool-ind-label');
+    const spin = ind.querySelector('.spin');
+    if (spin) spin.remove();
+    const summary = (data && data.summary) || '';
+    const dur = (data && data.duration_ms) ? ` · ${(data.duration_ms / 1000).toFixed(1)}s` : '';
+    const mark = (data && data.status === 'error') ? '✗' : '✓';
+    if (label) {
+      label.innerHTML = `<strong>${esc(name)}</strong> <span class="tool-status">${mark}</span>${summary ? ` <span class="tool-summary">${esc(summary)}</span>` : ''}${dur}`;
+    }
+    return;
+  }
+}
+
 function clearToolInds() {
   chatDiv.querySelectorAll('.tool-ind').forEach(e => e.remove());
+}
+
+function fmtTokens(n) {
+  n = n || 0;
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+function renderTeleFooter(meta) {
+  if (!meta) return '';
+  const parts = [];
+  if (meta.latency_ms) parts.push((meta.latency_ms / 1000).toFixed(1) + 's');
+  if (meta.iterations) parts.push(meta.iterations + ' iter');
+  if (meta.tools && meta.tools.length) parts.push(meta.tools.length + ' tools');
+  if (meta.model) parts.push(esc(meta.model));
+  if (meta.usage && (meta.usage.in || meta.usage.out)) {
+    parts.push(fmtTokens(meta.usage.in) + ' in / ' + fmtTokens(meta.usage.out) + ' out');
+  }
+  if (meta.cost != null) parts.push('$' + meta.cost.toFixed(4));
+  if (!parts.length) return '';
+  return `<div class="tele-footer">${parts.join(' · ')}</div>`;
 }
 
 // ── Sidebar toggle ───────────────────
@@ -253,12 +295,17 @@ async function sendMessage() {
         } else if (evt.type === 'tool_start') {
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '';
           addToolInd(evt.name);
+        } else if (evt.type === 'tool_done') {
+          finalizeToolInd(evt.name, evt);
         } else if (evt.type === 'error') {
           chatState.currentAiEl.innerHTML = `<span class="msg-error">Error: ${esc(evt.text)}</span>`;
           clearToolInds();
         } else if (evt.type === 'done') {
-          clearToolInds();
+          // Drop any tool indicator that never got a matching tool_done
+          chatDiv.querySelectorAll('.tool-ind.pending').forEach(e => e.remove());
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '<span class="msg-placeholder">—</span>';
+          const footer = renderTeleFooter(evt);
+          if (footer) chatState.currentAiEl.insertAdjacentHTML('beforeend', footer);
           if (typeof checkAdminStatus === 'function') checkAdminStatus();
         }
       }

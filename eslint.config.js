@@ -161,6 +161,7 @@ export default [
         dashboardLoaded: 'writable',
         crisisMapData: 'writable',
         addMsg: 'readonly',
+        renderTeleFooter: 'readonly',
         ADMIN_EMAIL: 'readonly',
         viewBulletinSitrep: 'readonly',
         updateUploadBtnVisibility: 'readonly',

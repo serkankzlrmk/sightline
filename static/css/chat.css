@@ -505,6 +505,24 @@
 .spin-lg { width: 16px; height: 16px; border-width: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Tool indicator — completed / error states */
+.tool-ind.done { border-color: var(--border); }
+.tool-ind.done .tool-status { color: var(--green); font-weight: 700; }
+.tool-ind.error { border-color: var(--red-light); background: var(--red-light); }
+.tool-ind.error .tool-status { color: var(--red); font-weight: 700; }
+.tool-ind .tool-summary { color: var(--text-muted); font-weight: 400; }
+.tool-ind .tool-ind-label { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* Telemetry footer — token / cost / latency summary under assistant reply */
+.tele-footer {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 2px 0;
+  letter-spacing: -0.01em;
+  border-top: 1px solid var(--border-light);
+  margin-top: 6px;
+}
+
 /* ── Welcome sections — Apple clean cards ── */
 .welcome-greeting {
   font-size: 22px; font-weight: 700; color: var(--text);
