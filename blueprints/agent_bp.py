@@ -41,11 +41,13 @@ from config import (
     _LLM_API_KEY,
     _LLM_BASE_URL,
     CHAT_MODELS,
+    LLM_PROVIDER,
     MODEL_MAX_TOKENS,
     MODEL_TEMPERATURE,
     OLLAMA_MODEL,
     OLLAMA_TIMEOUT,
 )
+from agent.pricing import compute_cost
 
 logger = logging.getLogger(__name__)
 
@@ -283,6 +285,7 @@ def api_agent_chat():
                     temperature=MODEL_TEMPERATURE,
                     max_tokens=MODEL_MAX_TOKENS,
                     timeout=OLLAMA_TIMEOUT,
+                    stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
                 )
                 temp_llm_with_tools = temp_llm.bind_tools(user_tools)
                 _system_prompt_text = _build_system_prompt(use_sequential=use_sequential, mode=agent_mode)
@@ -325,6 +328,12 @@ def api_agent_chat():
             else:
                 agent = _get_agent()
             full_response = ""
+            tools_used = []       # [{tool, output, status, summary, duration_ms}]
+            usage_in = 0
+            usage_out = 0
+            iterations = 0
+            turn_start = _time.time()
+            _tool_start_times = []  # FIFO of (name, start_time) — parallel-safe duration
 
             stream_config = {
                 "recursion_limit": 25,
@@ -346,18 +355,63 @@ def api_agent_chat():
                         full_response += chunk.content
                         yield f"data: {json.dumps({'type': 'token', 'text': chunk.content})}\n\n"
 
+                    # Per-turn token accounting — usage_metadata arrives on the
+                    # final chunk of each LLM call (requires stream_usage=True).
+                    um = getattr(chunk, "usage_metadata", None)
+                    if um:
+                        try:
+                            usage_in += int(um.get("input_tokens") or um.get("prompt_tokens") or 0)
+                            usage_out += int(um.get("output_tokens") or um.get("completion_tokens") or 0)
+                            iterations += 1
+                        except (TypeError, ValueError):
+                            pass
+
                     if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
                         for tcc in chunk.tool_call_chunks:
                             name = (tcc.get("name", "") if isinstance(tcc, dict) else getattr(tcc, "name", "")) or ""
                             if name:
+                                _tool_start_times.append((name, _time.time()))
                                 yield f"data: {json.dumps({'type': 'tool_start', 'name': name})}\n\n"
 
                 elif node == "tool_node":
                     tool_name = getattr(chunk, "name", "") or ""
-                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name})}\n\n"
+                    raw = getattr(chunk, "content", "")
+                    if isinstance(raw, list):
+                        raw = " ".join(str(x) for x in raw)
+                    tool_output = str(raw)
+                    status = "error" if tool_output.lower().startswith("error") else "ok"
+                    summary = (tool_output.split(". ")[0] if ". " in tool_output else tool_output)[:120]
+                    duration_ms = 0
+                    for i, (tn, ts) in enumerate(_tool_start_times):
+                        if tn == tool_name:
+                            duration_ms = int((_time.time() - ts) * 1000)
+                            _tool_start_times.pop(i)
+                            break
+                    tools_used.append(
+                        {
+                            "tool": tool_name,
+                            "output": tool_output[:500],
+                            "status": status,
+                            "summary": summary,
+                            "duration_ms": duration_ms,
+                        }
+                    )
+                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'output': tool_output[:500], 'status': status, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
+
+            latency_ms = int((_time.time() - turn_start) * 1000)
+            model_id = model_config.get("model", selected_model_name)
+            cost = compute_cost(usage_in, usage_out, model_id, LLM_PROVIDER)
+            turn_meta = {
+                "tools": [{"tool": t["tool"], "status": t["status"], "summary": t["summary"], "duration_ms": t["duration_ms"]} for t in tools_used],
+                "usage": {"in": usage_in, "out": usage_out},
+                "cost": cost,
+                "iterations": iterations,
+                "latency_ms": latency_ms,
+                "model": model_config.get("name", model_key),
+            }
 
             if full_response:
-                _db_add_message(chat_id, "assistant", full_response)
+                _db_add_message(chat_id, "assistant", full_response, meta=turn_meta)
 
                 # Auto-generate title with LLM after first exchange
                 conn = _chats_db()
@@ -366,7 +420,7 @@ def api_agent_chat():
                 if row and row["title"] == "New Chat":
                     _generate_chat_title(chat_id, user_message, full_response)
 
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'tools': [{'tool': t['tool'], 'status': t['status'], 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'model': model_config.get('name', model_key)})}\n\n"
 
         except Exception as e:
             logger.exception("Agent chat error: %s", e)

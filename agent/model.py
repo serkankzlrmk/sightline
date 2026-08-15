@@ -164,6 +164,7 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
             temperature=config.MODEL_TEMPERATURE,
             max_tokens=config.MODEL_MAX_TOKENS,
             timeout=config.OLLAMA_TIMEOUT,
+            stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
         )
         logger.info(f"✓ Model initialized successfully (provider: {provider})")
         return model
