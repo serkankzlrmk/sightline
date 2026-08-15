@@ -24,6 +24,7 @@ from blueprints.helpers import (
     _db_get_chats_by_uid,
     _db_get_messages,
     _db_rename_chat,
+    _db_update_message_meta,
     _ensure_active_chat,
     _generate_chat_title,
     _get_agent,

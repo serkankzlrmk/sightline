@@ -358,6 +358,10 @@ def init_chats_db():
         guided_cols = {r[1] for r in conn.execute("PRAGMA table_info(proposal_v2_setups)").fetchall()}
         if "call_brief" not in guided_cols:
             conn.execute("ALTER TABLE proposal_v2_setups ADD COLUMN call_brief TEXT NOT NULL DEFAULT '{}'")
+    # Migration: add meta column to chat_messages for turn telemetry
+    msg_cols = [r[1] for r in conn.execute("PRAGMA table_info(chat_messages)").fetchall()]
+    if "meta" not in msg_cols:
+        conn.execute("ALTER TABLE chat_messages ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'")
     conn.commit()
     conn.close()
 
@@ -449,11 +453,11 @@ def db_chat_belongs_to(chat_id, uid):
     return row is not None and row["uid"] == uid
 
 
-def db_add_message(chat_id, role, content):
+def db_add_message(chat_id, role, content, meta=None):
     conn = chats_db()
     conn.execute(
-        "INSERT INTO chat_messages (chat_id, role, content, ts) VALUES (?, ?, ?, ?)",
-        (chat_id, role, content, time.time()),
+        "INSERT INTO chat_messages (chat_id, role, content, ts, meta) VALUES (?, ?, ?, ?, ?)",
+        (chat_id, role, content, time.time(), json.dumps(meta) if meta else "{}"),
     )
     conn.commit()
     conn.close()
@@ -461,9 +465,21 @@ def db_add_message(chat_id, role, content):
 
 def db_get_messages(chat_id):
     conn = chats_db()
-    rows = conn.execute("SELECT role, content FROM chat_messages WHERE chat_id = ? ORDER BY id", (chat_id,)).fetchall()
+    rows = conn.execute(
+        "SELECT id, role, content, ts, meta FROM chat_messages WHERE chat_id = ? ORDER BY id",
+        (chat_id,),
+    ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    results = []
+    for r in rows:
+        d = dict(r)
+        meta_str = d.pop("meta", "{}")
+        try:
+            d["meta"] = json.loads(meta_str) if meta_str else {}
+        except (json.JSONDecodeError, TypeError):
+            d["meta"] = {}
+        results.append(d)
+    return results
 
 
 def db_rename_chat(chat_id, title):
@@ -485,6 +501,17 @@ def db_clear_messages(chat_id):
     conn = chats_db()
     conn.execute("DELETE FROM chat_messages WHERE chat_id = ?", (chat_id,))
     conn.execute("UPDATE chats SET title = 'New Chat' WHERE id = ?", (chat_id,))
+    conn.commit()
+    conn.close()
+
+
+def db_update_message_meta(message_id, meta):
+    """Update the meta JSON column for a specific chat message."""
+    conn = chats_db()
+    conn.execute(
+        "UPDATE chat_messages SET meta = ? WHERE id = ?",
+        (json.dumps(meta), message_id),
+    )
     conn.commit()
     conn.close()
 
@@ -851,6 +878,7 @@ _db_get_messages = db_get_messages
 _db_rename_chat = db_rename_chat
 _db_delete_chat = db_delete_chat
 _db_clear_messages = db_clear_messages
+_db_update_message_meta = db_update_message_meta
 _ensure_active_chat = ensure_active_chat
 _load_langchain_messages = load_langchain_messages
 _get_agent = get_agent
