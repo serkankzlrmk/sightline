@@ -72,7 +72,8 @@ writeFileSync(join(DIST, 'app.js'), appMin);
 // const dependency resolution at the top of proposal-wizard.js.
 const PROPOSAL_BUNDLE = [
   'proposal/proposal-wizard.js',
-  'proposal/proposal-advisor.js',
+  'proposal/proposal-render.js',
+  'proposal/proposal-review.js',
   'proposal/proposal-export.js',
   'proposal/proposal-guided.js',
 ];

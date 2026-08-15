@@ -40,7 +40,8 @@ export default [
     files: [
       'static/app.js',
       'static/proposal/proposal-wizard.js',
-      'static/proposal/proposal-advisor.js',
+      'static/proposal/proposal-render.js',
+      'static/proposal/proposal-review.js',
       'static/proposal/proposal-export.js',
       'static/proposal/proposal-guided.js',
       'static/shared.js',
@@ -129,6 +130,7 @@ export default [
         buildSummarySourcesList: 'readonly',
         buildSourcesListFromArray: 'readonly',
         buildSourcesList: 'readonly',
+        runProposalReview: 'readonly',
         // Module-level cross-references (script-tag global scope): states
         chatState: 'readonly',
         chatDiv: 'writable',
