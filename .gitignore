@@ -28,6 +28,11 @@ output/
 # Python Cache
 # ========================================
 __pycache__/
+
+# ========================================
+# Node / Frontend tooling
+# ========================================
+node_modules/
 *.py[cod]
 *$py.class
 *.pyo
@@ -172,3 +177,6 @@ static/textures/earth_bump_opt.webp
 static/textures/earth_clouds_opt.webp
 static/videos/intro_orig.mp4
 uv.lock
+
+# Code intelligence (local only, never push)
+.codebase-memory/

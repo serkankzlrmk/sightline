@@ -1,0 +1,16 @@
+{
+  "name": "sightline-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sightline frontend lint tooling (no build step — plain script tags)",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0"
+  },
+  "scripts": {
+    "lint": "eslint static/",
+    "lint:fix": "eslint static/ --fix"
+  }
+}

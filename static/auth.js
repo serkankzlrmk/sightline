@@ -356,7 +356,7 @@ setInterval(async () => {
     try {
       const freshToken = await auth.currentUser.getIdToken(true);
       setToken(freshToken);
-    } catch (e) { /* ignore */ }
+    } catch { /* ignore */ }
   }
 }, 50 * 60 * 1000);
 
@@ -381,7 +381,7 @@ async function _checkDevMode() {
     if (!resp.ok) return false;
     const data = await resp.json();
     return data.uid === "dev-local" || data.dev_mode === true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
