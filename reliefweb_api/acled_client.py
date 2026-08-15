@@ -73,8 +73,8 @@ class ACLEDClient:
     istekler ``{"ok": False, "error": "...auth eksik"}`` döner.
     """
 
-    LOGIN_URL = "https://acleddata.com/user/login?_format=json"
-    BASE_URL = "https://api.acleddata.com/acled/read"
+    LOGIN_URL = "https://acleddata.com/oauth/token"
+    BASE_URL = "https://acleddata.com/api/acled/read"
 
     def __init__(
         self,
@@ -100,33 +100,72 @@ class ACLEDClient:
         self._rl_max = rate_limit_requests
         self._rl_period = rate_limit_period
         self._client = httpx.Client(timeout=timeout, follow_redirects=True)
-        self._logged_in = False
-        self._csrf_token = ""
-        # Session auth'u baştan dene (email+pass varsa)
+        self._access_token = ""
+        self._token_expires = 0.0
+        self._refresh_token = ""
+        # Token al (email+pass varsa) — hata sunucu başlatmayı bloklamaz
         if email and password:
-            self._logged_in = self._login()
+            self._login()
         elif api_key:
-            self._logged_in = True  # key modu — login gerekmez
+            pass  # API key modu — login gerekmez
 
-    # ── Auth ──────────────────────────────────────────────────────────────────
+    # ── Auth (OAuth2 password grant — ACLED getting-started) ──────────────────
     def _login(self) -> bool:
-        """Drupal login: session cookie + csrf_token al."""
+        """OAuth token al:
+        POST {login_url}  form: username, password, grant_type=password,
+        client_id=acled, scope=authenticated  → access_token (24h)."""
         try:
             resp = self._client.post(
                 self.login_url,
-                json={"name": self.email, "pass": self.password},
+                data={
+                    "username": self.email,
+                    "password": self.password,
+                    "grant_type": "password",
+                    "client_id": "acled",
+                    "scope": "authenticated",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
             if resp.status_code == 200:
                 data = resp.json()
-                self._csrf_token = data.get("csrf_token", "")
-                # httpx.Client cookie jar session cookie'yi otomatik tutar
-                logger.info("ACLED session login başarılı (uid=%s)", data.get("current_user", {}).get("uid", "?"))
-                return True
-            logger.warning("ACLED login başarısız: HTTP %s", resp.status_code)
+                self._access_token = data.get("access_token", "")
+                self._refresh_token = data.get("refresh_token", "")
+                self._token_expires = time.time() + int(data.get("expires_in", 86400))
+                logger.info("ACLED OAuth token alındı (expires_in=%ss)", data.get("expires_in", 86400))
+                return bool(self._access_token)
+            logger.warning("ACLED OAuth token hatası: HTTP %s — %s", resp.status_code, resp.text[:200])
             return False
         except Exception as e:  # noqa: BLE001
-            logger.warning("ACLED login hatası: %s", e)
+            logger.warning("ACLED OAuth login hatası: %s", e)
             return False
+
+    def _ensure_token(self) -> bool:
+        """Token geçerli mi? Süresi dolduysa refresh dene."""
+        if self._access_token and time.time() < self._token_expires:
+            return True
+        if self._refresh_token:
+            try:
+                resp = self._client.post(
+                    self.login_url,
+                    data={
+                        "grant_type": "refresh_token",
+                        "refresh_token": self._refresh_token,
+                        "client_id": "acled",
+                    },
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    self._access_token = data.get("access_token", "")
+                    self._refresh_token = data.get("refresh_token", self._refresh_token)
+                    self._token_expires = time.time() + int(data.get("expires_in", 86400))
+                    return True
+            except Exception as e:  # noqa: BLE001
+                logger.warning("ACLED token refresh hatası: %s", e)
+        # Refresh olmazsa email+pass ile yeniden dene
+        if self.email and self.password:
+            return self._login()
+        return False
 
     # ── Rate limit ─────────────────────────────────────────────────────────────
     def _rate_limit(self) -> None:
@@ -152,7 +191,7 @@ class ACLEDClient:
         **kwargs: Any,
     ) -> dict:
         """Çatışma olaylarını ara. Döner: {"ok": bool, "data": [...], "error": str?}"""
-        if not self._logged_in:
+        if not self.api_key and not self._ensure_token():
             return {"ok": False, "error": "ACLED auth yok — ACLED_EMAIL/ACLED_PASSWORD veya ACLED_API_KEY gerekli"}
         cache_key = f"evt:{country}:{event_type}:{date_from}:{date_to}:{limit}"
         cached = self._cache.get(cache_key)
@@ -169,24 +208,26 @@ class ACLEDClient:
         if date_from and date_to:
             params["event_date"] = f"{date_from}|{date_to}"
 
+        headers = {}
+        if not self.api_key and self._access_token:
+            headers["Authorization"] = f"Bearer {self._access_token}"
+
         try:
             self._rate_limit()
-            resp = self._client.get(self.base_url, params=params)
+            resp = self._client.get(self.base_url, params=params, headers=headers)
             if resp.status_code == 200:
                 data = resp.json().get("data", [])
                 result: dict = {"ok": True, "data": data}
             elif resp.status_code in (401, 403):
-                # Session cookie süresi dolmuş olabilir — tekrar login dene
+                # Token süresi dolmuş olabilir — yenile ve tekrar dene
                 if self.email and self.password and not self.api_key:
-                    self._logged_in = self._login()
-                    if self._logged_in:
-                        resp = self._client.get(self.base_url, params=params)
-                        if resp.status_code == 200:
-                            result = {"ok": True, "data": resp.json().get("data", [])}
-                        else:
-                            result = {"ok": False, "error": f"ACLED HTTP {resp.status_code}: {resp.text[:200]}"}
+                    self._ensure_token()
+                    headers = {"Authorization": f"Bearer {self._access_token}"} if self._access_token else {}
+                    resp = self._client.get(self.base_url, params=params, headers=headers)
+                    if resp.status_code == 200:
+                        result = {"ok": True, "data": resp.json().get("data", [])}
                     else:
-                        result = {"ok": False, "error": "ACLED re-login başarısız"}
+                        result = {"ok": False, "error": f"ACLED HTTP {resp.status_code}: {resp.text[:200]}"}
                 else:
                     result = {"ok": False, "error": f"ACLED auth hatası ({resp.status_code}): {resp.text[:200]}"}
             else:
