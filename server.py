@@ -181,6 +181,35 @@ if _wb_ok:
 else:
     logger.warning("World Bank client not initialized. Economic tools will return errors.")
 
+# ── Initialize ACLED client (conflict events; email+pass OR API key) ────────
+# Graceful: credentials yoksa tool'lar eklenmez, agent çalışmaya devam eder.
+from config import ACLED_API_KEY as _ACLED_KEY
+from config import ACLED_BASE_URL as _ACLED_URL
+from config import ACLED_CACHE_TTL as _ACLED_C
+from config import ACLED_EMAIL as _ACLED_EMAIL
+from config import ACLED_LOGIN_URL as _ACLED_LOGIN
+from config import ACLED_PASSWORD as _ACLED_PASS
+from config import ACLED_RATE_LIMIT_PERIOD as _ACLED_RP
+from config import ACLED_RATE_LIMIT_REQUESTS as _ACLED_RR
+from config import ACLED_TIMEOUT as _ACLED_T
+from reliefweb_api.acled_tools import init_acled_tools as _init_acled
+
+_acled_ok = _init_acled(
+    email=_ACLED_EMAIL,
+    password=_ACLED_PASS,
+    api_key=_ACLED_KEY,
+    base_url=_ACLED_URL,
+    login_url=_ACLED_LOGIN,
+    timeout=_ACLED_T,
+    cache_ttl=_ACLED_C,
+    rate_limit_requests=_ACLED_RR,
+    rate_limit_period=_ACLED_RP,
+)
+if _acled_ok:
+    logger.info("✓ ACLED client initialized — conflict event tools available")
+else:
+    logger.warning("ACLED credentials yok — ACLED tools devre dışı (ACLED_EMAIL/PASSWORD veya ACLED_API_KEY)")
+
 # ── Initialize MCP tools (arxiv, sequential-thinking, brave) ────────────────
 # Non-blocking: starts background thread, returns immediately. Tools added
 # to agent when ready (~30-60s for npx/uvx subprocess startup).

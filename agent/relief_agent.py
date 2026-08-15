@@ -157,6 +157,21 @@ _worldbank_initialized = init_worldbank_tools(
     cache_ttl=getattr(config, "WORLDBANK_CACHE_TTL", 86400),
 )
 
+# Initialize ACLED client (conflict events — email+pass OR API key; graceful skip)
+from reliefweb_api.acled_tools import ACLED_TOOLS, init_acled_tools
+
+_acled_initialized = init_acled_tools(
+    email=getattr(config, "ACLED_EMAIL", ""),
+    password=getattr(config, "ACLED_PASSWORD", ""),
+    api_key=getattr(config, "ACLED_API_KEY", ""),
+    base_url=getattr(config, "ACLED_BASE_URL", "https://api.acleddata.com/acled/read"),
+    login_url=getattr(config, "ACLED_LOGIN_URL", "https://acleddata.com/user/login?_format=json"),
+    timeout=getattr(config, "ACLED_TIMEOUT", 25.0),
+    cache_ttl=getattr(config, "ACLED_CACHE_TTL", 3600),
+    rate_limit_requests=getattr(config, "ACLED_RATE_LIMIT_REQUESTS", 10),
+    rate_limit_period=getattr(config, "ACLED_RATE_LIMIT_PERIOD", 60.0),
+)
+
 _tool_groups = [mcp_langchain_tools]
 _tool_labels = [f"{len(mcp_langchain_tools)} ReliefWeb"]
 
@@ -194,6 +209,13 @@ if _worldbank_initialized:
     _tool_labels.append(f"{len(WORLDBANK_TOOLS)} WorldBank")
 else:
     logger.warning("World Bank client not initialized. Economic tools will return errors.")
+
+if _acled_initialized:
+    logger.info("✓ ACLED client initialized — conflict event tools available")
+    _tool_groups.append(ACLED_TOOLS)
+    _tool_labels.append(f"{len(ACLED_TOOLS)} ACLED")
+else:
+    logger.warning("ACLED credentials yok — ACLED tools devre dışı (ACLED_EMAIL/PASSWORD veya ACLED_API_KEY)")
 
 # Initialize MCP tools (arxiv, sequential-thinking, etc.) — non-fatal if unavailable
 # MCP init runs in a background thread (non-blocking) to avoid stalling agent startup

@@ -138,6 +138,20 @@ OPEN_METEO_TIMEOUT: float = float(os.getenv("OPEN_METEO_TIMEOUT", "15.0"))
 OPEN_METEO_CACHE_TTL: int = int(os.getenv("OPEN_METEO_CACHE_TTL", "3600"))  # 1 hour
 
 # ============================================================================
+# ACLED — Conflict event data (battles, protests, riots, etc.)
+# Auth: ACLED_EMAIL + ACLED_PASSWORD (session login) VEYA ACLED_API_KEY
+# ============================================================================
+ACLED_EMAIL: str = os.getenv("ACLED_EMAIL", "")
+ACLED_PASSWORD: str = os.getenv("ACLED_PASSWORD", "")
+ACLED_API_KEY: str = os.getenv("ACLED_API_KEY", "")
+ACLED_BASE_URL: str = os.getenv("ACLED_BASE_URL", "https://api.acleddata.com/acled/read")
+ACLED_LOGIN_URL: str = os.getenv("ACLED_LOGIN_URL", "https://acleddata.com/user/login?_format=json")
+ACLED_TIMEOUT: float = float(os.getenv("ACLED_TIMEOUT", "25.0"))
+ACLED_CACHE_TTL: int = int(os.getenv("ACLED_CACHE_TTL", "3600"))  # 1 hour
+ACLED_RATE_LIMIT_REQUESTS: int = int(os.getenv("ACLED_RATE_LIMIT_REQUESTS", "10"))
+ACLED_RATE_LIMIT_PERIOD: float = float(os.getenv("ACLED_RATE_LIMIT_PERIOD", "60.0"))
+
+# ============================================================================
 # WORLD BANK — Economic & demographic indicators (free, keyless)
 # ============================================================================
 WORLDBANK_BASE_URL: str = os.getenv("WORLDBANK_BASE_URL", "https://api.worldbank.org/v2")
