@@ -1223,7 +1223,8 @@ async function loadSitrepReportsList() {
       div.dataset.file = item.filename;
       div.dataset.action = 'open-sitrep-report';
       const country = item.filename.split('_')[0].replace(/\(/g, ' ').replace(/\)/g, '').trim();
-      div.innerHTML = `<span>${escHtml(country)}</span>`;
+      div.innerHTML = `<span>${escHtml(country)}</span>` +
+        `<button class="report-item-delete" data-action="delete-sitrep-report" data-file="${escHtml(item.filename)}" title="Delete report">✕</button>`;
       list.appendChild(div);
     });
   } catch {
@@ -1253,6 +1254,23 @@ async function openSitrepReport(filename, itemEl) {
   } catch (err) {
     document.getElementById('report-content').innerHTML =
       `<div class="error-placeholder">Could not load report: ${escHtml(err.message)}</div>`;
+  }
+}
+
+async function deleteSitrepReport(filename, itemEl) {
+  if (!confirm(`Delete SITREP report "${filename}"? This cannot be undone.`)) return;
+  try {
+    const resp = await api(`/api/sitrep/report?file=${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    if (itemEl) itemEl.remove();
+    if (sitrepState.activeFile === filename) {
+      sitrepState.activeFile = null;
+      showSitrepView('welcome');
+    }
+    loadSitrepReportsList();
+  } catch (err) {
+    alert('Could not delete report: ' + err.message);
   }
 }
 
@@ -2501,11 +2519,41 @@ function initWorldMap() {
       touchZoom: true,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(leafletMap);
+    // Tile layer with automatic fallback: CARTO primary, OSM as backup.
+    // If a CDN is blocked/slow (different regions/ISPs), the map still loads.
+    const TILE_PROVIDERS = [
+      {
+        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        options: {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+          subdomains: 'abcd',
+          maxZoom: 19,
+        },
+      },
+      {
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        options: {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        },
+      },
+    ];
+
+    function addTileLayerWithFallback(map, index) {
+      if (index >= TILE_PROVIDERS.length) return;
+      const provider = TILE_PROVIDERS[index];
+      const layer = L.tileLayer(provider.url, provider.options).addTo(map);
+      let failed = 0;
+      layer.on('tileerror', () => {
+        failed += 1;
+        // After a few failed tiles, switch to the next provider
+        if (failed >= 3 && index < TILE_PROVIDERS.length - 1) {
+          map.removeLayer(layer);
+          addTileLayerWithFallback(map, index + 1);
+        }
+      });
+    }
+    addTileLayerWithFallback(leafletMap, 0);
 
     // No scroll interception — let Leaflet handle zoom natively
     observeWorldMapSize(container);
@@ -3451,6 +3499,10 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       case 'open-sitrep-report':
         openSitrepReport(target.dataset.file, target);
+        break;
+      case 'delete-sitrep-report':
+        event.stopPropagation();
+        deleteSitrepReport(target.dataset.file, target.closest('.report-item'));
         break;
       case 'toggle-model-menu':
         // Handled by direct event listener above

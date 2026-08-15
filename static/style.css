@@ -1962,6 +1962,45 @@ body .nav {
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(var(--primary-rgb),.25);
 }
+.sitrep-reports-list .report-item {
+  position: relative;
+  padding-right: 30px;
+}
+.sitrep-reports-list .report-item-delete {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sitrep-reports-list .report-item:hover .report-item-delete,
+.sitrep-reports-list .report-item-delete:focus-visible {
+  opacity: 1;
+}
+.sitrep-reports-list .report-item-delete:hover {
+  background: rgba(239,68,68,.12);
+  color: #ef4444;
+}
+.sitrep-reports-list .report-item.active .report-item-delete {
+  color: rgba(255,255,255,.7);
+}
+.sitrep-reports-list .report-item.active .report-item-delete:hover {
+  background: rgba(255,255,255,.2);
+  color: #fff;
+}
 
 .sitrep-main-content {
   flex: 1;

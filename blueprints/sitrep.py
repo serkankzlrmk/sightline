@@ -346,6 +346,50 @@ def api_sitrep_report():
     return path.read_text(encoding="utf-8"), 200, {"Content-Type": "application/json"}
 
 
+@sitrep_bp.route("/report", methods=["DELETE"])
+@require_role("premium")
+def api_sitrep_report_delete():
+    """Delete a SITREP report (JSON + Markdown) by filename.
+
+    Only files matching ``*_report.json`` / ``*_report.md`` inside the
+    reports output dir can be deleted — path-traversal-safe like GET.
+    """
+    from config import OUTPUT_REPORTS_DIR
+
+    filename = request.args.get("file", "").strip()
+    if not filename or ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 400
+    if not (filename.endswith("_report.json") or filename.endswith("_report.md")):
+        return jsonify({"error": "Only SITREP report files can be deleted"}), 400
+
+    base = OUTPUT_REPORTS_DIR.resolve()
+    target = (OUTPUT_REPORTS_DIR / filename).resolve()
+    if not target.is_relative_to(base):
+        return jsonify({"error": "Invalid filename"}), 400
+    if not target.exists():
+        return jsonify({"error": "Report not found"}), 404
+
+    deleted = [filename]
+    try:
+        target.unlink()
+    except OSError as exc:
+        logger.error("api_sitrep_report_delete unlink error: %s", exc)
+        return jsonify({"error": "Failed to delete report"}), 500
+
+    # Also remove the sibling Markdown (report.json → report.md)
+    if filename.endswith("_report.json"):
+        md = target.with_suffix(".md")
+        if md.exists():
+            try:
+                md.unlink()
+                deleted.append(md.name)
+            except OSError:
+                pass
+
+    _log_event(current_uid(), "sitrep_report_deleted", {"filename": filename})
+    return jsonify({"ok": True, "deleted": deleted})
+
+
 # =============================================================================
 # ROUTES — Weekly Bulletin
 # =============================================================================
