@@ -5,6 +5,7 @@ Data retrieval and semantic retrieval operations on vector store.
     Uses local ChromaDB for live vector storage.
 """
 
+import logging
 import os
 
 os.environ["ORT_LOGGING_LEVEL"] = "3"
@@ -15,6 +16,8 @@ from config import (
     CHROMA_DIR,
     RETRIEVAL_TOP_K,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ChromaAdapter:
@@ -71,10 +74,32 @@ class ChromaAdapter:
     # ------------------------------------------------------------------
 
     def count(self) -> int:
-        """Total chunk count in the collection."""
+        """Total chunk count in the collection.
+
+        Uses SQLite (chunks table) — ChromaDB's collection.count() is
+        UNRELIABLE on ARM64 production (sporadic SIGSEGV, untrappable).
+        SQLite count is exact (chunks are written there at ingest) and safe.
+        """
+        try:
+            import sqlite3
+
+            from config import DB_PATH
+
+            conn = sqlite3.connect(str(DB_PATH))
+            try:
+                row = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()
+                return int(row[0]) if row else 0
+            finally:
+                conn.close()
+        except Exception:
+            pass
+        # Fallback: ChromaDB count (may segfault on ARM64, but better than nothing)
         if self.backend == "pgvector":
             return self._get_pgvector().count()
-        return self.collection.count()
+        try:
+            return self.collection.count()
+        except Exception:
+            return 0
 
     def list_countries(self) -> list[str]:
         """Returns unique primary_country values — cached after first call."""
@@ -291,7 +316,11 @@ class ChromaAdapter:
         """
         Returns all chunks belonging to a given country.
         Searches both primary_country and all_countries to catch multi-country reports.
-        Uses SQLite to find matching report IDs, then fetches chunks from ChromaDB.
+
+        NOTE: reads chunks from SQLite (chunks + reports join) — ChromaDB's
+        collection.get() with large result sets segfaults on ARM64 production
+        (SIGSEGV, untrappable). SQLite holds the same chunk data written at
+        ingest. Embeddings are NOT included (clustering re-embeds on demand).
 
         Returns:
             [{id, text, title, url, source, date, themes, primary_country}]
@@ -301,18 +330,81 @@ class ChromaAdapter:
         if self.backend == "pgvector":
             return self._get_pgvector().get_chunks_by_country(normalized, limit=limit)
 
-        report_ids = self._sqlite_find_report_ids_by_country(normalized, limit=limit)
-        if not report_ids:
-            return []
+        try:
+            import json as _json
+            import sqlite3
 
-        results = self.collection.get(
-            where={"report_id": {"$in": report_ids}},
-            limit=limit,
-            # embeddings included — clustering (pipeline Step 2) needs them
-            # to compute chunk vectors; _format_results handles None safely.
-            include=["documents", "metadatas", "embeddings"],
-        )
-        return self._format_results(results)
+            from config import DB_PATH
+
+            conn = sqlite3.connect(str(DB_PATH))
+            try:
+                report_ids = self._sqlite_find_report_ids_by_country(normalized, limit=limit)
+                if not report_ids:
+                    return []
+                placeholders = ",".join("?" * len(report_ids))
+                rows = conn.execute(
+                    f"""
+                    SELECT c.id, c.report_id, c.chunk_index, c.content,
+                           r.title, r.date, r.source, r.url, r.countries, r.themes
+                    FROM chunks c
+                    JOIN reports r ON c.report_id = r.report_id
+                    WHERE c.report_id IN ({placeholders})
+                    ORDER BY c.report_id, c.chunk_index
+                    LIMIT ?
+                    """,
+                    (*report_ids, limit),
+                ).fetchall()
+            finally:
+                conn.close()
+
+            output = []
+            for row in rows:
+                (
+                    cid, report_id, chunk_index, content,
+                    title, date, source, url, countries_raw, themes_raw,
+                ) = row
+                try:
+                    countries = _json.loads(countries_raw) if countries_raw else []
+                except Exception:
+                    countries = []
+                try:
+                    themes_list = _json.loads(themes_raw) if themes_raw else []
+                except Exception:
+                    themes_list = []
+                # ChromaDB-style id: "{report_id}_{chunk_index}"
+                chroma_id = f"{report_id}_{chunk_index}"
+                # primary_country: prefer the queried country; fall back to the
+                # first listed country (some reports list "World" first).
+                if normalized in countries:
+                    primary = normalized
+                else:
+                    primary = countries[0] if countries else normalized
+                output.append(
+                    {
+                        "id": chroma_id,
+                        "text": content or "",
+                        "title": title or "",
+                        "url": url or "",
+                        "source": source or "",
+                        "date": date or "",
+                        "themes": ", ".join(themes_list) if themes_list else "",
+                        "primary_country": primary,
+                        "all_countries": ", ".join(countries) if countries else "",
+                    }
+                )
+            return output
+        except Exception as exc:
+            # Fallback to ChromaDB (may segfault on ARM64, but keep behaviour)
+            logger.warning("SQLite chunk read failed (%s) — falling back to ChromaDB", exc)
+            report_ids = self._sqlite_find_report_ids_by_country(normalized, limit=limit)
+            if not report_ids:
+                return []
+            results = self.collection.get(
+                where={"report_id": {"$in": report_ids}},
+                limit=limit,
+                include=["documents", "metadatas"],
+            )
+            return self._format_results(results)
 
     def get_chunks_by_country_and_themes(
         self,
@@ -392,13 +484,15 @@ class ChromaAdapter:
             return self._get_pgvector().retrieve(query, country=country, k=k, candidate_pool=candidate_pool)
 
         # ChromaDB path
-        total = self.collection.count()
+        if candidate_pool is not None:
+            # Custom pool: embedding similarities with numpy.
+            # NOTE: must NOT call collection.count() first — that segfaults on
+            # ARM64 production. Pool path needs no collection access at all.
+            return self._retrieve_from_pool(query, candidate_pool, k)
+
+        total = self.count()
         if total == 0:
             return []
-
-        if candidate_pool is not None:
-            # Custom pool: embedding similarities with numpy
-            return self._retrieve_from_pool(query, candidate_pool, k)
 
         where = None
         if country:
@@ -439,6 +533,17 @@ class ChromaAdapter:
         Uses DefaultEmbeddingFunction for embedding computation.
         """
         import numpy as np
+
+        # ARM64 safety: if pool chunks lack embeddings (ChromaDB can't return
+        # them without segfaulting), re-embed the missing texts on demand.
+        missing = [i for i, c in enumerate(pool) if c.get("embedding") is None]
+        if missing:
+            try:
+                from sitrep.clustering import _embed_missing
+
+                _embed_missing(pool, missing)
+            except Exception:
+                pass
 
         # Get the right embedding function based on backend
         if self.backend == "pgvector":

@@ -361,6 +361,54 @@ def _generate_cluster_headline(paragraphs: list[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Embedding fallback (ARM64-safe)
+# ---------------------------------------------------------------------------
+
+
+def _embed_missing(chunks: list[dict], missing_indices: list[int]) -> None:
+    """Re-embed chunk texts on demand when ChromaDB didn't return embeddings.
+
+    ChromaDB segfaults on ARM64 production when get() returns embeddings, so
+    chunks arrive without them. We re-embed with the same model used at ingest
+    (all-MiniLM-L6-v2, 384-dim) and write the vectors back into the chunk
+    dicts in place.
+
+    Args:
+        chunks: chunk dicts (mutated in place — each gets an 'embedding' key)
+        missing_indices: indices of chunks that lack an embedding
+    """
+    try:
+        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+    except Exception:
+        DefaultEmbeddingFunction = None
+
+    try:
+        if DefaultEmbeddingFunction is not None:
+            ef = DefaultEmbeddingFunction()
+            texts = [chunks[i].get("text", "") for i in missing_indices]
+            if not any(texts):
+                logger.warning("All missing-embedding chunks have empty text — cannot re-embed.")
+                return
+            vectors = ef(texts)
+            for idx, vec in zip(missing_indices, vectors, strict=False):
+                # Normalise to a JSON-serializable list (ef may return ndarray)
+                chunks[idx]["embedding"] = vec.tolist() if hasattr(vec, "tolist") else list(vec)
+            logger.info("Re-embedded %d chunks (%d dims)", len(missing_indices), len(vectors[0]) if vectors else 0)
+        else:
+            # Last-resort fallback: try sentence-transformers directly
+            from sentence_transformers import SentenceTransformer
+
+            model = SentenceTransformer("all-MiniLM-L6-v2")
+            texts = [chunks[i].get("text", "") for i in missing_indices]
+            vectors = model.encode(texts).tolist()
+            for idx, vec in zip(missing_indices, vectors, strict=False):
+                chunks[idx]["embedding"] = vec
+            logger.info("Re-embedded %d chunks via sentence-transformers", len(missing_indices))
+    except Exception as exc:
+        logger.warning("Re-embedding failed (clustering will raise): %s", exc)
+
+
+# ---------------------------------------------------------------------------
 # Main function
 # ---------------------------------------------------------------------------
 
@@ -393,8 +441,21 @@ def run_clustering(
 
     n_iter = n_iterations or HP_SEARCH_ITERATIONS
 
-    # 1. Get embeddings (from Chroma/pgvector via "embedding" key)
+    # 1. Get embeddings (from Chroma/pgvector via "embedding" key).
+    # ChromaDB on ARM64 production segfaults when returning embeddings via
+    # get(), so chunks may arrive WITHOUT embeddings. In that case we
+    # re-embed the chunk texts on demand with the same model (all-MiniLM-L6-v2).
     embeddings_list = [c.get("embedding") for c in chunks]
+
+    missing = [i for i, e in enumerate(embeddings_list) if e is None]
+    if missing:
+        if len(missing) == len(chunks):
+            logger.info("No embeddings in chunks — re-embedding all %d chunks from text...", len(chunks))
+        else:
+            logger.info("Re-embedding %d/%d chunks missing embeddings...", len(missing), len(chunks))
+        _embed_missing(chunks, missing)
+        # _embed_missing mutates chunk dicts in place — refresh the local list
+        embeddings_list = [c.get("embedding") for c in chunks]
 
     # Normalise embeddings: handle string format from pgvector/psycopg2
     import json as _json
