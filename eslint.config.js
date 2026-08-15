@@ -8,6 +8,7 @@ export default [
   {
     ignores: [
       'node_modules/**',
+      'static/dist/**', // minified build output — don't lint
       'static/videos/**',
       'static/firebase-config.js',
       'static/firebase-config.example.js', // example file, not real config
