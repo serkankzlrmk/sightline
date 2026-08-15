@@ -34,7 +34,8 @@ const APP_BUNDLE = [
   'sitrep-ui.js',
   'admin.js',
   'dashboard.js',
-  'map.js',
+  'map/map-core.js',
+  'map/map-init.js',
   'bulletin.js',
   'app.js',
 ];
