@@ -13,7 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v={{ v }}">
   <!-- Tailwind CSS v4 (async — non-blocking, applies when ready) -->
   <script async src="https://unpkg.com/@tailwindcss/browser@4"></script>
   <style type="text/tailwindcss">
@@ -25,6 +24,7 @@
       --color-panel-dark: #18181b; /* zinc-900 */
     }
   </style>
+  <link rel="stylesheet" href="/static/dist/style.css?v={{ v }}">
 </head>
 <body>
 
@@ -1042,6 +1042,5 @@
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script defer src="/static/dist/app.js?v={{ v }}"></script>
 <script defer src="/static/dist/proposal.js?v={{ v }}"></script>
-<link rel="stylesheet" href="/static/dist/style.css?v={{ v }}">
 </body>
 </html>
