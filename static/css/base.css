@@ -1,0 +1,260 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   style.css — Sightline
+   Premium Design System · Apple-inspired Liquid Glass
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Skip link (accessibility) ── */
+.skip-link {
+  position: absolute; top: -100%; left: 16px; z-index: 99999;
+  padding: 8px 16px; background: var(--blue); color: #fff;
+  border-radius: var(--radius-sm); font-size: 14px; font-weight: 600;
+  text-decoration: none; transition: top .2s;
+}
+.skip-link:focus { top: 8px; }
+
+
+
+/* ── CSS Variables ──────────────────────────────────────────────────────── */
+:root {
+  /* Brand — Apple-inspired Ice Blue system */
+  --primary:          #0EA5E9;
+  --primary-dark:     #0284C7;
+  --primary-light:    #F0F9FF;
+  --primary-glow:     rgba(14, 165, 233, 0.12);
+
+  /* Surface — Apple's warm whites and grays */
+  --bg:               #F5F5F7;
+  --surface:          #FFFFFF;
+  --surface-raised:   rgba(255,255,255,.72);
+  --surface-glass:    rgba(255,255,255,.45);
+  --border:           rgba(0,0,0,.08);
+  --border-light:     rgba(0,0,0,.04);
+  --border-focus:     rgba(14, 165, 233, 0.35);
+  --divider:          rgba(0,0,0,.06);
+
+  /* Text — Apple SF color system */
+  --text:             #1D1D1F;
+  --text-secondary:   #6E6E73;
+  --text-tertiary:    #AEAEB2;
+  --text-muted:       #8E8E93;
+  --text-inverse:     #FFFFFF;
+
+  /* Accent */
+  --navy:             #1D1D1F;
+  --navy-light:       #48484A;
+  --blue:             #007AFF;
+  --blue-light:       #EBF5FF;
+
+  /* Semantic — Apple system colors */
+  --green:            #30D158;
+  --green-light:      #E8FAE9;
+  --red:              #FF3B30;
+  --red-light:        #FFF1F1;
+  --amber:            #FF9F0A;
+  --amber-light:      #FFF6E5;
+  --purple:           #AF52DE;
+  --teal:             #5AC8FA;
+
+  /* Apple Liquid Glass tokens */
+  --glass-bg:         rgba(255,255,255,.55);
+  --glass-border:     rgba(255,255,255,.25);
+  --glass-shadow:     0 8px 32px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
+  --glass-blur:       40px;
+  --glass-inner:      inset 0 1px 0 rgba(255,255,255,.5);
+
+  /* Design tokens — Apple radius scale */
+  --radius-xs:       6px;
+  --radius-sm:       8px;
+  --radius:          12px;
+  --radius-lg:       16px;
+  --radius-xl:       20px;
+  --radius-2xl:      24px;
+  --radius-full:     9999px;
+
+  /* Apple shadow system — tinted for depth */
+  --shadow-xs:        0 1px 2px rgba(0,0,0,.03);
+  --shadow-sm:        0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02);
+  --shadow-md:        0 4px 16px rgba(0,0,0,.06), 0 1px 4px rgba(0,0,0,.04);
+  --shadow-lg:        0 12px 40px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.03);
+  --shadow-xl:        0 24px 64px rgba(0,0,0,.12), 0 4px 16px rgba(0,0,0,.04);
+  --shadow-focus:     0 0 0 4px rgba(0,122,255,.18);
+  --shadow-focus-red: 0 0 0 4px rgba(232,54,78,.15);
+  --shadow-tinted:    0 4px 16px rgba(0,0,0,.05), 0 1px 3px rgba(232,54,78,.06);
+  --shadow-glass:     0 8px 32px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.03), inset 0 1px 0 rgba(255,255,255,.5);
+  --shadow-elevated:  0 8px 28px rgba(0,0,0,.08), 0 0 0 1px rgba(0,0,0,.04);
+
+  /* Spacing scale — 4px grid */
+  --space-1:          4px;
+  --space-1-5:        6px;
+  --space-2:          8px;
+  --space-2-5:        10px;
+  --space-3:          12px;
+  --space-3-5:        14px;
+  --space-4:          16px;
+  --space-4-5:        18px;
+  --space-5:          20px;
+  --space-6:          24px;
+  --space-7:          28px;
+  --space-8:          32px;
+  --space-10:         40px;
+  --space-12:         48px;
+  --space-16:         64px;
+
+  /* Typography scale */
+  --text-xs:          10px;
+  --text-11:          11px;
+  --text-sm:          12px;
+  --text-13:          13px;
+  --text-base:        14px;
+  --text-md:          15px;
+  --text-lg:          17px;
+  --text-xl:          20px;
+  --text-2xl:         24px;
+  --text-3xl:         28px;
+  --text-4xl:         34px;
+  --text-5xl:         44px;
+
+  /* Extended accent colors */
+  --blue-hover:       #0066D6;
+  --blue-dark:        #0055B3;
+  --blue-glow:        rgba(0,122,255,.12);
+  --green-dark:       #28B846;
+  --red-dark:         #D63027;
+  --amber-dark:       #CC7F08;
+  --purple-light:     rgba(175,82,222,.1);
+  --primary-soft:     rgba(232,54,78,.08);
+  --navy-warm:        #2C2C2E;
+  --log-green:        var(--green);
+  --log-gold:         #FF9F0A;
+  --log-red-light:    #FF6B6B;
+  --log-blue:         #5AC8FA;
+  --amber-text:       #CC7F08;
+
+  /* Transitions — Apple ease curves */
+  --transition:       .22s cubic-bezier(.25,.1,.25,1);
+  --transition-spring:.35s cubic-bezier(.34,1.56,.64,1);
+  --transition-fast:   .15s cubic-bezier(.25,.1,.25,1);
+
+  /* Layout */
+  --nav-h:           52px;
+  --sidebar-w:       260px;
+
+
+  /* SITREP compatibility aliases */
+  --bg-app:          var(--bg);
+  --bg-sidebar:      var(--bg);
+  --bg-card:         #FFFFFF;
+  --bg-console:      var(--navy);
+  --accent:          var(--blue);
+  --accent-hover:    var(--blue-hover);
+  --success:         var(--green);
+  --warning:        var(--amber);
+  --danger:          var(--red);
+  --text-primary:    var(--navy);
+  --text-sidebar:   rgba(0,0,0,.45);
+  --shadow-md-compat: 0 4px 24px rgba(0,0,0,.08);
+
+  /* RGB values for alpha compositing */
+  --primary-rgb:     14, 165, 233;
+  --green-rgb:       48, 209, 88;
+  --red-rgb:         255, 59, 48;
+  --amber-rgb:       255, 159, 10;
+  --blue-rgb:        0, 122, 255;
+
+  /* Missing referenced variables */
+  --radius-md:       10px;
+  --hover-bg:        rgba(0,0,0,.04);
+  --hover-bg-strong: rgba(0,0,0,.08);
+  --color-panel-dark: #18181b;
+  --color-bg-dark:   #09090b;
+  --color-brand-accent: #E8364E;
+  --radius-3xl:     28px;
+
+  /* Dark tokens (for CTA cards, glass overlays) */
+  --dark-surface:   var(--navy);
+  --dark-surface-2: #1e1b4b;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  line-height: 1.5;
+  letter-spacing: -.01em;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+/* ── Focus-visible ring ─────────────────────────────────────────────────── */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+button:focus-visible,
+.btn:focus-visible,
+.sidebar-tab:focus-visible,
+.chat-item:focus-visible,
+.report-item:focus-visible,
+.quick-prompt-btn:focus-visible,
+.theme-pill:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+.fi:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--blue-glow), var(--shadow-sm);
+}
+
+/* ── Text wrap ─────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6,
+.welcome-greeting,
+.welcome-title,
+.report-hero-title,
+.topbar-title,
+.pipeline-title,
+.bulletin-title,
+.sitrep-topbar-title,
+.bulletin-page-title,
+.dash-topbar-title {
+  text-wrap: balance;
+  line-height: 1.15;
+}
+.msg-body p,
+.narrative-body p,
+.welcome-desc {
+  text-wrap: pretty;
+  line-height: 1.65;
+}
+
+/* ── Monospace standard ──────────────────────────────────────────────── */
+code, pre, .chunk-box, .id-cell, .log-line, #log-console {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* ── Scrollbar — Apple thin overlay ─────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.25); }
+
+/* ── Selection ─────────────────────────────────────────────────────────── */
+::selection { background: var(--primary-glow); color: var(--text); }
+

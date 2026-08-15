@@ -11,7 +11,7 @@
 //   static/dist/app.js          — shared+chat+database+sitrep-ui+admin+dashboard+map+bulletin+app (minified)
 //   static/dist/proposal.js     — proposal wizard (minified, separate: window.* contract)
 //   static/dist/landing3d.js    — landing page 3D globe (minified)
-//   static/dist/style.css       — style.css + proposal-logframe.css (minified)
+//   static/dist/style.css       — css/*.css modules + proposal-logframe.css (minified)
 //   static/dist/version.json    — { "app": "<sha8>", "css": "<sha8>", "built": <ts> }
 // ═══════════════════════════════════════════════════════════════════════════
 import { build } from 'esbuild';
@@ -78,14 +78,27 @@ if (readFileSync(join(SRC, 'landing3d.js'), 'utf8').length > 0) {
   writeFileSync(join(DIST, 'landing3d.js'), landMin);
 }
 
-// ── CSS (app bundle — style + proposal; landing.css stays SEPARATE!) ────────
+// ── CSS (app bundle — modular css/ + proposal-logframe; landing.css SEPARATE!) ──
 // Landing is an independent page with its own body rules; merging it into the
 // app bundle caused body{...} conflicts (app's height:100vh/overflow:hidden
 // leaked into landing, and --bg vars clashed with landing gradients).
-const cssSource = [
-  readFileSync(join(SRC, 'style.css'), 'utf8'),
-  readFileSync(join(SRC, 'proposal-logframe.css'), 'utf8'),
-].join('\n');
+//
+// CSS modules are concatenated in order: base (variables/reset) first,
+// then feature modules, then proposal-logframe overrides.
+const CSS_BUNDLE = [
+  'css/base.css',
+  'css/layout.css',
+  'css/database.css',
+  'css/chat.css',
+  'css/auth.css',
+  'css/sitrep.css',
+  'css/responsive.css',
+  'css/bulletin.css',
+  'css/proposal.css',
+  'css/wizard.css',
+  'proposal-logframe.css',
+];
+const cssSource = CSS_BUNDLE.map(f => readFileSync(join(SRC, f), 'utf8')).join('\n');
 const cssMin = await build({
   stdin: { contents: cssSource, sourcefile: 'style.css', loader: 'css' },
   minify: true,
