@@ -78,11 +78,13 @@ if (readFileSync(join(SRC, 'landing3d.js'), 'utf8').length > 0) {
   writeFileSync(join(DIST, 'landing3d.js'), landMin);
 }
 
-// ── CSS ──────────────────────────────────────────────────────────────────────
+// ── CSS (app bundle — style + proposal; landing.css stays SEPARATE!) ────────
+// Landing is an independent page with its own body rules; merging it into the
+// app bundle caused body{...} conflicts (app's height:100vh/overflow:hidden
+// leaked into landing, and --bg vars clashed with landing gradients).
 const cssSource = [
   readFileSync(join(SRC, 'style.css'), 'utf8'),
   readFileSync(join(SRC, 'proposal-logframe.css'), 'utf8'),
-  readFileSync(join(SRC, 'landing.css'), 'utf8'),
 ].join('\n');
 const cssMin = await build({
   stdin: { contents: cssSource, sourcefile: 'style.css', loader: 'css' },
@@ -91,6 +93,16 @@ const cssMin = await build({
 }).then(r => r.outputFiles[0].text);
 version.css = sha8(cssMin);
 writeFileSync(join(DIST, 'style.css'), cssMin);
+
+// ── landing.css (separate — own bundle + own hash) ──────────────────────────
+const landCssSource = readFileSync(join(SRC, 'landing.css'), 'utf8');
+const landCssMin = await build({
+  stdin: { contents: landCssSource, sourcefile: 'landing.css', loader: 'css' },
+  minify: true,
+  write: false,
+}).then(r => r.outputFiles[0].text);
+version.landing = sha8(landCssMin);
+writeFileSync(join(DIST, 'landing.css'), landCssMin);
 
 version.built = built;
 writeFileSync(join(DIST, 'version.json'), JSON.stringify(version, null, 2));
