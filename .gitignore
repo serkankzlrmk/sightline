@@ -33,6 +33,7 @@ __pycache__/
 # Node / Frontend tooling
 # ========================================
 node_modules/
+static/dist/
 *.py[cod]
 *$py.class
 *.pyo

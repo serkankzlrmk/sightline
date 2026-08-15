@@ -54,6 +54,11 @@ WORKDIR /app
 # Copy application code
 COPY . .
 
+# ── Frontend production build (esbuild minify + content hash) ──────────────
+RUN npm install --no-audit --no-fund && \
+    node scripts/build-frontend.js && \
+    rm -rf node_modules
+
 # Environment defaults (overridden by docker-compose env_file)
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
