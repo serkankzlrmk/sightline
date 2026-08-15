@@ -1110,7 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Login required but app visible behind overlay
     if (_previewInited) return;
     _previewInited = true;
-    console.log('[app] initPreviewData — showing app with login overlay');
+    console.warn('[app] initPreviewData — showing app with login overlay');
     // Load Command Center (visible behind login panel)
     switchTab('home');
     loadCommandCenter();
@@ -1144,12 +1144,12 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     // Listen for preview-ready (anonymous visitor — show limited content)
     window.addEventListener('preview-ready', () => {
-      console.log('[app] preview-ready event — forcing login');
+      console.warn('[app] preview-ready event — forcing login');
       initPreviewData();
     }, { once: true });
     // Listen for auth-ready (user signed in — load full app)
     window.addEventListener('auth-ready', () => {
-      console.log('[app] auth-ready event — loading full app after sign-in');
+      console.warn('[app] auth-ready event — loading full app after sign-in');
       _previewInited = true; // prevent double-load
       // Reset dashboard loaded flag so it reloads with authed endpoints
       dashboardLoaded = false;
@@ -1164,7 +1164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { once: true });
     setTimeout(() => {
       if (!_appInited && window.getIdToken && window.getIdToken()) {
-        console.log('[app] auth-ready event missed, initializing with cached token');
+        console.warn('[app] auth-ready event missed, initializing with cached token');
         initAppData();
       }
     }, 3000);

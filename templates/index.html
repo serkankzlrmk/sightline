@@ -6,14 +6,16 @@
   <meta name="contact-email" content="{{ contact_email }}">
   <title>Sightline</title>
   <link rel="icon" href="/static/logo-signal-horizon.png" type="image/png">
-  <!-- TODO: Add SRI integrity hashes -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+  <!-- Preconnect to all CDN origins for faster handshake -->
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css?v={{ v }}">
-  <!-- Tailwind CSS v4 -->
-  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+  <!-- Tailwind CSS v4 (async — non-blocking, applies when ready) -->
+  <script async src="https://unpkg.com/@tailwindcss/browser@4"></script>
   <style type="text/tailwindcss">
     @theme {
       --font-sans: 'Outfit', sans-serif;
@@ -1030,15 +1032,16 @@
   </button>
 </nav>
 
-<!-- TODO: Add SRI integrity hashes -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" crossorigin="anonymous" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js" crossorigin="anonymous" integrity="sha384-XQqX/4yiUGu+oyr87jvWzRuqBUK/adrY0DunhL+tID9m/9dwSpV8h9Fk/Sg6ifVQ"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"></script>
-<script src="/static/firebase-config.js?v={{ v }}"></script>
+<!-- CDN libraries (defer — non-blocking, executes in order after HTML parse) -->
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" crossorigin="anonymous" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js" crossorigin="anonymous" integrity="sha384-XQqX/4yiUGu+oyr87jvWzRuqBUK/adrY0DunhL+tID9m/9dwSpV8h9Fk/Sg6ifVQ"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"></script>
+<!-- App scripts (defer — executes after CDN libs in order) -->
+<script defer src="/static/firebase-config.js?v={{ v }}"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
-<script src="/static/dist/app.js?v={{ v }}"></script>
-<script src="/static/dist/proposal.js?v={{ v }}"></script>
+<script defer src="/static/dist/app.js?v={{ v }}"></script>
+<script defer src="/static/dist/proposal.js?v={{ v }}"></script>
 <link rel="stylesheet" href="/static/dist/style.css?v={{ v }}">
 </body>
 </html>
