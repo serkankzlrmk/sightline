@@ -158,12 +158,22 @@ class ChromaAdapter:
             # SQLite fallback
             return self._sqlite_get_date_range(normalized, country)
 
-        # ChromaDB path — metadata-only query (no embeddings)
+        # ChromaDB path — metadata-only query (no embeddings).
+        # IMPORTANT: use the SAME report-id resolution as get_chunks_by_country
+        # (SQLite countries JSON — includes multi-country reports), otherwise the
+        # date range / count shown in the UI disagrees with what the pipeline loads.
         try:
-            results = self.collection.get(
-                where={"primary_country": {"$eq": normalized}},
-                include=["metadatas"],
-            )
+            report_ids = self._sqlite_find_report_ids_by_country(normalized)
+            if report_ids:
+                results = self.collection.get(
+                    where={"report_id": {"$in": report_ids}},
+                    include=["metadatas"],
+                )
+            else:
+                results = self.collection.get(
+                    where={"primary_country": {"$eq": normalized}},
+                    include=["metadatas"],
+                )
             if results and results["metadatas"]:
                 dates = sorted(set(m.get("date", "")[:10] for m in results["metadatas"] if m.get("date")))
                 if dates:
@@ -298,7 +308,9 @@ class ChromaAdapter:
         results = self.collection.get(
             where={"report_id": {"$in": report_ids}},
             limit=limit,
-            include=["documents", "metadatas"],
+            # embeddings included — clustering (pipeline Step 2) needs them
+            # to compute chunk vectors; _format_results handles None safely.
+            include=["documents", "metadatas", "embeddings"],
         )
         return self._format_results(results)
 

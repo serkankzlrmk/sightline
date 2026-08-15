@@ -576,10 +576,18 @@ class HDXClient:
         """Mülteci ve ilgilinen kişiler verisini getir (UNHCR).
 
         Args:
-            location_code: Sığınma ülkesi ISO kodu.
+            location_code: Sığınma ülkesi ISO kodu (asylum country).
+
+        NOTE: HDX HAPI's refugees endpoint does NOT accept a generic
+        ``location_code`` param — it silently ignores it and returns global
+        data. The correct filter is ``asylum_location_code`` (host country).
+        We map the public ``location_code`` argument to it so every caller
+        (SITREP context, agent tool, API route) gets country-scoped data.
         """
+        if location_code:
+            kwargs["asylum_location_code"] = location_code
         return await self._aget(
-            "/affected-people/refugees-persons-of-concern", {"location_code": location_code, "limit": limit, **kwargs}
+            "/affected-people/refugees-persons-of-concern", {"limit": limit, **kwargs}
         )
 
     async def get_humanitarian_needs(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
@@ -755,7 +763,7 @@ class HDXClient:
 
         tasks = {
             "availability": self.get_data_availability(location_code=location_code, limit=100),
-            "refugees": self.get_refugees(location_code=location_code, limit=10),
+            "refugees": self.get_refugees(location_code=location_code, limit=200),
             "idps": self.get_idps(location_code=location_code, limit=10),
             "funding": self.get_funding(location_code=location_code, limit=10),
             "conflict": self.get_conflict_events(location_code=location_code, limit=10),
@@ -813,10 +821,16 @@ class HDXClient:
                 categories[cat].append({"subcategory": subcat, "admin_level": admin_level})
             context["data_sources"]["availability"] = categories
 
-        # Mülteci özeti
+        # Mülteci özeti — en güncel referans dönemine göre topla.
+        # HDX returns per-year demographic breakdown rows; summing ALL rows
+        # would double-count old years. Use the latest reference period only.
         if overview["refugees"].success and overview["refugees"].data:
-            total_refugees = sum(r.get("population", 0) for r in overview["refugees"].data)
+            refugee_rows = overview["refugees"].data
+            latest_period = max((r.get("reference_period_start") or "" for r in refugee_rows), default="")
+            latest_rows = [r for r in refugee_rows if (r.get("reference_period_start") or "") == latest_period]
+            total_refugees = sum(r.get("population", 0) or 0 for r in latest_rows) if latest_rows else 0
             context["summary"]["refugees_total"] = total_refugees
+            context["summary"]["refugees_period"] = (latest_period or "")[:10]
             context["data_sources"]["refugees"] = overview["refugees"].to_sitrep_context()
 
         # IDP özeti
@@ -888,9 +902,16 @@ class HDXClient:
         return self._get("/metadata/sector", {"limit": limit, **kwargs})
 
     def get_refugees_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
-        """Sync: Mülteci verisini getir."""
+        """Sync: Mülteci verisini getir.
+
+        NOTE: same mapping as async get_refugees — HDX HAPI refugees endpoint
+        ignores ``location_code`` (returns global data); use
+        ``asylum_location_code`` for country-scoped results.
+        """
+        if location_code:
+            kwargs["asylum_location_code"] = location_code
         return self._get(
-            "/affected-people/refugees-persons-of-concern", {"location_code": location_code, "limit": limit, **kwargs}
+            "/affected-people/refugees-persons-of-concern", {"limit": limit, **kwargs}
         )
 
     def get_humanitarian_needs_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:

@@ -1170,6 +1170,8 @@ async function runPipeline() {
   const dateFrom = document.getElementById('inp-date-from').value || '';
   const dateTo = document.getElementById('inp-date-to').value || '';
   const skipCache = document.getElementById('chk-skip-cache').checked;
+  const themesRaw = document.getElementById('inp-themes')?.value || '';
+  const themes = themesRaw.split(',').map(t => t.trim()).filter(Boolean);
 
   document.getElementById('btn-run').disabled = true;
 
@@ -1193,7 +1195,7 @@ async function runPipeline() {
     const resp = await api('/api/sitrep/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ country, event, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
+      body: JSON.stringify({ country, event, themes, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
     });
     const { job_id, stream_nonce, error } = await resp.json();
     if (error) { alert('Error: ' + error); document.getElementById('btn-run').disabled = false; return; }
@@ -1671,12 +1673,14 @@ async function refreshChunkPreview() {
 
   const dateFrom = document.getElementById('inp-date-from')?.value || '';
   const dateTo = document.getElementById('inp-date-to')?.value || '';
+  const themesRaw = document.getElementById('inp-themes')?.value || '';
+  const themes = themesRaw.split(',').map(t => t.trim()).filter(Boolean);
 
   try {
     const resp = await api('/api/sitrep/chunk-preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ country, date_from: dateFrom, date_to: dateTo }),
+      body: JSON.stringify({ country, date_from: dateFrom, date_to: dateTo, themes }),
     });
     const data = await resp.json();
     if (data.error) { el.classList.add('hidden'); return; }
@@ -3218,9 +3222,10 @@ document.addEventListener('DOMContentLoaded', () => {
     countryEl.addEventListener('change', () => fetchCountryDateRange(countryEl.value));
   }
 
-  ['inp-date-from', 'inp-date-to'].forEach(id => {
+  ['inp-date-from', 'inp-date-to', 'inp-themes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', scheduleChunkPreview);
+    if (el && el.tagName === 'INPUT' && el.type !== 'date') el.addEventListener('input', scheduleChunkPreview);
   });
 
   const sitrepModalClose = document.getElementById('sitrep-modal-close-btn');

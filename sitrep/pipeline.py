@@ -102,6 +102,72 @@ def _save_checkpoint(data, step_name: str, country: str, event: str, suffix: str
 
 
 # ---------------------------------------------------------------------------
+# Checkpoint housekeeping
+# ---------------------------------------------------------------------------
+
+# Intermediate checkpoint files older than this are deleted automatically.
+# Final reports (output/reports/*_report.json + .md) are NEVER touched.
+CHECKPOINT_MAX_AGE_DAYS = int(os.getenv("SITREP_CHECKPOINT_MAX_AGE_DAYS", "14"))
+
+# Per-cluster answer checkpoints (output/answers/{country}_{event}_ckpt/)
+CHECKPOINT_CKPT_DIR_MAX_AGE_DAYS = int(os.getenv("SITREP_CKPT_DIR_MAX_AGE_DAYS", "7"))
+
+
+def cleanup_old_checkpoints() -> dict:
+    """Delete stale intermediate checkpoint files to keep output/ bounded.
+
+    Scope:
+    - output/clusters/*.json, output/questions/*.json (raw + filtered)
+    - output/answers/*.json (answers + answers_post) and *_ckpt/ dirs
+    - output/summaries/*.json (cluster summaries, exec summary, narrative)
+
+    Final reports in output/reports/ are excluded — they are user-facing
+    deliverables and must be kept.
+
+    Returns a summary dict {dir: removed_count}.
+    """
+    import time as _t
+
+    now = _t.time()
+    age_sec = CHECKPOINT_MAX_AGE_DAYS * 86400
+    ckpt_age_sec = CHECKPOINT_CKPT_DIR_MAX_AGE_DAYS * 86400
+    summary: dict = {}
+
+    for dir_key, base_dir in (
+        ("clusters", OUTPUT_CLUSTERS_DIR),
+        ("questions", OUTPUT_QUESTIONS_DIR),
+        ("answers", OUTPUT_ANSWERS_DIR),
+        ("summaries", OUTPUT_SUMMARIES_DIR),
+    ):
+        removed = 0
+        if base_dir.exists():
+            for f in base_dir.glob("*.json"):
+                try:
+                    if now - f.stat().st_mtime > age_sec:
+                        f.unlink(missing_ok=True)
+                        removed += 1
+                except OSError:
+                    pass
+            # Per-cluster answer checkpoint subdirs (answers/{country}_{event}_ckpt/)
+            if dir_key == "answers":
+                for d in base_dir.glob("*_ckpt"):
+                    if d.is_dir():
+                        try:
+                            if now - d.stat().st_mtime > ckpt_age_sec:
+                                for f in d.glob("*"):
+                                    f.unlink(missing_ok=True)
+                                d.rmdir()
+                                removed += 1
+                        except OSError:
+                            pass
+        summary[dir_key] = removed
+        if removed:
+            logger.info("  [HOUSEKEEPING] Removed %d stale checkpoint(s) from %s", removed, dir_key)
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
 
@@ -131,6 +197,14 @@ def run_pipeline(
     logger.info("=" * 60)
     logger.info("SITREP Pipeline starting: %s / %s", country, event)
     logger.info("=" * 60)
+
+    # Housekeeping: delete stale intermediate checkpoints before each run
+    # so repeated SITREP runs don't grow output/ unbounded. Final reports
+    # in output/reports/ are never touched.
+    try:
+        cleanup_old_checkpoints()
+    except Exception as exc:
+        logger.warning("  Checkpoint housekeeping failed (non-fatal): %s", exc)
 
     # Filter hash for checkpoint differentiation
     fh = _filter_hash(themes, date_from, date_to)
