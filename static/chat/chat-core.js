@@ -221,6 +221,7 @@ async function sendMessage() {
   addMsg('user', esc(text));
 
   chatState.isStreaming = true;
+  resetObsTrace();
   sendBtn.disabled = true;
   sendBtn.innerHTML = '<div class="spin spin-lg"></div>';
   busyDot.classList.add('visible');
@@ -292,20 +293,29 @@ async function sendMessage() {
           chatState.currentAiText += evt.text;
           chatState.currentAiEl.innerHTML = sanitizeHtml(md(chatState.currentAiText));
           chatDiv.scrollTop = chatDiv.scrollHeight;
+        } else if (evt.type === 'llm') {
+          addObsLlm(evt.iteration);
+        } else if (evt.type === 'llm_done') {
+          finalizeObsLlm(evt.iteration, evt);
         } else if (evt.type === 'tool_start') {
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '';
           addToolInd(evt.name);
+          addObsStep(evt.name);
         } else if (evt.type === 'tool_done') {
           finalizeToolInd(evt.name, evt);
+          finalizeObsStep(evt.name, evt);
         } else if (evt.type === 'error') {
           chatState.currentAiEl.innerHTML = `<span class="msg-error">Error: ${esc(evt.text)}</span>`;
           clearToolInds();
+          obsTraceError(evt.text);
         } else if (evt.type === 'done') {
           // Drop any tool indicator that never got a matching tool_done
           chatDiv.querySelectorAll('.tool-ind.pending').forEach(e => e.remove());
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '<span class="msg-placeholder">—</span>';
           const footer = renderTeleFooter(evt);
           if (footer) chatState.currentAiEl.insertAdjacentHTML('beforeend', footer);
+          renderObsFooter(evt);
+          refreshObsTotals();
           if (typeof checkAdminStatus === 'function') checkAdminStatus();
         }
       }
@@ -350,4 +360,3 @@ function lockChatInput() {
   chatInput.placeholder = 'Daily limit reached';
   document.querySelectorAll('.quick-prompt-btn').forEach(b => b.disabled = true);
 }
-

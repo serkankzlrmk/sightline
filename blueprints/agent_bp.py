@@ -41,6 +41,7 @@ from config import (
     _LLM_API_KEY,
     _LLM_BASE_URL,
     CHAT_MODELS,
+    CUSTOM_MODELS,
     LLM_PROVIDER,
     MODEL_MAX_TOKENS,
     MODEL_TEMPERATURE,
@@ -48,7 +49,8 @@ from config import (
     OLLAMA_TIMEOUT,
 )
 from agent.pricing import compute_cost
-from agent.memory import recall, remember_turn
+from agent.memory import gated_recall, maybe_consolidate, remember_turn
+from agent.relief_agent import TOOL_GROUP_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -189,9 +191,16 @@ def api_agent_chat():
         agent_mode = "analyst"
 
     # Model selection for chat
-    requested_model = data.get("model", "thinking")
-    model_key = requested_model if requested_model in CHAT_MODELS else "thinking"
-    model_config = CHAT_MODELS[model_key]
+    requested_model = data.get("model", "flash")
+    if requested_model in CHAT_MODELS:
+        model_key = requested_model
+        model_config = CHAT_MODELS[model_key]
+    elif requested_model in CUSTOM_MODELS:
+        model_key = requested_model
+        model_config = CUSTOM_MODELS[model_key]
+    else:
+        model_key = "flash"
+        model_config = CHAT_MODELS["flash"]
     # Premium model check — done before busy lock so we don't lock out on 403
     if model_config["premium"] and role not in ("premium", "admin"):
         return jsonify({"error": "Premium model requires a premium account", "premium_required": True}), 403
@@ -249,7 +258,7 @@ def api_agent_chat():
     chat_id = None
     try:
         _log_event(
-            uid, "chat_message_sent", {"role": role, "model": data.get("model", "thinking"), "mode": agent_mode}
+            uid, "chat_message_sent", {"role": role, "model": data.get("model", "flash"), "mode": agent_mode}
         )
         chat_id = _ensure_active_chat(uid)
     except Exception:
@@ -266,12 +275,10 @@ def api_agent_chat():
             _db_add_message(chat_id, "user", user_message)
             messages_snapshot = _load_langchain_messages(chat_id)
 
-            # ── Cross-chat memory recall (best-effort — never breaks chat) ──
+            # ── Cross-chat memory recall (gated + best-effort — never breaks chat) ──
             memory_context = ""
             try:
-                memories = recall(uid, user_message, n=3)
-                if memories:
-                    memory_context = "\n\n".join(f"- {m[:300]}" for m in memories)
+                memory_context = gated_recall(uid, user_message)
             except Exception:
                 pass
 
@@ -319,6 +326,8 @@ def api_agent_chat():
                 },
             }
 
+            prev_node = None
+            current_iteration = 0
             for chunk, metadata in agent.stream(
                 {"messages": messages_snapshot},
                 config=stream_config,
@@ -327,6 +336,11 @@ def api_agent_chat():
                 node = metadata.get("langgraph_node", "")
 
                 if node == "llm_call":
+                    # New LLM iteration — the agent is reasoning again
+                    if prev_node != "llm_call":
+                        current_iteration += 1
+                        yield f"data: {json.dumps({'type': 'llm', 'iteration': current_iteration})}\n\n"
+
                     if hasattr(chunk, "content") and isinstance(chunk.content, str) and chunk.content:
                         full_response += chunk.content
                         yield f"data: {json.dumps({'type': 'token', 'text': chunk.content})}\n\n"
@@ -335,12 +349,17 @@ def api_agent_chat():
                     # final chunk of each LLM call (requires stream_usage=True).
                     um = getattr(chunk, "usage_metadata", None)
                     if um:
+                        _in = 0
+                        _out = 0
                         try:
-                            usage_in += int(um.get("input_tokens") or um.get("prompt_tokens") or 0)
-                            usage_out += int(um.get("output_tokens") or um.get("completion_tokens") or 0)
+                            _in = int(um.get("input_tokens") or um.get("prompt_tokens") or 0)
+                            _out = int(um.get("output_tokens") or um.get("completion_tokens") or 0)
+                            usage_in += _in
+                            usage_out += _out
                             iterations += 1
                         except (TypeError, ValueError):
                             pass
+                        yield f"data: {json.dumps({'type': 'llm_done', 'iteration': current_iteration, 'usage': {'in': _in, 'out': _out}})}\n\n"
 
                     if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
                         for tcc in chunk.tool_call_chunks:
@@ -366,19 +385,28 @@ def api_agent_chat():
                     tools_used.append(
                         {
                             "tool": tool_name,
+                            "group": TOOL_GROUP_MAP.get(tool_name, "Other"),
                             "output": tool_output[:500],
                             "status": status,
                             "summary": summary,
                             "duration_ms": duration_ms,
                         }
                     )
-                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'output': tool_output[:500], 'status': status, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
+                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'group': TOOL_GROUP_MAP.get(tool_name, 'Other'), 'output': tool_output[:500], 'status': status, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
+
+                prev_node = node
 
             latency_ms = int((_time.time() - turn_start) * 1000)
             model_id = model_config.get("model", selected_model_name)
             cost = compute_cost(usage_in, usage_out, model_id, LLM_PROVIDER)
+            # Group summary: which data sources the agent touched this turn
+            sources = {}
+            for t in tools_used:
+                g = t.get("group", "Other")
+                sources[g] = sources.get(g, 0) + 1
             turn_meta = {
-                "tools": [{"tool": t["tool"], "status": t["status"], "summary": t["summary"], "duration_ms": t["duration_ms"]} for t in tools_used],
+                "tools": [{"tool": t["tool"], "group": t.get("group", "Other"), "status": t["status"], "summary": t["summary"], "duration_ms": t["duration_ms"]} for t in tools_used],
+                "sources": sources,
                 "usage": {"in": usage_in, "out": usage_out},
                 "cost": cost,
                 "iterations": iterations,
@@ -395,6 +423,12 @@ def api_agent_chat():
                 except Exception:
                     pass
 
+                # Consolidate unconsolidated turns into durable facts (best-effort)
+                try:
+                    maybe_consolidate(uid)
+                except Exception:
+                    pass
+
                 # Auto-generate title with LLM after first exchange
                 conn = _chats_db()
                 row = conn.execute("SELECT title FROM chats WHERE id = ?", (chat_id,)).fetchone()
@@ -402,7 +436,7 @@ def api_agent_chat():
                 if row and row["title"] == "New Chat":
                     _generate_chat_title(chat_id, user_message, full_response)
 
-            yield f"data: {json.dumps({'type': 'done', 'tools': [{'tool': t['tool'], 'status': t['status'], 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'model': model_config.get('name', model_key)})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'status': t['status'], 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'model': model_config.get('name', model_key)})}\n\n"
 
         except Exception as e:
             logger.exception("Agent chat error: %s", e)
@@ -479,17 +513,96 @@ def api_agent_chat_status():
 @require_auth
 def api_chat_models():
     role = current_role()
+
+    def _ser(v):
+        return {
+            "name": v["name"],
+            "desc": v["desc"],
+            "premium": v["premium"],
+            "allowed": not v["premium"] or role in ("premium", "admin"),
+        }
+
     return jsonify(
         {
-            "models": {
-                k: {
-                    "name": v["name"],
-                    "desc": v["desc"],
-                    "premium": v["premium"],
-                    "allowed": not v["premium"] or role in ("premium", "admin"),
-                }
+            "models": {k: _ser(v) for k, v in CHAT_MODELS.items()},
+            "custom": {k: _ser(v) for k, v in CUSTOM_MODELS.items()},
+            "default": "flash",
+        }
+    )
+
+
+@agent_bp.route("/capabilities", methods=["GET"])
+@require_auth
+def api_agent_capabilities():
+    """Data sources + models available to the agent (observation panel overview)."""
+    groups = {}
+    for _nm, _g in TOOL_GROUP_MAP.items():
+        groups[_g] = groups.get(_g, 0) + 1
+    sources = [{"name": g, "count": n} for g, n in groups.items()]
+    return jsonify(
+        {
+            "sources": sources,
+            "tool_count": sum(n for _, n in groups.items()),
+            "models": [
+                {"key": k, "name": v.get("name", k), "premium": v.get("premium", False)}
                 for k, v in CHAT_MODELS.items()
-            },
-            "default": "thinking",
+            ],
+        }
+    )
+
+
+@agent_bp.route("/usage", methods=["GET"])
+@require_auth
+def api_agent_usage():
+    """Cumulative usage for this user across ALL chats (cost, tokens, tool calls).
+
+    Aggregates the `meta` JSON persisted on every assistant message (each turn
+    stores tools/usage/cost), so this is derived from real recorded history —
+    not a separate ledger that can drift out of sync.
+    """
+    uid = current_uid()
+    conn = _chats_db()
+    try:
+        rows = conn.execute(
+            "SELECT m.meta FROM chat_messages m JOIN chats c ON m.chat_id = c.id WHERE c.uid = ?",
+            (uid,),
+        ).fetchall()
+        chat_count = conn.execute("SELECT COUNT(*) FROM chats WHERE uid = ?", (uid,)).fetchone()[0]
+    finally:
+        conn.close()
+
+    total_in = 0
+    total_out = 0
+    total_tools = 0
+    total_turns = 0
+    total_cost = 0.0
+    for (meta_json,) in rows:
+        if not meta_json:
+            continue
+        total_turns += 1
+        try:
+            meta = json.loads(meta_json)
+        except (TypeError, ValueError):
+            continue
+        usage = meta.get("usage") or {}
+        try:
+            total_in += int(usage.get("in") or 0)
+            total_out += int(usage.get("out") or 0)
+        except (TypeError, ValueError):
+            pass
+        tools = meta.get("tools") or []
+        total_tools += len(tools)
+        try:
+            total_cost += float(meta.get("cost") or 0)
+        except (TypeError, ValueError):
+            pass
+
+    return jsonify(
+        {
+            "total_chats": chat_count,
+            "total_turns": total_turns,
+            "total_tools": total_tools,
+            "total_tokens": {"in": total_in, "out": total_out},
+            "total_cost": round(total_cost, 4),
         }
     )

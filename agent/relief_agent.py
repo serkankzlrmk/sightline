@@ -243,6 +243,16 @@ for group in _tool_groups:
     all_tools.extend(group)
 
 tools_by_name = {t.name: t for t in all_tools}
+
+# Map every tool name → its group label (e.g. "search_sitreps" → "ReliefWeb").
+# _tool_groups and _tool_labels are parallel lists; labels look like "17 ReliefWeb".
+TOOL_GROUP_MAP = {}
+for _grp, _lbl in zip(_tool_groups, _tool_labels):
+    _gname = _lbl.split(" ", 1)[1] if " " in _lbl else _lbl
+    for _t in _grp:
+        _nm = getattr(_t, "name", "") or ""
+        if _nm:
+            TOOL_GROUP_MAP[_nm] = _gname
 try:
     model_with_tools = model.bind_tools(all_tools)
     logger.info(f"✓ Model tools bound successfully ({len(all_tools)} tools: {' + '.join(_tool_labels)})")
@@ -316,6 +326,7 @@ def _register_mcp_tools_when_ready():
             for t in mcp_integration.MCP_TOOLS:
                 if t.name not in tools_by_name:
                     tools_by_name[t.name] = t
+                    TOOL_GROUP_MAP[t.name] = "MCP"
                     all_tools.append(t)
                     new_count += 1
                     logger.info("✓ MCP tool registered: %s", t.name)

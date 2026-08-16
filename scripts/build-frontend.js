@@ -30,6 +30,7 @@ const DIST = join(SRC, 'dist');
 const APP_BUNDLE = [
   'shared.js',
   'chat/chat-core.js',
+  'chat/chat-obs.js',
   'chat/chat-list.js',
   'database.js',
   'sitrep/sitrep-pipeline.js',
@@ -103,6 +104,7 @@ const CSS_BUNDLE = [
   'css/layout.css',
   'css/database.css',
   'css/chat.css',
+  'css/obs.css',
   'css/auth.css',
   'css/sitrep.css',
   'css/responsive.css',

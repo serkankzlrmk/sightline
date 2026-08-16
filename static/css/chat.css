@@ -416,6 +416,27 @@
 .model-option-deep { border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 10px; }
 .model-option-deep .model-option-name { color: #8b5cf6; }
 .lock-icon { width: 12px; height: 12px; opacity: .7; }
+.model-menu-divider { height: 1px; background: var(--border-light, var(--border)); margin: 6px 0; }
+.model-custom {
+  padding: 8px 14px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.model-custom-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  display: flex; align-items: center; gap: 4px;
+}
+.model-custom.locked { opacity: .5; }
+.custom-model-select {
+  width: 100%;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+}
+.custom-model-select:disabled { cursor: not-allowed; }
 
 /* Scrollable messages area */
 .chat-scroll {
@@ -629,4 +650,3 @@
 .rate-limit-msg-contact a:hover {
   text-decoration: underline;
 }
-

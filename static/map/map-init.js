@@ -141,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Model selector
   const modelToggle = document.getElementById('model-selector-toggle');
   const modelMenu = document.getElementById('model-menu');
+  const isPremium = window.__userRole === 'premium' || window.__userRole === 'admin';
   if (modelToggle && modelMenu) {
     modelToggle.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -148,25 +149,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.addEventListener('click', () => modelMenu.classList.remove('open'));
     modelMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    function selectModel(key, name) {
+      chatState.selectedModel = key;
+      const label = document.getElementById('model-selector-label');
+      if (label) label.textContent = name;
+      modelMenu.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+      const opt = modelMenu.querySelector('.model-option[data-model="' + key + '"]');
+      if (opt) opt.classList.add('active');
+      const cs = document.getElementById('custom-model-select');
+      if (cs) cs.value = '';
+      modelMenu.classList.remove('open');
+      if (typeof updateObsModel === 'function') updateObsModel();
+    }
+
     modelMenu.querySelectorAll('.model-option').forEach(opt => {
       opt.addEventListener('click', () => {
         const key = opt.dataset.model;
         if (!key) return;
         const cfg = CHAT_MODELS[key];
-        if (cfg.premium && window.__userRole !== 'premium' && window.__userRole !== 'admin') {
+        if (cfg && cfg.premium && !isPremium) {
           toast(`${cfg.name} requires a Premium account`, 'warning');
           return;
         }
-        chatState.selectedModel = key;
-        const label = document.getElementById('model-selector-label');
-        if (label) label.textContent = cfg.name;
-        modelMenu.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
-        modelMenu.classList.remove('open');
+        selectModel(key, cfg.name);
       });
     });
-    // Lock premium models for non-premium users (Ultra + Deep Think)
-    if (window.__userRole !== 'premium' && window.__userRole !== 'admin') {
+
+    // Custom model dropdown (premium/admin only) — OpenRouter extras
+    const customSelect = document.getElementById('custom-model-select');
+    const customWrap = document.getElementById('model-custom');
+    if (customSelect) {
+      customSelect.innerHTML = '<option value="">— Select model —</option>' +
+        Object.keys(CUSTOM_MODELS).map(k =>
+          '<option value="' + k + '">' + CUSTOM_MODELS[k].name + '</option>'
+        ).join('');
+      customSelect.addEventListener('change', () => {
+        const key = customSelect.value;
+        if (!key) return;
+        const cfg = CUSTOM_MODELS[key];
+        if (cfg && cfg.premium && !isPremium) {
+          toast('Premium account required', 'warning');
+          customSelect.value = '';
+          return;
+        }
+        selectModel(key, cfg.name);
+      });
+      if (!isPremium && customWrap) {
+        customWrap.classList.add('locked');
+        customSelect.disabled = true;
+      }
+    }
+
+    // Lock premium models for non-premium users (Deep Think + Vision)
+    if (!isPremium) {
       modelMenu.querySelectorAll('.model-option-premium').forEach(opt => opt.classList.add('locked'));
     }
   }
@@ -266,6 +302,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (chatOverlay) chatOverlay.addEventListener('click', toggleChatSidebar);
   const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
   if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', toggleChatSidebar);
+  // Observation panel toggle (right-side agent trace)
+  const obsToggleBtn = document.getElementById('obs-toggle-btn');
+  if (obsToggleBtn) obsToggleBtn.addEventListener('click', toggleObsPanel);
+  const obsCloseBtn = document.getElementById('obs-close-btn');
+  if (obsCloseBtn) obsCloseBtn.addEventListener('click', () => setObsOpen(false));
+  // Restore observation panel open state (if previously opened)
+  try {
+    if (localStorage.getItem('sightline.obsOpen') === '1') {
+      setObsOpen(true);
+      renderObsOverview();
+      updateObsModel();
+    }
+  } catch (e) { /* ignore */ }
   // User photo click opens chat sidebar
   const userPhoto = document.getElementById('user-photo');
   if (userPhoto) userPhoto.addEventListener('click', toggleChatSidebar);
