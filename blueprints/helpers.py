@@ -84,13 +84,41 @@ _NOISE = [
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+_chats_schema_ready = False
+_chats_schema_lock = threading.Lock()
+
+
 def chats_db():
-    """Return a connection to the chats SQLite database."""
+    """Return a connection to the chats SQLite database.
+
+    Lazily runs init_chats_db() (idempotent CREATE TABLE + migrations) on the
+    first connection per process, so a newly-added column (e.g.
+    chat_messages.meta) auto-applies to pre-existing volume databases without a
+    manual migration step.
+    """
     conn = sqlite3.connect(str(CHATS_DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
+    _ensure_chats_schema()
     return conn
+
+
+def _ensure_chats_schema():
+    """Run init_chats_db() once per process (thread-safe, recursion-safe)."""
+    global _chats_schema_ready
+    if _chats_schema_ready:
+        return
+    with _chats_schema_lock:
+        if _chats_schema_ready:
+            return
+        # Set BEFORE init_chats_db() so its internal chats_db() call doesn't recurse.
+        _chats_schema_ready = True
+        try:
+            init_chats_db()
+        except Exception as e:
+            _chats_schema_ready = False  # allow retry on next connection
+            logger.warning("Chats schema init failed: %s", e)
 
 
 def db_conn():
