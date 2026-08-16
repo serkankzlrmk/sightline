@@ -209,18 +209,6 @@ CHAT_MODELS: dict = {
         "desc": "Fast responses",
         "premium": False,
     },
-    "thinking": {
-        "name": "Thinking",
-        "model": "google/gemma-4-31b-it",
-        "desc": "Balanced",
-        "premium": False,
-    },
-    "ultra": {
-        "name": "Ultra",
-        "model": "google/gemini-2.5-pro",
-        "desc": "Best quality",
-        "premium": True,
-    },
     "deep_think": {
         "name": "Deep Think",
         "model": "google/gemini-2.5-pro",
@@ -235,6 +223,19 @@ CHAT_MODELS: dict = {
         "premium": True,
         "vision": True,
     },
+}
+
+# Extra OpenRouter models selectable via the "Select" option — premium/admin only.
+# Chosen for strong quality at a reasonable price (verified live against
+# OpenRouter's /models endpoint; prices are per 1M tokens).
+CUSTOM_MODELS: dict = {
+    "deepseek-v3": {"name": "DeepSeek V3", "model": "deepseek/deepseek-chat", "desc": "Strong generalist · cheap", "premium": True},
+    "deepseek-r1": {"name": "DeepSeek R1", "model": "deepseek/deepseek-r1", "desc": "Reasoning", "premium": True},
+    "glm-4.6": {"name": "GLM-4.6", "model": "z-ai/glm-4.6", "desc": "Strong generalist", "premium": True},
+    "gemini-flash": {"name": "Gemini 2.5 Flash", "model": "google/gemini-2.5-flash", "desc": "Fast + multimodal", "premium": True},
+    "gpt-4o-mini": {"name": "GPT-4o mini", "model": "openai/gpt-4o-mini", "desc": "Cheap generalist", "premium": True},
+    "claude-sonnet-4": {"name": "Claude Sonnet 4", "model": "anthropic/claude-sonnet-4", "desc": "High quality · pricier", "premium": True},
+    "gpt-4o": {"name": "GPT-4o", "model": "openai/gpt-4o", "desc": "High quality", "premium": True},
 }
 
 # ============================================================================

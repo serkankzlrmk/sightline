@@ -141,17 +141,13 @@ let _adminCheckPromise = null;
 
 async function checkAdminStatus() {
   const tok = getIdToken();
-  if (!tok) {
-    window.__isAdmin = false;
-    window.__userRole = "free";
-    window.__rateLimit = null;
-    return;
-  }
   if (_adminCheckPromise) return _adminCheckPromise;
   _adminCheckPromise = (async () => {
     try {
-      console.log("[auth] checkAdminStatus: calling /api/auth/me with token prefix", tok.substring(0, 12) + "...");
-      const resp = await fetch("/api/auth/me", { headers: { "Authorization": "Bearer " + tok } });
+      // In DESKTOP_MODE there is no Firebase token — still call /api/auth/me
+      // (backend resolves the dev-local admin user without a token).
+      const headers = tok ? { "Authorization": "Bearer " + tok } : {};
+      const resp = await fetch("/api/auth/me", { headers });
       if (!resp.ok) {
         const err = await resp.text();
         console.error("[auth] /api/auth/me failed:", resp.status, err);
@@ -268,6 +264,12 @@ function updateVisibility() {
   document.querySelectorAll('.model-option-premium').forEach(opt => {
     opt.classList.toggle("locked", !isPremium);
   });
+
+  // Custom model dropdown (premium/admin only)
+  const customWrap = document.getElementById("model-custom");
+  const customSelect = document.getElementById("custom-model-select");
+  if (customSelect) customSelect.disabled = !isPremium;
+  if (customWrap) customWrap.classList.toggle("locked", !isPremium);
 
   // Database: show premium banner for free users
   const premiumBanner = document.getElementById("db-premium-banner");

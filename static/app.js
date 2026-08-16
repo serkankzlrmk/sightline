@@ -12,10 +12,18 @@ const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'p
 const DEFAULT_MODEL = 'flash';
 const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
-  thinking: { name: 'Thinking', desc: 'Balanced', premium: false },
-  ultra: { name: 'Ultra', desc: 'Best quality — Premium', premium: true },
   deep_think: { name: 'Deep Think', desc: 'Deep analysis — Premium', premium: true },
   vision: { name: 'Vision', desc: 'Image + document analysis — Premium', premium: true, vision: true },
+};
+// Extra OpenRouter models (premium/admin only) — mirrors config.CUSTOM_MODELS
+const CUSTOM_MODELS = {
+  'deepseek-v3': { name: 'DeepSeek V3', desc: 'Strong generalist · cheap', premium: true },
+  'deepseek-r1': { name: 'DeepSeek R1', desc: 'Reasoning', premium: true },
+  'glm-4.6': { name: 'GLM-4.6', desc: 'Strong generalist', premium: true },
+  'gemini-flash': { name: 'Gemini 2.5 Flash', desc: 'Fast + multimodal', premium: true },
+  'gpt-4o-mini': { name: 'GPT-4o mini', desc: 'Cheap generalist', premium: true },
+  'claude-sonnet-4': { name: 'Claude Sonnet 4', desc: 'High quality · pricier', premium: true },
+  'gpt-4o': { name: 'GPT-4o', desc: 'High quality', premium: true },
 };
 
 // ── Shared state ────────────────────────────────────────────────────────────
