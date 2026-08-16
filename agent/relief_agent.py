@@ -217,6 +217,24 @@ if _acled_initialized:
 else:
     logger.warning("ACLED credentials yok — ACLED tools devre dışı (ACLED_EMAIL/PASSWORD veya ACLED_API_KEY)")
 
+# Initialize FTS client (OCHA funding plans — keyless, always succeeds)
+from reliefweb_api.fts_tools import FTS_TOOLS, init_fts_tools
+
+_fts_initialized = init_fts_tools(
+    base_url=getattr(config, "FTS_BASE_URL", "https://api.hpc.tools/v2/public"),
+    timeout=getattr(config, "FTS_TIMEOUT", 20.0),
+    cache_ttl=getattr(config, "FTS_CACHE_TTL", 3600),
+    rate_limit_requests=getattr(config, "FTS_RATE_LIMIT_REQUESTS", 30),
+    rate_limit_period=getattr(config, "FTS_RATE_LIMIT_PERIOD", 60.0),
+)
+
+if _fts_initialized:
+    logger.info("✓ FTS client initialized — humanitarian funding tools available")
+    _tool_groups.append(FTS_TOOLS)
+    _tool_labels.append(f"{len(FTS_TOOLS)} FTS")
+else:
+    logger.warning("FTS client not initialized. Funding tools will return errors.")
+
 # Initialize MCP tools (arxiv, sequential-thinking, etc.) — non-fatal if unavailable
 # MCP init runs in a background thread (non-blocking) to avoid stalling agent startup
 _mcp_ok = mcp_integration.init_mcp_tools()
@@ -247,7 +265,7 @@ tools_by_name = {t.name: t for t in all_tools}
 # Map every tool name → its group label (e.g. "search_sitreps" → "ReliefWeb").
 # _tool_groups and _tool_labels are parallel lists; labels look like "17 ReliefWeb".
 TOOL_GROUP_MAP = {}
-for _grp, _lbl in zip(_tool_groups, _tool_labels):
+for _grp, _lbl in zip(_tool_groups, _tool_labels, strict=False):
     _gname = _lbl.split(" ", 1)[1] if " " in _lbl else _lbl
     for _t in _grp:
         _nm = getattr(_t, "name", "") or ""

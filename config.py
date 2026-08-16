@@ -152,6 +152,16 @@ ACLED_RATE_LIMIT_REQUESTS: int = int(os.getenv("ACLED_RATE_LIMIT_REQUESTS", "10"
 ACLED_RATE_LIMIT_PERIOD: float = float(os.getenv("ACLED_RATE_LIMIT_PERIOD", "60.0"))
 
 # ============================================================================
+# OCHA FTS v2 — Humanitarian funding plans (free, keyless)
+# NOTE: public API'de flow (gerçekleşen fon) yok — plan/requirement verisi
+# ============================================================================
+FTS_BASE_URL: str = os.getenv("FTS_BASE_URL", "https://api.hpc.tools/v2/public")
+FTS_TIMEOUT: float = float(os.getenv("FTS_TIMEOUT", "20.0"))
+FTS_CACHE_TTL: int = int(os.getenv("FTS_CACHE_TTL", "3600"))  # 1 hour
+FTS_RATE_LIMIT_REQUESTS: int = int(os.getenv("FTS_RATE_LIMIT_REQUESTS", "30"))
+FTS_RATE_LIMIT_PERIOD: float = float(os.getenv("FTS_RATE_LIMIT_PERIOD", "60.0"))
+
+# ============================================================================
 # WORLD BANK — Economic & demographic indicators (free, keyless)
 # ============================================================================
 WORLDBANK_BASE_URL: str = os.getenv("WORLDBANK_BASE_URL", "https://api.worldbank.org/v2")

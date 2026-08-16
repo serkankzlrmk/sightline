@@ -210,6 +210,26 @@ if _acled_ok:
 else:
     logger.warning("ACLED credentials yok — ACLED tools devre dışı (ACLED_EMAIL/PASSWORD veya ACLED_API_KEY)")
 
+# ── Initialize FTS client (OCHA funding plans; keyless — always succeeds) ───
+from config import FTS_BASE_URL as _FTS_URL
+from config import FTS_CACHE_TTL as _FTS_C
+from config import FTS_RATE_LIMIT_PERIOD as _FTS_RP
+from config import FTS_RATE_LIMIT_REQUESTS as _FTS_RR
+from config import FTS_TIMEOUT as _FTS_T
+from reliefweb_api.fts_tools import init_fts_tools as _init_fts
+
+_fts_ok = _init_fts(
+    base_url=_FTS_URL,
+    timeout=_FTS_T,
+    cache_ttl=_FTS_C,
+    rate_limit_requests=_FTS_RR,
+    rate_limit_period=_FTS_RP,
+)
+if _fts_ok:
+    logger.info("✓ FTS client initialized — humanitarian funding plan tools available")
+else:
+    logger.warning("FTS client not initialized. Funding tools will return errors.")
+
 # ── Initialize MCP tools (arxiv, sequential-thinking, brave) ────────────────
 # Non-blocking: starts background thread, returns immediately. Tools added
 # to agent when ready (~30-60s for npx/uvx subprocess startup).
