@@ -250,6 +250,44 @@ if _op_ok:
 else:
     logger.warning("Overpass client not initialized. OSM tools will return errors.")
 
+# ── Initialize GIEWS client (FAO food prices; keyless, schema pending) ──────
+from config import GIEWS_BASE_URL as _GIEWS_URL
+from config import GIEWS_CACHE_TTL as _GIEWS_C
+from config import GIEWS_TIMEOUT as _GIEWS_T
+from reliefweb_api.giews_tools import init_giews_tools as _init_giews
+
+_giews_ok = _init_giews(base_url=_GIEWS_URL, timeout=_GIEWS_T, cache_ttl=_GIEWS_C)
+if _giews_ok:
+    logger.info("✓ GIEWS client initialized — food price tools available (schema pending)")
+else:
+    logger.warning("GIEWS client not initialized. Food tools will return errors.")
+
+# ── Initialize UNHCR client (refugees; key gerekli — graceful skip) ─────────
+from config import UNHCR_API_KEY as _UNHCR_KEY
+from config import UNHCR_BASE_URL as _UNHCR_URL
+from config import UNHCR_CACHE_TTL as _UNHCR_C
+from config import UNHCR_TIMEOUT as _UNHCR_T
+from reliefweb_api.unhcr_tools import init_unhcr_tools as _init_unhcr
+
+_unhcr_ok = _init_unhcr(api_key=_UNHCR_KEY, base_url=_UNHCR_URL, timeout=_UNHCR_T, cache_ttl=_UNHCR_C)
+if _unhcr_ok:
+    logger.info("✓ UNHCR client initialized — refugee data tools available")
+else:
+    logger.warning("UNHCR_API_KEY yok — UNHCR tools devre dışı (graceful)")
+
+# ── Initialize FIRMS client (NASA fires; key gerekli — graceful skip) ───────
+from config import FIRMS_BASE_URL as _FIRMS_URL
+from config import FIRMS_CACHE_TTL as _FIRMS_C
+from config import FIRMS_MAP_KEY as _FIRMS_KEY
+from config import FIRMS_TIMEOUT as _FIRMS_T
+from reliefweb_api.firms_tools import init_firms_tools as _init_firms
+
+_firms_ok = _init_firms(map_key=_FIRMS_KEY, base_url=_FIRMS_URL, timeout=_FIRMS_T, cache_ttl=_FIRMS_C)
+if _firms_ok:
+    logger.info("✓ FIRMS client initialized — fire detection tools available")
+else:
+    logger.warning("FIRMS_MAP_KEY yok — FIRMS tools devre dışı (graceful)")
+
 # ── Initialize MCP tools (arxiv, sequential-thinking, brave) ────────────────
 # Non-blocking: starts background thread, returns immediately. Tools added
 # to agent when ready (~30-60s for npx/uvx subprocess startup).

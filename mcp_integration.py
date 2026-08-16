@@ -111,6 +111,24 @@ def _configure_servers():
     elif brave_enabled and not brave_key:
         logger.warning("MCP: Brave Search enabled but BRAVE_API_KEY not set — skipping")
 
+    # tavily-mcp (AI-optimized web search — key present only; Brave yanına)
+    tavily_enabled = os.getenv("MCP_TAVILY_ENABLED", "false").lower() == "true"
+    tavily_key = os.getenv("TAVILY_API_KEY", "")
+    if tavily_enabled and tavily_key:
+        servers["tavily"] = {
+            "command": "npx",
+            "args": ["-y", "tavily-mcp"],
+            "env": {
+                "TAVILY_API_KEY": tavily_key,
+                "npm_config_cache": "/tmp/npm-cache",
+                "HOME": "/tmp",
+            },
+            "transport": "stdio",
+        }
+        logger.info("MCP: Tavily enabled (API key present)")
+    elif tavily_enabled and not tavily_key:
+        logger.warning("MCP: Tavily enabled but TAVILY_API_KEY not set — skipping")
+
     return servers
 
 

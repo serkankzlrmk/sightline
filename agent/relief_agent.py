@@ -253,6 +253,56 @@ if _overpass_initialized:
 else:
     logger.warning("Overpass client not initialized. OSM tools will return errors.")
 
+# Initialize GIEWS client (FAO food prices — keyless, schema pending)
+from reliefweb_api.giews_tools import GIEWS_TOOLS, init_giews_tools
+
+_giews_initialized = init_giews_tools(
+    base_url=getattr(config, "GIEWS_BASE_URL", ""),
+    timeout=getattr(config, "GIEWS_TIMEOUT", 20.0),
+    cache_ttl=getattr(config, "GIEWS_CACHE_TTL", 86400),
+)
+
+# Initialize UNHCR client (refugees — key gerekli, graceful skip)
+from reliefweb_api.unhcr_tools import UNHCR_TOOLS, init_unhcr_tools
+
+_unhcr_initialized = init_unhcr_tools(
+    api_key=getattr(config, "UNHCR_API_KEY", ""),
+    base_url=getattr(config, "UNHCR_BASE_URL", "https://api.unhcr.org"),
+    timeout=getattr(config, "UNHCR_TIMEOUT", 20.0),
+    cache_ttl=getattr(config, "UNHCR_CACHE_TTL", 86400),
+)
+
+# Initialize FIRMS client (NASA fires — key gerekli, graceful skip)
+from reliefweb_api.firms_tools import FIRMS_TOOLS, init_firms_tools
+
+_firms_initialized = init_firms_tools(
+    map_key=getattr(config, "FIRMS_MAP_KEY", ""),
+    base_url=getattr(config, "FIRMS_BASE_URL", "https://firms.modaps.eosdis.nasa.gov/api/area/csv"),
+    timeout=getattr(config, "FIRMS_TIMEOUT", 25.0),
+    cache_ttl=getattr(config, "FIRMS_CACHE_TTL", 1800),
+)
+
+if _giews_initialized:
+    logger.info("✓ GIEWS client initialized — food price tools available")
+    _tool_groups.append(GIEWS_TOOLS)
+    _tool_labels.append(f"{len(GIEWS_TOOLS)} GIEWS")
+else:
+    logger.warning("GIEWS client not initialized. Food tools will return errors.")
+
+if _unhcr_initialized:
+    logger.info("✓ UNHCR client initialized — refugee data tools available")
+    _tool_groups.append(UNHCR_TOOLS)
+    _tool_labels.append(f"{len(UNHCR_TOOLS)} UNHCR")
+else:
+    logger.warning("UNHCR_API_KEY yok — UNHCR tools devre dışı (graceful)")
+
+if _firms_initialized:
+    logger.info("✓ FIRMS client initialized — fire detection tools available")
+    _tool_groups.append(FIRMS_TOOLS)
+    _tool_labels.append(f"{len(FIRMS_TOOLS)} FIRMS")
+else:
+    logger.warning("FIRMS_MAP_KEY yok — FIRMS tools devre dışı (graceful)")
+
 # Initialize MCP tools (arxiv, sequential-thinking, etc.) — non-fatal if unavailable
 # MCP init runs in a background thread (non-blocking) to avoid stalling agent startup
 _mcp_ok = mcp_integration.init_mcp_tools()

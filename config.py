@@ -171,6 +171,29 @@ OVERPASS_RATE_LIMIT_REQUESTS: int = int(os.getenv("OVERPASS_RATE_LIMIT_REQUESTS"
 OVERPASS_RATE_LIMIT_PERIOD: float = float(os.getenv("OVERPASS_RATE_LIMIT_PERIOD", "60.0"))
 
 # ============================================================================
+# FAO GIEWS — Food prices + crop forecasts (keyless; schema pending)
+# ============================================================================
+GIEWS_BASE_URL: str = os.getenv("GIEWS_BASE_URL", "")
+GIEWS_TIMEOUT: float = float(os.getenv("GIEWS_TIMEOUT", "20.0"))
+GIEWS_CACHE_TTL: int = int(os.getenv("GIEWS_CACHE_TTL", "86400"))  # 24h — yıllık veri
+
+# ============================================================================
+# UNHCR — Refugee population + demographics + nowcast (Bearer key)
+# ============================================================================
+UNHCR_API_KEY: str = os.getenv("UNHCR_API_KEY", "")
+UNHCR_BASE_URL: str = os.getenv("UNHCR_BASE_URL", "https://api.unhcr.org")
+UNHCR_TIMEOUT: float = float(os.getenv("UNHCR_TIMEOUT", "20.0"))
+UNHCR_CACHE_TTL: int = int(os.getenv("UNHCR_CACHE_TTL", "86400"))  # 24h — yıllık veri
+
+# ============================================================================
+# NASA FIRMS — Fire/thermal anomaly data (NASA Earthdata free MAP_KEY)
+# ============================================================================
+FIRMS_MAP_KEY: str = os.getenv("FIRMS_MAP_KEY", "")
+FIRMS_BASE_URL: str = os.getenv("FIRMS_BASE_URL", "https://firms.modaps.eosdis.nasa.gov/api/area/csv")
+FIRMS_TIMEOUT: float = float(os.getenv("FIRMS_TIMEOUT", "25.0"))
+FIRMS_CACHE_TTL: int = int(os.getenv("FIRMS_CACHE_TTL", "1800"))  # 30 dk — NRT verisi
+
+# ============================================================================
 # WORLD BANK — Economic & demographic indicators (free, keyless)
 # ============================================================================
 WORLDBANK_BASE_URL: str = os.getenv("WORLDBANK_BASE_URL", "https://api.worldbank.org/v2")
@@ -186,6 +209,7 @@ MCP_ARXIV_ENABLED: bool = os.getenv("MCP_ARXIV_ENABLED", "true").lower() == "tru
 MCP_SEQUENTIAL_THINKING_ENABLED: bool = os.getenv("MCP_SEQUENTIAL_THINKING_ENABLED", "true").lower() == "true"
 # brave-search: web/news/image search (needs Node.js + npx + BRAVE_API_KEY)
 MCP_BRAVE_ENABLED: bool = os.getenv("MCP_BRAVE_ENABLED", "false").lower() == "true"
+MCP_TAVILY_ENABLED: bool = os.getenv("MCP_TAVILY_ENABLED", "false").lower() == "true"
 BRAVE_API_KEY: str = os.getenv("BRAVE_API_KEY", "")
 BRAVE_DAILY_LIMIT: int = int(os.getenv("BRAVE_DAILY_LIMIT", "30"))  # max 30 Brave calls/day to protect free credit
 
