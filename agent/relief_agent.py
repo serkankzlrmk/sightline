@@ -235,6 +235,24 @@ if _fts_initialized:
 else:
     logger.warning("FTS client not initialized. Funding tools will return errors.")
 
+# Initialize Overpass client (OSM infrastructure — keyless, always succeeds)
+from reliefweb_api.overpass_tools import OSM_TOOLS, init_overpass_tools
+
+_overpass_initialized = init_overpass_tools(
+    base_url=getattr(config, "OVERPASS_BASE_URL", ""),
+    timeout=getattr(config, "OVERPASS_TIMEOUT", 30.0),
+    cache_ttl=getattr(config, "OVERPASS_CACHE_TTL", 3600),
+    rate_limit_requests=getattr(config, "OVERPASS_RATE_LIMIT_REQUESTS", 10),
+    rate_limit_period=getattr(config, "OVERPASS_RATE_LIMIT_PERIOD", 60.0),
+)
+
+if _overpass_initialized:
+    logger.info("✓ Overpass client initialized — OSM infrastructure tools available")
+    _tool_groups.append(OSM_TOOLS)
+    _tool_labels.append(f"{len(OSM_TOOLS)} OSM")
+else:
+    logger.warning("Overpass client not initialized. OSM tools will return errors.")
+
 # Initialize MCP tools (arxiv, sequential-thinking, etc.) — non-fatal if unavailable
 # MCP init runs in a background thread (non-blocking) to avoid stalling agent startup
 _mcp_ok = mcp_integration.init_mcp_tools()

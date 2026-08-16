@@ -162,6 +162,15 @@ FTS_RATE_LIMIT_REQUESTS: int = int(os.getenv("FTS_RATE_LIMIT_REQUESTS", "30"))
 FTS_RATE_LIMIT_PERIOD: float = float(os.getenv("FTS_RATE_LIMIT_PERIOD", "60.0"))
 
 # ============================================================================
+# OPENSTREETMAP OVERPASS — Geographic infrastructure queries (free, keyless)
+# ============================================================================
+OVERPASS_BASE_URL: str = os.getenv("OVERPASS_BASE_URL", "")
+OVERPASS_TIMEOUT: float = float(os.getenv("OVERPASS_TIMEOUT", "30.0"))
+OVERPASS_CACHE_TTL: int = int(os.getenv("OVERPASS_CACHE_TTL", "3600"))  # 1 hour
+OVERPASS_RATE_LIMIT_REQUESTS: int = int(os.getenv("OVERPASS_RATE_LIMIT_REQUESTS", "10"))
+OVERPASS_RATE_LIMIT_PERIOD: float = float(os.getenv("OVERPASS_RATE_LIMIT_PERIOD", "60.0"))
+
+# ============================================================================
 # WORLD BANK — Economic & demographic indicators (free, keyless)
 # ============================================================================
 WORLDBANK_BASE_URL: str = os.getenv("WORLDBANK_BASE_URL", "https://api.worldbank.org/v2")

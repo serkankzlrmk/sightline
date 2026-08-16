@@ -230,6 +230,26 @@ if _fts_ok:
 else:
     logger.warning("FTS client not initialized. Funding tools will return errors.")
 
+# ── Initialize Overpass client (OSM; keyless — always succeeds) ──────────────
+from config import OVERPASS_BASE_URL as _OP_URL
+from config import OVERPASS_CACHE_TTL as _OP_C
+from config import OVERPASS_RATE_LIMIT_PERIOD as _OP_RP
+from config import OVERPASS_RATE_LIMIT_REQUESTS as _OP_RR
+from config import OVERPASS_TIMEOUT as _OP_T
+from reliefweb_api.overpass_tools import init_overpass_tools as _init_op
+
+_op_ok = _init_op(
+    base_url=_OP_URL,
+    timeout=_OP_T,
+    cache_ttl=_OP_C,
+    rate_limit_requests=_OP_RR,
+    rate_limit_period=_OP_RP,
+)
+if _op_ok:
+    logger.info("✓ Overpass client initialized — OSM infrastructure query tools available")
+else:
+    logger.warning("Overpass client not initialized. OSM tools will return errors.")
+
 # ── Initialize MCP tools (arxiv, sequential-thinking, brave) ────────────────
 # Non-blocking: starts background thread, returns immediately. Tools added
 # to agent when ready (~30-60s for npx/uvx subprocess startup).
