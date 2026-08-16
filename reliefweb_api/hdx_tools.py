@@ -190,6 +190,30 @@ def hdx_get_idps(country_code: str, limit: int = 10) -> str:
 
 
 @tool
+def hdx_get_ipc_phases(country_code: str, limit: int = 10) -> str:
+    """Get food security IPC phases data from HDX for a specific country.
+
+    Returns IPC phase classifications (1=Minimal, 2=Stress, 3=Crisis,
+    4=Emergency, 5=Famine), affected populations per phase, and report dates.
+    Use for questions about food security crises, famine risk, and hunger
+    levels.
+
+    Args:
+        country_code: ISO 3166-1 alpha-3 country code (e.g., 'SDN', 'SOM', 'YEM')
+        limit: Maximum number of records to return (default 10, max 50)
+    """
+    hdx = get_hdx_client()
+    if not hdx:
+        return format_error("ServiceUnavailable", "HDX client is not initialized. Set HDX_APP_IDENTIFIER in .env")
+    try:
+        result = hdx.get_food_security_sync(location_code=country_code.upper(), limit=min(limit, 50))
+        return _hdx_result_to_json(result)
+    except Exception as e:
+        logger.error(f"HDX food security (IPC) error for {country_code}: {e}")
+        return format_error("HDXError", f"Failed to get IPC phase data for {country_code}: {str(e)}")
+
+
+@tool
 def hdx_get_funding(country_code: str, limit: int = 10) -> str:
     """Get humanitarian funding data (requirements vs. funding received) from HDX for a country.
 
@@ -242,6 +266,7 @@ HDX_TOOLS = [
     hdx_get_data_availability,
     hdx_get_refugees,
     hdx_get_idps,
+    hdx_get_ipc_phases,
     hdx_get_funding,
     hdx_get_conflict_events,
 ]
