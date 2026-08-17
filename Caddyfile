@@ -3,7 +3,7 @@
 # =============================================================================
 
 # Production domain — Caddy gets TLS certs automatically
-your-domain.com {
+sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     encode zstd gzip
 
     @static_assets {
