@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 from pathlib import Path
 
 import config
@@ -366,20 +367,30 @@ def ingest_from_api(
         return {"success": False, "error": f"SQLite insert failed: {e}"}
 
     # ── 7. Insert into Vector Store (ChromaDB or pgvector) ──────
+    # ARM64 SAFETY (Aug 17 2026): ChromaDB collection.add() SEGFAULTS the
+    # whole process (chromadb/api/rust.py _add — untrappable C-level crash,
+    # try/except cannot catch it). Each ingested report killed the ingest
+    # run right after its SQLite insert, so only 1-10 reports/day landed.
+    # SQLite (chunks table) is the source of truth; RAG re-embeds chunk
+    # text on demand via clustering._embed_missing() + numpy pool cosine —
+    # ChromaDB is not needed for retrieval anymore. Skip it entirely.
     n_chunks = 0
-    try:
-        vs = VectorStore(chroma_dir)
-        n_chunks = vs.add_report(report_id, chunks, metadata)
-    except Exception as e:
-        # Rollback the SQLite insert to avoid orphaned records (matches auto_ingest behavior)
-        logger.error(f"Vector store insert failed for {report_id}, rolling back SQLite: {e}")
+    if os.getenv("INGEST_SKIP_VECTORSTORE", "true").lower() == "true":
+        logger.warning("Vector store (ChromaDB) insert SKIPPED — ARM64 segfault guard (INGEST_SKIP_VECTORSTORE=true)")
+    else:
         try:
-            db = DatabaseManager(db_path)
-            db.delete_report(report_id)
-            db.close()
-        except Exception as rb_err:
-            logger.error(f"SQLite rollback ALSO failed for {report_id}: {rb_err}")
-        return {"success": False, "error": f"Vector store insert failed: {e}"}
+            vs = VectorStore(chroma_dir)
+            n_chunks = vs.add_report(report_id, chunks, metadata)
+        except Exception as e:
+            # Rollback the SQLite insert to avoid orphaned records (matches auto_ingest behavior)
+            logger.error(f"Vector store insert failed for {report_id}, rolling back SQLite: {e}")
+            try:
+                db = DatabaseManager(db_path)
+                db.delete_report(report_id)
+                db.close()
+            except Exception as rb_err:
+                logger.error(f"SQLite rollback ALSO failed for {report_id}: {rb_err}")
+            return {"success": False, "error": f"Vector store insert failed: {e}"}
 
     logger.info(
         f"In-memory ingest complete: report {report_id} → {n_chunks} chunks (pdf={has_pdf}, html={has_content})"
