@@ -93,13 +93,12 @@ class ChromaAdapter:
                 conn.close()
         except Exception:
             pass
-        # Fallback: ChromaDB count (may segfault on ARM64, but better than nothing)
+        # ChromaDB fallback REMOVED — collection.count() segfaults on ARM64
+        # (untrappable C-level crash). SQLite failing means something is
+        # broken anyway; returning 0 is safer than killing the process.
         if self.backend == "pgvector":
             return self._get_pgvector().count()
-        try:
-            return self.collection.count()
-        except Exception:
-            return 0
+        return 0
 
     def list_countries(self) -> list[str]:
         """Returns unique primary_country values — cached after first call."""
@@ -122,17 +121,11 @@ class ChromaAdapter:
             # SQLite fallback
             return self._sqlite_list_countries()
 
-        # ChromaDB path
-        try:
-            if self.collection.count() > 0:
-                results = self.collection.get(include=["metadatas"])
-                countries = {m.get("primary_country", "") for m in results["metadatas"]}
-                countries.discard("")
-                if countries:
-                    return sorted(countries)
-        except Exception:
-            pass
-        # SQLite fallback
+        # ARM64 SAFETY (Aug 2026): ChromaDB collection.count() and large
+        # collection.get() SEGFAULT the whole process on ARM64 (Hetzner).
+        # The try/except below cannot catch a C-level SIGSEGV — the process
+        # dies silently. Go straight to SQLite; ChromaDB metadata scan is
+        # never worth the crash risk.
         return self._sqlite_list_countries()
 
     def list_themes(self) -> list[str]:
@@ -148,23 +141,8 @@ class ChromaAdapter:
             # SQLite fallback
             return self._sqlite_list_themes()
 
-        # ChromaDB path
-        try:
-            if self.collection.count() > 0:
-                results = self.collection.get(include=["metadatas"])
-                themes: set = set()
-                for m in results["metadatas"]:
-                    raw = m.get("themes", "")
-                    if raw:
-                        for t in raw.split(","):
-                            t = t.strip()
-                            if t:
-                                themes.add(t)
-                if themes:
-                    return sorted(themes)
-        except Exception:
-            pass
-        # SQLite fallback
+        # ChromaDB path — SKIPPED on ARM64 (count()/get() segfault, see
+        # _list_countries_uncached). Straight to SQLite.
         return self._sqlite_list_themes()
 
     def get_date_range(self, country: str) -> dict:
@@ -183,33 +161,9 @@ class ChromaAdapter:
             # SQLite fallback
             return self._sqlite_get_date_range(normalized, country)
 
-        # ChromaDB path — metadata-only query (no embeddings).
-        # IMPORTANT: use the SAME report-id resolution as get_chunks_by_country
-        # (SQLite countries JSON — includes multi-country reports), otherwise the
-        # date range / count shown in the UI disagrees with what the pipeline loads.
-        try:
-            report_ids = self._sqlite_find_report_ids_by_country(normalized)
-            if report_ids:
-                results = self.collection.get(
-                    where={"report_id": {"$in": report_ids}},
-                    include=["metadatas"],
-                )
-            else:
-                results = self.collection.get(
-                    where={"primary_country": {"$eq": normalized}},
-                    include=["metadatas"],
-                )
-            if results and results["metadatas"]:
-                dates = sorted(set(m.get("date", "")[:10] for m in results["metadatas"] if m.get("date")))
-                if dates:
-                    return {
-                        "min": dates[0],
-                        "max": dates[-1],
-                        "count": len(results["metadatas"]),
-                    }
-        except Exception:
-            pass
-        # SQLite fallback
+        # ChromaDB path — SKIPPED on ARM64 (count()/get() segfault, see
+        # _list_countries_uncached). SQLite carries the same data (chunks
+        # table written at ingest) and is crash-safe.
         return self._sqlite_get_date_range(normalized, country)
 
     # ------------------------------------------------------------------
@@ -394,17 +348,11 @@ class ChromaAdapter:
                 )
             return output
         except Exception as exc:
-            # Fallback to ChromaDB (may segfault on ARM64, but keep behaviour)
-            logger.warning("SQLite chunk read failed (%s) — falling back to ChromaDB", exc)
-            report_ids = self._sqlite_find_report_ids_by_country(normalized, limit=limit)
-            if not report_ids:
-                return []
-            results = self.collection.get(
-                where={"report_id": {"$in": report_ids}},
-                limit=limit,
-                include=["documents", "metadatas"],
-            )
-            return self._format_results(results)
+            # ChromaDB fallback REMOVED — collection.get() segfaults on ARM64.
+            # SQLite read failing means something is broken; return [] instead
+            # of risking a process-killing C-level crash.
+            logger.warning("SQLite chunk read failed for %s: %s — returning empty", country, exc)
+            return []
 
     def get_chunks_by_country_and_themes(
         self,
@@ -490,21 +438,16 @@ class ChromaAdapter:
             # ARM64 production. Pool path needs no collection access at all.
             return self._retrieve_from_pool(query, candidate_pool, k)
 
-        total = self.count()
-        if total == 0:
-            return []
-
-        where = None
-        if country:
-            where = {"primary_country": {"$eq": country}}
-
-        results = self.collection.query(
-            query_texts=[query],
-            n_results=min(k, total),
-            where=where,
-            include=["documents", "metadatas", "distances"],
+        # Whole-collection path — DISABLED on ARM64: collection.query() and
+        # count() both segfault (untrappable C-level crash). The SITREP
+        # pipeline always passes a candidate_pool (clustering output), so
+        # this path is only hit by ad-hoc RAG calls — returning [] with a
+        # warning is safer than killing the process.
+        logger.warning(
+            "retrieve() whole-collection path called without candidate_pool — "
+            "unsafe on ARM64 (ChromaDB query segfault); returning empty"
         )
-        return self._format_query_results(results)
+        return []
 
     def retrieve_bulk(
         self,
