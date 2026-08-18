@@ -94,6 +94,7 @@ const CSS_BUNDLE = [
   'css/sitrep.css',
   'css/responsive.css',
   'css/bulletin.css',
+  'css/legacy-shared.css',
 ];
 const cssSource = CSS_BUNDLE.map(f => readFileSync(join(SRC, f), 'utf8')).join('\n');
 const cssMin = await build({
