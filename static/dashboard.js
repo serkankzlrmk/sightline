@@ -78,7 +78,7 @@ async function loadCommandCenter() {
   // 2. Recent proposals (modül yeniden tasarlanıyor — placeholder)
   const proposalsContainer = document.getElementById('cc-recent-proposals');
   if (proposalsContainer) {
-    proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">🚧 Yakında — yeniden tasarım aşamasında</div>';
+    proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">🚧 Coming soon — being redesigned</div>';
   }
 
   // 3. Bulletins list
