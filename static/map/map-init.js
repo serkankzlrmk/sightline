@@ -350,21 +350,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Mode selector
   document.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const mode = btn.dataset.mode;
       chatState.mode = mode;
       document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
-      if (mode === 'proposal' || mode === 'me_reviewer') {
-        if (!chatState.proposalsLoaded) {
-          await loadChatProposals();
-        }
-        showProposalPicker(mode);
-      } else {
-        hideProposalPicker();
-        updateChatPlaceholder('Message Sightline...');
-      }
     });
   });
 
@@ -455,22 +445,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'quick-prompt':
         sendQuickPrompt(target.dataset.text);
         break;
-      case 'select-proposal':
-        selectProposal(target.dataset.id);
-        break;
-      case 'delete-proposal':
-        e.stopPropagation();
-        deleteProposalItem(target.dataset.id);
-        break;
-      case 'open-rag-drawer':
-        openRagDrawer(parseInt(target.dataset.index));
-        break;
-      case 'edit-toc-node':
-        editTocNode(parseInt(target.dataset.index));
-        break;
-      case 'open-smart-scorecard':
-        openSmartScorecard(target.dataset.level, target);
-        break;
       case 'open-chat-history':
         toggleChatSidebar();
         break;
@@ -490,44 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
         target.closest('.delete-confirm')?.remove();
         break;
-      case 'create-new-proposal':
-        switchTab('proposal');
-        break;
-      case 'generate-toc':
-        generateSection('toc');
-        break;
-      case 'generate-logframe':
-        generateSection('logframe');
-        break;
-      case 'generate-narrative':
-        generateSection('final_review');
-        break;
-      case 'generate-section':
-        generateSection(target.dataset.step);
-        break;
-      case 'save-section':
-        saveSectionManual(target.dataset.step);
-        break;
-      case 'approve-section':
-        approveSection(target.dataset.step);
-        break;
-      case 'skip-section':
-        skipSection(target.dataset.step);
-        break;
-      case 'wizard-select-step':
-        wizardSelectStep(target.dataset.step);
-        break;
-      case 'proposal-view-mode':
-        window.toggleProposalViewMode(target.dataset.step, target.dataset.mode);
-        break;
-      case 'open-diff-modal':
-        openDiffModal();
-        break;
       case 'discuss-sitrep':
         discussSitrepWithAgent();
-        break;
-      case 'proposal-from-sitrep':
-        createProposalFromSitrep(target.dataset);
         break;
       case 'go-chat':
         switchTab('agent');
@@ -542,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ccStartSitrep();
         break;
       case 'cc-start-proposal':
-        ccStartProposal();
+        switchTab('proposal');
         break;
       case 'cc-start-bulletin':
         ccStartBulletin();
@@ -557,7 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
         switchTab('agent');
         break;
       case 'cc-open-proposal':
-        selectProposal(target.dataset.id);
         switchTab('proposal');
         break;
       case 'cc-open-sitrep': {

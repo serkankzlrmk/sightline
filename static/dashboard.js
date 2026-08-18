@@ -75,33 +75,10 @@ async function loadCommandCenter() {
     if (container) container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
   }
 
-  // 2. Recent proposals
+  // 2. Recent proposals (modül yeniden tasarlanıyor — placeholder)
   const proposalsContainer = document.getElementById('cc-recent-proposals');
   if (proposalsContainer) {
-    if (isAuthed) {
-      try {
-        const res = await api('/api/proposals');
-        const proposals = await res.json();
-        if (Array.isArray(proposals)) {
-          if (proposals.length > 0) {
-            proposalsContainer.innerHTML = proposals.slice(0, 5).map(p =>
-              `<div class="cc-recent-item" data-action="cc-open-proposal" data-id="${p.id}" style="font-size:13px; padding:6px 0; cursor:pointer; color:var(--primary); font-weight:500;">
-                <span style="display:inline-flex; align-items:center; gap:6px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  ${escHtml(p.title)}
-                </span>
-              </div>`
-            ).join('');
-          } else {
-            proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">No proposals yet</div>';
-          }
-        }
-      } catch {
-        proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
-      }
-    } else {
-      proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Sign in to view proposals</div>';
-    }
+    proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">🚧 Yakında — yeniden tasarım aşamasında</div>';
   }
 
   // 3. Bulletins list
@@ -146,10 +123,6 @@ function ccStartSitrep() {
       if (inp) inp.value = country;
     }, 200);
   }
-}
-
-function ccStartProposal() {
-  switchTab('proposal');
 }
 
 function ccStartBulletin() {

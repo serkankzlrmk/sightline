@@ -310,41 +310,7 @@ def init_chats_db():
             last_seen      REAL NOT NULL,
             signup_source  TEXT NOT NULL DEFAULT 'web'
         );
-        CREATE TABLE IF NOT EXISTS proposals (
-            id              TEXT PRIMARY KEY,
-            uid             TEXT NOT NULL,
-            title           TEXT NOT NULL,
-            country         TEXT NOT NULL,
-            event           TEXT NOT NULL,
-            themes          TEXT NOT NULL,
-            donor           TEXT NOT NULL,
-            date_from       TEXT NOT NULL DEFAULT '',
-            date_to         TEXT NOT NULL DEFAULT '',
-            toc             TEXT NOT NULL DEFAULT '[]',
-            logframe        TEXT NOT NULL DEFAULT '{}',
-            narrative       TEXT NOT NULL DEFAULT '',
-            created_at      REAL NOT NULL,
-            cover_page      TEXT NOT NULL DEFAULT '{}',
-            background      TEXT NOT NULL DEFAULT '',
-            needs_assessment TEXT NOT NULL DEFAULT '',
-            methodology     TEXT NOT NULL DEFAULT '',
-            budget          TEXT NOT NULL DEFAULT '{}',
-            mne_framework   TEXT NOT NULL DEFAULT '{}',
-            risk_matrix     TEXT NOT NULL DEFAULT '[]',
-            sustainability  TEXT NOT NULL DEFAULT '',
-            coordination    TEXT NOT NULL DEFAULT '',
-            current_step    TEXT NOT NULL DEFAULT 'cover',
-            step_status     TEXT NOT NULL DEFAULT '{}',
-            completed_at    REAL,
-            pinned_sources  TEXT NOT NULL DEFAULT '[]',
-            beneficiary_data TEXT NOT NULL DEFAULT '{}',
-            toc_nodes       TEXT NOT NULL DEFAULT '[]',
-            logframe_data   TEXT NOT NULL DEFAULT '{}',
-            budget_details  TEXT NOT NULL DEFAULT '{}',
-            risk_details    TEXT NOT NULL DEFAULT '[]',
-            mne_plan        TEXT NOT NULL DEFAULT '[]'
-        );
-        CREATE INDEX IF NOT EXISTS idx_proposals_uid ON proposals(uid);
+        CREATE INDEX IF NOT EXISTS idx_chats_uid ON chats(uid);
     """)
     # Migration: add uid column if missing
     cols = [r[1] for r in conn.execute("PRAGMA table_info(chats)").fetchall()]
@@ -352,43 +318,6 @@ def init_chats_db():
         conn.execute("ALTER TABLE chats ADD COLUMN uid TEXT NOT NULL DEFAULT ''")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_chats_uid ON chats(uid)")
         conn.commit()
-    # Migration: add new section columns to existing proposals table
-    prop_cols = [r[1] for r in conn.execute("PRAGMA table_info(proposals)").fetchall()]
-    _new_prop_cols = {
-        "cover_page": ("TEXT NOT NULL DEFAULT '{}'"),
-        "background": ("TEXT NOT NULL DEFAULT ''"),
-        "needs_assessment": ("TEXT NOT NULL DEFAULT ''"),
-        "methodology": ("TEXT NOT NULL DEFAULT ''"),
-        "budget": ("TEXT NOT NULL DEFAULT '{}'"),
-        "mne_framework": ("TEXT NOT NULL DEFAULT '{}'"),
-        "risk_matrix": ("TEXT NOT NULL DEFAULT '[]'"),
-        "sustainability": ("TEXT NOT NULL DEFAULT ''"),
-        "coordination": ("TEXT NOT NULL DEFAULT ''"),
-        "current_step": ("TEXT NOT NULL DEFAULT 'cover'"),
-        "step_status": ("TEXT NOT NULL DEFAULT '{}'"),
-        "completed_at": ("REAL"),
-        "reference_text": ("TEXT NOT NULL DEFAULT ''"),
-        "reference_filename": ("TEXT NOT NULL DEFAULT ''"),
-        "pinned_sources": ("TEXT NOT NULL DEFAULT '[]'"),
-        "beneficiary_data": ("TEXT NOT NULL DEFAULT '{}'"),
-        "toc_nodes": ("TEXT NOT NULL DEFAULT '[]'"),
-        "logframe_data": ("TEXT NOT NULL DEFAULT '{}'"),
-        "budget_details": ("TEXT NOT NULL DEFAULT '{}'"),
-        "risk_details": ("TEXT NOT NULL DEFAULT '[]'"),
-        "mne_plan": ("TEXT NOT NULL DEFAULT '[]'"),
-    }
-    for col, coldef in _new_prop_cols.items():
-        if col not in prop_cols:
-            conn.execute(f"ALTER TABLE proposals ADD COLUMN {col} {coldef}")
-    # Guided Proposal migration — rename legacy proposal_v2_setups → proposal_setups
-    guided_tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
-    if "proposal_v2_setups" in guided_tables and "proposal_setups" not in guided_tables:
-        conn.execute("ALTER TABLE proposal_v2_setups RENAME TO proposal_setups")
-        logger.info("Migrated proposal_v2_setups → proposal_setups")
-    if "proposal_setups" in guided_tables:
-        guided_cols = {r[1] for r in conn.execute("PRAGMA table_info(proposal_setups)").fetchall()}
-        if "call_brief" not in guided_cols:
-            conn.execute("ALTER TABLE proposal_setups ADD COLUMN call_brief TEXT NOT NULL DEFAULT '{}'")
     # Migration: add meta column to chat_messages for turn telemetry
     msg_cols = [r[1] for r in conn.execute("PRAGMA table_info(chat_messages)").fetchall()]
     if "meta" not in msg_cols:
@@ -819,39 +748,6 @@ SECTION_DB_FIELDS = {
 }
 
 
-def get_proposal_for_edit(prop_id: str, uid: str, role: str):
-    """Fetch proposal row, check edit permissions. Returns (row, conn) or (None, conn)."""
-    conn = chats_db()
-    try:
-        if role == "admin":
-            row = conn.execute("SELECT * FROM proposals WHERE id = ?", (prop_id,)).fetchone()
-        else:
-            row = conn.execute("SELECT * FROM proposals WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
-        return row, conn
-    except Exception:
-        conn.close()
-        return None, None
-
-
-def update_step_status(conn, prop_id: str, step: str, status: str, uid: str, role: str):
-    """Update the step_status JSON for a proposal."""
-    row = conn.execute("SELECT step_status FROM proposals WHERE id = ?", (prop_id,)).fetchone()
-    if not row:
-        return
-    try:
-        step_status = json.loads(row["step_status"]) if row["step_status"] else {}
-    except Exception:
-        step_status = {}
-    step_status[step] = status
-    if role == "admin":
-        conn.execute("UPDATE proposals SET step_status = ? WHERE id = ?", (json.dumps(step_status), prop_id))
-    else:
-        conn.execute(
-            "UPDATE proposals SET step_status = ? WHERE id = ? AND uid = ?", (json.dumps(step_status), prop_id, uid)
-        )
-    conn.commit()
-
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Bulletin & ChromaDB helpers
 # ═══════════════════════════════════════════════════════════════════════════
@@ -927,7 +823,5 @@ _is_gpu_noise = is_gpu_noise
 _run_job = run_job
 _get_chroma_adapter = get_chroma_adapter
 _trim_bulletin_for_preview = trim_bulletin_for_preview
-_get_proposal_for_edit = get_proposal_for_edit
-_update_step_status = update_step_status
 
 MANUAL_ID_BASE = 9_000_000_000  # manual TR-prefixed IDs start above this

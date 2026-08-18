@@ -45,9 +45,7 @@ const chatState = {
   currentAiEl: null,
   currentAiText: '',
   selectedModel: DEFAULT_MODEL,
-  mode: 'analyst',         // analyst | proposal | me_reviewer
-  proposalId: null,       // active proposal for proposal/review modes
-  proposalsLoaded: false,
+  mode: 'analyst',         // analyst | me_reviewer
   attachment: null,       // { name, dataUrl, mime } for Vision model
 };
 
@@ -66,7 +64,7 @@ const _tags = { country: [], theme: [] };
 let chatInput, sendBtn, chatDiv, busyDot;
 
 // NOTE: api(), toast(), esc(), escHtml(), sanitizeHtml() live in shared.js
-// (loaded before this file). proposal.js reads them via window.* too.
+// (loaded before this file).
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SHARED HELPERS (toast/esc/sanitizeHtml moved to shared.js — see above)
@@ -203,15 +201,6 @@ function switchTab(name) {
       // Load analytics too (charts render lazily once section is shown)
       loadAnalytics();
     }
-  }
-
-  // Proposal is a dense authoring workspace. Give it the full canvas while
-  // keeping the global navigation available from the hamburger button.
-  if (name === 'proposal') {
-    if (sidebar) sidebar.classList.add('hidden');
-    document.body.classList.add('sidebar-hidden');
-    document.body.classList.remove('sidebar-collapsed');
-    if (main) main.style.marginLeft = '0';
   }
 
   if (name === 'home') loadCommandCenter();

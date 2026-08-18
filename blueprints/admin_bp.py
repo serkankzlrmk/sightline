@@ -401,22 +401,3 @@ def api_admin_delete_bulletin(filename):
         logger.error(f"api_admin_delete_bulletin error: {filename}, {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-
-@admin_bp.route("/proposals/<prop_id>", methods=["DELETE"])
-@require_admin
-def api_admin_delete_proposal(prop_id):
-    """Delete any proposal regardless of owner (admin only)."""
-    conn = _chats_db()
-    try:
-        row = conn.execute("SELECT id FROM proposals WHERE id = ?", (prop_id,)).fetchone()
-        if not row:
-            return jsonify({"error": "Proposal not found"}), 404
-        conn.execute("DELETE FROM proposals WHERE id = ?", (prop_id,))
-        conn.commit()
-        _log_event(current_uid(), "proposal_deleted", {"prop_id": prop_id, "admin": True})
-        return jsonify({"message": "Proposal deleted"})
-    except Exception as e:
-        logger.error(f"api_admin_delete_proposal error: {prop_id}, {e}")
-        return jsonify({"error": "Internal server error"}), 500
-    finally:
-        conn.close()

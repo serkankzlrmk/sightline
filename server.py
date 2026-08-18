@@ -88,14 +88,12 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit (PDF r
 from blueprints.admin_bp import admin_bp
 from blueprints.agent_bp import agent_bp
 from blueprints.db_bp import db_bp
-from blueprints.guided_proposal import guided_proposal_bp
 from blueprints.hdx_bp import hdx_bp
 from blueprints.ingest_bp import ingest_bp
 from blueprints.news_bp import news_bp
 from blueprints.public_bp import public_bp
 from blueprints.sitrep import sitrep_bp
 
-app.register_blueprint(guided_proposal_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(sitrep_bp)
 app.register_blueprint(agent_bp)
@@ -313,7 +311,6 @@ limiter = Limiter(
 
 # Per-blueprint rate limits
 limiter.limit("30/minute")(agent_bp)  # Expensive LLM calls
-limiter.limit("20/minute")(guided_proposal_bp)  # LLM-heavy proposal generation
 limiter.limit("10/minute")(ingest_bp)  # Very heavy — PDF upload + processing
 limiter.limit("60/minute")(admin_bp)  # Light queries
 # Public/DB/HDX/News/Sitrep: default 120/min (already set)

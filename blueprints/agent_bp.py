@@ -185,9 +185,9 @@ def api_agent_chat():
     # Do all validation that can return early here so we never leave the
     # busy flag stuck if a later step returns/throws before generate() runs.
 
-    # Agent mode: analyst (default), proposal, me_reviewer
+    # Agent mode: analyst (default), me_reviewer
     agent_mode = data.get("mode", "analyst")
-    if agent_mode not in ("analyst", "proposal", "me_reviewer"):
+    if agent_mode not in ("analyst", "me_reviewer"):
         agent_mode = "analyst"
 
     # Model selection for chat
@@ -207,21 +207,6 @@ def api_agent_chat():
 
     # Deep Think: sequential reasoning flag
     use_sequential = model_config.get("sequential", False)
-
-    # If proposal/review mode, attach proposal_id to config
-    proposal_id = data.get("proposal_id", "")
-    if agent_mode in ("proposal", "me_reviewer") and not proposal_id:
-        try:
-            _pconn = _chats_db()
-            _prow = _pconn.execute(
-                "SELECT id FROM proposals WHERE uid = ? ORDER BY created_at DESC LIMIT 1",
-                (uid,),
-            ).fetchone()
-            _pconn.close()
-            if _prow:
-                proposal_id = _prow["id"]
-        except Exception:
-            pass
 
     # ── Busy flag + rate limit (atomic) ───────────────────────────────────
     # Rate limit check + busy flag check must be atomic to prevent TOCTOU races
@@ -322,7 +307,6 @@ def api_agent_chat():
                 "recursion_limit": 25,
                 "configurable": {
                     "uid": uid,
-                    "proposal_id": proposal_id,
                 },
             }
 

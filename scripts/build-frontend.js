@@ -68,16 +68,6 @@ const appMin = await minify(appSource, 'app.js');
 version.app = sha8(appMin);
 writeFileSync(join(DIST, 'app.js'), appMin);
 
-// ── proposal.js (V2-only — guided proposal wizard) ──────────────────────────
-// V1 (wizard/render/review/export) kaldırıldı; tek kaynak proposal-guided.js.
-const PROPOSAL_BUNDLE = [
-  'proposal/proposal-guided.js',
-];
-const propSource = PROPOSAL_BUNDLE.map(f => readFileSync(join(SRC, f), 'utf8')).join('\n;\n');
-const propMin = await minify(propSource, 'proposal.js');
-version.proposal = sha8(propMin);
-writeFileSync(join(DIST, 'proposal.js'), propMin);
-
 // ── landing3d.js ─────────────────────────────────────────────────────────────
 let landMin = '';
 if (readFileSync(join(SRC, 'landing3d.js'), 'utf8').length > 0) {
@@ -87,13 +77,13 @@ if (readFileSync(join(SRC, 'landing3d.js'), 'utf8').length > 0) {
   writeFileSync(join(DIST, 'landing3d.js'), landMin);
 }
 
-// ── CSS (app bundle — modular css/ + proposal-logframe; landing.css SEPARATE!) ──
+// ── CSS (app bundle — modular css/; landing.css SEPARATE!) ──────────────────
 // Landing is an independent page with its own body rules; merging it into the
 // app bundle caused body{...} conflicts (app's height:100vh/overflow:hidden
 // leaked into landing, and --bg vars clashed with landing gradients).
 //
 // CSS modules are concatenated in order: base (variables/reset) first,
-// then feature modules, then proposal-logframe overrides.
+// then feature modules.
 const CSS_BUNDLE = [
   'css/base.css',
   'css/layout.css',
@@ -104,9 +94,6 @@ const CSS_BUNDLE = [
   'css/sitrep.css',
   'css/responsive.css',
   'css/bulletin.css',
-  'css/proposal.css',
-  'css/wizard.css',
-  'proposal-logframe.css',
 ];
 const cssSource = CSS_BUNDLE.map(f => readFileSync(join(SRC, f), 'utf8')).join('\n');
 const cssMin = await build({
@@ -132,6 +119,5 @@ writeFileSync(join(DIST, 'version.json'), JSON.stringify(version, null, 2));
 
 console.log('✅ Frontend build complete');
 console.log(`   app.js       ${version.app}  (${(appMin.length / 1024).toFixed(1)} KB)`);
-console.log(`   proposal.js  ${version.proposal}  (${(propMin.length / 1024).toFixed(1)} KB)`);
 console.log(`   landing3d.js ${version.landing3d || '—'}  (${((landMin?.length || 0) / 1024).toFixed(1)} KB)`);
 console.log(`   style.css    ${version.css}  (${(cssMin.length / 1024).toFixed(1)} KB)`);

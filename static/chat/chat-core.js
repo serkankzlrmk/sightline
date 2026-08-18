@@ -118,64 +118,6 @@ function toggleChatSidebar() {
   ov.classList.toggle('open', open);
 }
 
-async function loadChatProposals() {
-  try {
-    const res = await api('/api/proposals');
-    const data = await res.json();
-    chatState.proposals = Array.isArray(data) ? data : [];
-    chatState.proposalsLoaded = true;
-  } catch {
-    chatState.proposals = [];
-  }
-}
-
-function showProposalPicker(mode) {
-  let picker = document.getElementById('chat-proposal-picker');
-  if (!picker) {
-    picker = document.createElement('div');
-    picker.id = 'chat-proposal-picker';
-    picker.style.cssText = 'padding: 6px 16px; background: var(--bg-elevated, var(--bg-card)); border-bottom: 1px solid var(--border-light); display:flex; align-items:center; gap:8px; font-size:12px;';
-    const chatScroll = document.querySelector('.chat-footer');
-    if (chatScroll && chatScroll.parentNode) {
-      chatScroll.parentNode.insertBefore(picker, chatScroll);
-    }
-  }
-  const label = mode === 'me_reviewer' ? 'Review proposal:' : 'Work on proposal:';
-  const proposals = chatState.proposals || [];
-  let options = '<option value="">— Select —</option>';
-  for (const p of proposals) {
-    options += `<option value="${p.id}" ${chatState.proposalId === p.id ? 'selected' : ''}>${escHtml(p.title)} (${escHtml(p.country || '?')})</option>`;
-  }
-  picker.innerHTML = `
-    <span style="color:var(--text-muted); white-space:nowrap;">${label}</span>
-    <select id="chat-proposal-select" style="flex:1; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text-primary);">
-      ${options}
-    </select>
-  `;
-  const sel = document.getElementById('chat-proposal-select');
-  if (sel) {
-    sel.addEventListener('change', () => {
-      chatState.proposalId = sel.value || null;
-      if (mode === 'proposal') {
-        updateChatPlaceholder('Ask me to write or improve a proposal section...');
-      } else {
-        updateChatPlaceholder('Ask me to review the proposal...');
-      }
-    });
-  }
-  picker.style.display = 'flex';
-  if (mode === 'proposal') {
-    updateChatPlaceholder('Select a proposal above, then ask me to write or improve sections...');
-  } else {
-    updateChatPlaceholder('Select a proposal above, then ask me to review it...');
-  }
-}
-
-function hideProposalPicker() {
-  const picker = document.getElementById('chat-proposal-picker');
-  if (picker) picker.style.display = 'none';
-}
-
 function updateChatPlaceholder(text) {
   const inp = document.getElementById('chat-input');
   if (inp) inp.placeholder = text;
@@ -232,7 +174,6 @@ async function sendMessage() {
 
   try {
     const body = { message: text, model: chatState.selectedModel, mode: chatState.mode };
-    if (chatState.proposalId) body.proposal_id = chatState.proposalId;
     if (chatState.attachment) {
       body.attachment = chatState.attachment;
       chatState.attachment = null;

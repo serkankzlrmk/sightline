@@ -314,12 +314,6 @@ if _mcp_ok and mcp_integration.MCP_TOOLS:
 else:
     logger.warning("MCP tools initializing in background — will be available shortly.")
 
-# Proposals tools (always available)
-from agent.proposal_tools import PROPOSAL_TOOLS
-
-_tool_groups.append(PROPOSAL_TOOLS)
-_tool_labels.append(f"{len(PROPOSAL_TOOLS)} Proposals")
-
 # SQL query tool (always available — no external dependency)
 _tool_groups.append(SQL_TOOLS)
 _tool_labels.append(f"{len(SQL_TOOLS)} SQL")
@@ -351,45 +345,22 @@ def get_tools_for_mode(mode: str = "analyst", role: str = "free") -> list:
 
     Modes:
     - analyst: All humanitarian data tools (default)
-    - proposal: All tools + proposal editing tools
-    - me_reviewer: All tools + proposal read-only tools
+    - me_reviewer: All humanitarian data tools (read-only)
 
     Roles:
-    - free: Excludes proposal editing tools and SQL tool.
+    - free: Excludes SQL tool.
             Free users can still use humanitarian data tools (ReliefWeb, HDX, etc.)
-            and proposal read-only tools (get_proposal_details, get_section_content).
-    - premium/admin: Full tool set including proposal editing and SQL.
+    - premium/admin: Full tool set including SQL.
     """
     # Base: all tools
     tools = list(all_tools)
 
-    # Role-based filtering: restrict proposal editing and SQL for free users
+    # Role-based filtering: restrict SQL for free users
     _premium_only_tools = {
-        "edit_proposal_toc",
-        "edit_proposal_logframe",
-        "edit_proposal_narrative",
-        "propose_edits",
         "sql_query",
     }
     if role == "free":
         tools = [t for t in tools if t.name not in _premium_only_tools]
-
-    # Mode-based additions
-    from agent.proposal_tools import PROPOSAL_TOOLS
-
-    if mode == "proposal":
-        existing = {t.name for t in tools}
-        extra = [t for t in PROPOSAL_TOOLS if t.name not in existing]
-        # For free users, still exclude premium-only proposal tools
-        if role == "free":
-            extra = [t for t in extra if t.name not in _premium_only_tools]
-        tools = tools + extra
-
-    if mode == "me_reviewer":
-        review_tools = [t for t in PROPOSAL_TOOLS if t.name in ("get_proposal_details", "get_section_content")]
-        existing = {t.name for t in tools}
-        extra = [t for t in review_tools if t.name not in existing]
-        tools = tools + extra
 
     return tools
 
@@ -472,61 +443,7 @@ You are in Deep Think mode. For complex analytical questions, use the **sequenti
     mode_tools = ""
     mode_behavior = ""
 
-    if mode == "proposal":
-        mode_intro = """
-## AGENT MODE: PROPOSAL EXPERT
-
-You are operating in **Proposal Expert** mode. You are a senior humanitarian proposal designer with 15+ years of experience writing donor-funded projects for ECHO, USAID/BHA, OCHA, UNHCR, and major foundations.
-
-### YOUR EXPERTISE:
-- ECHO Humanitarian Implementation Plan (HIP) format and requirements
-- USAID/BHA application guidelines and budget structures
-- UN OCHA Country-Based Pooled Fund (CBPF) proposal templates
-- Theory of Change design and Logical Framework development
-- SMART indicator design (Specific, Measurable, Achievable, Relevant, Time-bound)
-- Needs assessment methodology (JIAF, MSNA frameworks)
-- Budget construction by sector (per ECHO/USAID cost categories)
-- M&E framework design (output, outcome, impact indicators)
-- Risk assessment and mitigation matrix
-- Gender mainstreaming and protection integration
-- Sustainability and exit strategy design
-- Coordination mechanisms (cluster system, HCT, OCHA)
-
-### PROPOSAL WORKFLOW:
-When the user asks you to work on a proposal:
-1. Call get_proposal_details() to read the current proposal state
-2. Understand which sections are complete vs. empty
-3. Offer to generate or improve specific sections
-4. When writing, follow the donor format strictly
-5. Always include SMART indicators with baseline/target values
-6. Cite ReliefWeb/HDX data sources inline
-
-### QUALITY STANDARDS:
-- Every indicator must be SMART (check each letter)
-- Every budget line must have a description and percentage
-- Every risk must have a probability, impact, AND mitigation
-- Every needs claim must cite a data source (HDX/ReliefWeb/WorldBank)
-- ToC levels must flow logically: Activity → Output → Outcome → Impact
-"""
-        mode_tools = """
-### PROPOSAL TOOLS (available in this mode):
-- **get_proposal_details(config)** — Read the active proposal's full state
-- **get_section_content(section, config)** — Read a specific section
-- **edit_proposal_toc(goal_impact, outcome, output, activity, config)** — Update Theory of Change
-- **edit_proposal_logframe(field, text, config)** — Update a Logframe cell
-- **edit_proposal_narrative(narrative, config)** — Update the narrative text
-"""
-        mode_behavior = """
-### PROPOSAL MODE RULES:
-1. Always call get_proposal_details() first to understand the current state
-2. Ask the user which section they want to work on if not specified
-3. Use ReliefWeb/HDX/WorldBank tools to gather data for needs assessments
-4. Structure your output in the donor's required format
-5. After writing a section, suggest next steps ("Want me to generate the Logframe next?")
-6. Be proactive: if the ToC has a logical gap, point it out before the user asks
-7. Keep track of consistency: budget must match activities, indicators must match logframe
-"""
-    elif mode == "me_reviewer":
+    if mode == "me_reviewer":
         mode_intro = """
 ## AGENT MODE: M&E REVIEWER
 

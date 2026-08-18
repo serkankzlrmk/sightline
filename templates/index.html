@@ -677,116 +677,18 @@
   </div>
 
   <!-- ─── TAB: PROPOSAL DESIGN PIPELINE ────────── -->
+  <!-- ─── TAB: PROPOSAL (in development placeholder) ────────── -->
   <div class="panel" id="panel-proposal">
-    <div class="proposal-page" id="proposal-page">
-      <!-- Sidebar: Proposal List -->
-      <div class="proposal-sidebar" id="proposal-sidebar">
-        <div class="proposal-sidebar-head">
-          <span class="proposal-sidebar-title">Proposals</span>
-          <div style="display:flex; gap:6px; align-items:center;">
-            <button class="btn btn-xs btn-primary btn-with-icon" id="btn-new-proposal">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>New</span>
-            </button>
-            <button class="btn-icon-ghost" id="btn-toggle-proposal-sidebar" title="Collapse Proposal List Sidebar">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="proposal-list" id="proposal-list">
-          <div class="empty-state">No proposals yet</div>
-        </div>
-      </div>
-
-      <!-- Workspace: Wizard -->
-      <div class="proposal-workspace" id="proposal-workspace">
-        <!-- Step Sidebar (left of content) -->
-        <div class="wizard-steps-sidebar" id="wizard-steps-sidebar">
-          <div class="steps-sidebar-head">
-            <span>Wizard Steps</span>
-            <button class="btn-icon-ghost" id="btn-toggle-steps-sidebar" title="Collapse Steps Sidebar">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-          </div>
-          <div class="wizard-progress-bar">
-            <div class="wizard-progress-fill" id="wizard-progress-fill" style="width:0%"></div>
-          </div>
-          <div class="wizard-steps-list" id="wizard-steps-list">
-            <!-- Steps populated dynamically -->
-          </div>
-        </div>
-
-        <!-- Content Area -->
-        <div class="wizard-content-area" id="wizard-content-area">
-          <div class="proposal-topbar">
-            <div class="proposal-breadcrumbs" id="proposal-breadcrumbs">
-              <span class="bc-item bc-proposal-name" id="bc-proposal-name">No Active Proposal</span>
-              <span class="bc-sep">/</span>
-              <span class="bc-item bc-step-name" id="bc-step-name">Cover Page</span>
-            </div>
-            <div class="workspace-view-controls">
-              <button class="btn btn-xs btn-secondary btn-with-icon" id="btn-toggle-left-sidebars" title="Toggle Proposals & Steps Sidebars" aria-pressed="true">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
-                <span>Sidebars</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="wizard-section-header">
-            <div>
-              <h2 id="proposal-project-title">Select or Create a Proposal</h2>
-              <p id="proposal-project-context" class="text-muted">Step-by-step AI-assisted donor proposal wizard</p>
-            </div>
-          </div>
-
-          <div class="wizard-section-content" id="wizard-section-content">
-            <div class="proposal-welcome-placeholder">
-              <div class="welcome-icon">📋</div>
-              <h3>Humanitarian Proposal Design Studio</h3>
-              <p>Generate a complete donor-ready proposal step by step. The AI agent researches crisis data, builds your Theory of Change, Logframe, Budget, and full narrative — with your review at each stage.</p>
-              <button class="btn btn-primary btn-with-icon" id="btn-create-first-proposal">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Create New Proposal</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Proposal Review Panel -->
-        <div class="proposal-advisor-panel" id="proposal-advisor-panel">
-          <div class="critique-header">
-            <div class="critique-header-title">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              <span>Proposal Assistant</span>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <span class="proposal-review-label">Assistant review</span>
-              <button class="btn btn-xs btn-secondary" id="btn-run-review" title="Run AI review on entire proposal" style="font-size:11px; padding:2px 8px;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:3px;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                Analyze
-              </button>
-              <span class="status-indicator-green" id="advisor-status">Ready</span>
-              <button class="btn-icon-ghost" id="btn-toggle-proposal-chat" title="Collapse Review Panel">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="proposal-chat-collapsed-bar" id="proposal-chat-collapsed-bar" title="Expand Proposal Assistant">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            <span>Proposal Assistant</span>
-          </div>
-          <!-- Review Tab Content -->
-          <div id="review-content" style="flex:1 1 0%; min-height:0; overflow-y:auto; padding:12px;">
-            <div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:12px;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              <p style="font-size:13px;">Click <strong>Analyze</strong> to get AI feedback<br>on your entire proposal</p>
-              <p style="font-size:11px; margin-top:8px;">Section scores, priorities & suggestions</p>
-            </div>
-          </div>
-        </div>
+    <div class="proposal-page">
+      <div class="proposal-welcome-placeholder" style="min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:16px; padding:48px 24px;">
+        <div class="welcome-icon" style="font-size:56px;">📋</div>
+        <h2 style="margin:0;">Proposal Studio</h2>
+        <p style="max-width:520px; color:var(--text-muted); font-size:14px; line-height:1.7;">Bu modül yeniden tasarlanıyor — yeni Proposal Studio kısa süre içinde burada olacak. Mevcut sistem durduruldu, sıfırdan inşa ediliyor.</p>
+        <span class="wizard-status-badge" style="font-size:12px; padding:6px 14px; border-radius:999px;">🚧 Çalışma aşamasında</span>
       </div>
     </div>
   </div>
+
 
   <!-- ─── ADMIN PANEL ───────────────────────────── -->
   <div class="panel" id="panel-admin">
@@ -1063,6 +965,5 @@
 <script defer src="/static/firebase-config.js?v={{ v }}"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script defer src="/static/dist/app.js?v={{ v }}"></script>
-<script defer src="/static/dist/proposal.js?v={{ v }}"></script>
 </body>
 </html>
