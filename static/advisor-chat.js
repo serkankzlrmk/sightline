@@ -1,6 +1,5 @@
 // ── Proposal Assistant: Review / Chat tab switching ──────────────────────────
-// V2-aware: uses guidedProposalState.active.id when available,
-// falls back to proposalState.activeProposalId for legacy compatibility.
+// V2-only: uses guidedProposalState.active.id.
 window.switchAdvisorTab = function switchAdvisorTab(tab) {
   const reviewEl = document.getElementById("review-content");
   const chatEl = document.getElementById("advisor-chat-content");
@@ -25,13 +24,9 @@ window.switchAdvisorTab = function switchAdvisorTab(tab) {
 
 // ── Helper: resolve the active V2 setup id ──────────────────────────────────
 function _advisorSetupId() {
-  // V2 guided proposal (preferred)
+  // V2 guided proposal (the only proposal workspace)
   if (typeof guidedProposalState !== "undefined" && guidedProposalState.active?.id) {
     return { id: guidedProposalState.active.id, isV2: true };
-  }
-  // Legacy V1 proposal
-  if (typeof proposalState !== "undefined" && proposalState.activeProposalId) {
-    return { id: proposalState.activeProposalId, isV2: false };
   }
   return null;
 }
@@ -50,11 +45,7 @@ async function loadAdvisorChatHistory() {
   window[cacheKey] = info.id;
 
   try {
-    // V2 uses /api/proposals/setups/{id}/advisor/history
-    // V1 uses /api/proposals/{id}/advisor/history
-    const path = info.isV2
-      ? `/api/proposals/setups/${info.id}/advisor/history`
-      : `/api/proposals/${info.id}/advisor/history`;
+    const path = `/api/proposals/setups/${info.id}/advisor/history`;
 
     const resp = await api(path);
     if (!resp.ok) return;
@@ -70,6 +61,16 @@ async function loadAdvisorChatHistory() {
   } catch(e) {
     console.warn("Failed to load advisor chat history:", e);
   }
+}
+
+// Markdown render for advisor bubbles. `marked` is loaded via CDN in
+// index.html; fall back to escaped plain text when unavailable.
+function renderMarkdown(text) {
+  if (typeof text !== 'string') return '';
+  if (typeof window.marked === 'function') {
+    try { return window.marked.parse(text); } catch { /* fall through */ }
+  }
+  return escHtml(text);
 }
 
 function appendAdvisorChatBubble(sender, text, role) {
@@ -108,11 +109,7 @@ async function sendAdvisorChat() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 
   try {
-    // V2 uses /api/proposals/setups/{id}/advisor/chat
-    // V1 uses /api/proposals/{id}/advisor/chat
-    const path = info.isV2
-      ? `/api/proposals/setups/${info.id}/advisor/chat`
-      : `/api/proposals/${info.id}/advisor/chat`;
+    const path = `/api/proposals/setups/${info.id}/advisor/chat`;
 
     const resp = await api(path, {
       method: "POST",
@@ -129,23 +126,12 @@ async function sendAdvisorChat() {
       appendAdvisorChatBubble("Sightline Advisor", data.response || "Done.", "assistant");
       if (data.command && data.command.action === "refresh") {
         // Refresh the active V2 proposal
-        if (info.isV2 && typeof guidedProposalState !== "undefined") {
+        if (typeof guidedProposalState !== "undefined") {
           try {
             const refreshed = await guidedRequest(`/api/proposals/setups/${info.id}`);
             guidedProposalState.active = refreshed;
             if (typeof guidedRender === "function") guidedRender();
           } catch (_) {}
-        } else if (typeof proposalState !== "undefined") {
-          // Legacy V1 refresh
-          const refreshed = await api(`/api/proposals/${info.id}`);
-          const prop = await refreshed.json();
-          if (!prop.error) {
-            proposalState.activeProposal = prop;
-            if (typeof renderWizardSteps === "function") renderWizardSteps();
-            if (proposalState.currentStep && typeof renderSectionContent === "function") {
-              renderSectionContent(proposalState.currentStep);
-            }
-          }
         }
       }
     }
