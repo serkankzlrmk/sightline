@@ -1,21 +1,14 @@
-async function saveActiveProposal() {
-  if (!proposalState.activeProposalId || !proposalState.activeProposal) return;
-  try {
-    await api(`/api/proposals/${proposalState.activeProposalId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposalState.activeProposal) });
-    // Show subtle notification in review panel after manual edits
-    const statusEl = document.getElementById('advisor-status');
-    if (statusEl && statusEl.textContent !== 'Analyzing...' && statusEl.textContent !== 'Generating...') {
-      statusEl.textContent = 'Edited · Analyze for feedback';
-    }
-  }
-  catch (err) { console.warn("Save proposal failed:", err); }
-}
-
-
 /* ── Guided Proposal workspace ────────────────────────────────────────────
  * The legacy proposal editor is no longer mounted. Guided Proposal is the
  * single user-facing proposal workspace and talks to /api/proposals/setups.
  */
+const PROPOSAL_STEPS = [
+  { key: 'setup', label: 'Project Setup', num: 1 },
+  { key: 'context', label: 'Context & Needs', num: 2 },
+  { key: 'technical', label: 'Technical Design', num: 3 },
+  { key: 'financial', label: 'Commitments & Financials', num: 4 },
+  { key: 'review', label: 'Final Review & Export', num: 5 },
+];
 let guidedProposalState = { setups: [], active: null, step: 1, busy: false, countries: [], viewMode: 'edit' };
 function guidedJson(value, fallback) { try { return JSON.parse(value); } catch { return fallback; } }
 async function guidedRequest(path, options = {}) { const response = await api(path, options); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`); return data; }
