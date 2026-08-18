@@ -68,14 +68,9 @@ const appMin = await minify(appSource, 'app.js');
 version.app = sha8(appMin);
 writeFileSync(join(DIST, 'app.js'), appMin);
 
-// ── proposal.js (modular — concat proposal/*.js in order, then minify) ──────
-// All functions are declarations (hoisted), so order only matters for the
-// const dependency resolution at the top of proposal-wizard.js.
+// ── proposal.js (V2-only — guided proposal wizard) ──────────────────────────
+// V1 (wizard/render/review/export) kaldırıldı; tek kaynak proposal-guided.js.
 const PROPOSAL_BUNDLE = [
-  'proposal/proposal-wizard.js',
-  'proposal/proposal-render.js',
-  'proposal/proposal-review.js',
-  'proposal/proposal-export.js',
   'proposal/proposal-guided.js',
 ];
 const propSource = PROPOSAL_BUNDLE.map(f => readFileSync(join(SRC, f), 'utf8')).join('\n;\n');
