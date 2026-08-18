@@ -1,5 +1,5 @@
 // ── Proposal Assistant: Review / Chat tab switching ──────────────────────────
-// V2-only: uses guidedProposalState.active.id.
+// Single Proposal workspace: uses proposalState.active.id.
 window.switchAdvisorTab = function switchAdvisorTab(tab) {
   const reviewEl = document.getElementById("review-content");
   const chatEl = document.getElementById("advisor-chat-content");
@@ -22,11 +22,11 @@ window.switchAdvisorTab = function switchAdvisorTab(tab) {
   }
 };
 
-// ── Helper: resolve the active V2 setup id ──────────────────────────────────
+// ── Helper: resolve the active proposal setup id ──────────────────────────────────
 function _advisorSetupId() {
-  // V2 guided proposal (the only proposal workspace)
-  if (typeof guidedProposalState !== "undefined" && guidedProposalState.active?.id) {
-    return { id: guidedProposalState.active.id, isV2: true };
+  // Guided proposal (the only proposal workspace)
+  if (typeof proposalState !== "undefined" && proposalState.active?.id) {
+    return { id: proposalState.active.id };
   }
   return null;
 }
@@ -125,11 +125,11 @@ async function sendAdvisorChat() {
     } else {
       appendAdvisorChatBubble("Sightline Advisor", data.response || "Done.", "assistant");
       if (data.command && data.command.action === "refresh") {
-        // Refresh the active V2 proposal
-        if (typeof guidedProposalState !== "undefined") {
+        // Refresh the active proposal
+        if (typeof proposalState !== "undefined") {
           try {
             const refreshed = await guidedRequest(`/api/proposals/setups/${info.id}`);
-            guidedProposalState.active = refreshed;
+            proposalState.active = refreshed;
             if (typeof guidedRender === "function") guidedRender();
           } catch (_) {}
         }

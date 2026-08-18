@@ -380,12 +380,15 @@ def init_chats_db():
     for col, coldef in _new_prop_cols.items():
         if col not in prop_cols:
             conn.execute(f"ALTER TABLE proposals ADD COLUMN {col} {coldef}")
-    # Guided Proposal V2 migration
+    # Guided Proposal migration — rename legacy proposal_v2_setups → proposal_setups
     guided_tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
-    if "proposal_v2_setups" in guided_tables:
-        guided_cols = {r[1] for r in conn.execute("PRAGMA table_info(proposal_v2_setups)").fetchall()}
+    if "proposal_v2_setups" in guided_tables and "proposal_setups" not in guided_tables:
+        conn.execute("ALTER TABLE proposal_v2_setups RENAME TO proposal_setups")
+        logger.info("Migrated proposal_v2_setups → proposal_setups")
+    if "proposal_setups" in guided_tables:
+        guided_cols = {r[1] for r in conn.execute("PRAGMA table_info(proposal_setups)").fetchall()}
         if "call_brief" not in guided_cols:
-            conn.execute("ALTER TABLE proposal_v2_setups ADD COLUMN call_brief TEXT NOT NULL DEFAULT '{}'")
+            conn.execute("ALTER TABLE proposal_setups ADD COLUMN call_brief TEXT NOT NULL DEFAULT '{}'")
     # Migration: add meta column to chat_messages for turn telemetry
     msg_cols = [r[1] for r in conn.execute("PRAGMA table_info(chat_messages)").fetchall()]
     if "meta" not in msg_cols:

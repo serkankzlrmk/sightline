@@ -131,7 +131,7 @@ def clean_setups():
     import sqlite3
 
     conn = sqlite3.connect(str(CHATS_DB_PATH))
-    conn.execute("DELETE FROM proposal_v2_setups WHERE uid LIKE 'test-v2-%'")
+    conn.execute("DELETE FROM proposal_setups WHERE uid LIKE 'test-v2-%'")
     conn.commit()
     conn.close()
     yield
@@ -159,7 +159,7 @@ def test_draft_analyze_and_lock_flow(client):
         assert setup["state"] == "draft"
 
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one",
+            "agent.proposal_agents.analyze_step_one",
             return_value={
                 "step_id": 1,
                 "is_valid": True,
@@ -201,7 +201,7 @@ def test_step1_ai_draft_returns_editable_fields(client):
     with patch.object(auth, "_dev_mode", return_value=False), _premium_auth():
         created = client.post("/api/proposals/setups", headers=_headers(), json=VALID_SETUP)
         setup_id = json.loads(created.data)["id"]
-        with patch("agent.proposal_v2_agents.generate_step_one_draft", return_value=ai_draft):
+        with patch("agent.proposal_agents.generate_step_one_draft", return_value=ai_draft):
             response = client.post(f"/api/proposals/setups/{setup_id}/generate-draft", headers=_headers())
 
     data = json.loads(response.data)
@@ -224,7 +224,7 @@ def test_call_brief_explains_uploaded_reference_without_changing_setup(client):
     with patch.object(auth, "_dev_mode", return_value=False), _premium_auth():
         created = client.post("/api/proposals/setups", headers=_headers(), json=VALID_SETUP)
         setup_id = json.loads(created.data)["id"]
-        with patch("agent.proposal_v2_agents.summarize_call_document", return_value=brief):
+        with patch("agent.proposal_agents.summarize_call_document", return_value=brief):
             with patch.object(
                 guided_proposal,
                 "_serialize",
@@ -250,11 +250,11 @@ def test_step2_can_generate_a_first_draft_without_user_narratives(client):
         created = client.post("/api/proposals/setups", headers=_headers(), json=VALID_SETUP)
         setup_id = json.loads(created.data)["id"]
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
+            "agent.proposal_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
         ):
             client.post(f"/api/proposals/setups/{setup_id}/analyze", headers=_headers())
         client.post(f"/api/proposals/setups/{setup_id}/lock", headers=_headers())
-        with patch("agent.proposal_v2_agents.generate_step_two_draft", return_value=generated):
+        with patch("agent.proposal_agents.generate_step_two_draft", return_value=generated):
             response = client.post(f"/api/proposals/setups/{setup_id}/generate-step2-draft", headers=_headers())
 
     assert response.status_code == 200
@@ -304,7 +304,7 @@ def test_step2_requires_locked_step1_and_locks_immutable_context(client):
         assert blocked.status_code == 409
 
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one",
+            "agent.proposal_agents.analyze_step_one",
             return_value={
                 "step_id": 1,
                 "is_valid": True,
@@ -325,7 +325,7 @@ def test_step2_requires_locked_step1_and_locks_immutable_context(client):
             "suggested_improvements": [],
             "analyzed_at": 1,
         }
-        with patch("agent.proposal_v2_agents.analyze_step_two", return_value=verifier):
+        with patch("agent.proposal_agents.analyze_step_two", return_value=verifier):
             analyzed = client.post(
                 "/api/proposals/steps/2/analyze", headers=_headers(), json={"setup_id": setup["id"], **VALID_STEP2}
             )
@@ -349,13 +349,13 @@ def test_step2_analysis_never_allows_llm_to_override_structural_validation(clien
     with patch.object(auth, "_dev_mode", return_value=False), _premium_auth():
         setup = json.loads(client.post("/api/proposals/setups", headers=_headers(), json=VALID_SETUP).data)
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
+            "agent.proposal_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
         ):
             client.post(f"/api/proposals/setups/{setup['id']}/analyze", headers=_headers())
         client.post(f"/api/proposals/setups/{setup['id']}/lock", headers=_headers())
 
         with patch(
-            "agent.proposal_v2_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 100}
+            "agent.proposal_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 100}
         ):
             analyzed = client.post(
                 "/api/proposals/steps/2/analyze", headers=_headers(), json={"setup_id": setup["id"], **incomplete}
@@ -376,19 +376,19 @@ def test_step3_requires_a_traceable_parent_for_each_non_impact_row(client):
     with patch.object(auth, "_dev_mode", return_value=False), _premium_auth():
         setup = json.loads(client.post("/api/proposals/setups", headers=_headers(), json=VALID_SETUP).data)
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
+            "agent.proposal_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
         ):
             client.post(f"/api/proposals/setups/{setup['id']}/analyze", headers=_headers())
         client.post(f"/api/proposals/setups/{setup['id']}/lock", headers=_headers())
         with patch(
-            "agent.proposal_v2_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 90}
+            "agent.proposal_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 90}
         ):
             client.post(
                 "/api/proposals/steps/2/analyze", headers=_headers(), json={"setup_id": setup["id"], **VALID_STEP2}
             )
         client.post("/api/proposals/steps/2/lock", headers=_headers(), json={"setup_id": setup["id"], **VALID_STEP2})
         with patch(
-            "agent.proposal_v2_agents.analyze_step_three",
+            "agent.proposal_agents.analyze_step_three",
             return_value={"is_valid": True, "donor_compliance_score": 100},
         ):
             analyzed = client.post(
@@ -410,12 +410,12 @@ def test_step3_requires_locked_step2_then_analyzes_and_locks(client):
         assert blocked.status_code == 409
 
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
+            "agent.proposal_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
         ):
             client.post(f"/api/proposals/setups/{setup['id']}/analyze", headers=_headers())
         client.post(f"/api/proposals/setups/{setup['id']}/lock", headers=_headers())
         with patch(
-            "agent.proposal_v2_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 88}
+            "agent.proposal_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 88}
         ):
             client.post(
                 "/api/proposals/steps/2/analyze", headers=_headers(), json={"setup_id": setup["id"], **VALID_STEP2}
@@ -429,7 +429,7 @@ def test_step3_requires_locked_step2_then_analyzes_and_locks(client):
             "critique_notes": ["Vertical logic is coherent."],
             "suggested_improvements": [],
         }
-        with patch("agent.proposal_v2_agents.analyze_step_three", return_value=verifier):
+        with patch("agent.proposal_agents.analyze_step_three", return_value=verifier):
             analyzed = client.post(
                 "/api/proposals/steps/3/analyze", headers=_headers(), json={"setup_id": setup["id"], **VALID_STEP3}
             )
@@ -502,17 +502,17 @@ VALID_STEP4 = {
 def _lock_steps_1_through_3(client, setup_id):
     """Helper: lock Steps 1-3 so Step 4 / Step 5 tests can proceed."""
     with patch(
-        "agent.proposal_v2_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
+        "agent.proposal_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
     ):
         client.post(f"/api/proposals/setups/{setup_id}/analyze", headers=_headers())
     client.post(f"/api/proposals/setups/{setup_id}/lock", headers=_headers())
     with patch(
-        "agent.proposal_v2_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 88}
+        "agent.proposal_agents.analyze_step_two", return_value={"is_valid": True, "donor_compliance_score": 88}
     ):
         client.post("/api/proposals/steps/2/analyze", headers=_headers(), json={"setup_id": setup_id, **VALID_STEP2})
     client.post("/api/proposals/steps/2/lock", headers=_headers(), json={"setup_id": setup_id, **VALID_STEP2})
     with patch(
-        "agent.proposal_v2_agents.analyze_step_three", return_value={"is_valid": True, "donor_compliance_score": 90}
+        "agent.proposal_agents.analyze_step_three", return_value={"is_valid": True, "donor_compliance_score": 90}
     ):
         client.post("/api/proposals/steps/3/analyze", headers=_headers(), json={"setup_id": setup_id, **VALID_STEP3})
     client.post("/api/proposals/steps/3/lock", headers=_headers(), json={"setup_id": setup_id, **VALID_STEP3})
@@ -579,7 +579,7 @@ def test_summary_blocked_before_all_locked(client):
         setup = json.loads(client.post("/api/proposals/setups", headers=_headers(), json=VALID_SETUP).data)
         # Only Step 1 locked, Steps 2-4 are draft
         with patch(
-            "agent.proposal_v2_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
+            "agent.proposal_agents.analyze_step_one", return_value={"is_valid": True, "donor_compliance_score": 92}
         ):
             client.post(f"/api/proposals/setups/{setup['id']}/analyze", headers=_headers())
         client.post(f"/api/proposals/setups/{setup['id']}/lock", headers=_headers())
@@ -617,7 +617,7 @@ def test_donor_rules_endpoint_returns_manifest(client):
 
 def test_ocha_cbpf_step1_mandatory_tokens_enforced():
     """OCHA Step 1 requires 'humanitarian' and 'target' in executive intent."""
-    from agent.proposal_v2_rules import normalize_setup, validate_setup
+    from agent.proposal_rules import normalize_setup, validate_setup
 
     setup = normalize_setup(
         {
@@ -638,7 +638,7 @@ def test_ocha_cbpf_step1_mandatory_tokens_enforced():
 
 def test_generic_donor_has_relaxed_rules():
     """Generic donor: min 50 chars intent, no mandatory tokens, sphere optional, max 5 outcomes."""
-    from agent.proposal_v2_rules import normalize_setup, normalize_step4, validate_setup, validate_step4
+    from agent.proposal_rules import normalize_setup, normalize_step4, validate_setup, validate_step4
 
     setup = normalize_setup(
         {
@@ -690,7 +690,7 @@ def test_generic_donor_has_relaxed_rules():
 
 def test_usaid_bha_vulnerable_quota_manifest_driven():
     """USAID/BHA requires >=50% vulnerable beneficiaries via manifest, not hardcoded."""
-    from agent.proposal_v2_rules import normalize_step2, validate_step2
+    from agent.proposal_rules import normalize_step2, validate_step2
 
     setup = {"donor": "usaid_bha"}
     step2 = normalize_step2(
@@ -735,7 +735,7 @@ def test_usaid_bha_vulnerable_quota_manifest_driven():
 
 def test_unfpa_mandatory_tokens_enforced():
     """UNFPA requires 'srhr' and 'gbv' in executive intent."""
-    from agent.proposal_v2_rules import normalize_setup, validate_setup
+    from agent.proposal_rules import normalize_setup, validate_setup
 
     setup = normalize_setup(
         {
@@ -756,7 +756,7 @@ def test_unfpa_mandatory_tokens_enforced():
 
 def test_ocha_localization_subgrant_is_warning_not_violation():
     """OCHA localization subgrant <15% should be a warning, not a hard violation."""
-    from agent.proposal_v2_rules import normalize_step4, validate_step4
+    from agent.proposal_rules import normalize_step4, validate_step4
 
     setup = {"donor": "ocha_cbpf"}
     # Budget with 0% localization (Category 4 = 0)

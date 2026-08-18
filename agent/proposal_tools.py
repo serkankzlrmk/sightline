@@ -41,7 +41,7 @@ def get_proposal_details(config: RunnableConfig) -> str:
 
     conn = _get_db()
     try:
-        row = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        row = conn.execute("SELECT * FROM proposal_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
 
         if not row:
             return "Error: Proposal not found in the database."
@@ -67,10 +67,10 @@ def get_proposal_details(config: RunnableConfig) -> str:
 
 @tool
 def get_section_content(section: str, config: RunnableConfig) -> str:
-    """Get the current technical data (Step 3) of the active V2 proposal.
+    """Get the current technical data (Step 3) of the active proposal.
 
     Args:
-        section: Ignored for V2 — returns the whole technical_data JSON
+        section: Ignored — returns the whole technical_data JSON
                  (theory of change, logframe, indicators, activity schedule).
     """
     configurable = config.get("configurable", {})
@@ -82,7 +82,7 @@ def get_section_content(section: str, config: RunnableConfig) -> str:
 
     conn = _get_db()
     try:
-        row = conn.execute("SELECT technical_data FROM proposal_v2_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        row = conn.execute("SELECT technical_data FROM proposal_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
         if not row:
             return "Error: Proposal not found."
         td = json.loads(row["technical_data"]) if row["technical_data"] else {}
@@ -96,7 +96,7 @@ def get_section_content(section: str, config: RunnableConfig) -> str:
 
 @tool
 def edit_proposal_toc(goal_impact: str, outcome: str, output: str, activity: str, config: RunnableConfig) -> str:
-    """Update the Theory of Change (ToC) levels of the active V2 proposal.
+    """Update the Theory of Change (ToC) levels of the active proposal.
 
     All four levels must be provided as strings:
     - goal_impact: Long-term impact / goal
@@ -123,12 +123,12 @@ def edit_proposal_toc(goal_impact: str, outcome: str, output: str, activity: str
 
     conn = _get_db()
     try:
-        row = conn.execute("SELECT technical_data FROM proposal_v2_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        row = conn.execute("SELECT technical_data FROM proposal_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
         if not row:
             return "Error: Proposal not found."
         td = json.loads(row["technical_data"]) if row["technical_data"] else {}
         td["logframe"] = toc_nodes
-        conn.execute("UPDATE proposal_v2_setups SET technical_data = ? WHERE id = ? AND uid = ?", (json.dumps(td), prop_id, uid))
+        conn.execute("UPDATE proposal_setups SET technical_data = ? WHERE id = ? AND uid = ?", (json.dumps(td), prop_id, uid))
         conn.commit()
         return "Success: Theory of Change has been updated in the database."
     except Exception as e:
@@ -140,7 +140,7 @@ def edit_proposal_toc(goal_impact: str, outcome: str, output: str, activity: str
 
 @tool
 def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str:
-    """Update a specific logframe row's intervention_logic in the active V2 proposal.
+    """Update a specific logframe row's intervention_logic in the active proposal.
 
     Args:
         field: The logframe row id (e.g. 'impact-1', 'outcome-1', 'output-1', 'activity-1').
@@ -155,7 +155,7 @@ def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str
 
     conn = _get_db()
     try:
-        row = conn.execute("SELECT technical_data FROM proposal_v2_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        row = conn.execute("SELECT technical_data FROM proposal_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
         if not row:
             return "Error: Proposal not found."
         td = json.loads(row["technical_data"]) if row["technical_data"] else {}
@@ -165,7 +165,7 @@ def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str
             return f"Error: Logframe row '{field}' not found."
         target["intervention_logic"] = text
         td["logframe"] = lf
-        conn.execute("UPDATE proposal_v2_setups SET technical_data = ? WHERE id = ? AND uid = ?", (json.dumps(td), prop_id, uid))
+        conn.execute("UPDATE proposal_setups SET technical_data = ? WHERE id = ? AND uid = ?", (json.dumps(td), prop_id, uid))
         conn.commit()
         return f"Success: Logframe row '{field}' updated."
     except Exception as e:
@@ -177,7 +177,7 @@ def edit_proposal_logframe(field: str, text: str, config: RunnableConfig) -> str
 
 @tool
 def edit_proposal_narrative(narrative: str, config: RunnableConfig) -> str:
-    """Update the theory-of-change narrative of the active V2 proposal.
+    """Update the theory-of-change narrative of the active proposal.
 
     Args:
         narrative: The new ToC narrative text (technical_data.toc_narrative).
@@ -191,12 +191,12 @@ def edit_proposal_narrative(narrative: str, config: RunnableConfig) -> str:
 
     conn = _get_db()
     try:
-        row = conn.execute("SELECT technical_data FROM proposal_v2_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
+        row = conn.execute("SELECT technical_data FROM proposal_setups WHERE id = ? AND uid = ?", (prop_id, uid)).fetchone()
         if not row:
             return "Error: Proposal not found."
         td = json.loads(row["technical_data"]) if row["technical_data"] else {}
         td["toc_narrative"] = narrative
-        conn.execute("UPDATE proposal_v2_setups SET technical_data = ? WHERE id = ? AND uid = ?", (json.dumps(td), prop_id, uid))
+        conn.execute("UPDATE proposal_setups SET technical_data = ? WHERE id = ? AND uid = ?", (json.dumps(td), prop_id, uid))
         conn.commit()
         return "Success: Proposal narrative text has been updated."
     except Exception as e:

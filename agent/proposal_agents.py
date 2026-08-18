@@ -1,4 +1,4 @@
-"""Guided Proposal V2 — LLM orchestration with generator/verifier separation.
+"""Guided Proposal  — LLM orchestration with generator/verifier separation.
 
 Generator uses LangGraph + tool-calling (ReliefWeb, HDX, Brave search) to enrich
 proposal narratives with real humanitarian data.  Verifier remains blind — it
@@ -17,7 +17,7 @@ import time
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from agent.proposal_v2_rules import DONOR_PROFILES
+from agent.proposal_rules import DONOR_PROFILES
 from config import config
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-"""Deterministic rules for the Guided Proposal V2.
+"""Deterministic rules for the Guided Proposal .
 
 This module contains no model calls. It is the stable, auditable rules layer
 that runs before the blind-verifier agent. All donor-specific constraints are
@@ -587,7 +587,7 @@ def validate_setup(setup: dict[str, Any]) -> dict[str, Any]:
         "is_valid": not violations,
         "violations": violations,
         "warnings": warnings,
-        "rule_version": "v2-step-1-2026-08",
+        "rule_version": "-step-1-2026-08",
     }
 
 
@@ -708,7 +708,7 @@ def validate_step2(step2: dict[str, Any], setup: dict[str, Any]) -> dict[str, An
             "vulnerable_percentage": vulnerable_percentage,
             "meets_quota": quota == 0 or vulnerable_percentage >= quota,
         },
-        "rule_version": "v2-step-2-2026-08",
+        "rule_version": "-step-2-2026-08",
     }
 
 
@@ -914,7 +914,7 @@ def validate_step3(step3: dict[str, Any], setup: dict[str, Any]) -> dict[str, An
             "activities_count": len(levels["activity"]),
             "indicators_smart_rate": round(smart_valid / smart_total * 100, 1) if smart_total else 0.0,
         },
-        "rule_version": "v2-step-3-2026-08",
+        "rule_version": "-step-3-2026-08",
     }
 
 
@@ -1059,5 +1059,5 @@ def validate_step4(step4: dict[str, Any], setup: dict[str, Any], step3: dict[str
             "localization_subgrant_percentage": round(totals[4] / total_budget * 100, 2) if total_budget else 0.0,
         },
         "risk_summary": {"total_risks_identified": len(step4["risks"]), "high_severity_risks": high},
-        "rule_version": "v2-step-4-2026-08",
+        "rule_version": "-step-4-2026-08",
     }

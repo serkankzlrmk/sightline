@@ -1,4 +1,4 @@
-"""Isolated backend API for the local-first Guided Proposal V2 pilot."""
+"""Backend API for the Guided Proposal workspace (sole proposal system)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import uuid
 
 from flask import Blueprint, jsonify, request, send_file
 
-from agent.proposal_v2_rules import (
+from agent.proposal_rules import (
     donor_profiles,
     normalize_setup,
     normalize_step2,
@@ -27,7 +27,7 @@ guided_proposal_bp = Blueprint("guided_proposal", __name__, url_prefix="/api/pro
 logger = logging.getLogger(__name__)
 
 _PROPOSAL_SCHEMA = """
-CREATE TABLE IF NOT EXISTS proposal_v2_setups (
+CREATE TABLE IF NOT EXISTS proposal_setups (
     id                  TEXT PRIMARY KEY,
     uid                 TEXT NOT NULL,
     project_title       TEXT,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS proposal_v2_setups (
 
 
 def _ensure_schema():
-    """Create the proposal_v2_setups table if it does not exist."""
+    """Create the proposal_setups table if it does not exist."""
     try:
         import sqlite3
 
@@ -77,7 +77,7 @@ def _ensure_schema():
 
 
 def _enabled_response():
-    """V2 is now the sole proposal system — always enabled."""
+    """Proposal system is always enabled (sole workspace)."""
     return None
 
 
@@ -105,9 +105,9 @@ def _owned_setup(setup_id: str, uid: str, role: str):
     _ensure_schema()
     conn = _chats_db()
     if role == "admin":
-        row = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        row = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
     else:
-        row = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ? AND uid = ?", (setup_id, uid)).fetchone()
+        row = conn.execute("SELECT * FROM proposal_setups WHERE id = ? AND uid = ?", (setup_id, uid)).fetchone()
     return conn, row
 
 
@@ -123,7 +123,7 @@ def api_guided_proposal_donors():
 @require_auth
 def api_guided_proposal_donor_rules():
     """Return publicly-visible donor rules manifest for frontend guidance cards."""
-    from agent.proposal_v2_rules import DONOR_PROFILES
+    from agent.proposal_rules import DONOR_PROFILES
 
     public_fields = (
         "id",
@@ -176,7 +176,7 @@ def api_guided_proposal_upload_reference(setup_id):
         if not text:
             return jsonify({"error": "No readable text found in the call document."}), 400
         conn.execute(
-            "UPDATE proposal_v2_setups SET reference_text = ?, reference_filename = ?, call_brief = '{}', updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET reference_text = ?, reference_filename = ?, call_brief = '{}', updated_at = ? WHERE id = ?",
             (text, filename, time.time(), setup_id),
         )
         conn.commit()
@@ -199,11 +199,11 @@ def api_guided_proposal_call_brief(setup_id):
             return jsonify({"error": "Upload a grant call before requesting its briefing."}), 422
         if setup.get("call_brief"):
             return jsonify({"brief": setup["call_brief"], "filename": setup.get("reference_filename"), "cached": True})
-        from agent.proposal_v2_agents import summarize_call_document
+        from agent.proposal_agents import summarize_call_document
 
         brief = summarize_call_document(setup)
         conn.execute(
-            "UPDATE proposal_v2_setups SET call_brief = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET call_brief = ?, updated_at = ? WHERE id = ?",
             (json.dumps(brief, ensure_ascii=False), time.time(), setup_id),
         )
         conn.commit()
@@ -228,7 +228,7 @@ def api_guided_proposal_create_setup():
     conn = _chats_db()
     try:
         conn.execute(
-            """INSERT INTO proposal_v2_setups
+            """INSERT INTO proposal_setups
                (id, uid, project_title, country, region, donor, budget_amount,
                 budget_currency, executive_intent, sectors, state, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)""",
@@ -248,7 +248,7 @@ def api_guided_proposal_create_setup():
             ),
         )
         conn.commit()
-        row = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        row = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
         _log_event(uid, "guided_proposal_setup_created", {"setup_id": setup_id})
         return jsonify(_serialize(row)), 201
     finally:
@@ -264,10 +264,10 @@ def api_guided_proposal_list_setups():
     conn = _chats_db()
     try:
         if role == "admin":
-            rows = conn.execute("SELECT * FROM proposal_v2_setups ORDER BY created_at DESC").fetchall()
+            rows = conn.execute("SELECT * FROM proposal_setups ORDER BY created_at DESC").fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM proposal_v2_setups WHERE uid = ? ORDER BY created_at DESC",
+                "SELECT * FROM proposal_setups WHERE uid = ? ORDER BY created_at DESC",
                 (uid,),
             ).fetchall()
         # The UI must not infer mutation rights from a late-loading browser
@@ -307,7 +307,7 @@ def api_guided_proposal_delete_setup(setup_id):
 
     Administrators may remove any local setup; other eligible users may only
     remove their own.  This deliberately uses the same ownership check as the
-    read/update routes so the UI cannot accidentally target the legacy
+    read/update routes for the proposal workspace
     ``proposals`` table.
     """
     uid, role = current_uid(), current_role()
@@ -315,7 +315,7 @@ def api_guided_proposal_delete_setup(setup_id):
     try:
         if not row:
             return jsonify({"error": "Guided proposal not found."}), 404
-        conn.execute("DELETE FROM proposal_v2_setups WHERE id = ?", (setup_id,))
+        conn.execute("DELETE FROM proposal_setups WHERE id = ?", (setup_id,))
         conn.commit()
         _log_event(uid, "guided_proposal_deleted", {"setup_id": setup_id})
         return jsonify({"message": "Guided proposal deleted."})
@@ -351,7 +351,7 @@ def api_guided_proposal_update_setup(setup_id):
             incoming["sectors"] = existing.get("sectors", [])
 
         conn.execute(
-            """UPDATE proposal_v2_setups SET project_title = ?, country = ?, region = ?, donor = ?,
+            """UPDATE proposal_setups SET project_title = ?, country = ?, region = ?, donor = ?,
                budget_amount = ?, budget_currency = ?, executive_intent = ?, sectors = ?,
                state = 'draft', analysis = '{}', updated_at = ? WHERE id = ?""",
             (
@@ -368,7 +368,7 @@ def api_guided_proposal_update_setup(setup_id):
             ),
         )
         conn.commit()
-        updated = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        updated = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
         return jsonify(_serialize(updated))
     finally:
         conn.close()
@@ -391,7 +391,7 @@ def api_guided_proposal_analyze_setup(setup_id):
         analysis = validate_setup(setup)
         deterministic_valid = analysis["is_valid"]
         try:
-            from agent.proposal_v2_agents import analyze_step_one
+            from agent.proposal_agents import analyze_step_one
 
             llm = analyze_step_one(setup, analysis)
             analysis.update(llm)
@@ -412,7 +412,7 @@ def api_guided_proposal_analyze_setup(setup_id):
                 }
             )
         conn.execute(
-            "UPDATE proposal_v2_setups SET state = 'analyzed', analysis = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET state = 'analyzed', analysis = ?, updated_at = ? WHERE id = ?",
             (json.dumps(analysis), time.time(), setup_id),
         )
         conn.commit()
@@ -433,7 +433,7 @@ def api_guided_proposal_generate_step1_draft(setup_id):
             return jsonify({"error": "Setup not found."}), 404
         if row["state"] == "locked":
             return jsonify({"error": "Step 1 is locked; create a new proposal to draft again."}), 409
-        from agent.proposal_v2_agents import generate_step_one_draft
+        from agent.proposal_agents import generate_step_one_draft
 
         draft = generate_step_one_draft(_serialize(row))
         _log_event(uid, "guided_proposal_draft_generated", {"setup_id": setup_id})
@@ -459,7 +459,7 @@ def api_guided_proposal_generate_step2_draft(setup_id):
             return jsonify({"error": "Lock Step 1 before generating the context draft."}), 409
         if row["step2_state"] == "locked":
             return jsonify({"error": "Step 2 is locked; create a new proposal to draft it again."}), 409
-        from agent.proposal_v2_agents import generate_step_two_draft
+        from agent.proposal_agents import generate_step_two_draft
 
         draft = generate_step_two_draft(_serialize(row))
         _log_event(uid, "guided_proposal_step2_draft_generated", {"setup_id": setup_id})
@@ -483,7 +483,7 @@ def api_guided_proposal_generate_step3_draft(setup_id):
             return jsonify({"error": "Lock Step 1 and Context & Needs before generating the technical draft."}), 409
         if row["step3_state"] == "locked":
             return jsonify({"error": "Step 3 is locked; create a new proposal to draft it again."}), 409
-        from agent.proposal_v2_agents import generate_step_three_draft
+        from agent.proposal_agents import generate_step_three_draft
 
         draft = generate_step_three_draft(_serialize(row))
         _log_event(uid, "guided_proposal_step3_draft_generated", {"setup_id": setup_id})
@@ -508,7 +508,7 @@ def api_guided_proposal_generate_step4_draft(setup_id):
             return jsonify({"error": "Lock Step 3 before generating the financial draft."}), 409
         if row["step4_state"] == "locked":
             return jsonify({"error": "Step 4 is locked; create a new proposal to draft it again."}), 409
-        from agent.proposal_v2_agents import generate_step_four_draft
+        from agent.proposal_agents import generate_step_four_draft
 
         draft = generate_step_four_draft(_serialize(row))
         _log_event(uid, "guided_proposal_step4_draft_generated", {"setup_id": setup_id})
@@ -547,11 +547,11 @@ def api_guided_proposal_lock_setup(setup_id):
         analysis.update(stored_analysis)
         analysis.update({"step_id": 1, "locked_at": now})
         conn.execute(
-            "UPDATE proposal_v2_setups SET state = 'locked', analysis = ?, locked_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET state = 'locked', analysis = ?, locked_at = ?, updated_at = ? WHERE id = ?",
             (json.dumps(analysis), now, now, setup_id),
         )
         conn.commit()
-        locked = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        locked = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
         _log_event(uid, "guided_proposal_setup_locked", {"setup_id": setup_id})
         return jsonify(_serialize(locked))
     finally:
@@ -586,7 +586,7 @@ def api_guided_proposal_analyze_step2():
         analysis = validate_step2(step2, setup)
         deterministic_valid = analysis["is_valid"]
         try:
-            from agent.proposal_v2_agents import analyze_step_two
+            from agent.proposal_agents import analyze_step_two
 
             llm = analyze_step_two(setup, step2, analysis)
             analysis.update(llm)
@@ -603,7 +603,7 @@ def api_guided_proposal_analyze_step2():
                 }
             )
         conn.execute(
-            "UPDATE proposal_v2_setups SET context_data = ?, step2_analysis = ?, step2_state = 'analyzed', updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET context_data = ?, step2_analysis = ?, step2_state = 'analyzed', updated_at = ? WHERE id = ?",
             (json.dumps(step2), json.dumps(analysis), time.time(), setup_id),
         )
         conn.commit()
@@ -648,11 +648,11 @@ def api_guided_proposal_lock_step2():
         now = time.time()
         stored.update({"step_id": 2, "locked_at": now})
         conn.execute(
-            "UPDATE proposal_v2_setups SET context_data = ?, step2_analysis = ?, step2_state = 'locked', step2_locked_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET context_data = ?, step2_analysis = ?, step2_state = 'locked', step2_locked_at = ?, updated_at = ? WHERE id = ?",
             (json.dumps(step2), json.dumps(stored), now, now, setup_id),
         )
         conn.commit()
-        locked = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        locked = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
         _log_event(uid, "guided_proposal_step2_locked", {"setup_id": setup_id})
         return jsonify(_serialize(locked))
     finally:
@@ -681,7 +681,7 @@ def api_guided_proposal_analyze_step3():
         analysis = validate_step3(step3, setup)
         deterministic_valid = analysis["is_valid"]
         try:
-            from agent.proposal_v2_agents import analyze_step_three
+            from agent.proposal_agents import analyze_step_three
 
             llm = analyze_step_three(setup, setup["context_data"], step3, analysis)
             analysis.update(llm)
@@ -698,7 +698,7 @@ def api_guided_proposal_analyze_step3():
                 }
             )
         conn.execute(
-            "UPDATE proposal_v2_setups SET technical_data = ?, step3_analysis = ?, step3_state = 'analyzed', updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET technical_data = ?, step3_analysis = ?, step3_state = 'analyzed', updated_at = ? WHERE id = ?",
             (json.dumps(step3), json.dumps(analysis), time.time(), setup_id),
         )
         conn.commit()
@@ -760,11 +760,11 @@ def api_guided_proposal_lock_step3():
         now = time.time()
         stored.update({"step_id": 3, "locked_at": now})
         conn.execute(
-            "UPDATE proposal_v2_setups SET technical_data = ?, step3_analysis = ?, step3_state = 'locked', step3_locked_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET technical_data = ?, step3_analysis = ?, step3_state = 'locked', step3_locked_at = ?, updated_at = ? WHERE id = ?",
             (json.dumps(step3), json.dumps(stored), now, now, setup_id),
         )
         conn.commit()
-        locked = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        locked = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
         _log_event(uid, "guided_proposal_step3_locked", {"setup_id": setup_id})
         return jsonify(_serialize(locked))
     finally:
@@ -802,7 +802,7 @@ def api_guided_proposal_analyze_step4():
             }
         )
         conn.execute(
-            "UPDATE proposal_v2_setups SET financial_data = ?, step4_analysis = ?, step4_state = 'analyzed', updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET financial_data = ?, step4_analysis = ?, step4_state = 'analyzed', updated_at = ? WHERE id = ?",
             (json.dumps(data), json.dumps(analysis), time.time(), setup_id),
         )
         conn.commit()
@@ -866,17 +866,17 @@ def api_guided_proposal_lock_step4():
         now = time.time()
         stored.update({"step_id": 4, "locked_at": now})
         conn.execute(
-            "UPDATE proposal_v2_setups SET financial_data = ?, step4_analysis = ?, step4_state = 'locked', step4_locked_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE proposal_setups SET financial_data = ?, step4_analysis = ?, step4_state = 'locked', step4_locked_at = ?, updated_at = ? WHERE id = ?",
             (json.dumps(data), json.dumps(stored), now, now, setup_id),
         )
         conn.commit()
-        locked = conn.execute("SELECT * FROM proposal_v2_setups WHERE id = ?", (setup_id,)).fetchone()
+        locked = conn.execute("SELECT * FROM proposal_setups WHERE id = ?", (setup_id,)).fetchone()
         return jsonify(_serialize(locked))
     finally:
         conn.close()
 
 
-def _locked_v2_summary(setup_id):
+def _locked_summary(setup_id):
     conn, row = _owned_setup(setup_id, current_uid(), current_role())
     if not row:
         conn.close()
@@ -898,7 +898,7 @@ def _locked_v2_summary(setup_id):
 def api_guided_proposal_summary(setup_id):
     if disabled := _enabled_response():
         return disabled
-    setup, locked = _locked_v2_summary(setup_id)
+    setup, locked = _locked_summary(setup_id)
     if setup is None:
         return jsonify({"error": "Setup not found."}), 404
     if not locked:
@@ -949,7 +949,7 @@ def api_guided_proposal_summary(setup_id):
 def api_guided_proposal_evaluate(setup_id):
     if disabled := _enabled_response():
         return disabled
-    setup, locked = _locked_v2_summary(setup_id)
+    setup, locked = _locked_summary(setup_id)
     if setup is None:
         return jsonify({"error": "Setup not found."}), 404
     if not locked:
@@ -1007,7 +1007,7 @@ def api_guided_proposal_evaluate(setup_id):
 def api_guided_proposal_compile_pdf(setup_id):
     if disabled := _enabled_response():
         return disabled
-    setup, locked = _locked_v2_summary(setup_id)
+    setup, locked = _locked_summary(setup_id)
     if setup is None:
         return jsonify({"error": "Setup not found."}), 404
     if not locked:
@@ -1100,8 +1100,8 @@ def api_guided_proposal_compile_pdf(setup_id):
     return send_file(pdf, mimetype="application/pdf", as_attachment=True, download_name=filename)
 
 
-# ── V2 Advisor Chat ───────────────────────────────────────────────────────────
-# Mirrors the V1 advisor but reads from proposal_v2_setups instead of proposals.
+# ── Advisor Chat ───────────────────────────────────────────────────────────
+# Advisor chat backed by proposal_setups.
 
 import threading as _threading
 
@@ -1111,7 +1111,7 @@ _advisor_busy_lock = _threading.Lock()
 
 
 def _serialize_setup_for_context(row) -> str:
-    """Build a human-readable context string from a V2 setup row."""
+    """Build a human-readable context string from a proposal setup row."""
     setup = dict(row)
     parts = [
         f"Project: {setup.get('project_title', '?')}",
@@ -1163,7 +1163,7 @@ def _serialize_setup_for_context(row) -> str:
 @guided_proposal_bp.route("/setups/<setup_id>/advisor/chat", methods=["POST"])
 @require_role("premium")
 def api_guided_proposal_advisor_chat(setup_id):
-    """Advisor chat for Guided Proposal V2."""
+    """Advisor chat for the Guided Proposal workspace."""
     import time as _time
 
     uid, role = current_uid(), current_role()
@@ -1194,7 +1194,7 @@ def api_guided_proposal_advisor_chat(setup_id):
         # Ensure chat session
         conn.execute(
             "INSERT OR IGNORE INTO chats (id, uid, title, created) VALUES (?, ?, ?, ?)",
-            (chat_id, uid, f"V2 Advisor: {setup.get('project_title', 'Proposal')}", _time.time()),
+            (chat_id, uid, f"Proposal Advisor: {setup.get('project_title', 'Proposal')}", _time.time()),
         )
         conn.commit()
 
@@ -1244,10 +1244,10 @@ def api_guided_proposal_advisor_chat(setup_id):
                     [f"- {c.get('title', 'Report')}: {c.get('text', '')}" for c in chunks[:10]]
                 )
         except Exception as e:
-            logger.warning(f"Failed to fetch chunks for V2 advisor: {e}")
+            logger.warning(f"Failed to fetch chunks for proposal advisor: {e}")
 
         # Load donor profile for context
-        from agent.proposal_v2_rules import DONOR_PROFILES
+        from agent.proposal_rules import DONOR_PROFILES
 
         donor = DONOR_PROFILES.get(setup.get("donor", ""), DONOR_PROFILES.get("generic", {}))
         donor_context = (
@@ -1258,7 +1258,7 @@ def api_guided_proposal_advisor_chat(setup_id):
             f"Special requirements: {'; '.join(donor.get('special_requirements', [])[:5])}"
         )
 
-        system_prompt = f"""You are the Sightline Proposal Advisor for a Guided Proposal (V2). The user is actively working on a humanitarian proposal.
+        system_prompt = f"""You are the Sightline Proposal Advisor for a Guided Proposal. The user is actively working on a humanitarian proposal.
 
 Current proposal state:
 {setup_context}
@@ -1314,7 +1314,7 @@ You can see the full proposal state above. Help the user improve their proposal 
         return jsonify({"response": final_response, "command": command_data})
 
     except Exception as e:
-        logger.error("V2 advisor chat error for setup %s: %s", setup_id, e)
+        logger.error("proposal advisor chat error for setup %s: %s", setup_id, e)
         return jsonify({"error": "Advisor failed. Please try again."}), 500
     finally:
         with _advisor_busy_lock:
@@ -1327,7 +1327,7 @@ You can see the full proposal state above. Help the user improve their proposal 
 @guided_proposal_bp.route("/setups/<setup_id>/advisor/history", methods=["GET"])
 @require_auth
 def api_guided_proposal_advisor_history(setup_id):
-    """Retrieve advisor chat history for a Guided Proposal V2 setup."""
+    """Retrieve advisor chat history for a Guided Proposal setup."""
     uid, role = current_uid(), current_role()
     conn, row = _owned_setup(setup_id, uid, role)
     if not row:
@@ -1346,7 +1346,7 @@ def api_guided_proposal_advisor_history(setup_id):
         history = [{"role": r["role"], "content": r["content"]} for r in db_rows]
         return jsonify(history)
     except Exception as e:
-        logger.error("V2 advisor history error for setup %s: %s", setup_id, e)
+        logger.error("proposal advisor history error for setup %s: %s", setup_id, e)
         return jsonify([])
     finally:
         conn.close()
