@@ -92,11 +92,9 @@ from blueprints.guided_proposal import guided_proposal_bp
 from blueprints.hdx_bp import hdx_bp
 from blueprints.ingest_bp import ingest_bp
 from blueprints.news_bp import news_bp
-from blueprints.proposal import proposal_bp
 from blueprints.public_bp import public_bp
 from blueprints.sitrep import sitrep_bp
 
-app.register_blueprint(proposal_bp)
 app.register_blueprint(guided_proposal_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(sitrep_bp)
@@ -315,7 +313,7 @@ limiter = Limiter(
 
 # Per-blueprint rate limits
 limiter.limit("30/minute")(agent_bp)  # Expensive LLM calls
-limiter.limit("20/minute")(proposal_bp)  # Even more expensive
+limiter.limit("20/minute")(guided_proposal_bp)  # LLM-heavy proposal generation
 limiter.limit("10/minute")(ingest_bp)  # Very heavy — PDF upload + processing
 limiter.limit("60/minute")(admin_bp)  # Light queries
 # Public/DB/HDX/News/Sitrep: default 120/min (already set)
