@@ -40,7 +40,14 @@ def _frontend_version() -> str:
         vf = BASE_DIR / "static" / "dist" / "version.json"
         if vf.exists():
             data = json.loads(vf.read_text())
-            _VERSION_CACHE["v"] = data.get("app", "0") + data.get("css", "0")
+            # NOTE: proposal.js hash MUST be part of the cache key — the
+            # proposal bundle changes independently of app.js (V2-only
+            # bundle), and a stale ?v= makes browsers serve the OLD
+            # proposal.js forever (symptom: proposal buttons dead after
+            # deploy because the cached bundle predates the fix).
+            _VERSION_CACHE["v"] = (
+                data.get("app", "0") + data.get("proposal", "0") + data.get("css", "0")
+            )
             return _VERSION_CACHE["v"]
     except Exception:
         pass
