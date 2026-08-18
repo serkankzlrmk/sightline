@@ -18,6 +18,7 @@ import subprocess
 import threading
 import time
 import uuid
+from typing import Optional
 
 from config import (
     CHATS_DB_PATH,
@@ -345,28 +346,91 @@ def log_event(uid: str, event: str, props: dict = None, session: str = ""):
         logger.debug("Failed to log event %s: %s", event, e)
 
 
-def upsert_user(uid: str, email: str = "", role: str = "free", signup_source: str = "web"):
-    """Insert or update a user in the local users table."""
+def upsert_user(uid: str, email: str = "", role: str = "free", signup_source: str = "web", force_role: bool = False):
+    """Insert or update a user in the local users table.
+
+    By default role is only written on INSERT (new user) — the stored role
+    is preserved so a stale Firebase claim cannot silently escalate a user.
+    Pass force_role=True to overwrite the stored role (used by set_user_role
+    when an admin explicitly changes a user's role).
+    """
     if not uid:
         return
     try:
         conn = chats_db()
         now = time.time()
-        conn.execute(
-            """
-            INSERT INTO users (uid, email, role, created_at, last_seen, signup_source)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET
-                email     = excluded.email,
-                role      = excluded.role,
-                last_seen = excluded.last_seen
-        """,
-            (uid, email, role, now, now, signup_source),
-        )
+        if force_role:
+            conn.execute(
+                """
+                INSERT INTO users (uid, email, role, created_at, last_seen, signup_source)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(uid) DO UPDATE SET
+                    email     = excluded.email,
+                    role      = excluded.role,
+                    last_seen = excluded.last_seen
+            """,
+                (uid, email, role, now, now, signup_source),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO users (uid, email, role, created_at, last_seen, signup_source)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(uid) DO UPDATE SET
+                    email     = excluded.email,
+                    last_seen = excluded.last_seen
+            """,
+                (uid, email, role, now, now, signup_source),
+            )
         conn.commit()
         conn.close()
     except Exception as e:
         logger.debug("Failed to upsert user %s: %s", uid, e)
+
+
+def get_user_role(uid: str) -> str:
+    """Return the stored role for a user from the local users table.
+
+    Returns 'free' if the user is not present (or on any DB error) so a
+    missing row never escalates privileges. The local users table is the
+    source of truth for role.
+    """
+    if not uid:
+        return "free"
+    try:
+        conn = chats_db()
+        try:
+            row = conn.execute("SELECT role FROM users WHERE uid = ?", (uid,)).fetchone()
+        finally:
+            conn.close()
+        if row and row["role"] in ("free", "premium", "admin"):
+            return row["role"]
+        return "free"
+    except Exception as e:
+        logger.debug("get_user_role failed for %s: %s", uid, e)
+        return "free"
+
+
+def get_user_role_or_none(uid: str) -> Optional[str]:
+    """Return the stored role, or None if the user has no row in the table.
+
+    Used by _resolve_role to distinguish 'no DB record' (fall back to
+    Firebase claim) from 'DB record says free' (source of truth wins).
+    """
+    if not uid:
+        return None
+    try:
+        conn = chats_db()
+        try:
+            row = conn.execute("SELECT role FROM users WHERE uid = ?", (uid,)).fetchone()
+        finally:
+            conn.close()
+        if row and row["role"] in ("free", "premium", "admin"):
+            return row["role"]
+        return None
+    except Exception as e:
+        logger.debug("get_user_role_or_none failed for %s: %s", uid, e)
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════

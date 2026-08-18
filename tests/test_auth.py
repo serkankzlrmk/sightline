@@ -35,12 +35,30 @@ class TestRoleHierarchy:
 
 class TestResolveRole:
     def test_custom_claim_admin(self):
-        token = {"uid": "abc123", "role": "admin"}
-        assert auth._resolve_role(token) == "admin"
+        # DB has no row for this uid -> falls back to Firebase claim
+        with patch.object(auth, "_admins", return_value=set()):
+            token = {"uid": "abc123", "role": "admin"}
+            assert auth._resolve_role(token) == "admin"
 
     def test_custom_claim_premium(self):
-        token = {"uid": "abc123", "role": "premium"}
-        assert auth._resolve_role(token) == "premium"
+        # DB has no row for this uid -> falls back to Firebase claim
+        with patch.object(auth, "_admins", return_value=set()):
+            token = {"uid": "abc123", "role": "premium"}
+            assert auth._resolve_role(token) == "premium"
+
+    def test_db_role_is_source_of_truth(self):
+        # DB says free even though Firebase claim says admin -> free wins
+        with patch.object(auth, "_admins", return_value=set()):
+            with patch("blueprints.helpers.get_user_role_or_none", return_value="free"):
+                token = {"uid": "abc123", "role": "admin"}
+                assert auth._resolve_role(token) == "free"
+
+    def test_db_premium_wins_over_free_claim(self):
+        # DB says premium, Firebase claim says free -> premium wins
+        with patch.object(auth, "_admins", return_value=set()):
+            with patch("blueprints.helpers.get_user_role_or_none", return_value="premium"):
+                token = {"uid": "abc123", "role": "free"}
+                assert auth._resolve_role(token) == "premium"
 
     def test_custom_claim_free(self):
         token = {"uid": "abc123", "role": "free"}

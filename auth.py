@@ -143,21 +143,37 @@ def _role_rank(role: str) -> int:
 def _resolve_role(decoded_token: dict) -> str:
     """Determine the effective role for a decoded Firebase token.
 
-    Priority:
+    Priority (local users table is the SOURCE OF TRUTH for role):
       1. ADMIN_UIDS env var → admin (explicit emergency/admin allowlist)
-      2. Firebase Custom Claims 'role' field (set by set_user_role)
-      3. Default → free
+      2. Local users table role (set by admin via set_user_role / admin UI)
+      3. Firebase Custom Claims 'role' field (fallback for legacy users)
+      4. Default → free
+
+    The local users table wins over a stale Firebase claim so a user cannot
+    silently escalate via a cached `role=admin`/`premium` claim.
     """
-    # An explicit UID allowlist must override a stale lower-privilege claim.
-    # Firebase tokens can retain a cached `role=free`/`premium` claim even
-    # after an operator adds the UID to ADMIN_UIDS.
     uid = decoded_token.get("uid", "")
+
+    # 1. Explicit admin allowlist overrides everything (emergency path)
     if uid and uid in _admins():
         return "admin"
 
+    # 2. Local users table is the source of truth (if a row exists)
+    try:
+        from blueprints.helpers import get_user_role_or_none
+
+        db_role = get_user_role_or_none(uid)
+        if db_role is not None:
+            return db_role
+    except Exception:
+        pass  # fall through to claims if DB read fails
+
+    # 3. Firebase Custom Claims (legacy fallback)
     custom_claims = decoded_token.get("role", "")
     if custom_claims and custom_claims in ROLE_HIERARCHY:
         return custom_claims
+
+    # 4. Default
     return "free"
 
 
@@ -185,6 +201,13 @@ def set_user_role(uid: str, role: str) -> bool:
         from firebase_admin import auth as firebase_auth
 
         firebase_auth.set_custom_user_claims(uid, {"role": role})
+        # Keep the local users table (source of truth) in sync
+        try:
+            from blueprints.helpers import upsert_user
+
+            upsert_user(uid, role=role, force_role=True)
+        except Exception:
+            pass
         return True
     except Exception as exc:
         import logging
