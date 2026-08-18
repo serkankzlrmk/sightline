@@ -1192,3 +1192,74 @@ font-size: 11px;
   border-radius: var(--radius-full);
   display: inline-block;
 }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes homeAmbientBreathe {
+  0% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.8);
+    filter: blur(48px);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.35);
+    filter: blur(75px);
+  }
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.8);
+    filter: blur(48px);
+  }
+}
+@keyframes popoverIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeInUpStagger {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    transform: scale(0.9);
+    filter: drop-shadow(0 0 1px rgba(16, 185, 129, 0.7));
+  }
+  70% {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.4));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 1px rgba(16, 185, 129, 0));
+  }
+}
+#panel-home {
+position: relative;
+}
+
+#panel-home::before {
+content: '';
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 920px;
+  height: 660px;
+  background: radial-gradient(circle at center, rgba(14, 165, 233, 0.45) 0%, rgba(56, 189, 248, 0.22) 42%, rgba(14, 165, 233, 0.06) 68%, transparent 82%);
+  border-radius: 50%;
+  filter: blur(55px);
+  pointer-events: none;
+  z-index: 0;
+  animation: homeAmbientBreathe 4.5s ease-in-out infinite alternate;
+}
