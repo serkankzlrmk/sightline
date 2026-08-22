@@ -78,7 +78,9 @@ services:
       - proposal_db:/app/data
       - proposal_output:/app/output
       # Read-only Sightline mount for evidence bridge (reliefweb_api imports)
-      - ./sightline:/app/sightline:ro
+      - ./:/app/sightline:ro
+      # Firebase service account for auth (same project as Sightline)
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
     ports:
       - "127.0.0.1:5002:5002"
     healthcheck:
