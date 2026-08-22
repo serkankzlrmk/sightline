@@ -18,9 +18,10 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     }
 
     # ── Proposal Studio: static assets ────────────────────────────────────
+    # Short cache: JS/CSS change on every deploy; 5 min TTL prevents stale UI
     @proposal_static path /proposal/static/*
     handle @proposal_static {
-        header Cache-Control "public, max-age=604800"
+        header Cache-Control "public, max-age=300"
         reverse_proxy proposal:5002 {
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -84,11 +85,12 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     }
 
     # ── Sightline: static assets ──────────────────────────────────────────
+    # Short cache (5 min): app.js/auth.js are esbuild-bundled per deploy
     @sightline_static {
         path /static/*
     }
     handle @sightline_static {
-        header Cache-Control "public, max-age=604800"
+        header Cache-Control "public, max-age=300"
         reverse_proxy sightline:5001
     }
 
@@ -116,6 +118,7 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
 
     @proposal_static path /proposal/static/*
     handle @proposal_static {
+        header Cache-Control "public, max-age=300"
         reverse_proxy proposal:5002
     }
 
