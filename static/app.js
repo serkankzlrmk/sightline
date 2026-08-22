@@ -138,11 +138,8 @@ function toggleSidebarNav() {
 }
 
 function switchTab(name) {
-  // Proposal Studio is a separate Flask app served at /proposal
-  if (name === 'proposal') {
-    window.location.href = '/proposal';
-    return;
-  }
+  // Proposal Studio is embedded as an iframe panel (same-origin /proposal)
+  // → no hard navigation needed; the panel toggle below handles it.
 
   // Freemium preview: gated tabs require auth
   const tok = window.getIdToken ? window.getIdToken() : '';
