@@ -1,17 +1,14 @@
 # =============================================================================
 # Sightline — Caddyfile (reverse proxy with automatic TLS)
 # =============================================================================
+# Routes:
+#   /proposal*, /api/proposals*, /api/calls*, /api/proposal-v2*  → proposal:5002
+#   Everything else                                                   → sightline:5001
 
-# Production domain — Caddy gets TLS certs automatically
 sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     encode zstd gzip
 
-    @static_assets {
-        path /static/*
-    }
-    header @static_assets Cache-Control "public, max-age=604800"
-
-    # Security headers
+    # ── Security headers ──────────────────────────────────────────────────
     header {
         X-Frame-Options DENY
         X-Content-Type-Options nosniff
@@ -20,12 +17,37 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
     }
 
-    # SSE endpoints — no buffering
+    # ── Proposal Studio: static assets ────────────────────────────────────
+    @proposal_static path /proposal/static/*
+    handle @proposal_static {
+        header Cache-Control "public, max-age=604800"
+        reverse_proxy proposal:5002
+    }
+
+    # ── Proposal Studio: SPA entry points ─────────────────────────────────
+    @proposal_spa path /proposal /proposal/
+    handle @proposal_spa {
+        reverse_proxy proposal:5002
+    }
+
+    # ── Proposal Studio: API endpoints ────────────────────────────────────
+    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2*
+    handle @proposal_api {
+        reverse_proxy proposal:5002
+    }
+
+    # ── Proposal Studio: health check ─────────────────────────────────────
+    @proposal_health path /proposal/health
+    handle @proposal_health {
+        reverse_proxy proposal:5002
+    }
+
+    # ── Sightline: SSE endpoints — no buffering ───────────────────────────
     @sse {
         path /api/agent/chat /api/sitrep/stream/*
     }
     handle @sse {
-        reverse_proxy app:5001 {
+        reverse_proxy sightline:5001 {
             flush_interval -1
             transport http {
                 read_timeout 300s
@@ -34,7 +56,7 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
         }
     }
 
-    # Upload endpoint — larger body
+    # ── Sightline: Upload endpoint — larger body ──────────────────────────
     @upload {
         path /api/ingest/upload
     }
@@ -42,19 +64,28 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
         request_body {
             max_size 50MB
         }
-        reverse_proxy app:5001
+        reverse_proxy sightline:5001
     }
 
-    # Everything else
+    # ── Sightline: static assets ──────────────────────────────────────────
+    @sightline_static {
+        path /static/*
+    }
+    handle @sightline_static {
+        header Cache-Control "public, max-age=604800"
+        reverse_proxy sightline:5001
+    }
+
+    # ── Everything else → Sightline ───────────────────────────────────────
     handle {
-        reverse_proxy app:5001 {
+        reverse_proxy sightline:5001 {
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
         }
     }
 
-    # Access log
+    # ── Access log ────────────────────────────────────────────────────────
     log {
         output file /data/access.log {
             roll_size 100mb
@@ -66,9 +97,36 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
 # Local dev (HTTP only — no TLS)
 :80 {
     encode zstd gzip
+
+    @proposal_static path /proposal/static/*
+    handle @proposal_static {
+        reverse_proxy proposal:5002
+    }
+
+    @proposal_spa path /proposal /proposal/
+    handle @proposal_spa {
+        reverse_proxy proposal:5002
+    }
+
+    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2*
+    handle @proposal_api {
+        reverse_proxy proposal:5002
+    }
+
+    @proposal_health path /proposal/health
+    handle @proposal_health {
+        reverse_proxy proposal:5002
+    }
+
     @static_assets {
         path /static/*
     }
-    header @static_assets Cache-Control "public, max-age=604800"
-    reverse_proxy app:5001
+    handle @static_assets {
+        header Cache-Control "public, max-age=604800"
+        reverse_proxy sightline:5001
+    }
+
+    handle {
+        reverse_proxy sightline:5001
+    }
 }

@@ -1,12 +1,11 @@
 # =============================================================================
-# Sightline — Docker Compose (production + local dev)
+# Sightline + Proposal Studio — Docker Compose (production + local dev)
 # =============================================================================
 # Usage:
-#   docker compose up -d          # Start app + Caddy
-#   docker compose up --build      # Rebuild image
-#   docker compose logs -f app    # Follow app logs
-#   docker compose exec app pytest tests/  # Run tests
-#   docker compose down            # Stop everything
+#   docker compose up -d          # Start app + proposal + Caddy
+#   docker compose up --build      # Rebuild images
+#   docker compose logs -f app    # Follow Sightline logs
+#   docker compose logs -f proposal # Follow Proposal Studio logs
 #
 # WITHOUT Firebase (local/desktop mode):
 #   1. Set DESKTOP_MODE=true in .env
@@ -16,8 +15,9 @@
 #   → Auth is bypassed, all requests get a mock admin user.
 
 services:
+  # ── Sightline (main platform) ─────────────────────────────────────────────
   app:
-    build: .
+    build: ./sightline
     image: ghcr.io/serkankzlrmk/sightline:latest
     container_name: sightline
     restart: unless-stopped
@@ -46,8 +46,8 @@ services:
       #   touch firebase-service-account.json
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
       # Mount frontend assets so design changes persist across recreates
-      - ./static:/app/static:ro
-      - ./templates:/app/templates:ro
+      - ./sightline/static:/app/static:ro
+      - ./sightline/templates:/app/templates:ro
     ports:
       - "127.0.0.1:5001:5001"
     healthcheck:
@@ -57,6 +57,41 @@ services:
       retries: 3
       start_period: 30s
 
+  # ── Proposal Studio (grant writing workspace) ─────────────────────────────
+  proposal:
+    build: ./proposal
+    image: ghcr.io/serkankzlrmk/proposal-studio:latest
+    container_name: proposal-studio
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PROPOSAL_PORT: "5002"
+      PROPOSAL_HOST: "0.0.0.0"
+      PROPOSAL_BASE_PATH: "/proposal"
+      PROPOSAL_DEBUG: "false"
+      DB_PATH: /app/data/proposal.db
+      OUTPUT_DIR: /app/output
+      # Sightline evidence bridge: mount Sightline code read-only for ReliefWeb/HDX imports
+      SIGHTLINE_ROOT: /app/sightline
+    volumes:
+      - proposal_db:/app/data
+      - proposal_output:/app/output
+      # Read-only Sightline mount for evidence bridge (reliefweb_api imports)
+      - ./sightline:/app/sightline:ro
+    ports:
+      - "127.0.0.1:5002:5002"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # ── Caddy reverse proxy (path-based routing) ─────────────────────────────
   caddy:
     image: caddy:2-alpine
     container_name: sightline-caddy
@@ -72,10 +107,9 @@ services:
       app:
         condition: service_healthy
 
-  # Daily previous-day ReliefWeb ingestion. This service is intentionally
-  # separate from the request worker and never sits on the user request path.
+  # ── Daily ReliefWeb ingestion ─────────────────────────────────────────────
   daily-ingest:
-    build: .
+    build: ./sightline
     image: ghcr.io/serkankzlrmk/sightline:latest
     container_name: sightline-daily-ingest
     restart: unless-stopped
@@ -95,7 +129,7 @@ services:
       - mcp_cache:/tmp/uv-cache
       - npm_cache:/tmp/npm-cache
       - ./firebase-service-account.json:/app/firebase-service-account.json:ro
-      - ./scripts:/app/scripts:ro
+      - ./sightline/scripts:/app/scripts:ro
     command: ["sh", "/app/scripts/daily_scheduler.sh"]
     healthcheck:
       disable: true
@@ -119,6 +153,12 @@ volumes:
   npm_cache:
     external: true
     name: npm_cache
+  proposal_db:
+    external: true
+    name: proposal_db
+  proposal_output:
+    external: true
+    name: proposal_output
   caddy_data:
     external: true
     name: caddy_data

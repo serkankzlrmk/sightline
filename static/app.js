@@ -138,10 +138,16 @@ function toggleSidebarNav() {
 }
 
 function switchTab(name) {
+  // Proposal Studio is a separate Flask app served at /proposal
+  if (name === 'proposal') {
+    window.location.href = '/proposal';
+    return;
+  }
+
   // Freemium preview: gated tabs require auth
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
-  const GATED_TABS = ['agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
+  const GATED_TABS = ['agent', 'sitrep', 'bulletin', 'db', 'admin'];
   if (!isAuthed && GATED_TABS.includes(name)) {
     // Show login panel instead of switching tab
     if (window.showLoginPanel) {
