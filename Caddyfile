@@ -31,7 +31,7 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     }
 
     # ── Proposal Studio: API endpoints ────────────────────────────────────
-    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2*
+    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2* /api/auth/me
     handle @proposal_api {
         reverse_proxy proposal:5002
     }
@@ -108,7 +108,7 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
         reverse_proxy proposal:5002
     }
 
-    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2*
+    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2* /api/auth/me
     handle @proposal_api {
         reverse_proxy proposal:5002
     }
