@@ -1,9 +1,11 @@
 # =============================================================================
 # Sightline — Caddyfile (reverse proxy with automatic TLS)
 # =============================================================================
+# Unified architecture: Proposal Studio blueprints live INSIDE the Sightline
+# Flask process (proposal_bridge). Single upstream = sightline:5001.
 # Routes:
-#   /proposal*, /api/proposals*, /api/calls*, /api/proposal-v2*  → proposal:5002
-#   Everything else                                                   → sightline:5001
+#   /proposal*, /api/proposals*, /api/calls*, /api/proposal-v2*  → sightline:5001
+#   Everything else                                               → sightline:5001
 
 sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     encode zstd gzip
@@ -22,37 +24,7 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     @proposal_static path /proposal/static/*
     handle @proposal_static {
         header Cache-Control "public, max-age=300"
-        reverse_proxy proposal:5002 {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    # ── Proposal Studio: SPA entry points ─────────────────────────────────
-    @proposal_spa path /proposal /proposal/
-    handle @proposal_spa {
-        reverse_proxy proposal:5002 {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    # ── Proposal Studio: API endpoints ────────────────────────────────────
-    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2* /api/auth/me
-    handle @proposal_api {
-        reverse_proxy proposal:5002 {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
-
-    # ── Proposal Studio: health check ─────────────────────────────────────
-    @proposal_health path /proposal/health
-    handle @proposal_health {
-        reverse_proxy proposal:5002 {
+        reverse_proxy sightline:5001 {
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto {scheme}
@@ -119,29 +91,14 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     @proposal_static path /proposal/static/*
     handle @proposal_static {
         header Cache-Control "public, max-age=300"
-        reverse_proxy proposal:5002
-    }
-
-    @proposal_spa path /proposal /proposal/
-    handle @proposal_spa {
-        reverse_proxy proposal:5002
-    }
-
-    @proposal_api path /api/proposals* /api/calls* /api/proposal-v2* /api/auth/me
-    handle @proposal_api {
-        reverse_proxy proposal:5002
-    }
-
-    @proposal_health path /proposal/health
-    handle @proposal_health {
-        reverse_proxy proposal:5002
+        reverse_proxy sightline:5001
     }
 
     @static_assets {
         path /static/*
     }
     handle @static_assets {
-        header Cache-Control "public, max-age=604800"
+        header Cache-Control "public, max-age=300"
         reverse_proxy sightline:5001
     }
 

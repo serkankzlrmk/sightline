@@ -410,6 +410,54 @@ from blueprints.main_bp import main_bp  # landing, spa, health
 app.register_blueprint(main_bp)
 app.register_blueprint(auth_route_bp)
 
+# ── Proposal Studio (separate repo, embedded as blueprints) ─────────────────
+from proposal_bridge import register_proposal_blueprints
+
+register_proposal_blueprints(app)
+
+
+# ── Proposal Studio SPA + static serving ─────────────────────────────────────
+# The Proposal repo lives under /app/proposal; /proposal and /proposal/static/*
+# are served from Sightline's process → single origin, token never lost.
+from flask import render_template_string, send_from_directory
+from proposal_bridge import proposal_root
+
+_PROPOSAL_STATIC_DIR = os.path.join(proposal_root(), "static")
+_PROPOSAL_TEMPLATE = os.path.join(proposal_root(), "templates", "index.html")
+
+
+@app.route("/proposal")
+@app.route("/proposal/")
+def proposal_spa():
+    """Proposal Studio SPA — renders its own template with config.
+
+    The Proposal template uses url_for('static', ...), which would resolve
+    to Sightline's /static/... here. Fix: give the Jinja environment a
+    proposal-static-aware url_for — the 'static' endpoint produces
+    /proposal/static/...
+    """
+    from flask import url_for as _flask_url_for
+
+    def _proposal_url_for(endpoint, **values):
+        if endpoint == "static":
+            filename = values.pop("filename", "")
+            return f"/proposal/static/{filename}"
+        return _flask_url_for(endpoint, **values)
+
+    with open(_PROPOSAL_TEMPLATE, "r", encoding="utf-8") as _f:
+        _html = _f.read()
+    return render_template_string(
+        _html,
+        config={"PROPOSAL_BASE_PATH": "/proposal"},
+        url_for=_proposal_url_for,
+    )
+
+
+@app.route("/proposal/static/<path:filename>", endpoint="proposal_static")
+def proposal_static(filename):
+    """Proposal static files (js/, css/, images/, modules/)."""
+    return send_from_directory(_PROPOSAL_STATIC_DIR, filename)
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Entry point

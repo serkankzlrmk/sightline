@@ -34,6 +34,8 @@ services:
       DESKTOP_MODE: ${DESKTOP_MODE:-false}
       # Firebase service account path (env-driven)
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-service-account.json
+      # Proposal bridge: Proposal blueprints run inside the Sightline process
+      PROPOSAL_BRIDGE: "1"
     volumes:
       - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma
@@ -48,6 +50,9 @@ services:
       # Mount frontend assets so design changes persist across recreates
       - ./sightline/static:/app/static:ro
       - ./sightline/templates:/app/templates:ro
+      # Proposal Studio (separate repo) — embedded via proposal_bridge
+      # Read-only: the repo is mounted into the Sightline container
+      - ./proposal:/app/proposal:ro
     ports:
       - "127.0.0.1:5001:5001"
     healthcheck:
