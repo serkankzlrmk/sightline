@@ -125,10 +125,10 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
       <span class="sidebar-tab-label">Database</span>
     </button>
-    <button class="sidebar-tab" id="tab-proposal" data-tab="proposal" aria-label="Proposals">
+    <a class="sidebar-tab" id="tab-proposal" href="/proposal" aria-label="Proposals">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       <span class="sidebar-tab-label">Proposals</span>
-    </button>
+    </a>
     <button class="sidebar-tab" id="tab-admin" data-tab="admin" style="display:none" aria-label="Admin">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span class="sidebar-tab-label">Admin</span>
@@ -219,7 +219,7 @@
         </div>
 
         <!-- Proposals Card -->
-        <div class="cc-nav-card" data-action="cc-start-proposal">
+        <a class="cc-nav-card" href="/proposal" style="text-decoration:none;">
           <div class="cc-card-top">
             <div class="cc-card-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -232,7 +232,7 @@
             <h3>Proposals</h3>
             <p>Structured funding proposals synthesized for immediate donor presentation and decision making.</p>
           </div>
-        </div>
+        </a>
 
         <!-- Bulletin Card -->
         <div class="cc-nav-card" data-action="cc-start-bulletin">
@@ -676,21 +676,6 @@
     </div>
   </div>
 
-  <!-- ─── TAB: PROPOSAL DESIGN PIPELINE ────────── -->
-  <!-- ─── TAB: PROPOSAL (in development placeholder) ────────── -->
-  <div class="panel" id="panel-proposal">
-    <div class="proposal-page" style="height:calc(100vh - 0px); display:flex; flex-direction:column;">
-      <iframe
-        id="proposal-frame"
-        src="/proposal"
-        title="Proposal Studio"
-        style="flex:1; width:100%; height:100%; border:none; background:var(--color-bg,#020617);"
-        allow="clipboard-write; clipboard-read"
-      ></iframe>
-    </div>
-  </div>
-
-
   <!-- ─── ADMIN PANEL ───────────────────────────── -->
   <div class="panel" id="panel-admin">
     <div class="admin-panel-content">
@@ -947,10 +932,10 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
     <span>DB</span>
   </button>
-  <button class="mobile-tab" data-tab="proposal">
+  <a class="mobile-tab" data-tab="proposal" href="/proposal">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h6"/></svg>
     <span>Proposal</span>
-  </button>
+  </a>
   <button class="mobile-tab mobile-user-tab" id="mobile-user-btn" style="display:none">
     <img id="mobile-user-photo" src="" alt="" width="22" height="22" style="border-radius:50%;">
     <span id="mobile-user-name">User</span>

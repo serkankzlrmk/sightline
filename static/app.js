@@ -8,7 +8,7 @@
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const ADMIN_EMAIL = document.querySelector('meta[name="contact-email"]')?.content || 'support@sightline.ai';
-const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'proposal', 'admin'];
+const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
 const DEFAULT_MODEL = 'flash';
 const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
@@ -138,9 +138,6 @@ function toggleSidebarNav() {
 }
 
 function switchTab(name) {
-  // Proposal Studio is embedded as an iframe panel (same-origin /proposal)
-  // → no hard navigation needed; the panel toggle below handles it.
-
   // Freemium preview: gated tabs require auth
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
