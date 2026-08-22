@@ -21,25 +21,41 @@ sightlinehumanitarian.com, www.sightlinehumanitarian.com {
     @proposal_static path /proposal/static/*
     handle @proposal_static {
         header Cache-Control "public, max-age=604800"
-        reverse_proxy proposal:5002
+        reverse_proxy proposal:5002 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # ── Proposal Studio: SPA entry points ─────────────────────────────────
     @proposal_spa path /proposal /proposal/
     handle @proposal_spa {
-        reverse_proxy proposal:5002
+        reverse_proxy proposal:5002 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # ── Proposal Studio: API endpoints ────────────────────────────────────
     @proposal_api path /api/proposals* /api/calls* /api/proposal-v2* /api/auth/me
     handle @proposal_api {
-        reverse_proxy proposal:5002
+        reverse_proxy proposal:5002 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # ── Proposal Studio: health check ─────────────────────────────────────
     @proposal_health path /proposal/health
     handle @proposal_health {
-        reverse_proxy proposal:5002
+        reverse_proxy proposal:5002 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # ── Sightline: SSE endpoints — no buffering ───────────────────────────
