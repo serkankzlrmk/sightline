@@ -132,7 +132,10 @@ class TestRoutes:
     def test_bulletin_detail_200_and_trimmed(self, client):
         from blueprints.seo_bp import _bulletin_slug_map
 
-        slug = next(iter(_bulletin_slug_map()))
+        slug_map = _bulletin_slug_map()
+        if not slug_map:
+            pytest.skip("no bulletins on disk (CI checkout has no output/)")
+        slug = next(iter(slug_map))
         resp = client.get(f"/bulletin/{slug}", headers={"User-Agent": "Mozilla/5.0"})
         assert resp.status_code == 200
         assert b"application/ld+json" in resp.data
@@ -148,7 +151,10 @@ class TestRoutes:
     def test_country_detail_200(self, client):
         from blueprints.seo_bp import _country_slug_map
 
-        slug = next(iter(_country_slug_map()))
+        slug_map = _country_slug_map()
+        if not slug_map:
+            pytest.skip("no country summaries on disk (CI checkout has no output/)")
+        slug = next(iter(slug_map))
         resp = client.get(f"/country/{slug}", headers={"User-Agent": "Mozilla/5.0"})
         assert resp.status_code == 200
 
