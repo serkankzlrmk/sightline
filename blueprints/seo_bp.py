@@ -1,0 +1,445 @@
+"""
+blueprints/seo_bp.py — Server-rendered SEO surface for public content.
+
+Why this exists: the JSON APIs (/api/public/*) are invisible to search
+engines. These routes render the same content as HTML pages with per-page
+meta tags, canonical URLs, JSON-LD, and a sitemap — so Googlebot (and
+humans without JS) can read Sightline's bulletins, country summaries, and
+SITREP reports.
+
+Security notes:
+- All LLM-derived HTML is sanitized server-side with bleach (the SPA does
+  client-side sanitization; SSR pages have no JS sanitizer, so this is the
+  only defense).
+- Per-IP rate cap for these routes (they are NOT under the /api/* limiter);
+  known crawler user-agents are exempt.
+- Slugs never touch the filesystem directly: lookups go through the listing
+  helpers and a slug→filename map; traversal is impossible by construction.
+"""
+
+import json
+import logging
+import re
+import threading
+import time
+
+import bleach
+from flask import Blueprint, abort, render_template, request
+
+from blueprints.helpers import _is_bot_user_agent, record_page_view
+from config import (
+    OUTPUT_REPORTS_DIR,
+    SEO_RATE_LIMIT_PER_MIN,
+    SEO_RATE_WINDOW_SECONDS,
+    SITE_URL,
+)
+
+logger = logging.getLogger(__name__)
+
+seo_bp = Blueprint("seo", __name__)
+
+# ── Sanitization (server-side XSS defense — D7) ───────────────────────────────
+# Allowlist for LLM-derived HTML. Everything else is stripped.
+_ALLOWED_TAGS = [
+    "a", "p", "strong", "em", "b", "i", "ul", "ol", "li", "br",
+    "h1", "h2", "h3", "h4", "blockquote", "code", "pre", "hr",
+]
+_ALLOWED_ATTRS = {"a": ["href", "title"]}
+
+
+def _sanitize_html(raw: str) -> str:
+    """Strip anything outside the allowlist from LLM-derived HTML."""
+    if not raw:
+        return ""
+    return bleach.clean(
+        raw,
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRS,
+        protocols=["http", "https", "mailto"],
+        strip=True,
+    )
+
+
+# ── Slug helpers ───────────────────────────────────────────────────────────────
+_SUFFIXES = {"report", "bulletin", "summary"}
+
+
+def slugify(stem: str) -> str:
+    """Convert a filename stem to a URL-safe slug.
+
+    lowercase; all separators → '-'; duplicate tokens collapsed;
+    trailing report/bulletin/summary suffix removed.
+    Examples: "Colombia_Colombia conflict_report" → "colombia-conflict"
+              "2026-W31_bulletin" → "2026-w31"
+    """
+    s = re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-")
+    parts = [p for p in s.split("-") if p]
+    if parts and parts[-1] in _SUFFIXES:
+        parts.pop()
+    out = []
+    for p in parts:
+        if not out or out[-1] != p:
+            out.append(p)
+    return "-".join(out)
+
+
+def safe_country_filename(name: str) -> str:
+    """Mirror of sitrep.utils.safe_filename — alphanumeric/_/- only."""
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", name)
+
+
+def _slugify_bulletin_filename(filename: str) -> str:
+    return slugify(filename.rsplit(".", 1)[0])
+
+
+def _bulletin_slug_map() -> dict[str, str]:
+    """slug → filename for all bulletins. First-wins on collision."""
+    from sitrep.weekly_bulletin import list_bulletins
+
+    m: dict[str, str] = {}
+    for b in list_bulletins():
+        slug = _slugify_bulletin_filename(b["filename"])
+        m.setdefault(slug, b["filename"])
+    return m
+
+
+def _country_slug_map() -> dict[str, str]:
+    """slug → filename for all country summaries.
+
+    Collisions are NOT silently resolved: the route 404s on a collided slug
+    instead of picking one (D12). The map keeps first-wins; ambiguity is
+    detectable because list_country_summaries yields unique countries.
+    """
+    from sitrep.country_summary import list_country_summaries
+
+    m: dict[str, str] = {}
+    for c in list_country_summaries():
+        country = c.get("country", "")
+        if not country:
+            continue
+        slug = slugify(country.replace(" ", "_"))
+        m.setdefault(slug, f"{safe_country_filename(country)}.json")
+    return m
+
+
+def _sitrep_report_files() -> list[tuple[str, str]]:
+    """[(filename, slug)] for real report JSONs, test artifacts excluded.
+
+    Rule (D8): exclude stems containing '_test' or 'test_' only.
+    8-hex-filtered reports (e.g. Syria_..._654573c0) are legit filtered
+    runs and stay — they are exactly the content this surface exists for.
+    """
+    out = []
+    if not OUTPUT_REPORTS_DIR.exists():
+        return out
+    for f in sorted(
+        OUTPUT_REPORTS_DIR.glob("*report.json"),
+        key=lambda x: x.stat().st_mtime,
+        reverse=True,
+    ):
+        stem = f.stem
+        if "_test" in stem or "test_" in stem:
+            continue
+        out.append((f.name, slugify(stem)))
+    return out
+
+
+# ── Per-IP rate cap (D13) ─────────────────────────────────────────────────────
+_seo_rate_lock = threading.Lock()
+_seo_rate_counts: dict[str, list[float]] = {}  # ip → [window_start, hits]
+
+
+def _seo_rate_allowed(ip: str, user_agent: str) -> bool:
+    """Per-IP cap for SEO routes; crawlers (and missing UA) are exempt."""
+    if _is_bot_user_agent(user_agent):
+        return True
+    now = time.time()
+    with _seo_rate_lock:
+        entry = _seo_rate_counts.get(ip)
+        if not entry or now - entry[0] > SEO_RATE_WINDOW_SECONDS:
+            entry = [now, 0]
+            _seo_rate_counts[ip] = entry
+        entry[1] += 1
+        if entry[1] > SEO_RATE_LIMIT_PER_MIN:
+            return False
+        if len(_seo_rate_counts) > 5000:
+            stale = [k for k, v in _seo_rate_counts.items() if now - v[0] > SEO_RATE_WINDOW_SECONDS]
+            for k in stale:
+                del _seo_rate_counts[k]
+        return True
+
+
+def _seo_rate_guard():
+    """before_request for SEO routes: 429 when a real visitor exceeds the cap."""
+    if not _seo_rate_allowed(request.remote_addr or "", request.headers.get("User-Agent", "")):
+        abort(429)
+
+
+seo_bp.before_request(_seo_rate_guard)
+
+
+# ── Render caches (D13) ───────────────────────────────────────────────────────
+_bulletin_cache: dict[str, tuple[float, str]] = {}
+_sitemap_cache: dict[str, tuple[float, str]] = {}
+_BULLETIN_CACHE_TTL = 300
+_SITEMAP_CACHE_TTL = 3600
+
+
+def _cached(key: str, cache: dict, ttl: int, builder) -> str:
+    now = time.time()
+    hit = cache.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    rendered = builder()
+    cache[key] = (now, rendered)
+    return rendered
+
+
+# ── Render helpers ─────────────────────────────────────────────────────────────
+def _render_detail(title: str, description: str, path: str, body_html: str, json_ld: dict) -> str:
+    return render_template(
+        "seo_detail.html",
+        page_title=title,
+        page_description=description,
+        canonical=f"{SITE_URL}/{path}",
+        body_html=body_html,
+        json_ld=json.dumps(json_ld, ensure_ascii=False),
+    )
+
+
+def _render_list(title: str, description: str, items: list[dict], path: str) -> str:
+    return render_template(
+        "seo_list.html",
+        page_title=title,
+        page_description=description,
+        canonical=f"{SITE_URL}/{path}",
+        items=items,
+    )
+
+
+# =============================================================================
+# ROUTES — Bulletins
+# =============================================================================
+
+
+@seo_bp.route("/bulletins")
+def bulletin_list():
+    """List of all weekly bulletins (HTML)."""
+    from sitrep.weekly_bulletin import list_bulletins
+
+    record_page_view("/bulletins", request.headers.get("User-Agent", ""))
+    items = [
+        {
+            "url": f"/bulletin/{_slugify_bulletin_filename(b['filename'])}",
+            "title": b.get("week_label") or b["filename"],
+            "subtitle": (
+                f"{b.get('week_start', '')} — {b.get('week_end', '')}"
+                f" · {b.get('total_reports', 0)} reports"
+            ),
+        }
+        for b in list_bulletins()
+    ]
+    return _render_list(
+        "Weekly Humanitarian Bulletins",
+        "Weekly humanitarian situation bulletins generated by Sightline from ReliefWeb, HDX and GDACS.",
+        items,
+        "bulletins",
+    )
+
+
+@seo_bp.route("/bulletin/<slug>")
+def bulletin_detail(slug: str):
+    from blueprints.public_bp import _trim_bulletin_for_preview
+    from sitrep.weekly_bulletin import get_bulletin
+
+    def _render() -> str:
+        filename = _bulletin_slug_map().get(slug)
+        if not filename:
+            abort(404)
+        bulletin = get_bulletin(filename)
+        if bulletin is None:
+            abort(404)
+        trimmed = _trim_bulletin_for_preview(bulletin)
+        title = trimmed.get("week_label") or filename
+        sections = []
+        if trimmed.get("global_overview"):
+            sections.append(
+                f"<h2>Global Overview</h2><p>{_sanitize_html(trimmed['global_overview'])}</p>"
+            )
+        for crisis in trimmed.get("crises", []):
+            c_title = _sanitize_html(crisis.get("headline", "Crisis"))
+            c_summary = _sanitize_html(crisis.get("summary", ""))
+            sections.append(f"<h3>{c_title}</h3><p>{c_summary}</p>")
+        json_ld = {
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "headline": title,
+            "datePublished": trimmed.get("generated_at", ""),
+            "mainEntityOfPage": f"{SITE_URL}/bulletin/{slug}",
+        }
+        return _render_detail(
+            title,
+            f"Weekly humanitarian bulletin: {trimmed.get('week_label') or title}.",
+            f"bulletin/{slug}",
+            "".join(sections),
+            json_ld,
+        )
+
+    return _cached(f"bulletin:{slug}", _bulletin_cache, _BULLETIN_CACHE_TTL, _render)
+
+
+# =============================================================================
+# ROUTES — Countries
+# =============================================================================
+
+
+@seo_bp.route("/countries")
+def country_list():
+    from sitrep.country_summary import list_country_summaries
+
+    record_page_view("/countries", request.headers.get("User-Agent", ""))
+    items = []
+    for c in list_country_summaries():
+        country = c.get("country", "")
+        if not country:
+            continue
+        items.append(
+            {
+                "url": f"/country/{slugify(safe_country_filename(country))}",
+                "title": country,
+                "subtitle": f"{c.get('severity', '')} · {c.get('report_count', 0)} reports",
+            }
+        )
+    return _render_list(
+        "Country Intelligence Summaries",
+        "Humanitarian intelligence cards per country: severity, reports, themes, HDX figures.",
+        items,
+        "countries",
+    )
+
+
+@seo_bp.route("/country/<slug>")
+def country_detail(slug: str):
+    """Full country card rendered server-side (D10: map endpoint already public)."""
+    from sitrep.country_summary import get_country_summary
+
+    filename = _country_slug_map().get(slug)
+    if not filename:
+        abort(404)
+    summary = get_country_summary(filename[:-5])  # strip ".json"
+    if summary is None:
+        abort(404)
+    record_page_view(f"/country/{slug}", request.headers.get("User-Agent", ""))
+    country = summary.get("country", slug)
+    sections = []
+    headline = _sanitize_html(summary.get("headline", ""))
+    if headline:
+        sections.append(f"<h2>Headline</h2><p>{headline}</p>")
+    narrative = _sanitize_html(summary.get("narrative") or "")
+    if narrative:
+        sections.append(f"<h2>Narrative</h2><p>{narrative}</p>")
+    themes = summary.get("top_themes") or []
+    if themes:
+        chips = "".join(f"<li>{_sanitize_html(str(t))}</li>" for t in themes)
+        sections.append(f"<h2>Top Themes</h2><ul>{chips}</ul>")
+    alerts = summary.get("gdacs_alerts") or []
+    for alert in alerts:
+        alert_title = _sanitize_html(str(alert.get("title", "Alert")))
+        sections.append(f"<h3>{alert_title}</h3>")
+    json_ld = {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": f"{country} — Humanitarian Intelligence Summary",
+        "description": f"Aggregated humanitarian indicators for {country}",
+        "url": f"{SITE_URL}/country/{slug}",
+    }
+    return _render_detail(
+        f"{country} — Country Intelligence",
+        f"Humanitarian situation summary for {country}: severity, reports, themes.",
+        f"country/{slug}",
+        "".join(sections),
+        json_ld,
+    )
+
+
+# =============================================================================
+# ROUTES — SITREP reports
+# =============================================================================
+
+
+@seo_bp.route("/sitrep/<slug>")
+def sitrep_detail(slug: str):
+    """JSON-rendered SITREP page (no markdown dependency — D2)."""
+    files = _sitrep_report_files()
+    match = [f for f in files if f[1] == slug]
+    if not match:
+        abort(404)
+    filename = match[0][0]
+    try:
+        with open(OUTPUT_REPORTS_DIR / filename, encoding="utf-8") as fh:
+            report = json.load(fh)
+    except Exception:
+        abort(404)
+    record_page_view(f"/sitrep/{slug}", request.headers.get("User-Agent", ""))
+    title = report.get("title") or filename
+    narrative = _sanitize_html(report.get("narrative_html") or report.get("narrative") or "")
+    sections = f"<h2>Report</h2>{narrative}" if narrative else "<p>No narrative available.</p>"
+    json_ld = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": title,
+        "mainEntityOfPage": f"{SITE_URL}/sitrep/{slug}",
+    }
+    return _render_detail(
+        title,
+        f"Humanitarian situation report: {title}.",
+        f"sitrep/{slug}",
+        sections,
+        json_ld,
+    )
+
+
+# =============================================================================
+# ROUTES — sitemap + robots
+# =============================================================================
+
+
+def _sitemap_builder() -> str:
+    urls = [f"{SITE_URL}/", f"{SITE_URL}/bulletins", f"{SITE_URL}/countries"]
+    for slug in _bulletin_slug_map():
+        urls.append(f"{SITE_URL}/bulletin/{slug}")
+    for slug in _country_slug_map():
+        urls.append(f"{SITE_URL}/country/{slug}")
+    for _, slug in _sitrep_report_files():
+        urls.append(f"{SITE_URL}/sitrep/{slug}")
+    if len(urls) <= 3:
+        # An empty sitemap violates the protocol and triggers Search Console
+        # errors — serve 404 instead (D16).
+        abort(404)
+    today = time.strftime("%Y-%m-%d")
+    entries = "".join(f"<url><loc>{u}</loc><lastmod>{today}</lastmod></url>" for u in urls)
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{entries}\n"
+        "</urlset>"
+    )
+
+
+@seo_bp.route("/sitemap.xml")
+def sitemap_xml():
+    record_page_view("/sitemap.xml", request.headers.get("User-Agent", ""))
+    body = _cached("sitemap", _sitemap_cache, _SITEMAP_CACHE_TTL, _sitemap_builder)
+    return body, 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
+@seo_bp.route("/robots.txt")
+def robots_txt():
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /app\n"
+        f"Sitemap: {SITE_URL}/sitemap.xml\n",
+        200,
+        {"Content-Type": "text/plain; charset=utf-8"},
+    )

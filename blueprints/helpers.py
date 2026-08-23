@@ -28,6 +28,65 @@ from config import (
     SITREP_JOB_TIMEOUT,
 )
 
+# ── SEO public page views ─────────────────────────────────────────────────────
+# Daily-aggregate counter for the SEO HTML routes. One row per (date, path),
+# UPSERTed on each view. Bot user-agents are skipped so the "SEO compounds"
+# metric reflects real visitors, not crawlers.
+
+_BOT_UA_RE = re.compile(
+    r"(googlebot|bingbot|duckduckbot|baiduspider|yandex|slurp|"
+    r"ia_archiver|facebookexternalhit|twitterbot|linkedinbot|"
+    r"petalbot|applebot|ahrefs|semrush|mj12|dotbot|gptbot|"
+    r"python-requests|curl|wget|scrapy|headless)",
+    re.IGNORECASE,
+)
+
+
+def _is_bot_user_agent(user_agent: str = "") -> bool:
+    """True when the UA is a known crawler/bot — excluded from page views."""
+    if not user_agent:
+        return True  # missing UA is treated as a bot (curl, scripts)
+    return bool(_BOT_UA_RE.search(user_agent))
+
+
+def record_page_view(path: str, user_agent: str = "") -> None:
+    """Record one anonymous page view on an SEO route (daily aggregate).
+
+    Skips known crawler user-agents. Missing UA is treated as a bot.
+    Writes one row per (date, path); repeated views the same day increment
+    the count (UPSERT). Failures are logged at debug level — a broken
+    counter must never break the page.
+    """
+    if _is_bot_user_agent(user_agent):
+        return
+    try:
+        conn = chats_db()
+        conn.execute(
+            "INSERT INTO page_views (date, path, count) VALUES (?, ?, 1) "
+            "ON CONFLICT(date, path) DO UPDATE SET count = count + 1",
+            (time.strftime("%Y-%m-%d"), path[:500]),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("Failed to record page view %s: %s", path, e)
+
+
+def get_page_views(days: int = 30) -> list[dict]:
+    """Recent page-view aggregates for admin analytics (per path)."""
+    try:
+        conn = chats_db()
+        rows = conn.execute(
+            "SELECT date, path, count FROM page_views "
+            "WHERE date >= date('now', ?) ORDER BY date DESC, count DESC LIMIT 500",
+            (f"-{int(days)} days",),
+        ).fetchall()
+        conn.close()
+        return [{"date": r[0], "path": r[1], "count": r[2]} for r in rows]
+    except Exception as e:
+        logger.debug("Failed to read page views: %s", e)
+        return []
+
 logger = logging.getLogger(__name__)
 
 # ── Chat database connection ─────────────────────────────────────────────────
@@ -299,6 +358,12 @@ def init_chats_db():
             event     TEXT NOT NULL,
             props     TEXT NOT NULL DEFAULT '{}',
             session   TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS page_views (
+            date  TEXT NOT NULL,
+            path  TEXT NOT NULL,
+            count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (date, path)
         );
         CREATE INDEX IF NOT EXISTS idx_events_ts    ON events(ts);
         CREATE INDEX IF NOT EXISTS idx_events_uid   ON events(uid);

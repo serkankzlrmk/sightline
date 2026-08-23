@@ -406,9 +406,11 @@ def _apply_api_rate_limit():
 # Auth/me, chat/models, landing, health are now in their own blueprints:
 from blueprints.auth_route import auth_route_bp  # /api/auth/me
 from blueprints.main_bp import main_bp  # landing, spa, health
+from blueprints.seo_bp import seo_bp  # /bulletins, /countries, /sitrep/<slug>, sitemap, robots
 
 app.register_blueprint(main_bp)
 app.register_blueprint(auth_route_bp)
+app.register_blueprint(seo_bp)
 
 # ── Proposal Studio (separate repo, embedded as blueprints) ─────────────────
 from proposal_bridge import register_proposal_blueprints

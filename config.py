@@ -393,6 +393,14 @@ SERVER_DEBUG: bool = os.getenv("SERVER_DEBUG", "false").lower() == "true"
 SERVER_API_KEY: str = os.getenv("SERVER_API_KEY", "")
 CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
 
+# Canonical public origin — used for SEO canonical tags and sitemap URLs.
+SITE_URL: str = os.getenv("SITE_URL", "https://sightlinehumanitarian.com").rstrip("/")
+
+# Per-IP cap for the SEO HTML routes (not /api/* — those have their own limiter).
+# Googlebot and known crawlers are exempt via user-agent allowlist.
+SEO_RATE_LIMIT_PER_MIN: int = int(os.getenv("SEO_RATE_LIMIT_PER_MIN", "300"))
+SEO_RATE_WINDOW_SECONDS: int = int(os.getenv("SEO_RATE_WINDOW_SECONDS", "60"))
+
 # Optional off-server backup storage. Live reads and writes never use R2.
 R2_BACKUP_ENABLED: bool = os.getenv("R2_BACKUP_ENABLED", "false").lower() == "true"
 R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "")
