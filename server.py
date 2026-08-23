@@ -451,6 +451,9 @@ def proposal_spa():
         config={
             "PROPOSAL_BASE_PATH": "/proposal",
             "ASSET_VERSION": proposal_asset_version(),
+            # Use Sightline's canonical Firebase web app so Firebase Auth's
+            # browser persistence is shared with /app (it is keyed by apiKey).
+            "FIREBASE_CONFIG_URL": "/static/firebase-config.js",
         },
         url_for=_proposal_url_for,
     )
