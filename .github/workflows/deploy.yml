@@ -122,6 +122,7 @@ jobs:
               -v npm_cache:/tmp/npm-cache \
               -v /opt/reliefagent/data/firebase-service-account.json:/app/firebase-service-account.json:ro \
               -v /opt/reliefagent/current/static/firebase-config.js:/app/static/firebase-config.js:ro \
+              -v /opt/reliefagent/current/proposal:/app/proposal:ro \
               --restart unless-stopped \
               -p 127.0.0.1:5001:5001 \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
