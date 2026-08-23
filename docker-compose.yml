@@ -36,6 +36,10 @@ services:
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-service-account.json
       # Proposal bridge: Proposal blueprints run inside the Sightline process
       PROPOSAL_BRIDGE: "1"
+      # Proposal DB stays separate from Sightline's reliefweb.db
+      PROPOSAL_DB_PATH: /app/data/proposal.db
+      # Proposal PDF output — writable Sightline volume (not the ro repo mount)
+      OUTPUT_DIR: /app/output
     volumes:
       - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma
