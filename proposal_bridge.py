@@ -68,3 +68,14 @@ def register_proposal_blueprints(app) -> bool:
 def proposal_root() -> str:
     """Proposal repo root (used for static/template serving)."""
     return _PROPOSAL_ROOT
+
+
+def proposal_asset_version() -> str:
+    """Return a deploy-stable cache key for Proposal Studio frontend assets."""
+    candidates = (
+        os.path.join(_PROPOSAL_ROOT, "static", "js", "app.js"),
+        os.path.join(_PROPOSAL_ROOT, "static", "js", "proposal-auth.js"),
+        os.path.join(_PROPOSAL_ROOT, "static", "css", "proposal.css"),
+    )
+    mtimes = [os.stat(path).st_mtime_ns for path in candidates if os.path.exists(path)]
+    return format(max(mtimes, default=0), "x")

@@ -420,7 +420,7 @@ register_proposal_blueprints(app)
 # The Proposal repo lives under /app/proposal; /proposal and /proposal/static/*
 # are served from Sightline's process → single origin, token never lost.
 from flask import render_template_string, send_from_directory
-from proposal_bridge import proposal_root
+from proposal_bridge import proposal_asset_version, proposal_root
 
 _PROPOSAL_STATIC_DIR = os.path.join(proposal_root(), "static")
 _PROPOSAL_TEMPLATE = os.path.join(proposal_root(), "templates", "index.html")
@@ -448,7 +448,10 @@ def proposal_spa():
         _html = _f.read()
     return render_template_string(
         _html,
-        config={"PROPOSAL_BASE_PATH": "/proposal"},
+        config={
+            "PROPOSAL_BASE_PATH": "/proposal",
+            "ASSET_VERSION": proposal_asset_version(),
+        },
         url_for=_proposal_url_for,
     )
 
