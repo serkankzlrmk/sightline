@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }} - Sightline</title>
+  <meta name="description" content="{{ page_description }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:type" content="article">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="stylesheet" href="/static/dist/landing.css">
+  <script type="application/ld+json">{{ json_ld | safe }}</script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #1a1a2e; margin: 0; background: #fafafd; }
+    .seo-wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+    .seo-nav { display: flex; gap: 16px; font-size: 14px; padding: 12px 0 20px; border-bottom: 1px solid #e5e5ee; margin-bottom: 24px; }
+    .seo-nav a { color: #2053a8; text-decoration: none; }
+    .seo-nav a:hover { text-decoration: underline; }
+    h1 { font-size: 30px; line-height: 1.25; color: #111128; margin: 0 0 8px; }
+    .seo-meta { font-size: 14px; color: #5a5a72; margin-bottom: 28px; }
+    .seo-body h2 { font-size: 20px; margin: 28px 0 10px; color: #111128; }
+    .seo-body h3 { font-size: 17px; margin: 20px 0 8px; color: #22223c; }
+    .seo-body p { margin: 8px 0; color: #2b2b45; }
+    .seo-body ul { padding-left: 20px; }
+    .seo-body li { margin: 4px 0; }
+    .seo-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e5ee; font-size: 13px; color: #8a8aa0; }
+    .seo-footer a { color: #2053a8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="seo-wrap">
+    <nav class="seo-nav">
+      <a href="/">Home</a>
+      <a href="/bulletins">Bulletins</a>
+      <a href="/countries">Country Summaries</a>
+      <a href="/proposal">Proposal Studio</a>
+    </nav>
+    <h1>{{ page_title }}</h1>
+    <div class="seo-meta">{{ page_description }}</div>
+    <div class="seo-body">{{ body_html | safe }}</div>
+    <footer class="seo-footer">
+      <a href="/">Sightline</a> &mdash; humanitarian intelligence, situation reports and donor proposals from trusted sources.
+    </footer>
+  </div>
+</body>
+</html>

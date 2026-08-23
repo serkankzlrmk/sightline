@@ -6,8 +6,15 @@
 # Routes:
 #   /proposal*, /api/proposals*, /api/calls*, /api/proposal-v2*  → sightline:5001
 #   Everything else                                               → sightline:5001
+#
+# SEO: www → apex 301 redirect so Google sees a single host (the canonical
+# tags and sitemap URLs hardcode the apex, non-www form).
 
-sightlinehumanitarian.com, www.sightlinehumanitarian.com {
+www.sightlinehumanitarian.com {
+    redir https://sightlinehumanitarian.com{uri} 301
+}
+
+sightlinehumanitarian.com {
     encode zstd gzip
 
     # ── Security headers ──────────────────────────────────────────────────

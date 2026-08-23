@@ -206,6 +206,12 @@ def api_admin_analytics():
             (_time.time() - 30 * 86400,),
         ).fetchall()
 
+        # 8. SEO public page views (last 30 days, per path)
+        public_page_views = conn.execute(
+            "SELECT date, path, count FROM page_views "
+            "WHERE date >= date('now', '-30 days') ORDER BY date DESC, count DESC LIMIT 200"
+        ).fetchall()
+
         result = {
             "users": {
                 "total": total_users,
@@ -221,6 +227,9 @@ def api_admin_analytics():
             "dau_trend": [{"day": r["day"], "users": r["users"]} for r in dau_trend],
             "sitrep_runs": [{"country": r["country"] or "Unknown", "count": r["cnt"]} for r in sitrep_runs],
             "bulletin_views": [{"filename": r["filename"] or "Unknown", "count": r["cnt"]} for r in bulletin_views],
+            "public_page_views": [
+                {"date": r["date"], "path": r["path"], "count": r["count"]} for r in public_page_views
+            ],
             "recent_users": [
                 {
                     "uid": r["uid"],
