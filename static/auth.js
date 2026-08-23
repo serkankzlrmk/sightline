@@ -101,7 +101,17 @@ function hideOverlay() {
   document.body.classList.remove("preview-mode");
   document.body.classList.remove("auth-locked");
   document.body.offsetHeight;
+  // Remember the dismiss so the panel doesn't keep forcing itself open
+  // for the rest of this browser session (tab switch re-opens on demand).
+  try { sessionStorage.setItem("sightline_login_dismissed", "1"); } catch (_) {}
 }
+
+// Close button on the slide-in login panel
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.id === "auth-close-btn") {
+    hideOverlay();
+  }
+});
 
 function showUserBar(user) {
   const bar   = document.getElementById("user-bar");
@@ -444,8 +454,12 @@ function _initFirebase() {
       clearToken();
       window.__isAdmin = false;
       window.__userRole = "free";
-      // Freemium preview: show slide-in login panel + preview content
-      showOverlay();
+      // Freemium preview: show the slide-in login panel unless the visitor
+      // dismissed it earlier this session (Chat/Database clicks still open
+      // it on demand).
+      let dismissed = false;
+      try { dismissed = sessionStorage.getItem("sightline_login_dismissed") === "1"; } catch (_) {}
+      if (!dismissed) showOverlay();
       showUserBar(null);
     }
   });

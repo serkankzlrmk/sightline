@@ -31,6 +31,23 @@ body .nav {
   padding: 40px 28px;
   overflow-y: auto;
 }
+.auth-close-btn {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background: rgba(127,127,127,.12);
+  color: var(--text-secondary, #8a8f98);
+  font-size: 14px; line-height: 1;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+  z-index: 1;
+}
+.auth-close-btn:hover {
+  background: rgba(232,54,78,.15);
+  color: var(--accent, #E8364E);
+}
 .auth-overlay.slide-in .auth-card {
   transform: translateX(0);
 }

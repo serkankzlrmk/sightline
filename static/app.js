@@ -341,27 +341,3 @@ document.addEventListener('click', (e) => {
 // switchTab stays exported from here — it depends on app.js currentTab state.
 window.switchTab = switchTab;
 
-// Freemium helper: open an unlocked tab from the login card / anywhere else.
-// Closes the auth overlay (module scoped) and switches to the named tab.
-function openFreeTab(name) {
-  const overlay = document.getElementById('auth-overlay');
-  if (overlay) {
-    overlay.classList.add('hidden');
-    overlay.classList.remove('slide-in');
-    overlay.style.display = '';
-  }
-  document.body.classList.remove('auth-locked', 'preview-mode');
-  switchTab(name);
-}
-window.openFreeTab = openFreeTab;
-
-// Wire the login card's "Free to explore" links (data-free-tab) — CSP has no
-// unsafe-inline, so delegation is the only way these can switch tabs.
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('[data-free-tab]');
-  if (link) {
-    e.preventDefault();
-    openFreeTab(link.dataset.freeTab);
-  }
-});
-
