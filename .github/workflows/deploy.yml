@@ -45,6 +45,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Git LFS: logo/textures are LFS pointers in git; without this the
+          # Docker image embeds 131-byte pointers and the landing page loses
+          # the logo + 3D earth (regression from the LFS migration).
+          lfs: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
