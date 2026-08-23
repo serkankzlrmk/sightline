@@ -11,7 +11,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, send_from_directory
 
 from config import (
     _LLM_API_KEY,
@@ -51,6 +51,12 @@ def _frontend_version() -> str:
 @main_bp.route("/")
 def landing():
     return render_template("landing.html", v=_frontend_version())
+
+
+@main_bp.route("/googleb68b482e730d338b.html")
+def google_verification():
+    """Google Search Console domain verification file (root path)."""
+    return send_from_directory(BASE_DIR / "static", "googleb68b482e730d338b.html")
 
 
 @main_bp.route("/app")
