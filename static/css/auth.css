@@ -111,7 +111,11 @@ body .nav {
 .auth-card-inner { width: 100%; text-align: center; }
 .auth-logo { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: var(--radius); box-shadow: 0 4px 16px rgba(232,54,78,.12); }
 .auth-card h1 { font-size: 22px; font-weight: 700; color: var(--text); margin: 0 0 4px; letter-spacing: -.3px; }
-.auth-subtitle { font-size: 14px; color: var(--text-secondary); margin: 0 0 28px; font-weight: 400; letter-spacing: -.01em; }
+.auth-subtitle { font-size: 14px; color: var(--text-secondary); margin: 0 0 14px; font-weight: 400; letter-spacing: -.01em; }
+.auth-free-note { font-size: 13px; color: var(--text-secondary); background: rgba(37,99,235,.06); border: 1px solid rgba(37,99,235,.15); border-radius: 10px; padding: 10px 12px; margin: 0 0 20px; line-height: 1.5; }
+.auth-free-note a { color: var(--accent, #2563eb); text-decoration: none; font-weight: 600; }
+.auth-free-note a:hover { text-decoration: underline; }
+.auth-premium-hint { font-size: 12.5px; color: var(--text-tertiary, #8a8aa0); margin: 10px 0 0; font-weight: 500; letter-spacing: -.01em; }
 
 .auth-card-features {
   display: flex; flex-direction: column; gap: 8px;

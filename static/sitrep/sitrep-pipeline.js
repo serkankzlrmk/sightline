@@ -170,6 +170,13 @@ async function runPipeline() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ country, event, themes, skip_cache: skipCache, date_from: dateFrom, date_to: dateTo }),
     });
+    // Anonymous visitors can browse reports but generation is premium —
+    // prompt sign-in instead of showing a raw error.
+    if (resp.status === 401) {
+      if (window.showLoginPanel) window.showLoginPanel();
+      document.getElementById('btn-run').disabled = false;
+      return;
+    }
     const { job_id, stream_nonce, error } = await resp.json();
     if (error) { alert('Error: ' + error); document.getElementById('btn-run').disabled = false; return; }
     connectSSE(job_id, stream_nonce);

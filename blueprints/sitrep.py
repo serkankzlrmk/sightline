@@ -18,7 +18,7 @@ from queue import Empty, Queue
 
 from flask import Blueprint, Response, jsonify, request
 
-from auth import _dev_mode, current_role, current_uid, require_admin, require_auth, require_role
+from auth import _dev_mode, current_role, current_uid, optional_auth, require_admin, require_auth, require_role
 from blueprints.helpers import (
     _JOBS_MAX_AGE,
     _cleanup_stream_nonces,
@@ -55,7 +55,7 @@ def _run_sitrep_job(job_id: str, cmd: list):
 
 
 @sitrep_bp.route("/themes")
-@require_auth
+@optional_auth
 def api_sitrep_themes():
     """Return unique theme values — ChromaDB first, SQLite fallback."""
     try:
@@ -69,7 +69,7 @@ def api_sitrep_themes():
 
 
 @sitrep_bp.route("/countries")
-@require_auth
+@optional_auth
 def api_sitrep_countries():
     """Return country values with chunk counts for SITREP dropdown."""
     try:
@@ -305,7 +305,7 @@ def api_sitrep_job(job_id):
 
 
 @sitrep_bp.route("/reports")
-@require_auth
+@optional_auth
 def api_sitrep_reports():
     from config import OUTPUT_REPORTS_DIR
 
@@ -327,7 +327,7 @@ def api_sitrep_reports():
 
 
 @sitrep_bp.route("/report")
-@require_auth
+@optional_auth
 def api_sitrep_report():
     from config import OUTPUT_REPORTS_DIR
 
@@ -399,7 +399,7 @@ def api_sitrep_report_delete():
 
 
 @sitrep_bp.route("/bulletins")
-@require_auth
+@optional_auth
 def api_bulletin_list():
     """List available weekly bulletins, sorted by date descending."""
     from sitrep.weekly_bulletin import list_bulletins
@@ -409,7 +409,7 @@ def api_bulletin_list():
 
 
 @sitrep_bp.route("/bulletin/<filename>")
-@require_auth
+@optional_auth
 def api_bulletin_get(filename):
     """Get a specific bulletin JSON by filename."""
     from sitrep.weekly_bulletin import get_bulletin
@@ -419,7 +419,7 @@ def api_bulletin_get(filename):
     bulletin = get_bulletin(filename)
     if bulletin is None:
         return jsonify({"error": "Bulletin not found"}), 404
-    _log_event(current_uid(), "bulletin_viewed", {"filename": filename})
+    _log_event(current_uid() or "", "bulletin_viewed", {"filename": filename})
     return jsonify(bulletin)
 
 

@@ -74,9 +74,16 @@ class TestAuthProtection:
             resp = client.get("/api/agent/chats")
             assert resp.status_code == 401
 
-    def test_sitrep_themes_requires_auth(self, client):
+    def test_sitrep_themes_public(self, client):
+        # Freemium: themes/countries/reports/bulletins are public reads —
+        # anonymous visitors can browse; only generation requires auth.
         with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
             resp = client.get("/api/sitrep/themes")
+            assert resp.status_code in (200, 500)  # 500 = ChromaDB not available in CI, still not 401
+
+    def test_sitrep_run_requires_auth(self, client):
+        with patch.object(auth, "_dev_mode", return_value=False), patch.object(auth, "_api_key", return_value=""):
+            resp = client.post("/api/sitrep/run", json={"country": "x"})
             assert resp.status_code == 401
 
     def test_admin_users_requires_auth(self, client):

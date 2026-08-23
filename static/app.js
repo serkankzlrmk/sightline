@@ -138,10 +138,12 @@ function toggleSidebarNav() {
 }
 
 function switchTab(name) {
-  // Freemium preview: gated tabs require auth
+  // Freemium preview: gated tabs require auth — Chat and Database stay
+  // locked; Bulletin, SITREP, Map, Home, Countries are open to anonymous
+  // visitors (public read APIs serve them).
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
-  const GATED_TABS = ['agent', 'sitrep', 'bulletin', 'db', 'admin'];
+  const GATED_TABS = ['agent', 'db', 'admin'];
   if (!isAuthed && GATED_TABS.includes(name)) {
     // Show login panel instead of switching tab
     if (window.showLoginPanel) {
