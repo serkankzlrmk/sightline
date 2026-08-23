@@ -21,7 +21,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DESKTOP_MODE: "true"
+      # NOTE: DESKTOP_MODE intentionally NOT set here. Tests patch
+      # DEV_AUTH_BYPASS/SERVER_DEBUG themselves; a global DESKTOP_MODE=true
+      # makes auth._dev_mode() always return True and breaks the dev-mode
+      # safety tests (pre-existing CI breakage, fixed 2026-08-23).
       SERVER_HOST: "127.0.0.1"
       SERVER_DEBUG: "true"
       DEV_AUTH_BYPASS: "true"

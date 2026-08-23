@@ -144,8 +144,10 @@ docs/STITCH_PROMPT.md
 # ========================================
 # Internal CI/CD (production-specific)
 # ========================================
-.github/workflows/deploy.yml
-.github/workflows/rollback.yml
+# Deploy workflow is intentionally public now: it is the production deploy
+# pipeline (test → build → SSH deploy → health check → rollback) and must be
+# tracked so pushes to main actually ship. Keep rollback.yml private (contains
+# production rollback scripts run manually on the server).
 
 # ========================================
 # Internal scripts (visual pipeline, migration, legacy)
