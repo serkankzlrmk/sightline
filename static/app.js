@@ -159,6 +159,16 @@ function switchTab(name) {
   const main = document.querySelector('.main');
   const hamburger = document.getElementById('hamburger-btn');
 
+  // Freemium: anonymous visitors can BROWSE SITREP reports but the
+  // generation form (country/event/themes + Generate button) is premium —
+  // hide the control desk so the "create" affordance is not shown at all.
+  const sitrepFormBar = document.getElementById('sitrep-form-bar');
+  if (sitrepFormBar) {
+    sitrepFormBar.style.display = (!isAuthed && name === 'sitrep') ? 'none' : '';
+  }
+  const sitrepRangeHint = document.getElementById('date-range-hint');
+  if (sitrepRangeHint && !isAuthed && name === 'sitrep') sitrepRangeHint.style.display = 'none';
+
   allTabs.forEach(t => {
     const panel = document.getElementById('panel-' + t);
     const tab = document.getElementById('tab-' + t);
