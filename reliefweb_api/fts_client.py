@@ -63,9 +63,14 @@ class FTSClient:
 
     BASE_URL = "https://api.hpc.tools/v2/public"
 
-    def __init__(self, base_url: str = "", timeout: float = 20.0,
-                 cache_ttl: int = 3600, rate_limit_requests: int = 30,
-                 rate_limit_period: float = 60.0):
+    def __init__(
+        self,
+        base_url: str = "",
+        timeout: float = 20.0,
+        cache_ttl: int = 3600,
+        rate_limit_requests: int = 30,
+        rate_limit_period: float = 60.0,
+    ):
         self.base_url = base_url.rstrip("/") or self.BASE_URL
         self.timeout = timeout
         self._cache = SimpleCache(ttl=cache_ttl, max_size=200)
@@ -73,8 +78,9 @@ class FTSClient:
         self._rl_times: list[float] = []
         self._rl_max = rate_limit_requests
         self._rl_period = rate_limit_period
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True,
-                                    headers={"User-Agent": "Sightline/1.0 (humanitarian analytics)"})
+        self._client = httpx.Client(
+            timeout=timeout, follow_redirects=True, headers={"User-Agent": "Sightline/1.0 (humanitarian analytics)"}
+        )
 
     def _rate_limit(self) -> None:
         with self._rl_lock:
@@ -124,14 +130,16 @@ class FTSClient:
                 pv = p.get("planVersion") or {}
                 cats = p.get("categories") or []
                 ems = p.get("emergencies") or []
-                matched.append({
-                    "id": p.get("id"),
-                    "name": pv.get("name") or pv.get("shortName") or "",
-                    "category": cats[0].get("name", "") if cats else "",
-                    "orig_requirements": p.get("origRequirements"),
-                    "revised_requirements": p.get("revisedRequirements"),
-                    "emergencies": [e.get("name", "") for e in ems[:3]],
-                })
+                matched.append(
+                    {
+                        "id": p.get("id"),
+                        "name": pv.get("name") or pv.get("shortName") or "",
+                        "category": cats[0].get("name", "") if cats else "",
+                        "orig_requirements": p.get("origRequirements"),
+                        "revised_requirements": p.get("revisedRequirements"),
+                        "emergencies": [e.get("name", "") for e in ems[:3]],
+                    }
+                )
         return {"ok": True, "data": matched}
 
     def close(self) -> None:

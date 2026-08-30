@@ -6,12 +6,9 @@ sitrep detail + list routes, artifact exclusion, sanitization, sitemap/robots,
 view-counter UPSERT + bot filter, rate cap, cache, 404s.
 """
 
-import json
-import sqlite3
-
 import pytest
 
-from config import OUTPUT_REPORTS_DIR, SITE_URL
+from config import SITE_URL
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -74,7 +71,7 @@ class TestSanitize:
     def test_strips_script_tags(self):
         from blueprints.seo_bp import _sanitize_html
 
-        out = _sanitize_html('<p>Hello</p><script>alert(1)</script>')
+        out = _sanitize_html("<p>Hello</p><script>alert(1)</script>")
         assert "<script" not in out
         assert "Hello" in out
 
@@ -115,7 +112,6 @@ class TestSitrepFiles:
 
         names = [f[0] for f in _sitrep_report_files()]
         # If a legit 8-hex filtered report exists, it must NOT be excluded.
-        hexish = [n for n in names if "_report.json" in n]
         for n in names:
             assert not n.endswith("_test_report.json"), f"test artifact leaked: {n}"
 

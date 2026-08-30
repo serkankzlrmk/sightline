@@ -57,9 +57,15 @@ class UNHCRClient:
 
     BASE_URL = "https://api.unhcr.org"
 
-    def __init__(self, api_key: str, base_url: str = "", timeout: float = 20.0,
-                 cache_ttl: int = 86400, rate_limit_requests: int = 30,
-                 rate_limit_period: float = 60.0):
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "",
+        timeout: float = 20.0,
+        cache_ttl: int = 86400,
+        rate_limit_requests: int = 30,
+        rate_limit_period: float = 60.0,
+    ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/") or self.BASE_URL
         self.timeout = timeout
@@ -69,9 +75,9 @@ class UNHCRClient:
         self._rl_max = rate_limit_requests
         self._rl_period = rate_limit_period
         self._client = httpx.Client(
-            timeout=timeout, follow_redirects=True,
-            headers={"Authorization": f"Bearer {api_key}",
-                     "User-Agent": "Sightline/1.0 (humanitarian analytics)"},
+            timeout=timeout,
+            follow_redirects=True,
+            headers={"Authorization": f"Bearer {api_key}", "User-Agent": "Sightline/1.0 (humanitarian analytics)"},
         )
 
     def _rate_limit(self) -> None:
@@ -110,7 +116,9 @@ class UNHCRClient:
 
     def get_demographics(self, country_code: str = "", year: int = 0) -> dict:
         """Demografik kırılım — endpoint şeması canlı testte doğrulanacak."""
-        return self._get("/population/v1/demographics", {"year": year or None, "country_of_asylum": country_code or None})
+        return self._get(
+            "/population/v1/demographics", {"year": year or None, "country_of_asylum": country_code or None}
+        )
 
     def get_nowcast(self, country_code: str = "") -> dict:
         """Nowcast (güncel tahmini nüfus) — endpoint şeması canlı testte doğrulanacak."""

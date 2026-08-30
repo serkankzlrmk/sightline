@@ -108,8 +108,9 @@ def _small_llm(max_tokens: int = 600):
     with _small_llm_lock:
         if max_tokens in _small_llm_cache:
             return _small_llm_cache[max_tokens]
-        from config import _LLM_API_KEY, _LLM_BASE_URL
         from langchain_openai import ChatOpenAI
+
+        from config import _LLM_API_KEY, _LLM_BASE_URL
 
         _small_llm_cache[max_tokens] = ChatOpenAI(
             model=_SMALL_MODEL,
@@ -157,7 +158,9 @@ def remember_turn(uid: str, chat_id: str, user_text: str, assistant_text: str) -
         col.add(
             ids=[f"{uid or 'anon'}:{chat_id}:{int(time.time() * 1000)}"],
             documents=[doc[:4000]],
-            metadatas=[{"uid": uid or "", "chat_id": chat_id, "ts": time.time(), "kind": "turn", "consolidated": False}],
+            metadatas=[
+                {"uid": uid or "", "chat_id": chat_id, "ts": time.time(), "kind": "turn", "consolidated": False}
+            ],
         )
     except Exception as e:
         logger.debug("remember_turn failed: %s", e)
@@ -296,7 +299,7 @@ def maybe_consolidate(uid: str, every_n: int = 5) -> int:
     metas = res.get("metadatas") or []
 
     unconsolidated = []
-    for did, doc, meta in zip(ids, docs, metas):
+    for did, doc, meta in zip(ids, docs, metas, strict=True):
         if meta and not meta.get("consolidated"):
             unconsolidated.append((did, doc))
     if len(unconsolidated) < every_n:

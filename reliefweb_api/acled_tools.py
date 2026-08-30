@@ -54,25 +54,28 @@ def acled_search_events(
             "ACLED client başlatılmadı (ACLED_EMAIL/ACLED_API_KEY eksik olabilir)",
         )
     res = client.search_events(
-        country=country, event_type=event_type,
-        date_from=date_from, date_to=date_to, limit=limit,
+        country=country,
+        event_type=event_type,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
     )
     if not res.get("ok"):
         return format_error("ACLEDError", res.get("error", "ACLED isteği başarısız"))
     events = res.get("data", [])
     if not events:
-        return format_response(
-            {"success": True, "country": country, "count": 0, "events": []}
-        )
+        return format_response({"success": True, "country": country, "count": 0, "events": []})
     rows = []
     for e in events[:limit]:
-        rows.append({
-            "date": e.get("event_date", ""),
-            "type": e.get("event_type", ""),
-            "actor": (e.get("actor1") or "")[:60],
-            "fatalities": e.get("fatalities", 0),
-            "location": (e.get("location") or "")[:60],
-        })
+        rows.append(
+            {
+                "date": e.get("event_date", ""),
+                "type": e.get("event_type", ""),
+                "actor": (e.get("actor1") or "")[:60],
+                "fatalities": e.get("fatalities", 0),
+                "location": (e.get("location") or "")[:60],
+            }
+        )
     return format_response(
         {
             "success": True,
@@ -108,9 +111,7 @@ def acled_country_summary(country: str, days: int = 90) -> str:
         return format_error("ACLEDError", res.get("error", "ACLED isteği başarısız"))
     events = res.get("data", [])
     if not events:
-        return format_response(
-            {"success": True, "country": country, "days": days, "count": 0, "total_fatalities": 0}
-        )
+        return format_response({"success": True, "country": country, "days": days, "count": 0, "total_fatalities": 0})
     types = Counter(e.get("event_type", "unknown") for e in events)
     actors = Counter((e.get("actor1") or "unknown") for e in events)
     total_fatalities = sum(int(e.get("fatalities") or 0) for e in events)

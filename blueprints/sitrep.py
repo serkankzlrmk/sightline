@@ -73,7 +73,6 @@ def api_sitrep_themes():
 def api_sitrep_countries():
     """Return country values with chunk counts for SITREP dropdown."""
     try:
-
         db = _get_chroma_adapter()
         return jsonify(db.list_countries_with_counts())
     except Exception as exc:
@@ -85,7 +84,6 @@ def api_sitrep_countries():
 @require_auth
 def api_sitrep_date_range(country):
     try:
-
         db = _get_chroma_adapter()
         return jsonify(db.get_date_range(country))
     except Exception as exc:

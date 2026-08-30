@@ -27,8 +27,7 @@ _AMENITIES = (
 
 
 @tool
-def osm_query_nearby(lat: float, lon: float, radius_m: int = 5000,
-                     amenity: str = "hospital", limit: int = 10) -> str:
+def osm_query_nearby(lat: float, lon: float, radius_m: int = 5000, amenity: str = "hospital", limit: int = 10) -> str:
     """OpenStreetMap'te koordinat çevresinde altyapı (amenity) ara.
 
     Args:
@@ -46,15 +45,12 @@ def osm_query_nearby(lat: float, lon: float, radius_m: int = 5000,
     client = get_overpass_client()
     if not client:
         return format_error("OverpassUnavailable", "Overpass client başlatılmadı")
-    res = client.query_nearby(lat=lat, lon=lon, radius_m=radius_m,
-                              amenity=amenity, limit=min(limit, 25))
+    res = client.query_nearby(lat=lat, lon=lon, radius_m=radius_m, amenity=amenity, limit=min(limit, 25))
     if not res.get("ok"):
         return format_error("OverpassError", res.get("error", "Overpass isteği başarısız"))
     items = res.get("items", [])
     if not items:
-        return format_response(
-            {"success": True, "amenity": amenity, "radius_m": radius_m, "count": 0, "items": []}
-        )
+        return format_response({"success": True, "amenity": amenity, "radius_m": radius_m, "count": 0, "items": []})
     return format_response(
         {
             "success": True,

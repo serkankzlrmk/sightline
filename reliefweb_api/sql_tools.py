@@ -75,8 +75,7 @@ def sql_query(query: str) -> str:
     forbidden_match = _FORBIDDEN_KEYWORDS.search(query)
     if forbidden_match:
         return (
-            f"Error: Forbidden keyword '{forbidden_match.group()}' detected. "
-            "Only read-only SELECT queries are allowed."
+            f"Error: Forbidden keyword '{forbidden_match.group()}' detected. Only read-only SELECT queries are allowed."
         )
 
     db_path = _get_db_path()

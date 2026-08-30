@@ -20,8 +20,10 @@ db_bp = Blueprint("db", __name__, url_prefix="/api/db")
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+
 def _row_to_dict(row):
     return dict(row)
+
 
 def _parse_countries(json_str):
     try:
@@ -29,7 +31,9 @@ def _parse_countries(json_str):
     except Exception:
         return []
 
+
 # ─── Stats ──────────────────────────────────────────────────────────────────
+
 
 @db_bp.route("/stats")
 @require_auth
@@ -65,7 +69,9 @@ def api_db_stats():
         }
     )
 
+
 # ─── Countries list ─────────────────────────────────────────────────────────
+
 
 @db_bp.route("/countries")
 @require_auth
@@ -86,7 +92,9 @@ def api_db_countries():
 
     return jsonify([r[0] for r in rows if r[0]])
 
+
 # ─── Sources list ────────────────────────────────────────────────────────────
+
 
 @db_bp.route("/sources")
 @require_auth
@@ -104,7 +112,9 @@ def api_db_sources():
 
     return jsonify([r[0] for r in rows if r[0]])
 
+
 # ─── Reports search ─────────────────────────────────────────────────────────
+
 
 @db_bp.route("/reports")
 @require_auth
@@ -188,7 +198,9 @@ def api_db_reports():
     )
     return jsonify(results)
 
+
 # ─── Report detail ───────────────────────────────────────────────────────────
+
 
 @db_bp.route("/reports/<int:report_id>")
 @require_auth

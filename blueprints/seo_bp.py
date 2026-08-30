@@ -41,8 +41,24 @@ seo_bp = Blueprint("seo", __name__)
 # ── Sanitization (server-side XSS defense — D7) ───────────────────────────────
 # Allowlist for LLM-derived HTML. Everything else is stripped.
 _ALLOWED_TAGS = [
-    "a", "p", "strong", "em", "b", "i", "ul", "ol", "li", "br",
-    "h1", "h2", "h3", "h4", "blockquote", "code", "pre", "hr",
+    "a",
+    "p",
+    "strong",
+    "em",
+    "b",
+    "i",
+    "ul",
+    "ol",
+    "li",
+    "br",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "blockquote",
+    "code",
+    "pre",
+    "hr",
 ]
 _ALLOWED_ATTRS = {"a": ["href", "title"]}
 
@@ -238,10 +254,7 @@ def bulletin_list():
         {
             "url": f"/bulletin/{_slugify_bulletin_filename(b['filename'])}",
             "title": b.get("week_label") or b["filename"],
-            "subtitle": (
-                f"{b.get('week_start', '')} — {b.get('week_end', '')}"
-                f" · {b.get('total_reports', 0)} reports"
-            ),
+            "subtitle": (f"{b.get('week_start', '')} — {b.get('week_end', '')} · {b.get('total_reports', 0)} reports"),
         }
         for b in list_bulletins()
     ]
@@ -269,9 +282,7 @@ def bulletin_detail(slug: str):
         title = trimmed.get("week_label") or filename
         sections = []
         if trimmed.get("global_overview"):
-            sections.append(
-                f"<h2>Global Overview</h2><p>{_sanitize_html(trimmed['global_overview'])}</p>"
-            )
+            sections.append(f"<h2>Global Overview</h2><p>{_sanitize_html(trimmed['global_overview'])}</p>")
         for crisis in trimmed.get("crises", []):
             c_title = _sanitize_html(crisis.get("headline", "Crisis"))
             c_summary = _sanitize_html(crisis.get("summary", ""))
@@ -506,24 +517,16 @@ def _sitemap_builder() -> str:
         (f"{SITE_URL}/map", today),
     ]
     for slug, filename in _bulletin_slug_map().items():
-        urls.append(
-            (f"{SITE_URL}/bulletin/{slug}", _lastmod(BULLETINS_DIR / filename))
-        )
+        urls.append((f"{SITE_URL}/bulletin/{slug}", _lastmod(BULLETINS_DIR / filename)))
     for slug, filename in _country_slug_map().items():
-        urls.append(
-            (f"{SITE_URL}/country/{slug}", _lastmod(COUNTRY_SUMMARY_DIR / filename))
-        )
+        urls.append((f"{SITE_URL}/country/{slug}", _lastmod(COUNTRY_SUMMARY_DIR / filename)))
     for fname, slug in _sitrep_report_files():
-        urls.append(
-            (f"{SITE_URL}/sitrep/{slug}", _lastmod(OUTPUT_REPORTS_DIR / fname))
-        )
+        urls.append((f"{SITE_URL}/sitrep/{slug}", _lastmod(OUTPUT_REPORTS_DIR / fname)))
     if len(urls) <= 3:
         # An empty sitemap violates the protocol and triggers Search Console
         # errors — serve 404 instead (D16).
         abort(404)
-    entries = "".join(
-        f"<url><loc>{u}</loc><lastmod>{lm}</lastmod></url>" for u, lm in urls
-    )
+    entries = "".join(f"<url><loc>{u}</loc><lastmod>{lm}</lastmod></url>" for u, lm in urls)
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -542,10 +545,7 @@ def sitemap_xml():
 @seo_bp.route("/robots.txt")
 def robots_txt():
     return (
-        "User-agent: *\n"
-        "Allow: /\n"
-        "Disallow: /app\n"
-        f"Sitemap: {SITE_URL}/sitemap.xml\n",
+        f"User-agent: *\nAllow: /\nDisallow: /app\nSitemap: {SITE_URL}/sitemap.xml\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )

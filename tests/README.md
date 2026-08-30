@@ -54,6 +54,7 @@ pytest tests/ --cov=. --cov-report=term-missing
 
 ```python
 """Test my new feature."""
+
 from unittest.mock import patch
 
 

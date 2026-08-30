@@ -314,8 +314,16 @@ class ChromaAdapter:
             output = []
             for row in rows:
                 (
-                    cid, report_id, chunk_index, content,
-                    title, date, source, url, countries_raw, themes_raw,
+                    cid,
+                    report_id,
+                    chunk_index,
+                    content,
+                    title,
+                    date,
+                    source,
+                    url,
+                    countries_raw,
+                    themes_raw,
                 ) = row
                 try:
                     countries = _json.loads(countries_raw) if countries_raw else []

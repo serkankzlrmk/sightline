@@ -70,9 +70,15 @@ class OverpassClient:
 
     USER_AGENT = "Sightline/1.0 (humanitarian analytics; contact: support@sightlinehumanitarian.com)"
 
-    def __init__(self, base_url: str = "", mirrors: list[str] | None = None,
-                 timeout: float = 30.0, cache_ttl: int = 3600,
-                 rate_limit_requests: int = 10, rate_limit_period: float = 60.0):
+    def __init__(
+        self,
+        base_url: str = "",
+        mirrors: list[str] | None = None,
+        timeout: float = 30.0,
+        cache_ttl: int = 3600,
+        rate_limit_requests: int = 10,
+        rate_limit_period: float = 60.0,
+    ):
         self.timeout = timeout
         self._mirrors = mirrors or _DEFAULT_MIRRORS
         if base_url:
@@ -82,8 +88,7 @@ class OverpassClient:
         self._rl_times: list[float] = []
         self._rl_max = rate_limit_requests
         self._rl_period = rate_limit_period
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True,
-                                    headers={"User-Agent": self.USER_AGENT})
+        self._client = httpx.Client(timeout=timeout, follow_redirects=True, headers={"User-Agent": self.USER_AGENT})
 
     def _rate_limit(self) -> None:
         with self._rl_lock:
@@ -128,18 +133,17 @@ class OverpassClient:
         self._cache.set(cache_key, result)
         return result
 
-    def query_nearby(self, lat: float, lon: float, radius_m: int,
-                     amenity: str, limit: int = 10) -> dict:
+    def query_nearby(self, lat: float, lon: float, radius_m: int, amenity: str, limit: int = 10) -> dict:
         """Koordinat çevresinde belirli amenity tipini ara.
 
         amenity değerleri: hospital, school, drinking_water, shelter,
         clinic, pharmacy, place_of_worship, community_centre, toilets.
         """
         ql = (
-            f'[out:json][timeout:20];'
+            f"[out:json][timeout:20];"
             f'(node["amenity"="{amenity}"](around:{radius_m},{lat},{lon});'
             f'way["amenity"="{amenity}"](around:{radius_m},{lat},{lon}););'
-            f'out body {limit};'
+            f"out body {limit};"
         )
         res = self.query(ql)
         if not res.get("ok"):
@@ -148,12 +152,14 @@ class OverpassClient:
         items = []
         for e in res["elements"][:limit]:
             tags = e.get("tags") or {}
-            items.append({
-                "name": tags.get("name", ""),
-                "amenity": tags.get("amenity", amenity),
-                "lat": e.get("lat"),
-                "lon": e.get("lon"),
-            })
+            items.append(
+                {
+                    "name": tags.get("name", ""),
+                    "amenity": tags.get("amenity", amenity),
+                    "lat": e.get("lat"),
+                    "lon": e.get("lon"),
+                }
+            )
         return {"ok": True, "items": items, "count": len(items)}
 
     def close(self) -> None:

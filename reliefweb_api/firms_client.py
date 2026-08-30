@@ -61,9 +61,15 @@ class FIRMSClient:
 
     BASE_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
-    def __init__(self, map_key: str, base_url: str = "", timeout: float = 25.0,
-                 cache_ttl: int = 1800, rate_limit_requests: int = 15,
-                 rate_limit_period: float = 60.0):
+    def __init__(
+        self,
+        map_key: str,
+        base_url: str = "",
+        timeout: float = 25.0,
+        cache_ttl: int = 1800,
+        rate_limit_requests: int = 15,
+        rate_limit_period: float = 60.0,
+    ):
         self.map_key = map_key
         self.base_url = base_url.rstrip("/") or self.BASE_URL
         self.timeout = timeout
@@ -72,8 +78,9 @@ class FIRMSClient:
         self._rl_times: list[float] = []
         self._rl_max = rate_limit_requests
         self._rl_period = rate_limit_period
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True,
-                                    headers={"User-Agent": "Sightline/1.0 (humanitarian analytics)"})
+        self._client = httpx.Client(
+            timeout=timeout, follow_redirects=True, headers={"User-Agent": "Sightline/1.0 (humanitarian analytics)"}
+        )
 
     def _rate_limit(self) -> None:
         with self._rl_lock:
@@ -85,8 +92,9 @@ class FIRMSClient:
                 self._rl_times = [t for t in self._rl_times if now - t < self._rl_period]
             self._rl_times.append(time.time())
 
-    def get_fires(self, lat: float, lon: float, radius_km: int = 50,
-                  days: int = 1, source: str = "VIIRS_SNPP_NRT") -> dict:
+    def get_fires(
+        self, lat: float, lon: float, radius_km: int = 50, days: int = 1, source: str = "VIIRS_SNPP_NRT"
+    ) -> dict:
         """Koordinat çevresinde aktif yangın/termal anomali ara.
 
         Döner: {"ok": bool, "fires": [...], "count": int, "error": str?}
@@ -103,17 +111,24 @@ class FIRMSClient:
             if resp.status_code == 200 and "latitude" in resp.text:
                 reader = csv.DictReader(io.StringIO(resp.text))
                 rows = list(reader)
-                fires = [{
-                    "lat": float(r.get("latitude", 0)),
-                    "lon": float(r.get("longitude", 0)),
-                    "date": r.get("acq_date", ""),
-                    "frp": r.get("frp", ""),
-                    "confidence": r.get("confidence", ""),
-                    "satellite": r.get("satellite", ""),
-                } for r in rows[:100]]
+                fires = [
+                    {
+                        "lat": float(r.get("latitude", 0)),
+                        "lon": float(r.get("longitude", 0)),
+                        "date": r.get("acq_date", ""),
+                        "frp": r.get("frp", ""),
+                        "confidence": r.get("confidence", ""),
+                        "satellite": r.get("satellite", ""),
+                    }
+                    for r in rows[:100]
+                ]
                 result = {"ok": True, "fires": fires, "count": len(fires)}
             elif resp.status_code in (400, 401, 403):
-                result = {"ok": False, "fires": [], "error": f"FIRMS auth/param hatası ({resp.status_code}): {resp.text[:200]}"}
+                result = {
+                    "ok": False,
+                    "fires": [],
+                    "error": f"FIRMS auth/param hatası ({resp.status_code}): {resp.text[:200]}",
+                }
             else:
                 result = {"ok": False, "fires": [], "error": f"FIRMS HTTP {resp.status_code}: {resp.text[:200]}"}
         except Exception as e:  # noqa: BLE001

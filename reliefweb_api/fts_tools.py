@@ -42,9 +42,7 @@ def fts_get_funding_plan(country_code: str, year: int = 2025) -> str:
         return format_error("FTSError", res.get("error", "FTS isteği başarısız"))
     plans = res.get("data", [])
     if not plans:
-        return format_response(
-            {"success": True, "country": country_code, "year": year, "count": 0, "plans": []}
-        )
+        return format_response({"success": True, "country": country_code, "year": year, "count": 0, "plans": []})
     return format_response(
         {
             "success": True,

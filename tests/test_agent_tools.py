@@ -15,7 +15,8 @@ import pytest
 def _ensure_agent_loaded():
     """Ensure the agent module is imported and tools are initialized."""
     try:
-        from agent.relief_agent import get_tools_for_mode, all_tools
+        from agent.relief_agent import all_tools
+
         # Ensure tools are loaded (may require config init)
         assert len(all_tools) > 0, "Agent tools should be loaded"
     except Exception as e:
@@ -23,6 +24,7 @@ def _ensure_agent_loaded():
 
 
 # ── Test: Role-based filtering ────────────────────────────────────────────────
+
 
 class TestRoleBasedToolFiltering:
     """Verify free users get restricted tools and premium/admin get full access."""
@@ -34,6 +36,7 @@ class TestRoleBasedToolFiltering:
     def test_free_user_no_sql(self):
         """Free users should NOT have sql_query tool."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="analyst", role="free")
         tool_names = {t.name for t in tools}
         assert "sql_query" not in tool_names, "Free users should not have sql_query"
@@ -41,15 +44,19 @@ class TestRoleBasedToolFiltering:
     def test_free_user_has_reliefweb_tools(self):
         """Free users should still have humanitarian data tools."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="analyst", role="free")
         tool_names = {t.name for t in tools}
         # These tools should always be available to free users
         expected_tools = {"search_sitreps", "search_disasters", "get_latest_headlines"}
-        assert expected_tools.issubset(tool_names), f"Free users should have basic tools, missing: {expected_tools - tool_names}"
+        assert expected_tools.issubset(tool_names), (
+            f"Free users should have basic tools, missing: {expected_tools - tool_names}"
+        )
 
     def test_premium_user_has_full_access(self):
         """Premium users should have all tools including SQL."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="analyst", role="premium")
         tool_names = {t.name for t in tools}
         for tool_name in self.PREMIUM_ONLY_TOOLS:
@@ -58,6 +65,7 @@ class TestRoleBasedToolFiltering:
     def test_admin_user_has_full_access(self):
         """Admin users should have all tools."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="analyst", role="admin")
         tool_names = {t.name for t in tools}
         for tool_name in self.PREMIUM_ONLY_TOOLS:
@@ -66,6 +74,7 @@ class TestRoleBasedToolFiltering:
     def test_free_tool_count_less_than_premium(self):
         """Free users should have fewer tools than premium users."""
         from agent.relief_agent import get_tools_for_mode
+
         free_tools = get_tools_for_mode(mode="analyst", role="free")
         premium_tools = get_tools_for_mode(mode="analyst", role="premium")
         assert len(free_tools) < len(premium_tools), "Free users should have fewer tools than premium"
@@ -73,6 +82,7 @@ class TestRoleBasedToolFiltering:
     def test_default_role_is_free(self):
         """Default role should be 'free' (restricted tools)."""
         from agent.relief_agent import get_tools_for_mode
+
         # Call without role — should default to free
         tools = get_tools_for_mode(mode="analyst")
         tool_names = {t.name for t in tools}
@@ -81,12 +91,14 @@ class TestRoleBasedToolFiltering:
 
 # ── Test: Mode-based filtering ────────────────────────────────────────────────
 
+
 class TestModeBasedToolFiltering:
     """Verify mode parameter returns the correct tool set."""
 
     def test_analyst_mode_has_all_tools(self):
         """Analyst mode should have all basic tools."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="analyst", role="premium")
         tool_names = {t.name for t in tools}
         assert "search_sitreps" in tool_names
@@ -94,6 +106,7 @@ class TestModeBasedToolFiltering:
     def test_me_reviewer_mode_has_data_tools(self):
         """ME reviewer mode should have humanitarian data tools."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="me_reviewer", role="premium")
         tool_names = {t.name for t in tools}
         assert "search_sitreps" in tool_names
@@ -101,6 +114,7 @@ class TestModeBasedToolFiltering:
     def test_unknown_mode_returns_base_tools(self):
         """Unknown mode should return base tools for the given role."""
         from agent.relief_agent import get_tools_for_mode
+
         tools = get_tools_for_mode(mode="unknown_mode", role="premium")
         tool_names = {t.name for t in tools}
         # Should still have core tools
@@ -109,6 +123,7 @@ class TestModeBasedToolFiltering:
 
 
 # ── Test: Premium-only tool set matches documentation ─────────────────────────
+
 
 class TestPremiumOnlyTools:
     """Verify the exact set of tools that are premium-only."""

@@ -12,9 +12,9 @@ from __future__ import annotations
 
 # Exact per-model rates for CHAT_MODELS entries (config.py)
 MODEL_PRICING = {
-    "google/gemini-2.5-flash": (0.30, 2.50),   # Flash / Vision
-    "google/gemini-2.5-pro": (1.25, 10.00),     # Ultra / Deep Think
-    "google/gemma-4-31b-it": (0.15, 0.15),      # Thinking — estimate, verify on OpenRouter
+    "google/gemini-2.5-flash": (0.30, 2.50),  # Flash / Vision
+    "google/gemini-2.5-pro": (1.25, 10.00),  # Ultra / Deep Think
+    "google/gemma-4-31b-it": (0.15, 0.15),  # Thinking — estimate, verify on OpenRouter
 }
 
 # Rough mid-catalog guess for any OpenRouter model not listed above

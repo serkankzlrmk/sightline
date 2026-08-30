@@ -27,6 +27,7 @@ MANUAL_ID_BASE = 9_000_000_000  # manual TR-prefixed IDs start above this
 
 # ─── Daily ingestion ────────────────────────────────────────────────────────
 
+
 @ingest_bp.route("/daily", methods=["POST"])
 @require_admin
 def api_ingest_daily():
@@ -124,7 +125,9 @@ def api_ingest_daily():
         logger.exception("Daily ingest failed: %s", e)
         return jsonify({"error": "Ingest failed. Check server logs for details."}), 500
 
+
 # ─── Manual PDF upload ──────────────────────────────────────────────────────
+
 
 @ingest_bp.route("/upload", methods=["POST"])
 @require_admin

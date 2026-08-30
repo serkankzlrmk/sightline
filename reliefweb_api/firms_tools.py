@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def firms_get_fires(lat: float, lon: float, radius_km: int = 50,
-                    days: int = 1) -> str:
+def firms_get_fires(lat: float, lon: float, radius_km: int = 50, days: int = 1) -> str:
     """NASA FIRMS'ten koordinat çevresindeki aktif yangınları getir.
 
     Args:

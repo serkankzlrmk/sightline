@@ -250,9 +250,7 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
 
     top_themes = [t for t, _ in theme_counter.most_common(8)]
     # top_sources: list of {name, count} dicts (LLM-free, straight from DB)
-    top_sources = [
-        {"name": s, "count": c} for s, c in source_counter.most_common(5)
-    ]
+    top_sources = [{"name": s, "count": c} for s, c in source_counter.most_common(5)]
     severity = _determine_severity(report_count, top_themes)
     coords = _get_country_coords(country)
     iso3 = _country_to_iso3(country)

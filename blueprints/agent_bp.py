@@ -11,6 +11,9 @@ import logging
 
 from flask import Blueprint, Response, jsonify, request
 
+from agent.memory import gated_recall, maybe_consolidate, remember_turn
+from agent.pricing import compute_cost
+from agent.relief_agent import TOOL_GROUP_MAP
 from auth import current_role, current_uid, require_admin, require_auth
 from blueprints.helpers import (
     _AGENT_BUSY_TIMEOUT,
@@ -24,7 +27,6 @@ from blueprints.helpers import (
     _db_get_chats_by_uid,
     _db_get_messages,
     _db_rename_chat,
-    _db_update_message_meta,
     _ensure_active_chat,
     _generate_chat_title,
     _get_agent,
@@ -48,9 +50,6 @@ from config import (
     OLLAMA_MODEL,
     OLLAMA_TIMEOUT,
 )
-from agent.pricing import compute_cost
-from agent.memory import gated_recall, maybe_consolidate, remember_turn
-from agent.relief_agent import TOOL_GROUP_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +170,6 @@ def api_agent_chats_delete(chat_id):
 def api_agent_chat():
     import time as _time
 
-
     uid = current_uid()
     role = current_role()
 
@@ -242,9 +240,7 @@ def api_agent_chat():
     # ── Post-busy setup (wrapped in try/finally — clears busy on failure) ──
     chat_id = None
     try:
-        _log_event(
-            uid, "chat_message_sent", {"role": role, "model": data.get("model", "flash"), "mode": agent_mode}
-        )
+        _log_event(uid, "chat_message_sent", {"role": role, "model": data.get("model", "flash"), "mode": agent_mode})
         chat_id = _ensure_active_chat(uid)
     except Exception:
         # If setup fails before generate() starts, free the busy flag
@@ -296,7 +292,7 @@ def api_agent_chat():
             else:
                 agent = _get_agent()
             full_response = ""
-            tools_used = []       # [{tool, output, status, summary, duration_ms}]
+            tools_used = []  # [{tool, output, status, summary, duration_ms}]
             usage_in = 0
             usage_out = 0
             iterations = 0
@@ -389,7 +385,16 @@ def api_agent_chat():
                 g = t.get("group", "Other")
                 sources[g] = sources.get(g, 0) + 1
             turn_meta = {
-                "tools": [{"tool": t["tool"], "group": t.get("group", "Other"), "status": t["status"], "summary": t["summary"], "duration_ms": t["duration_ms"]} for t in tools_used],
+                "tools": [
+                    {
+                        "tool": t["tool"],
+                        "group": t.get("group", "Other"),
+                        "status": t["status"],
+                        "summary": t["summary"],
+                        "duration_ms": t["duration_ms"],
+                    }
+                    for t in tools_used
+                ],
                 "sources": sources,
                 "usage": {"in": usage_in, "out": usage_out},
                 "cost": cost,
@@ -528,8 +533,7 @@ def api_agent_capabilities():
             "sources": sources,
             "tool_count": sum(n for _, n in groups.items()),
             "models": [
-                {"key": k, "name": v.get("name", k), "premium": v.get("premium", False)}
-                for k, v in CHAT_MODELS.items()
+                {"key": k, "name": v.get("name", k), "premium": v.get("premium", False)} for k, v in CHAT_MODELS.items()
             ],
         }
     )

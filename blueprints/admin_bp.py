@@ -409,4 +409,3 @@ def api_admin_delete_bulletin(filename):
     except Exception as e:
         logger.error(f"api_admin_delete_bulletin error: {filename}, {e}")
         return jsonify({"error": "Internal server error"}), 500
-

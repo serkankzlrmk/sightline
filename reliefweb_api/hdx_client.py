@@ -586,9 +586,7 @@ class HDXClient:
         """
         if location_code:
             kwargs["asylum_location_code"] = location_code
-        return await self._aget(
-            "/affected-people/refugees-persons-of-concern", {"limit": limit, **kwargs}
-        )
+        return await self._aget("/affected-people/refugees-persons-of-concern", {"limit": limit, **kwargs})
 
     async def get_humanitarian_needs(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """İnsani ihtiyaç verilerini getir (HRP/PIP).
@@ -910,9 +908,7 @@ class HDXClient:
         """
         if location_code:
             kwargs["asylum_location_code"] = location_code
-        return self._get(
-            "/affected-people/refugees-persons-of-concern", {"limit": limit, **kwargs}
-        )
+        return self._get("/affected-people/refugees-persons-of-concern", {"limit": limit, **kwargs})
 
     def get_humanitarian_needs_sync(self, location_code: str = None, limit: int = 100, **kwargs) -> HDXResult:
         """Sync: İnsani ihtiyaç verisini getir."""

@@ -18,7 +18,6 @@ import subprocess
 import threading
 import time
 import uuid
-from typing import Optional
 
 from config import (
     CHATS_DB_PATH,
@@ -86,6 +85,7 @@ def get_page_views(days: int = 30) -> list[dict]:
     except Exception as e:
         logger.debug("Failed to read page views: %s", e)
         return []
+
 
 logger = logging.getLogger(__name__)
 
@@ -476,7 +476,7 @@ def get_user_role(uid: str) -> str:
         return "free"
 
 
-def get_user_role_or_none(uid: str) -> Optional[str]:
+def get_user_role_or_none(uid: str) -> str | None:
     """Return the stored role, or None if the user has no row in the table.
 
     Used by _resolve_role to distinguish 'no DB record' (fall back to
@@ -654,12 +654,14 @@ def get_agent():
         with _agent_lock:
             if _relief_agent is None:
                 from agent.relief_agent import relief_agent
+
                 _relief_agent = relief_agent
     return _relief_agent
 
 
 def generate_chat_title(chat_id: str, user_msg: str, ai_reply: str):
     """Generate a short chat title using the LLM in a background thread."""
+
     def _do():
         try:
             from langchain_openai import ChatOpenAI
@@ -909,6 +911,7 @@ def get_chroma_adapter():
         if _chroma_adapter is not None:
             return _chroma_adapter
         from sitrep.chroma_adapter import ChromaAdapter
+
         _chroma_adapter = ChromaAdapter()
         return _chroma_adapter
 

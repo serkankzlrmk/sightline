@@ -42,15 +42,16 @@ def register_proposal_blueprints(app) -> bool:
     # to Sightline's auth (single source, single role logic).
     try:
         import auth as _sightline_auth
+
         if "current_uid" in dir(_sightline_auth) and "require_auth" in dir(_sightline_auth):
             sys.modules.setdefault("auth", _sightline_auth)
     except Exception as _auth_exc:  # pragma: no cover
         app.logger.warning("proposal_bridge: auth preload failed (%s) — falling back to Proposal auth", _auth_exc)
     try:
+        from proposal.blueprints.call_ingest_api import call_ingest_bp
         from proposal.blueprints.proposal_api import proposal_api_bp
         from proposal.blueprints.step3_logframe import step3_api_bp
         from proposal.blueprints.step4_budget_risk import step4_api_bp
-        from proposal.blueprints.call_ingest_api import call_ingest_bp
     except Exception as exc:  # pragma: no cover
         app.logger.warning("proposal_bridge: blueprint import failed: %s", exc)
         return False

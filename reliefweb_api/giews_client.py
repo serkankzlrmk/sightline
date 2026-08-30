@@ -62,9 +62,14 @@ class SimpleCache:
 class GIEWSClient:
     """GIEWS client — keyless. Şema netleşene kadar pasif."""
 
-    def __init__(self, base_url: str = "", timeout: float = 20.0,
-                 cache_ttl: int = 86400, rate_limit_requests: int = 20,
-                 rate_limit_period: float = 60.0):
+    def __init__(
+        self,
+        base_url: str = "",
+        timeout: float = 20.0,
+        cache_ttl: int = 86400,
+        rate_limit_requests: int = 20,
+        rate_limit_period: float = 60.0,
+    ):
         self.base_url = base_url or _CANDIDATE_BASES[0]
         self.timeout = timeout
         self._cache = SimpleCache(ttl=cache_ttl, max_size=200)
@@ -72,8 +77,9 @@ class GIEWSClient:
         self._rl_times: list[float] = []
         self._rl_max = rate_limit_requests
         self._rl_period = rate_limit_period
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True,
-                                    headers={"User-Agent": "Sightline/1.0 (humanitarian analytics)"})
+        self._client = httpx.Client(
+            timeout=timeout, follow_redirects=True, headers={"User-Agent": "Sightline/1.0 (humanitarian analytics)"}
+        )
         self._schema_verified = False
 
     def _rate_limit(self) -> None:
@@ -86,14 +92,13 @@ class GIEWSClient:
                 self._rl_times = [t for t in self._rl_times if now - t < self._rl_period]
             self._rl_times.append(time.time())
 
-    def get_food_prices(self, country: str = "", commodity: str = "",
-                        limit: int = 10) -> dict:
+    def get_food_prices(self, country: str = "", commodity: str = "", limit: int = 10) -> dict:
         """Gıda fiyatları — şema doğrulanmadıysa pasif uyarı döner."""
         return {
             "ok": False,
             "error": "GIEWS şeması doğrulanmadı — public REST API bulunamadı. "
-                     "Endpoint netleşince aktifleşecek. HDX hdx_get_ipc_phases "
-                     "kullanılabilir.",
+            "Endpoint netleşince aktifleşecek. HDX hdx_get_ipc_phases "
+            "kullanılabilir.",
         }
 
     def get_crop_forecast(self, country: str = "") -> dict:

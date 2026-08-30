@@ -272,12 +272,27 @@ CHAT_MODELS: dict = {
 # Chosen for strong quality at a reasonable price (verified live against
 # OpenRouter's /models endpoint; prices are per 1M tokens).
 CUSTOM_MODELS: dict = {
-    "deepseek-v3": {"name": "DeepSeek V3", "model": "deepseek/deepseek-chat", "desc": "Strong generalist · cheap", "premium": True},
+    "deepseek-v3": {
+        "name": "DeepSeek V3",
+        "model": "deepseek/deepseek-chat",
+        "desc": "Strong generalist · cheap",
+        "premium": True,
+    },
     "deepseek-r1": {"name": "DeepSeek R1", "model": "deepseek/deepseek-r1", "desc": "Reasoning", "premium": True},
     "glm-4.6": {"name": "GLM-4.6", "model": "z-ai/glm-4.6", "desc": "Strong generalist", "premium": True},
-    "gemini-flash": {"name": "Gemini 2.5 Flash", "model": "google/gemini-2.5-flash", "desc": "Fast + multimodal", "premium": True},
+    "gemini-flash": {
+        "name": "Gemini 2.5 Flash",
+        "model": "google/gemini-2.5-flash",
+        "desc": "Fast + multimodal",
+        "premium": True,
+    },
     "gpt-4o-mini": {"name": "GPT-4o mini", "model": "openai/gpt-4o-mini", "desc": "Cheap generalist", "premium": True},
-    "claude-sonnet-4": {"name": "Claude Sonnet 4", "model": "anthropic/claude-sonnet-4", "desc": "High quality · pricier", "premium": True},
+    "claude-sonnet-4": {
+        "name": "Claude Sonnet 4",
+        "model": "anthropic/claude-sonnet-4",
+        "desc": "High quality · pricier",
+        "premium": True,
+    },
     "gpt-4o": {"name": "GPT-4o", "model": "openai/gpt-4o", "desc": "High quality", "premium": True},
 }
 
@@ -475,8 +490,7 @@ if not SECRET_KEY:
         import sys
 
         print(
-            "FATAL: SECRET_KEY is not set in production. "
-            "Set SECRET_KEY in your .env file and restart.",
+            "FATAL: SECRET_KEY is not set in production. Set SECRET_KEY in your .env file and restart.",
             file=sys.stderr,
         )
         sys.exit(1)
