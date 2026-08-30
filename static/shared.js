@@ -92,3 +92,23 @@ window.api = api;
 window.escHtml = escHtml;
 window.toast = toast;
 window.sanitizeHtml = sanitizeHtml;
+
+// ── GA4 outbound / cross-surface link tracking ─────────────────────────────
+// Fires when the SPA links out to public content (SEO pages, proposal).
+// No-op unless gtag is present (analytics off in dev).
+document.addEventListener('click', (e) => {
+  const a = e.target && e.target.closest ? e.target.closest('a') : null;
+  if (!a || !window.gtag) return;
+  const href = a.getAttribute('href') || '';
+  if (
+    href.startsWith('http') ||
+    href.startsWith('/bulletins') ||
+    href.startsWith('/countries') ||
+    href.startsWith('/sitrep/') ||
+    href.startsWith('/map')
+  ) {
+    try {
+      window.gtag('event', 'link_click', { link_url: href });
+    } catch (_) { /* analytics must never break navigation */ }
+  }
+}, true);

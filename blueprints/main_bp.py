@@ -50,7 +50,9 @@ def _frontend_version() -> str:
 
 @main_bp.route("/")
 def landing():
-    return render_template("landing.html", v=_frontend_version())
+    from config import GOOGLE_ANALYTICS_ID
+
+    return render_template("landing.html", v=_frontend_version(), analytics_id=GOOGLE_ANALYTICS_ID)
 
 
 @main_bp.route("/googleb68b482e730d338b.html")
@@ -61,7 +63,14 @@ def google_verification():
 
 @main_bp.route("/app")
 def spa():
-    return render_template("index.html", v=_frontend_version(), contact_email=CONTACT_EMAIL)
+    from config import GOOGLE_ANALYTICS_ID
+
+    return render_template(
+        "index.html",
+        v=_frontend_version(),
+        contact_email=CONTACT_EMAIL,
+        analytics_id=GOOGLE_ANALYTICS_ID,
+    )
 
 
 @main_bp.route("/api/health")

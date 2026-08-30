@@ -396,6 +396,10 @@ CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
 # Canonical public origin — used for SEO canonical tags and sitemap URLs.
 SITE_URL: str = os.getenv("SITE_URL", "https://sightlinehumanitarian.com").rstrip("/")
 
+# Google Analytics 4 measurement ID (gtag.js head tag). Empty = analytics off
+# (local/dev). Set in production, e.g. G-XXXXXXXXXX.
+GOOGLE_ANALYTICS_ID: str = os.getenv("GOOGLE_ANALYTICS_ID", "").strip()
+
 # Per-IP cap for the SEO HTML routes (not /api/* — those have their own limiter).
 # Googlebot and known crawlers are exempt via user-agent allowlist.
 SEO_RATE_LIMIT_PER_MIN: int = int(os.getenv("SEO_RATE_LIMIT_PER_MIN", "300"))

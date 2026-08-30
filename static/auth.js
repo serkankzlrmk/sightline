@@ -68,19 +68,6 @@ window.showLoginPanel = showLoginPanel;
 // UI helpers
 // ═══════════════════════════════════════════════════════════
 
-function showOverlay() {
-  // Login required — overlay stays visible, app loads behind it
-  document.body.classList.add("auth-locked");
-  document.body.classList.remove("preview-mode");
-  const el = document.getElementById("auth-overlay");
-  if (el) {
-    el.classList.remove("hidden");
-    el.classList.add("slide-in");
-  }
-  window.__authReady = false;
-  window.dispatchEvent(new Event('preview-ready'));
-}
-
 function showLoginPanel() {
   // Slide-in the login panel from the right (triggered by gated tab click)
   const el = document.getElementById("auth-overlay");
@@ -103,7 +90,7 @@ function hideOverlay() {
   document.body.offsetHeight;
   // Remember the dismiss so the panel doesn't keep forcing itself open
   // for the rest of this browser session (tab switch re-opens on demand).
-  try { sessionStorage.setItem("sightline_login_dismissed", "1"); } catch (_) {}
+  try { sessionStorage.setItem("sightline_login_dismissed", "1"); } catch (e) { console.debug(e); }
 }
 
 // Close button on the slide-in login panel
@@ -358,7 +345,10 @@ export async function signOut() {
   clearToken();
   window.__isAdmin = false;
   window.__userRole = "free";
-  showOverlay();
+  // Sign-out drops back to freemium preview (public content visible,
+  // no forced login) — onAuthStateChanged fires the null branch which
+  // emits `preview-ready` and loads public data.
+  hideOverlay();
   showUserBar(null);
 }
 window.signOut = signOut;
@@ -454,12 +444,14 @@ function _initFirebase() {
       clearToken();
       window.__isAdmin = false;
       window.__userRole = "free";
-      // Freemium preview: show the slide-in login panel unless the visitor
-      // dismissed it earlier this session (Chat/Database clicks still open
-      // it on demand).
-      let dismissed = false;
-      try { dismissed = sessionStorage.getItem("sightline_login_dismissed") === "1"; } catch (_) {}
-      if (!dismissed) showOverlay();
+      // Freemium preview: anonymous visitors read public content freely —
+      // dashboard, crisis map, bulletins and SITREP reports load without
+      // login. NO overlay is shown on arrival from search engines or shared
+      // links; the slide-in login panel opens ONLY when a gated tab (Chat,
+      // Database, Admin) is clicked (see switchTab in app.js).
+      // `preview-ready` still fires so public data initializes (map-init.js).
+      window.__authReady = false;
+      window.dispatchEvent(new Event('preview-ready'));
       showUserBar(null);
     }
   });

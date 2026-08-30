@@ -40,6 +40,8 @@ services:
       PROPOSAL_DB_PATH: /app/data/proposal.db
       # Proposal PDF output — writable Sightline volume (not the ro repo mount)
       OUTPUT_DIR: /app/output
+      # Google Analytics 4 Measurement ID (empty = tag not rendered)
+      GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
     volumes:
       - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma

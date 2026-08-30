@@ -153,6 +153,13 @@ function switchTab(name) {
     return;
   }
 
+  // GA4: track tab views (no-op when gtag is absent — e.g. analytics off)
+  try {
+    if (window.gtag) {
+      window.gtag('event', 'tab_view', { tab: name, page_path: window.location.pathname });
+    }
+  } catch (e) { /* analytics must never break navigation */ }
+
   currentTab = name;
   const allTabs = TAB_NAMES;
   const sidebar = document.getElementById('sidebar-nav');
@@ -327,11 +334,20 @@ function updateUploadBtnVisibility() {
 // FREEMIUM PREVIEW — login panel controls
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Close button removed — login is required, no dismiss option
+// Freemium preview: anonymous visitors read public content; the slide-in
+// login panel appears ONLY on gated tab clicks (Chat, Database, Admin).
 document.addEventListener('DOMContentLoaded', () => {
-  // No close button — user must sign in
+  // Deep link support: /app#crisis-map (from /map CTA, shared links) opens
+  // the crisis map tab directly. crisis-map is a public tab, so this works
+  // for anonymous visitors too.
+  const openFromHash = () => {
+    if (window.location.hash === '#crisis-map' && typeof switchTab === 'function') {
+      switchTab('crisis-map');
+    }
+  };
+  openFromHash();
+  window.addEventListener('hashchange', openFromHash);
 });
-
 // Register buttons inside crisis panel (delegated — works for dynamically added elements)
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.preview-lock-btn');

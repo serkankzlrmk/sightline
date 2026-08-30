@@ -51,3 +51,43 @@ def test_chunk_text_empty_input():
 
     assert chunk_text("") == []
     assert chunk_text("   ") == []
+
+
+class TestAnalyticsConfig:
+    def test_analytics_id_env(self):
+        """Fresh subprocess: GOOGLE_ANALYTICS_ID env must reach config.
+
+        A brand-new interpreter is used so the env is read during the actual
+        config module import — identical to how production loads it.
+        """
+        import os
+        import subprocess
+        import sys
+
+        env = {**os.environ, "GOOGLE_ANALYTICS_ID": "G-ABC123"}
+        out = subprocess.run(
+            [sys.executable, "-c", "import config; print(config.GOOGLE_ANALYTICS_ID)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        assert out.returncode == 0, out.stderr
+        assert out.stdout.strip() == "G-ABC123"
+
+    def test_analytics_id_default_empty(self):
+        """Fresh subprocess without the env var: defaults to empty (analytics off)."""
+        import os
+        import subprocess
+        import sys
+
+        env = {k: v for k, v in os.environ.items() if k != "GOOGLE_ANALYTICS_ID"}
+        out = subprocess.run(
+            [sys.executable, "-c", "import config; print(repr(config.GOOGLE_ANALYTICS_ID))"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        assert out.returncode == 0, out.stderr
+        assert out.stdout.strip() == "''"
