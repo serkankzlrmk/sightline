@@ -418,7 +418,19 @@ GOOGLE_ANALYTICS_ID: str = os.getenv("GOOGLE_ANALYTICS_ID", "").strip()
 # Google AdSense publisher ID (e.g. "ca-pub-1234567890"). Empty = no ad code
 # rendered anywhere. Ads are only served on public SSR pages (crisis, bulletin,
 # sitrep, country) — never inside the SPA — and hidden for signed-in users.
-GOOGLE_ADSENSE_CLIENT: str = os.getenv("GOOGLE_ADSENSE_CLIENT", "").strip()
+def _normalize_adsense_client(value: str) -> str:
+    """Accept both 'ca-pub-XXXX' and 'pub-XXXX' forms (AdSense dashboard shows
+    either depending on account age/UI); the adsbygoogle loader requires the
+    'ca-pub-' prefix, ads.txt uses the bare numeric segment."""
+    v = value.strip()
+    if not v:
+        return ""
+    if v.startswith("pub-") and not v.startswith("ca-pub-"):
+        return f"ca-{v}"
+    return v
+
+
+GOOGLE_ADSENSE_CLIENT: str = _normalize_adsense_client(os.getenv("GOOGLE_ADSENSE_CLIENT", ""))
 
 # Per-IP cap for the SEO HTML routes (not /api/* — those have their own limiter).
 # Googlebot and known crawlers are exempt via user-agent allowlist.

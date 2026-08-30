@@ -98,7 +98,7 @@ class TestAnalyticsConfig:
         import subprocess
         import sys
 
-        env = {**os.environ, "GOOGLE_ADSENSE_CLIENT": "ca-pub-123456"}
+        env = {**os.environ, "GOOGLE_ADSENSE_CLIENT": "pub-123456"}
         out = subprocess.run(
             [sys.executable, "-c", "import config; print(config.GOOGLE_ADSENSE_CLIENT)"],
             capture_output=True,
@@ -107,6 +107,7 @@ class TestAnalyticsConfig:
             timeout=60,
         )
         assert out.returncode == 0, out.stderr
+        # 'pub-' form is normalized to the 'ca-pub-' prefix the loader needs.
         assert out.stdout.strip() == "ca-pub-123456"
 
     def test_adsense_client_default_empty(self):
