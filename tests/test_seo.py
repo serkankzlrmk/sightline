@@ -329,6 +329,43 @@ class TestAnalyticsTag:
 # ── SSR Crisis Map page (/map) ────────────────────────────────────────────────
 
 
+class TestCrisisPages:
+    """/crisis/<slug> programmatic pages — P2 publish predicate, noindex, 404."""
+
+    def test_crisis_index_renders(self, client):
+        resp = client.get("/crisis")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "Crisis Overviews" in html
+        assert "crisis/" in html  # country links present
+
+    def test_crisis_detail_known_country(self, client):
+        # Sudan is a high-report country in any populated checkout.
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "live crisis overview" in html
+        assert "Recent reports" in html or "Main themes" in html
+        assert "auth-overlay" not in html
+
+    def test_crisis_detail_unknown_country_404(self, client):
+        resp = client.get("/crisis/definitely-not-a-country")
+        assert resp.status_code == 404
+
+    def test_crisis_published_no_noindex(self, client):
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert 'content="noindex"' not in html
+
+    def test_crisis_in_sitemap(self, client):
+        resp = client.get("/sitemap.xml")
+        text = resp.get_data(as_text=True)
+        assert ">https://" in text and "/crisis</loc>" in text
+
+
 class TestCrisisMapSsr:
     def test_map_page_renders(self, client):
         resp = client.get("/map")

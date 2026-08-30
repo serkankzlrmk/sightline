@@ -429,6 +429,159 @@ def sitrep_detail(slug: str):
 
 
 # =============================================================================
+# ROUTES — Crisis (Programmatic per-country pages, P2 real-data gate)
+# =============================================================================
+
+_CRISIS_PUBLISH_MIN_REPORTS = 3  # P2 publish predicate: report_count >= N OR live GDACS alert
+
+# Country name variants → canonical English name for slug consistency
+# (mirrors the alias table in public_bp.api_map_countries).
+_CRISIS_ALIASES = {
+    "Syrian Arab Republic": "Syria",
+    "Türkiye": "Turkey",
+    "Iran (Islamic Republic of)": "Iran",
+    "Democratic Republic of the Congo": "DR Congo",
+    "occupied Palestinian territory": "Palestine",
+}
+
+
+def _crisis_slug(country: str) -> str:
+    """Stable URL slug for a country (English canonical name → hyphenated)."""
+    name = _CRISIS_ALIASES.get(country, country)
+    return slugify(name.replace(" ", "_"))
+
+
+def _crisis_country_data() -> list[dict]:
+    """Country data for /crisis pages — reuses the public map endpoint so the
+    data shape and caching stay in one place (no ChromaDB access here)."""
+    from blueprints.public_bp import api_map_countries
+
+    try:
+        result = api_map_countries()
+        resp = result[0] if isinstance(result, tuple) else result
+        data = resp.get_json()
+    except Exception:
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _crisis_page(slug: str, allow_noindex: bool = False):
+    """Build a /crisis/<slug> SSR page. Returns (html, status) — 404 when the
+    country is unknown; noindex only when below the publish predicate (and the
+    route explicitly opts in, so crawlers only see the meta tag on thin pages,
+    never on the real ones)."""
+    from sitrep.country_summary import _country_to_iso3
+
+    data = _crisis_country_data()
+    entry = next((c for c in data if _crisis_slug(c.get("country", "")) == slug), None)
+    if entry is None:
+        abort(404)
+    country = entry.get("country", "")
+    iso3 = _country_to_iso3(country) or entry.get("iso3") or ""
+    count = entry.get("report_count", 0) or 0
+
+    # Live GDACS alerts for this country (from the same cached payload)
+    gdacs = entry.get("gdacs_alerts") or []
+    alert_levels = [str(a.get("alert_level", "")).lower() for a in gdacs if isinstance(a, dict)]
+    has_live_alert = any(lv in ("orange", "red") for lv in alert_levels)
+
+    published = count >= _CRISIS_PUBLISH_MIN_REPORTS or has_live_alert
+    noindex = allow_noindex and not published
+
+    # Sections (real data only — P2; per-source failure → "Data pending")
+    headlines = entry.get("top_themes") or []
+    recent = entry.get("recent_reports") or []
+    figures = entry.get("hdx_key_figures") or []
+
+    parts = []
+    if gdacs:
+        parts.append("<h2>Current alerts</h2><ul>" + "".join(
+            f"<li>{_sanitize_html(str(a.get('alert_level', '')))} — {_sanitize_html(str(a.get('title', '')))}</li>"
+            for a in gdacs[:5]
+        ) + "</ul>")
+    if recent:
+        parts.append("<h2>Recent reports</h2><ul>" + "".join(
+            f"<li>{_sanitize_html(str(r.get('title', '')))}</li>" for r in recent[:5]
+        ) + "</ul>")
+    if figures:
+        parts.append("<h2>Key figures</h2><ul>" + "".join(
+            f"<li>{_sanitize_html(str(f.get('label', '')))}: {_sanitize_html(str(f.get('value', '')))}</li>"
+            for f in figures[:6]
+        ) + "</ul>")
+    if headlines:
+        parts.append("<h2>Main themes</h2><p>" + _sanitize_html(", ".join(str(h) for h in headlines[:6])) + "</p>")
+    if not parts:
+        parts.append("<p>Data pending — latest information will appear here as sources update.</p>")
+    body_html = "".join(parts)
+
+    title = f"{country} — live crisis overview"
+    description = f"Live humanitarian overview for {country}: latest reports, alerts and key figures from trusted sources."
+    json_ld = {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": f"Sightline — {country} crisis data",
+        "description": description,
+        "datePublished": time.strftime("%Y-%m-%d"),
+        "mainEntityOfPage": f"{SITE_URL}/crisis/{slug}",
+        "publisher": {"@type": "Organization", "name": "Sightline"},
+    }
+    if noindex:
+        json_ld["url"] = f"{SITE_URL}/crisis/{slug}"
+
+    html = _render_detail(
+        title,
+        description,
+        f"crisis/{slug}",
+        body_html,
+        json_ld,
+    )
+    if noindex:
+        html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
+    return html
+
+
+@seo_bp.route("/crisis/<slug>")
+def crisis_detail(slug: str):
+    """Programmatic per-country crisis page (P2: real data only)."""
+    record_page_view(f"/crisis/{slug}", request.headers.get("User-Agent", ""))
+    return _crisis_page(slug, allow_noindex=True)
+
+
+@seo_bp.route("/crisis")
+def crisis_index():
+    """SSR index of all publishable /crisis pages — link hub for visitors and
+    crawlers; links to each country page with its report count."""
+    data = _crisis_country_data()
+    items = []
+    for c in data:
+        country = c.get("country", "")
+        c_slug = _crisis_slug(country)
+        if not c_slug:
+            continue
+        count = c.get("report_count", 0) or 0
+        gdacs = c.get("gdacs_alerts") or []
+        has_alert = any(
+            str(a.get("alert_level", "")).lower() in ("orange", "red")
+            for a in gdacs if isinstance(a, dict)
+        )
+        if count < _CRISIS_PUBLISH_MIN_REPORTS and not has_alert:
+            continue
+        items.append({
+            "url": f"/crisis/{c_slug}",
+            "title": f"{country} — live crisis overview",
+            "subtitle": f"{count} reports" + (" · live alert" if has_alert else ""),
+        })
+    items.sort(key=lambda x: x["subtitle"], reverse=True)
+    record_page_view("/crisis", request.headers.get("User-Agent", ""))
+    return _render_list(
+        "Crisis overviews — live humanitarian country pages",
+        "Per-country live crisis overviews: reports, alerts and key figures from trusted sources.",
+        items,
+        "crisis",
+    )
+
+
+# =============================================================================
 # ROUTES — Crisis Map (SSR)
 # =============================================================================
 
@@ -515,6 +668,7 @@ def _sitemap_builder() -> str:
         (f"{SITE_URL}/bulletins", today),
         (f"{SITE_URL}/countries", today),
         (f"{SITE_URL}/map", today),
+        (f"{SITE_URL}/crisis", today),
     ]
     for slug, filename in _bulletin_slug_map().items():
         urls.append((f"{SITE_URL}/bulletin/{slug}", _lastmod(BULLETINS_DIR / filename)))
@@ -522,6 +676,21 @@ def _sitemap_builder() -> str:
         urls.append((f"{SITE_URL}/country/{slug}", _lastmod(COUNTRY_SUMMARY_DIR / filename)))
     for fname, slug in _sitrep_report_files():
         urls.append((f"{SITE_URL}/sitrep/{slug}", _lastmod(OUTPUT_REPORTS_DIR / fname)))
+    # /crisis/<slug> — only countries passing the P2 publish predicate
+    # (report_count >= 3 OR live orange/red alert) enter the sitemap;
+    # below-threshold pages stay noindex and are excluded here.
+    for c in _crisis_country_data():
+        c_slug = _crisis_slug(c.get("country", ""))
+        if not c_slug:
+            continue
+        count = c.get("report_count", 0) or 0
+        gdacs = c.get("gdacs_alerts") or []
+        has_alert = any(
+            str(a.get("alert_level", "")).lower() in ("orange", "red")
+            for a in gdacs if isinstance(a, dict)
+        )
+        if count >= _CRISIS_PUBLISH_MIN_REPORTS or has_alert:
+            urls.append((f"{SITE_URL}/crisis/{c_slug}", today))
     if len(urls) <= 3:
         # An empty sitemap violates the protocol and triggers Search Console
         # errors — serve 404 instead (D16).
