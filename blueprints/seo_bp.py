@@ -536,6 +536,16 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         badges.append(f'<a class="crisis-badge crisis-badge-blue" href="{sitrep_url}">Sitrep available</a>')
     hero_badges = f'<div class="crisis-badges">{"".join(badges)}</div>' if badges else ""
 
+    # Hero enrichment: headline + narrative (real data — P2). These are the
+    # exact strings Google surfaces in snippets, so they stay factual.
+    headline = _sanitize_html(str(entry.get("headline") or ""))
+    narrative = _sanitize_html(str(entry.get("narrative") or ""))
+    hero_extra = ""
+    if headline:
+        hero_extra += f'<p class="crisis-headline">{headline}</p>'
+    if narrative:
+        hero_extra += f'<p class="crisis-narrative">{narrative}</p>'
+
     # Sections (real data only — P2; per-source failure → "Data pending" card)
     headlines = entry.get("top_themes") or []
     recent = entry.get("recent_reports") or []
@@ -568,6 +578,31 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     if headlines:
         chips = "".join(f'<span class="crisis-theme">{_sanitize_html(str(h))}</span>' for h in headlines[:8])
         parts.append(f'<section class="crisis-card" aria-labelledby="themes"><h2 id="themes">Themes</h2><div class="crisis-themes">{chips}</div></section>')
+
+    # Top sources: who reports on this country (real data — trust signal)
+    sources = entry.get("top_sources") or []
+    if sources:
+        src_chips = "".join(
+            f'<span class="crisis-theme">{_sanitize_html(str(s.get("name", "")))} · {_sanitize_html(str(s.get("count", "")))}</span>'
+            for s in sources[:6]
+        )
+        parts.append(f'<section class="crisis-card" aria-labelledby="top-sources"><h2 id="top-sources">Top sources</h2><div class="crisis-themes">{src_chips}</div></section>')
+
+    # Coverage window — factual freshness line (only when date_range exists)
+    dr = entry.get("date_range") or {}
+    lo, hi = dr.get("min_date"), dr.get("max_date")
+    if lo and hi:
+        hero_extra += f'<p class="crisis-asof">Reports from {_sanitize_html(str(lo))} to {_sanitize_html(str(hi))}</p>'
+
+    # Related: country summary + bulletins (internal linking for Google crawl)
+    rel = []
+    if entry.get("has_summary") and _country_slug_map().get(slug):
+        rel.append(f'<li><a href="/country/{slug}">Country summary for {_sanitize_html(country)}</a></li>')
+    for bs in list(_bulletin_slug_map())[:3]:
+        rel.append(f'<li><a href="/bulletin/{bs}">Weekly bulletin</a></li>')
+    if rel:
+        parts.append(f'<section class="crisis-card" aria-labelledby="related"><h2 id="related">Related</h2><ul>{"".join(rel)}</ul></section>')
+
     if not parts:
         parts.append('<section class="crisis-card"><p class="crisis-pending">Data pending. Latest information will appear here as sources update.</p></section>')
     body_html = "".join(parts)
@@ -595,6 +630,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         canonical=f"{SITE_URL}/crisis/{slug}",
         body_html=body_html,
         hero_badges=hero_badges,
+        hero_extra=hero_extra,
         map_url=map_url,
         sitrep_url=sitrep_url,
         as_of=as_of,

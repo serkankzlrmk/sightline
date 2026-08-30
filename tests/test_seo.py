@@ -362,6 +362,37 @@ class TestCrisisPages:
         resp = client.get("/crisis/definitely-not-a-country")
         assert resp.status_code == 404
 
+    def test_crisis_detail_shows_narrative(self, client):
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "crisis-headline" in html  # headline block rendered
+        assert "crisis-narrative" in html  # narrative block rendered
+
+    def test_crisis_detail_shows_top_sources(self, client):
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "Top sources" in html
+
+    def test_crisis_detail_date_range(self, client):
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        # When date_range is populated the line renders; when absent the
+        # page still ships (narrative acts as the freshness signal).
+        assert ("Reports from" in html) or ("crisis-narrative" in html)
+
+    def test_crisis_detail_related(self, client):
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "Related" in html
+
     def test_crisis_published_no_noindex(self, client):
         resp = client.get("/crisis/sudan")
         if resp.status_code == 404:

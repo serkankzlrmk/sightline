@@ -319,7 +319,8 @@
   <main class="crisis-wrap" id="crisis-content">
     <section class="crisis-hero" aria-labelledby="crisis-title">
       {{ hero_badges | safe }}
-      <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
+            {{ hero_extra | safe }}
+            <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
       <p class="crisis-sub">Live humanitarian overview: reports, alerts and key figures from trusted sources.</p>
       <p class="crisis-asof">As of {{ as_of }}</p>
     </section>
