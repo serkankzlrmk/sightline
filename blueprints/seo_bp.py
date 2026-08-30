@@ -482,36 +482,66 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
 
     # Live GDACS alerts for this country (from the same cached payload)
     gdacs = entry.get("gdacs_alerts") or []
-    alert_levels = [str(a.get("alert_level", "")).lower() for a in gdacs if isinstance(a, dict)]
-    has_live_alert = any(lv in ("orange", "red") for lv in alert_levels)
+    by_level = {
+        str(a.get("alert_level", "")).lower(): a
+        for a in gdacs if isinstance(a, dict)
+    }
+    alert_levels = sorted(by_level, key=lambda lv: ["green", "orange", "red"].index(lv) if lv in ("green", "orange", "red") else 99)
+    has_live_alert = any(lv in ("orange", "red") for lv in by_level)
 
     published = count >= _CRISIS_PUBLISH_MIN_REPORTS or has_live_alert
     noindex = allow_noindex and not published
 
-    # Sections (real data only — P2; per-source failure → "Data pending")
+    # Hero badges — real data only (P2)
+    badges = []
+    if by_level:
+        for lv in alert_levels:
+            badge_cls = {"green": "crisis-badge-green", "orange": "crisis-badge-orange", "red": "crisis-badge-red"}.get(lv, "crisis-badge-neutral")
+            evt = by_level[lv].get("event_type", "")
+            badges.append(f'<span class="crisis-badge {badge_cls}">▲ {lv.title()} alert{" · " + evt if evt else ""}</span>')
+    elif has_live_alert:
+        badges.append('<span class="crisis-badge crisis-badge-red">▲ Live alert</span>')
+    if count:
+        badges.append(f'<span class="crisis-badge crisis-badge-blue">{count} reports</span>')
+    if entry.get("has_summary"):
+        badges.append('<span class="crisis-badge crisis-badge-blue">Country summary</span>')
+    if entry.get("has_sitrep"):
+        badges.append('<span class="crisis-badge crisis-badge-blue">Sitrep available</span>')
+    hero_badges = f'<div class="crisis-badges">{"".join(badges)}</div>' if badges else ""
+
+    # Sections (real data only — P2; per-source failure → "Data pending" card)
     headlines = entry.get("top_themes") or []
     recent = entry.get("recent_reports") or []
     figures = entry.get("hdx_key_figures") or []
+    as_of = (entry.get("last_updated") or entry.get("generated_at") or time.strftime("%Y-%m-%d"))
+    if isinstance(as_of, str) and len(as_of) > 10:
+        as_of = as_of[:10]
 
     parts = []
     if gdacs:
-        parts.append("<h2>Current alerts</h2><ul>" + "".join(
-            f"<li>{_sanitize_html(str(a.get('alert_level', '')))} — {_sanitize_html(str(a.get('title', '')))}</li>"
-            for a in gdacs[:5]
-        ) + "</ul>")
+        lis = []
+        for a in gdacs[:5]:
+            level = str(a.get("alert_level", "")).lower()
+            dot = {"green": "🟢", "orange": "🟠", "red": "🔴"}.get(level, "⚪")
+            lis.append(f'<li><span class="lvl">{dot} {str(a.get("alert_level", ""))}</span>{_sanitize_html(str(a.get("title", "")))}</li>')
+        parts.append(f'<div class="crisis-card"><h2>⚡ Current alerts</h2><ul>{"".join(lis)}</ul></div>')
     if recent:
-        parts.append("<h2>Recent reports</h2><ul>" + "".join(
-            f"<li>{_sanitize_html(str(r.get('title', '')))}</li>" for r in recent[:5]
-        ) + "</ul>")
+        lis = []
+        for r in recent[:5]:
+            src = str(r.get("source", ""))
+            lis.append(f'<li class="crisis-reports"><a href="{_sanitize_html(str(r.get("url", "#")))}">{_sanitize_html(str(r.get("title", "")))}</a> <span class="lvl">({_sanitize_html(src)})</span></li>')
+        parts.append(f'<div class="crisis-card"><h2>📄 Recent reports</h2><ul>{"".join(lis)}</ul></div>')
     if figures:
-        parts.append("<h2>Key figures</h2><ul>" + "".join(
-            f"<li>{_sanitize_html(str(f.get('label', '')))}: {_sanitize_html(str(f.get('value', '')))}</li>"
+        items = "".join(
+            f'<div class="crisis-figure"><strong>{_sanitize_html(str(f.get("value", "")))}</strong><span>{_sanitize_html(str(f.get("label", "")))}</span></div>'
             for f in figures[:6]
-        ) + "</ul>")
+        )
+        parts.append(f'<div class="crisis-card"><h2>📊 Key figures</h2><div class="crisis-figures">{items}</div></div>')
     if headlines:
-        parts.append("<h2>Main themes</h2><p>" + _sanitize_html(", ".join(str(h) for h in headlines[:6])) + "</p>")
+        chips = "".join(f'<span class="crisis-theme">{_sanitize_html(str(h))}</span>' for h in headlines[:8])
+        parts.append(f'<div class="crisis-card"><h2>🏷 Themes</h2><div class="crisis-themes">{chips}</div></div>')
     if not parts:
-        parts.append("<p>Data pending — latest information will appear here as sources update.</p>")
+        parts.append('<div class="crisis-card"><p class="crisis-pending">Data pending — latest information will appear here as sources update.</p></div>')
     body_html = "".join(parts)
 
     title = f"{country} — live crisis overview"
@@ -528,12 +558,18 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     if noindex:
         json_ld["url"] = f"{SITE_URL}/crisis/{slug}"
 
-    html = _render_detail(
-        title,
-        description,
-        f"crisis/{slug}",
-        body_html,
-        json_ld,
+    from config import GOOGLE_ANALYTICS_ID
+
+    html = render_template(
+        "crisis_detail.html",
+        page_title=title,
+        page_description=description,
+        canonical=f"{SITE_URL}/crisis/{slug}",
+        body_html=body_html,
+        hero_badges=hero_badges,
+        as_of=as_of,
+        json_ld=json.dumps(json_ld, ensure_ascii=False),
+        analytics_id=GOOGLE_ANALYTICS_ID,
     )
     if noindex:
         html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)

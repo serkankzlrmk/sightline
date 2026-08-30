@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }} - Sightline</title>
+  <meta name="description" content="{{ page_description }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://sightlinehumanitarian.com/static/logo-signal-horizon.png">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
+  <script type="application/ld+json">{{ json_ld | safe }}</script>
+  <style>
+    :root {
+      --primary: #0EA5E9;
+      --primary-dark: #0284C7;
+      --primary-light: #F0F9FF;
+      --bg: #F5F5F7;
+      --surface: #FFFFFF;
+      --text: #0F172A;
+      --text-secondary: #5B5B74;
+      --border: rgba(0,0,0,.08);
+      --radius: 16px;
+      --green: #10B981;
+      --orange: #F59E0B;
+      --red: #EF4444;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: var(--text); margin: 0; background: var(--bg); }
+    .crisis-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+    .crisis-header-inner { max-width: 860px; margin: 0 auto; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .crisis-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); font-weight: 700; font-size: 17px; }
+    .crisis-logo img { width: 28px; height: 28px; border-radius: 6px; }
+    .crisis-home { font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 600; }
+    .crisis-home:hover { text-decoration: underline; }
+    .crisis-nav { max-width: 860px; margin: 0 auto; padding: 14px 20px 0; display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; }
+    .crisis-nav a { color: var(--text-secondary); text-decoration: none; }
+    .crisis-nav a:hover { color: var(--primary); }
+    .crisis-nav a:first-child { color: var(--text); font-weight: 600; }
+    .crisis-wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 64px; }
+    .crisis-hero { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 28px 22px; margin-bottom: 18px; }
+    .crisis-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .crisis-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; font-size: 12.5px; font-weight: 600; }
+    .crisis-badge-green { background: #D1FAE5; color: #047857; }
+    .crisis-badge-orange { background: #FEF3C7; color: #B45309; }
+    .crisis-badge-red { background: #FEE2E2; color: #B91C1C; }
+    .crisis-badge-neutral { background: #E2E8F0; color: #475569; }
+    .crisis-badge-blue { background: var(--primary-light); color: var(--primary-dark); }
+    .crisis-title { font-size: 30px; line-height: 1.25; margin: 0 0 6px; color: var(--text); }
+    .crisis-sub { font-size: 14.5px; color: var(--text-secondary); margin: 0 0 4px; }
+    .crisis-asof { font-size: 12.5px; color: #8A8AA0; margin-top: 10px; }
+    .crisis-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 26px; margin-bottom: 14px; }
+    .crisis-card h2 { font-size: 17px; margin: 0 0 12px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .crisis-card ul { margin: 0; padding: 0; list-style: none; }
+    .crisis-card li { padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,.05); font-size: 14.5px; color: #2B2B45; }
+    .crisis-card li:last-child { border-bottom: none; }
+    .crisis-card li .lvl { font-size: 12px; font-weight: 700; margin-right: 8px; }
+    .crisis-reports a { color: var(--primary-dark); text-decoration: none; }
+    .crisis-reports a:hover { text-decoration: underline; }
+    .crisis-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .crisis-figure { background: var(--bg); border-radius: 10px; padding: 12px 14px; }
+    .crisis-figure strong { display: block; font-size: 17px; color: var(--primary-dark); }
+    .crisis-figure span { font-size: 12.5px; color: var(--text-secondary); }
+    .crisis-themes { display: flex; flex-wrap: wrap; gap: 8px; }
+    .crisis-theme { padding: 5px 13px; background: var(--primary-light); color: var(--primary-dark); border-radius: 9999px; font-size: 13px; font-weight: 600; }
+    .crisis-pending { color: var(--text-secondary); font-size: 14px; }
+    .crisis-cta { margin-top: 22px; padding: 24px 28px; background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); border-radius: var(--radius); color: #fff; }
+    .crisis-cta strong { font-size: 18px; display: block; margin-bottom: 4px; }
+    .crisis-cta p { margin: 0 0 14px; font-size: 14.5px; opacity: .92; }
+    .crisis-cta a { display: inline-block; padding: 11px 22px; background: #fff; color: var(--primary-dark); border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14.5px; }
+    .crisis-cta a:hover { background: #F0F9FF; }
+    .crisis-footer { max-width: 860px; margin: 0 auto; padding: 20px; font-size: 13px; color: #8A8AA0; }
+    .crisis-footer a { color: var(--primary); text-decoration: none; }
+    @media (max-width: 560px) {
+      .crisis-title { font-size: 24px; }
+      .crisis-hero, .crisis-card, .crisis-cta { padding: 18px; }
+    }
+  </style>
+  {% include '_analytics_head.html' %}
+</head>
+<body>
+  <header class="crisis-header">
+    <div class="crisis-header-inner">
+      <a class="crisis-logo" href="/">
+        <img src="/static/logo-signal-horizon.png" alt="Sightline logo">
+        Sightline
+      </a>
+      <a class="crisis-home" href="/">← Back to home</a>
+    </div>
+    <nav class="crisis-nav">
+      <a href="/crisis">Crisis Overviews</a>
+      <a href="/bulletins">Bulletins</a>
+      <a href="/countries">Country Summaries</a>
+      <a href="/map">Crisis Map</a>
+      <a href="/proposal">Proposal Studio</a>
+    </nav>
+  </header>
+  <main class="crisis-wrap">
+    <div class="crisis-hero">
+      {{ hero_badges | safe }}
+      <h1 class="crisis-title">{{ page_title }}</h1>
+      <p class="crisis-sub">Live humanitarian overview: reports, alerts and key figures from trusted sources.</p>
+      <p class="crisis-asof">As of {{ as_of }}</p>
+    </div>
+    {{ body_html | safe }}
+    <div class="crisis-cta">
+      <strong>Need this as a situation report?</strong>
+      <p>Turn this intelligence into a structured SITREP — generated, verified and export-ready in minutes.</p>
+      <a href="/app#sitrep" onclick="gtag('event', 'cta_click', {cta_name: 'make_sitrep', page_title: '{{ page_title }}'});">Get this as a sitrep</a>
+    </div>
+  </main>
+  <footer class="crisis-footer">
+    <a href="/">Sightline</a> — humanitarian intelligence, situation reports and donor proposals from trusted sources.
+  </footer>
+</body>
+</html>
