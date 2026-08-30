@@ -54,9 +54,9 @@ body .nav {
 .auth-overlay.slide-in::before {
   content: '';
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0);
+  background: rgba(0,0,0,0.35);
   z-index: 10000;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .auth-overlay .modal-overlay { z-index: 10002; }
 

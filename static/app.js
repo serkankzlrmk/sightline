@@ -139,18 +139,21 @@ function toggleSidebarNav() {
 
 function switchTab(name) {
   // Freemium preview: gated tabs require auth — Chat and Database stay
-  // locked; Bulletin, SITREP, Map, Home, Countries are open to anonymous
-  // visitors (public read APIs serve them).
+  // locked behind the login panel; Bulletin, SITREP, Map, Home, Countries
+  // are open to anonymous visitors (public read APIs serve them).
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
   const GATED_TABS = ['agent', 'db', 'admin'];
   if (!isAuthed && GATED_TABS.includes(name)) {
-    // Show login panel instead of switching tab
+    // Open the gated tab's panel so the visitor sees where they clicked,
+    // then slide in the login panel over it (backdrop locks the page).
+    // Public tabs (bulletin/sitrep/map/home) never show the login panel —
+    // anonymous visitors browse them freely.
     if (window.showLoginPanel) {
       window.showLoginPanel();
     }
-    // Stay on home tab
-    return;
+    // NOTE: deliberately NO return — the tab switch continues below so the
+    // gated panel becomes visible behind the locked login overlay.
   }
 
   // GA4: track tab views (no-op when gtag is absent — e.g. analytics off)
@@ -354,11 +357,8 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   e.preventDefault();
   e.stopPropagation();
-  const el = document.getElementById('auth-overlay');
-  if (el) {
-    el.classList.remove('hidden');
-    el.classList.add('slide-in');
-    el.style.display = '';
+  if (window.showLoginPanel) {
+    window.showLoginPanel();
   }
 });
 

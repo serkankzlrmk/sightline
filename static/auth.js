@@ -69,13 +69,17 @@ window.showLoginPanel = showLoginPanel;
 // ═══════════════════════════════════════════════════════════
 
 function showLoginPanel() {
-  // Slide-in the login panel from the right (triggered by gated tab click)
+  // Slide-in the login panel from the right (triggered by gated tab click).
+  // The backdrop locks the page behind it — the gated tab IS visible (the
+  // visitor can see where they clicked) but nothing behind is clickable
+  // until they sign in or close the panel.
   const el = document.getElementById("auth-overlay");
   if (el) {
     el.classList.remove("hidden");
     el.classList.add("slide-in");
     el.style.display = "";
   }
+  document.body.classList.add("auth-locked");
 }
 
 function hideOverlay() {
