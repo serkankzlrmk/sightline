@@ -17,6 +17,9 @@
   left: 0; top: 0;
   transition: width var(--transition), background var(--transition);
   overflow: hidden;
+  /* Above the login backdrop (10000) so the nav stays clickable while the
+     login panel locks the content; below the auth card (10001). */
+  z-index: 10005;
 }
 .sidebar-nav.collapsed { width: 72px; }
 .sidebar-nav.collapsed .sidebar-brand,
