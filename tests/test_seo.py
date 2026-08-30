@@ -326,7 +326,7 @@ class TestAnalyticsTag:
             resp = client.get(path)
             assert resp.status_code == 200, path
             html = resp.get_data(as_text=True)
-            assert f"gtag/js?id=G-TEST123" in html, path
+            assert "gtag/js?id=G-TEST123" in html, path
             assert "send_page_view" in html, path
 
 
