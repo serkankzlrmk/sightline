@@ -63,6 +63,7 @@ export function getIdToken() {
 window.getIdToken = getIdToken;
 window.refreshIdToken = refreshIdToken;
 window.showLoginPanel = showLoginPanel;
+window.hideOverlay = hideOverlay;
 
 // ═══════════════════════════════════════════════════════════
 // UI helpers

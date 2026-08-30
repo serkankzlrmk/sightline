@@ -154,6 +154,11 @@ function switchTab(name) {
     }
     // NOTE: deliberately NO return — the tab switch continues below so the
     // gated panel becomes visible behind the locked login overlay.
+  } else if (window.hideOverlay) {
+    // Moving to a PUBLIC tab (bulletin/sitrep/map/home) releases the login
+    // panel — anonymous visitors browse those freely. Sign-in also lands
+    // here (isAuthed=true), where the overlay is already hidden.
+    window.hideOverlay();
   }
 
   // GA4: track tab views (no-op when gtag is absent — e.g. analytics off)

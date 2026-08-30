@@ -823,7 +823,8 @@ body.sidebar-hidden .db-header {
   align-items: center;
   height: auto;
 }
-body.auth-locked .mobile-tab-bar { display: none !important; }
+# freemium; login panel now slides in over the tab and mobile nav stays
+# visible so visitors can move to public tabs (Bulletin/SITREP/Map).
 
 .mobile-tab {
   display: flex;

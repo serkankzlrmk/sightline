@@ -51,6 +51,11 @@ body .nav {
 .auth-overlay.slide-in .auth-card {
   transform: translateX(0);
 }
+/* Login panel cannot be dismissed while open — visitors leave by clicking a
+   public tab (switchTab calls hideOverlay). This keeps gated content locked. */
+.auth-overlay.slide-in .auth-close-btn {
+  display: none !important;
+}
 .auth-overlay.slide-in::before {
   content: '';
   position: fixed; inset: 0;
