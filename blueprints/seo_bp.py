@@ -197,6 +197,8 @@ def _cached(key: str, cache: dict, ttl: int, builder) -> str:
 
 # ── Render helpers ─────────────────────────────────────────────────────────────
 def _render_detail(title: str, description: str, path: str, body_html: str, json_ld: dict) -> str:
+    from config import GOOGLE_ANALYTICS_ID
+
     return render_template(
         "seo_detail.html",
         page_title=title,
@@ -204,16 +206,20 @@ def _render_detail(title: str, description: str, path: str, body_html: str, json
         canonical=f"{SITE_URL}/{path}",
         body_html=body_html,
         json_ld=json.dumps(json_ld, ensure_ascii=False),
+        analytics_id=GOOGLE_ANALYTICS_ID,
     )
 
 
 def _render_list(title: str, description: str, items: list[dict], path: str) -> str:
+    from config import GOOGLE_ANALYTICS_ID
+
     return render_template(
         "seo_list.html",
         page_title=title,
         page_description=description,
         canonical=f"{SITE_URL}/{path}",
         items=items,
+        analytics_id=GOOGLE_ANALYTICS_ID,
     )
 
 
@@ -275,7 +281,12 @@ def bulletin_detail(slug: str):
             "@type": "Article",
             "headline": title,
             "datePublished": trimmed.get("generated_at", ""),
+            "dateModified": trimmed.get("generated_at", ""),
+            "description": f"Weekly humanitarian bulletin: {trimmed.get('week_label') or title}.",
             "mainEntityOfPage": f"{SITE_URL}/bulletin/{slug}",
+            "author": {"@type": "Organization", "name": "Sightline"},
+            "publisher": {"@type": "Organization", "name": "Sightline"},
+            "image": f"{SITE_URL}/static/logo-signal-horizon.png",
         }
         return _render_detail(
             title,
@@ -384,12 +395,19 @@ def sitrep_detail(slug: str):
     title = report.get("title") or filename
     narrative = _sanitize_html(report.get("narrative_html") or report.get("narrative") or "")
     sections = f"<h2>Report</h2>{narrative}" if narrative else "<p>No narrative available.</p>"
+    generated_at = report.get("generated_at") or report.get("date", "")
     json_ld = {
         "@context": "https://schema.org",
         "@type": "Article",
         "headline": title,
+        "datePublished": generated_at if generated_at else None,
+        "description": f"Humanitarian situation report: {title}.",
         "mainEntityOfPage": f"{SITE_URL}/sitrep/{slug}",
+        "author": {"@type": "Organization", "name": "Sightline"},
+        "publisher": {"@type": "Organization", "name": "Sightline"},
+        "image": f"{SITE_URL}/static/logo-signal-horizon.png",
     }
+    json_ld = {k: v for k, v in json_ld.items() if v is not None}
     return _render_detail(
         title,
         f"Humanitarian situation report: {title}.",
@@ -400,24 +418,112 @@ def sitrep_detail(slug: str):
 
 
 # =============================================================================
+# ROUTES — Crisis Map (SSR)
+# =============================================================================
+
+
+def _map_countries_ssr() -> list[dict]:
+    """Top-60 country list for the SSR map page.
+
+    Reuses the public /api/map/countries response so caching and data shape
+    stay in one place (no ChromaDB access from this surface).
+    """
+    from blueprints.public_bp import api_map_countries
+
+    try:
+        result = api_map_countries()
+        # Route funcs may return (Response, status) tuples — unwrap safely.
+        resp = result[0] if isinstance(result, tuple) else result
+        data = resp.get_json()
+    except Exception:
+        return []
+    return data if isinstance(data, list) else []
+
+
+@seo_bp.route("/map")
+def crisis_map():
+    """SSR crisis map page: country grid with severity + report counts."""
+    record_page_view("/map", request.headers.get("User-Agent", ""))
+
+    def _render() -> str:
+        from config import GOOGLE_ANALYTICS_ID
+
+        countries = _map_countries_ssr()
+        cards = []
+        for c in countries:
+            name = c.get("country") or c.get("name", "")
+            if not name:
+                continue
+            cards.append(
+                {
+                    "name": name,
+                    "severity": c.get("severity", ""),
+                    "count": c.get("report_count", 0),
+                    "headline": (c.get("headline") or "")[:160],
+                    "url": f"/country/{slugify(safe_country_filename(name))}",
+                }
+            )
+        cards.sort(key=lambda x: x["count"], reverse=True)
+        return render_template(
+            "map_ssr.html",
+            page_title="Humanitarian Crisis Map — Sightline",
+            page_description=(
+                "Live humanitarian crisis map: 60 countries ranked by ReliefWeb "
+                "report volume, severity, and displacement data from HDX and GDACS."
+            ),
+            canonical=f"{SITE_URL}/map",
+            countries=cards,
+            analytics_id=GOOGLE_ANALYTICS_ID,
+        )
+
+    return _cached("map", _bulletin_cache, _BULLETIN_CACHE_TTL, _render)
+
+
+# =============================================================================
 # ROUTES — sitemap + robots
 # =============================================================================
 
 
+def _lastmod(path) -> str:
+    """YYYY-MM-DD mtime of a content file; falls back to today on any error."""
+    try:
+        return time.strftime("%Y-%m-%d", time.localtime(path.stat().st_mtime))
+    except OSError:
+        return time.strftime("%Y-%m-%d")
+
+
 def _sitemap_builder() -> str:
-    urls = [f"{SITE_URL}/", f"{SITE_URL}/bulletins", f"{SITE_URL}/countries"]
-    for slug in _bulletin_slug_map():
-        urls.append(f"{SITE_URL}/bulletin/{slug}")
-    for slug in _country_slug_map():
-        urls.append(f"{SITE_URL}/country/{slug}")
-    for _, slug in _sitrep_report_files():
-        urls.append(f"{SITE_URL}/sitrep/{slug}")
+    from sitrep.country_summary import COUNTRY_SUMMARY_DIR
+    from sitrep.weekly_bulletin import BULLETINS_DIR
+
+    today = time.strftime("%Y-%m-%d")
+    # (url, lastmod) pairs — static roots use today, content pages use the
+    # underlying file's mtime so Search Console doesn't see stale dates.
+    urls: list[tuple[str, str]] = [
+        (f"{SITE_URL}/", today),
+        (f"{SITE_URL}/bulletins", today),
+        (f"{SITE_URL}/countries", today),
+        (f"{SITE_URL}/map", today),
+    ]
+    for slug, filename in _bulletin_slug_map().items():
+        urls.append(
+            (f"{SITE_URL}/bulletin/{slug}", _lastmod(BULLETINS_DIR / filename))
+        )
+    for slug, filename in _country_slug_map().items():
+        urls.append(
+            (f"{SITE_URL}/country/{slug}", _lastmod(COUNTRY_SUMMARY_DIR / filename))
+        )
+    for fname, slug in _sitrep_report_files():
+        urls.append(
+            (f"{SITE_URL}/sitrep/{slug}", _lastmod(OUTPUT_REPORTS_DIR / fname))
+        )
     if len(urls) <= 3:
         # An empty sitemap violates the protocol and triggers Search Console
         # errors — serve 404 instead (D16).
         abort(404)
-    today = time.strftime("%Y-%m-%d")
-    entries = "".join(f"<url><loc>{u}</loc><lastmod>{today}</lastmod></url>" for u in urls)
+    entries = "".join(
+        f"<url><loc>{u}</loc><lastmod>{lm}</lastmod></url>" for u, lm in urls
+    )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'

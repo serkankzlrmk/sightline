@@ -280,3 +280,111 @@ class TestCaches:
         _cached("k", cache, 60, builder)
         _cached("k", cache, 60, builder)
         assert len(calls) == 1
+
+
+# ── CSP allows GA4 (prod and dev) ─────────────────────────────────────────────
+
+
+class TestCspAnalyticsDomains:
+    def _assert_csp(self, debug: bool):
+        from unittest.mock import patch
+
+        with patch("server.SERVER_DEBUG", debug):
+            from server import app
+
+            app.config["TESTING"] = True
+            resp = app.test_client().get("/")
+            csp = resp.headers.get("Content-Security-Policy", "")
+            assert "https://www.googletagmanager.com" in csp
+            assert "https://www.google-analytics.com" in csp
+
+    def test_prod_csp_allows_gtag(self):
+        self._assert_csp(False)
+
+    def test_dev_csp_allows_gtag(self):
+        self._assert_csp(True)
+
+
+# ── GA4 tag injection (empty ID = no tag) ─────────────────────────────────────
+
+
+class TestAnalyticsTag:
+    def test_tag_absent_without_id(self, client, monkeypatch):
+        import config
+
+        monkeypatch.setattr(config, "GOOGLE_ANALYTICS_ID", "")
+        for path in ("/", "/bulletins", "/app"):
+            resp = client.get(path)
+            assert resp.status_code == 200, path
+            assert "googletagmanager.com/gtag/js" not in resp.get_data(as_text=True), path
+
+    def test_tag_present_with_id(self, client, monkeypatch):
+        import config
+
+        monkeypatch.setattr(config, "GOOGLE_ANALYTICS_ID", "G-TEST123")
+        for path in ("/", "/bulletins", "/app"):
+            resp = client.get(path)
+            assert resp.status_code == 200, path
+            html = resp.get_data(as_text=True)
+            assert f"gtag/js?id=G-TEST123" in html, path
+            assert "send_page_view" in html, path
+
+
+# ── SSR Crisis Map page (/map) ────────────────────────────────────────────────
+
+
+class TestCrisisMapSsr:
+    def test_map_page_renders(self, client):
+        resp = client.get("/map")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "Humanitarian Crisis Map" in html
+        assert "Open interactive map" in html
+        assert "canonical" in html
+        assert "Crisis Map" in html  # nav link present
+
+    def test_map_no_login_overlay(self, client):
+        """SSR pages must never ship the auth overlay or auth scripts."""
+        resp = client.get("/map")
+        html = resp.get_data(as_text=True)
+        assert "auth-overlay" not in html
+        assert "showLoginPanel" not in html
+        assert "firebase" not in html.lower()
+
+    def test_map_in_sitemap(self, client):
+        resp = client.get("/sitemap.xml")
+        text = resp.get_data(as_text=True)
+        assert ">https://" in text and "/map</loc>" in text
+
+    def test_sitemap_lastmod_format(self, client):
+        resp = client.get("/sitemap.xml", headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 404:
+            pytest.skip("no content in this checkout")
+        import re
+
+        text = resp.get_data(as_text=True)
+        assert re.search(r"<lastmod>\d{4}-\d{2}-\d{2}</lastmod>", text)
+
+
+# ── JSON-LD enrichment ────────────────────────────────────────────────────────
+
+
+class TestJsonLd:
+    def test_landing_jsonld_website(self, client):
+        resp = client.get("/")
+        html = resp.get_data(as_text=True)
+        assert '"@type": "WebSite"' in html
+        assert '"publisher"' in html
+
+    def test_bulletin_jsonld_has_publisher(self, client, tmp_chats_db):
+        import re
+
+        list_html = client.get("/bulletins").get_data(as_text=True)
+        m = re.search(r'href="(/bulletin/[^"]+)"', list_html)
+        if not m:
+            # No bulletins published in this environment — nothing to render.
+            return
+        detail = client.get(m.group(1)).get_data(as_text=True)
+        assert '"@type": "Article"' in detail
+        assert '"publisher"' in detail
+        assert '"dateModified"' in detail

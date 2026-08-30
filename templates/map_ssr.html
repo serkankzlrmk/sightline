@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }}</title>
+  <meta name="description" content="{{ page_description }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://sightlinehumanitarian.com/static/logo-signal-horizon.png">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="icon" href="/static/logo-signal-horizon.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": "Sightline Humanitarian Crisis Map",
+    "description": "60 countries ranked by humanitarian report volume and severity",
+    "url": "{{ canonical }}",
+    "isAccessibleForFree": true
+  }
+  </script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; margin: 0; background: #f6f7fb; color: #1c1c34; }
+    .seo-wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; }
+    .seo-nav { display: flex; gap: 16px; font-size: 14px; padding: 12px 0 20px; border-bottom: 1px solid #e3e4ef; margin-bottom: 24px; }
+    .seo-nav a { color: #2053a8; text-decoration: none; }
+    .seo-nav a:hover { text-decoration: underline; }
+    h1 { font-size: 26px; color: #0f0f28; margin: 8px 0 6px; }
+    .seo-sub { font-size: 15px; color: #5b5b74; margin-bottom: 20px; }
+    .map-cta { display: inline-block; margin-bottom: 28px; background: #c8102e; color: #fff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+    .map-cta:hover { background: #a30d25; }
+    .country-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .country-card { background: #fff; border: 1px solid #e4e5f0; border-radius: 10px; padding: 14px 16px; text-decoration: none; color: inherit; display: block; }
+    .country-card:hover { border-color: #9db4e6; box-shadow: 0 2px 10px rgba(32, 83, 168, 0.08); }
+    .cc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .cc-name { font-size: 16px; font-weight: 700; color: #173d7d; margin: 0; }
+    .cc-sev { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 3px 8px; border-radius: 999px; }
+    .sev-critical { background: #fde8e8; color: #b91c1c; }
+    .sev-high    { background: #fff4e0; color: #b45309; }
+    .sev-medium  { background: #fef9c3; color: #a16207; }
+    .sev-low     { background: #e7f6ec; color: #15803d; }
+    .sev-unknown { background: #eef0f4; color: #64748b; }
+    .cc-meta { font-size: 13px; color: #5b5b74; margin: 6px 0 0; }
+    .cc-headline { font-size: 13px; color: #3b3b55; margin: 6px 0 0; }
+    .seo-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e4e5f0; font-size: 13px; color: #8a8aa4; }
+    .seo-footer a { color: #2053a8; text-decoration: none; }
+  </style>
+  {% include '_analytics_head.html' %}
+</head>
+<body>
+  <div class="seo-wrap">
+    <nav class="seo-nav">
+      <a href="/">Home</a>
+      <a href="/bulletins">Bulletins</a>
+      <a href="/countries">Country Summaries</a>
+      <a href="/map">Crisis Map</a>
+      <a href="/proposal">Proposal Studio</a>
+    </nav>
+    <h1>{{ page_title }}</h1>
+    <div class="seo-sub">{{ page_description }}</div>
+    <a class="map-cta" href="/app#crisis-map">Open interactive map →</a>
+    {% if countries %}
+      <div class="country-grid">
+        {% for c in countries %}
+          <a class="country-card" href="{{ c.url }}">
+            <div class="cc-head">
+              <h2 class="cc-name">{{ c.name }}</h2>
+              <span class="cc-sev sev-{{ c.severity|lower|default('unknown') }}">{{ c.severity or 'Unknown' }}</span>
+            </div>
+            <p class="cc-meta">{{ c.count }} reports · data from ReliefWeb, HDX, GDACS</p>
+            {% if c.headline %}<p class="cc-headline">{{ c.headline }}</p>{% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="seo-empty" style="padding:40px 0;color:#7a7a92;">No country data available yet.</div>
+    {% endif %}
+    <footer class="seo-footer">
+      <a href="/">Sightline</a> &mdash; humanitarian intelligence platform: situation reports, bulletins and country summaries from trusted sources.
+    </footer>
+  </div>
+</body>
+</html>
