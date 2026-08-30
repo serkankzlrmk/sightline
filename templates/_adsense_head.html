@@ -1,0 +1,17 @@
+{% if adsense_client %}
+<!-- Google AdSense (public SSR pages only — SPA never includes this partial) -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}" crossorigin="anonymous"></script>
+<script>
+  // Signed-in visitors keep the premium feel: hide every ad container.
+  (function () {
+    try {
+      var t = window.__idToken || localStorage.getItem('__idToken') || localStorage.getItem('sightline_idToken') || localStorage.getItem('id_token');
+      if (t) {
+        document.addEventListener('DOMContentLoaded', function () {
+          document.querySelectorAll('.crisis-ad, .seo-ad').forEach(function (el) { el.style.display = 'none'; });
+        });
+      }
+    } catch (e) { /* localStorage unavailable — ads show for anonymous browser */ }
+  })();
+</script>
+{% endif %}

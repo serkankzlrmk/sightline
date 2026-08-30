@@ -34,6 +34,7 @@
     .seo-cta a:hover { background: #1a4388; }
   </style>
   {% include '_analytics_head.html' %}
+  {% include '_adsense_head.html' %}
 </head>
 <body>
   <div class="seo-wrap">
@@ -48,6 +49,13 @@
     <h1>{{ page_title }}</h1>
     <div class="seo-meta">{{ page_description }}</div>
     <div class="seo-body">{{ body_html | safe }}</div>
+    {% if adsense_client %}
+    <div class="seo-ad" id="seo-ad-slot">
+      <ins class="adsbygoogle" style="display:block" data-ad-client="{{ adsense_client }}"
+           data-ad-slot="ROOT_SLOT_ID" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
     <div class="seo-cta">
       <strong>Need this as a situation report?</strong>
       <p>Turn this intelligence into a structured SITREP — generated, verified and export-ready in minutes.</p>

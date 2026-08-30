@@ -297,6 +297,7 @@
     }
   </style>
   {% include '_analytics_head.html' %}
+  {% include '_adsense_head.html' %}
 </head>
 <body>
   <a class="skip-link" href="#crisis-content">Skip to crisis overview</a>
@@ -325,6 +326,13 @@
       <p class="crisis-asof">As of {{ as_of }}</p>
     </section>
     {{ body_html | safe }}
+    {% if adsense_client %}
+    <div class="crisis-ad" id="crisis-ad-slot">
+      <ins class="adsbygoogle" style="display:block" data-ad-client="{{ adsense_client }}"
+           data-ad-slot="ROOT_SLOT_ID" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+    {% endif %}
     <aside class="crisis-cta" aria-labelledby="crisis-cta-title">
       <div class="crisis-cta-copy">
         <strong id="crisis-cta-title">Need this as a situation report?</strong>

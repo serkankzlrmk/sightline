@@ -340,12 +340,12 @@ def add_security_headers(response):
             "base-uri 'self'; "
             "form-action 'self'; "
             "frame-ancestors 'self'; "
-            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com https://static.sketchfab.com https://www.googletagmanager.com https://www.google-analytics.com; "
+            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com https://static.sketchfab.com https://www.googletagmanager.com https://www.google-analytics.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://adservice.google.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
-            "connect-src 'self' https://www.gstatic.com https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://*.basemaps.cartocdn.com https://www.googletagmanager.com https://www.google-analytics.com; "
-            "frame-src https://sightlinehumanitarian.firebaseapp.com https://sightlinehumanitarian.com https://accounts.google.com https://sketchfab.com; "
+            "connect-src 'self' https://www.gstatic.com https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://*.basemaps.cartocdn.com https://www.googletagmanager.com https://www.google-analytics.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net; "
+            "frame-src https://sightlinehumanitarian.firebaseapp.com https://sightlinehumanitarian.com https://accounts.google.com https://sketchfab.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com; "
         )
     else:
         # Dev CSP — includes localhost for local development
@@ -355,12 +355,12 @@ def add_security_headers(response):
             "base-uri 'self'; "
             "form-action 'self'; "
             "frame-ancestors 'self'; "
-            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com https://static.sketchfab.com https://www.googletagmanager.com https://www.google-analytics.com http://localhost:5000 http://localhost:5001; "
+            "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com https://static.sketchfab.com https://www.googletagmanager.com https://www.google-analytics.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://adservice.google.com http://localhost:5000 http://localhost:5001; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https:; "
-            "connect-src 'self' http://localhost:5000 http://localhost:5001 http://127.0.0.1:5000 http://127.0.0.1:5001 https://www.gstatic.com https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://*.basemaps.cartocdn.com https://www.googletagmanager.com https://www.google-analytics.com; "
-            "frame-src https://sightlinehumanitarian.firebaseapp.com https://sightlinehumanitarian.com https://accounts.google.com https://sketchfab.com; "
+            "connect-src 'self' http://localhost:5000 http://localhost:5001 http://127.0.0.1:5000 http://127.0.0.1:5001 https://www.gstatic.com https://openrouter.ai https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://*.basemaps.cartocdn.com https://www.googletagmanager.com https://www.google-analytics.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net; "
+            "frame-src https://sightlinehumanitarian.firebaseapp.com https://sightlinehumanitarian.com https://accounts.google.com https://sketchfab.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com; "
         )
     # HSTS — only when behind HTTPS (nginx sets X-Forwarded-Proto)
     if request.headers.get("X-Forwarded-Proto", "") == "https" or request.is_secure:

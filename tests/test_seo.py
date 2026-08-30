@@ -461,3 +461,52 @@ class TestJsonLd:
         assert '"@type": "Article"' in detail
         assert '"publisher"' in detail
         assert '"dateModified"' in detail
+
+
+# ── Google AdSense gating (P2: ads only on public SSR, never SPA) ────────────
+
+
+class TestAdSense:
+    """With GOOGLE_ADSENSE_CLIENT empty (default), zero ad code renders."""
+
+    def test_ads_txt_404_without_client(self, client):
+        resp = client.get("/ads.txt")
+        assert resp.status_code == 404
+
+    def test_no_ads_markup_on_crisis(self, client):
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "adsbygoogle" not in html
+        assert "crisis-ad" not in html
+
+    def test_no_ads_markup_on_seo_detail(self, client):
+        resp = client.get("/crisis")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "adsbygoogle" not in html
+
+    def test_no_ads_markup_on_sitrep(self, client):
+        resp = client.get("/sitrep/colombia")
+        if resp.status_code == 404:
+            pytest.skip("no sitrep in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "adsbygoogle" not in html
+
+    def test_ads_render_when_client_set(self, client, monkeypatch):
+        """When GOOGLE_ADSENSE_CLIENT is configured, public SSR pages ship the
+        ad slot; ads.txt returns 200 with the network directive."""
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_CLIENT", "ca-pub-1234567890")
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "adsbygoogle" in html
+        assert "crisis-ad" in html
+        assert "ca-pub-1234567890" in html
+
+        ads = client.get("/ads.txt")
+        assert ads.status_code == 200
+        body = ads.get_data(as_text=True)
+        assert "google.com, 1234567890, DIRECT, f08c47fec0942fa0" in body

@@ -42,6 +42,8 @@ services:
       OUTPUT_DIR: /app/output
       # Google Analytics 4 Measurement ID (empty = tag not rendered)
       GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
+      # Google AdSense publisher ID (empty = no ad code; public SSR pages only)
+      GOOGLE_ADSENSE_CLIENT: ${GOOGLE_ADSENSE_CLIENT:-}
     volumes:
       - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma

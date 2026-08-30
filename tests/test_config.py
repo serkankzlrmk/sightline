@@ -91,3 +91,37 @@ class TestAnalyticsConfig:
         )
         assert out.returncode == 0, out.stderr
         assert out.stdout.strip() == "''"
+
+    def test_adsense_client_env(self):
+        """Fresh subprocess: GOOGLE_ADSENSE_CLIENT env must reach config."""
+        import os
+        import subprocess
+        import sys
+
+        env = {**os.environ, "GOOGLE_ADSENSE_CLIENT": "ca-pub-123456"}
+        out = subprocess.run(
+            [sys.executable, "-c", "import config; print(config.GOOGLE_ADSENSE_CLIENT)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        assert out.returncode == 0, out.stderr
+        assert out.stdout.strip() == "ca-pub-123456"
+
+    def test_adsense_client_default_empty(self):
+        """Fresh subprocess without the env var: defaults to empty (ads off)."""
+        import os
+        import subprocess
+        import sys
+
+        env = {k: v for k, v in os.environ.items() if k != "GOOGLE_ADSENSE_CLIENT"}
+        out = subprocess.run(
+            [sys.executable, "-c", "import config; print(repr(config.GOOGLE_ADSENSE_CLIENT))"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        assert out.returncode == 0, out.stderr
+        assert out.stdout.strip() == "''"

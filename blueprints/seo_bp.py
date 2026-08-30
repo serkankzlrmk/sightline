@@ -229,7 +229,7 @@ def _cached(key: str, cache: dict, ttl: int, builder) -> str:
 
 # ── Render helpers ─────────────────────────────────────────────────────────────
 def _render_detail(title: str, description: str, path: str, body_html: str, json_ld: dict) -> str:
-    from config import GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ANALYTICS_ID
 
     return render_template(
         "seo_detail.html",
@@ -239,11 +239,12 @@ def _render_detail(title: str, description: str, path: str, body_html: str, json
         body_html=body_html,
         json_ld=json.dumps(json_ld, ensure_ascii=False),
         analytics_id=GOOGLE_ANALYTICS_ID,
+        adsense_client=GOOGLE_ADSENSE_CLIENT,
     )
 
 
 def _render_list(title: str, description: str, items: list[dict], path: str) -> str:
-    from config import GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ANALYTICS_ID
 
     return render_template(
         "seo_list.html",
@@ -252,6 +253,7 @@ def _render_list(title: str, description: str, items: list[dict], path: str) -> 
         canonical=f"{SITE_URL}/{path}",
         items=items,
         analytics_id=GOOGLE_ANALYTICS_ID,
+        adsense_client=GOOGLE_ADSENSE_CLIENT,
     )
 
 
@@ -621,7 +623,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     if noindex:
         json_ld["url"] = f"{SITE_URL}/crisis/{slug}"
 
-    from config import GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ANALYTICS_ID
 
     html = render_template(
         "crisis_detail.html",
@@ -636,6 +638,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         as_of=as_of,
         json_ld=json.dumps(json_ld, ensure_ascii=False),
         analytics_id=GOOGLE_ANALYTICS_ID,
+        adsense_client=GOOGLE_ADSENSE_CLIENT,
     )
     if noindex:
         html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
@@ -817,6 +820,23 @@ def sitemap_xml():
 def robots_txt():
     return (
         f"User-agent: *\nAllow: /\nDisallow: /app\nSitemap: {SITE_URL}/sitemap.xml\n",
+        200,
+        {"Content-Type": "text/plain; charset=utf-8"},
+    )
+
+
+@seo_bp.route("/ads.txt")
+def ads_txt():
+    """AdSense ownership verification file. 404 until a publisher ID is
+    configured — empty env means no ads and no ads.txt (safe default)."""
+    from config import GOOGLE_ADSENSE_CLIENT
+
+    if not GOOGLE_ADSENSE_CLIENT:
+        abort(404)
+    pub_id = GOOGLE_ADSENSE_CLIENT.replace("ca-pub-", "")
+    # Format: <ad-network>, <publisher-id>, DIRECT, <certification-id>
+    return (
+        f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )
