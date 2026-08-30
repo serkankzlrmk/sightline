@@ -51,12 +51,17 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Set working directory
 WORKDIR /app
 
+# Install npm deps BEFORE copying code — package.json/lock changes are rare,
+# so this layer stays cached across deploys (avoids re-running npm install
+# on every commit; the pip layer above is already keyed on requirements.txt).
+COPY package.json package-lock.json ./
+RUN npm install --no-audit --no-fund
+
 # Copy application code
 COPY . .
 
 # ── Frontend production build (esbuild minify + content hash) ──────────────
-RUN npm install --no-audit --no-fund && \
-    node scripts/build-frontend.js && \
+RUN node scripts/build-frontend.js && \
     rm -rf node_modules
 
 # Environment defaults (overridden by docker-compose env_file)
