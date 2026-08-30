@@ -27,6 +27,11 @@
     .seo-body li { margin: 4px 0; }
     .seo-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e5ee; font-size: 13px; color: #8a8aa0; }
     .seo-footer a { color: #2053a8; text-decoration: none; }
+    .seo-cta { margin-top: 40px; padding: 20px 22px; background: #f0f5ff; border: 1px solid #c9dcff; border-radius: 10px; }
+    .seo-cta strong { font-size: 16px; color: #111128; display: block; margin-bottom: 4px; }
+    .seo-cta p { margin: 6px 0 12px; font-size: 14px; color: #2b2b45; }
+    .seo-cta a { display: inline-block; padding: 10px 18px; background: #2053a8; color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; }
+    .seo-cta a:hover { background: #1a4388; }
   </style>
   {% include '_analytics_head.html' %}
 </head>
@@ -42,6 +47,11 @@
     <h1>{{ page_title }}</h1>
     <div class="seo-meta">{{ page_description }}</div>
     <div class="seo-body">{{ body_html | safe }}</div>
+    <div class="seo-cta">
+      <strong>Need this as a situation report?</strong>
+      <p>Turn this intelligence into a structured SITREP — generated, verified and export-ready in minutes.</p>
+      <a href="/app#sitrep" onclick="gtag('event', 'cta_click', {cta_name: 'make_sitrep', page_title: '{{ page_title }}'});">Get this as a sitrep</a>
+    </div>
     <footer class="seo-footer">
       <a href="/">Sightline</a> &mdash; humanitarian intelligence, situation reports and donor proposals from trusted sources.
     </footer>

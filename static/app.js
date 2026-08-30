@@ -349,8 +349,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // the crisis map tab directly. crisis-map is a public tab, so this works
   // for anonymous visitors too.
   const openFromHash = () => {
-    if (window.location.hash === '#crisis-map' && typeof switchTab === 'function') {
+    if (typeof switchTab !== 'function') return;
+    const hash = window.location.hash;
+    if (hash === '#crisis-map') {
       switchTab('crisis-map');
+    } else if (hash === '#sitrep') {
+      switchTab('sitrep');
     }
   };
   openFromHash();
