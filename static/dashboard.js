@@ -198,6 +198,11 @@ async function loadDashboard() {
   // A failed map request must remain retryable on the next Map visit.
   dashboardLoaded = mapDataLoaded;
   dashboardLoading = false;
-  if (currentTab === 'crisis-map') initWorldMap();
+  if (currentTab === 'crisis-map') {
+    initWorldMap();
+    const pendingCountry = window.__pendingMapCountry || '';
+    if (pendingCountry && typeof window.focusMapCountry === 'function' && window.focusMapCountry(pendingCountry)) {
+      window.__pendingMapCountry = '';
+    }
+  }
 }
-

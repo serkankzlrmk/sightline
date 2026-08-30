@@ -22,6 +22,7 @@ import logging
 import re
 import threading
 import time
+from urllib.parse import urlencode
 
 import bleach
 from flask import Blueprint, abort, render_template, request
@@ -158,6 +159,21 @@ def _sitrep_report_files() -> list[tuple[str, str]]:
             continue
         out.append((f.name, slugify(stem)))
     return out
+
+
+def _country_sitrep_filename(country: str) -> str:
+    """Return the newest SITREP filename whose stable prefix is the country."""
+    names = [country, _CRISIS_ALIASES.get(country, country)]
+    prefixes = {
+        safe_country_filename(name).strip("_").lower()
+        for name in names
+        if name
+    }
+    for filename, _slug in _sitrep_report_files():
+        stem = filename.rsplit(".", 1)[0].lower()
+        if any(stem == prefix or stem.startswith(f"{prefix}_") for prefix in prefixes):
+            return filename
+    return ""
 
 
 # ── Per-IP rate cap (D13) ─────────────────────────────────────────────────────
@@ -492,21 +508,32 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     published = count >= _CRISIS_PUBLISH_MIN_REPORTS or has_live_alert
     noindex = allow_noindex and not published
 
-    # Hero badges — real data only (P2)
+    map_url = f"/app?{urlencode({'country': country})}#crisis-map"
+    sitrep_filename = _country_sitrep_filename(country) if entry.get("has_sitrep") else ""
+    sitrep_params = {"country": country}
+    if sitrep_filename:
+        sitrep_params["report"] = sitrep_filename
+    sitrep_url = f"/app?{urlencode(sitrep_params)}#sitrep"
+    summary_url = f"/country/{slugify(safe_country_filename(country))}"
+
+    # Hero badges: real data only (P2). Availability badges link directly
+    # to the matching country context instead of a generic destination.
     badges = []
     if by_level:
         for lv in alert_levels:
             badge_cls = {"green": "crisis-badge-green", "orange": "crisis-badge-orange", "red": "crisis-badge-red"}.get(lv, "crisis-badge-neutral")
             evt = by_level[lv].get("event_type", "")
-            badges.append(f'<span class="crisis-badge {badge_cls}">▲ {lv.title()} alert{" · " + evt if evt else ""}</span>')
+            suffix = f" ({_sanitize_html(str(evt))})" if evt else ""
+            badges.append(f'<span class="crisis-badge {badge_cls}">{lv.title()} alert{suffix}</span>')
     elif has_live_alert:
-        badges.append('<span class="crisis-badge crisis-badge-red">▲ Live alert</span>')
+        badges.append('<span class="crisis-badge crisis-badge-red">Live alert</span>')
     if count:
-        badges.append(f'<span class="crisis-badge crisis-badge-blue">{count} reports</span>')
+        reports_target = "#recent-reports" if entry.get("recent_reports") else map_url
+        badges.append(f'<a class="crisis-badge crisis-badge-blue" href="{reports_target}">{count} reports</a>')
     if entry.get("has_summary"):
-        badges.append('<span class="crisis-badge crisis-badge-blue">Country summary</span>')
+        badges.append(f'<a class="crisis-badge crisis-badge-blue" href="{summary_url}">Country summary</a>')
     if entry.get("has_sitrep"):
-        badges.append('<span class="crisis-badge crisis-badge-blue">Sitrep available</span>')
+        badges.append(f'<a class="crisis-badge crisis-badge-blue" href="{sitrep_url}">Sitrep available</a>')
     hero_badges = f'<div class="crisis-badges">{"".join(badges)}</div>' if badges else ""
 
     # Sections (real data only — P2; per-source failure → "Data pending" card)
@@ -522,34 +549,35 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         lis = []
         for a in gdacs[:5]:
             level = str(a.get("alert_level", "")).lower()
-            dot = {"green": "🟢", "orange": "🟠", "red": "🔴"}.get(level, "⚪")
-            lis.append(f'<li><span class="lvl">{dot} {str(a.get("alert_level", ""))}</span>{_sanitize_html(str(a.get("title", "")))}</li>')
-        parts.append(f'<div class="crisis-card"><h2>⚡ Current alerts</h2><ul>{"".join(lis)}</ul></div>')
+            level_class = level if level in ("green", "orange", "red") else "neutral"
+            level_label = _sanitize_html(str(a.get("alert_level", "Alert")))
+            lis.append(f'<li><span class="crisis-alert-level crisis-alert-level-{level_class}">{level_label}</span>{_sanitize_html(str(a.get("title", "")))}</li>')
+        parts.append(f'<section class="crisis-card" aria-labelledby="current-alerts"><h2 id="current-alerts">Current alerts</h2><ul>{"".join(lis)}</ul></section>')
     if recent:
         lis = []
         for r in recent[:5]:
             src = str(r.get("source", ""))
-            lis.append(f'<li class="crisis-reports"><a href="{_sanitize_html(str(r.get("url", "#")))}">{_sanitize_html(str(r.get("title", "")))}</a> <span class="lvl">({_sanitize_html(src)})</span></li>')
-        parts.append(f'<div class="crisis-card"><h2>📄 Recent reports</h2><ul>{"".join(lis)}</ul></div>')
+            lis.append(f'<li class="crisis-reports"><a href="{_sanitize_html(str(r.get("url", "#")))}">{_sanitize_html(str(r.get("title", "")))}</a> <span class="crisis-report-source">({_sanitize_html(src)})</span></li>')
+        parts.append(f'<section class="crisis-card" aria-labelledby="recent-reports"><h2 id="recent-reports">Recent reports</h2><ul>{"".join(lis)}</ul></section>')
     if figures:
         items = "".join(
             f'<div class="crisis-figure"><strong>{_sanitize_html(str(f.get("value", "")))}</strong><span>{_sanitize_html(str(f.get("label", "")))}</span></div>'
             for f in figures[:6]
         )
-        parts.append(f'<div class="crisis-card"><h2>📊 Key figures</h2><div class="crisis-figures">{items}</div></div>')
+        parts.append(f'<section class="crisis-card" aria-labelledby="key-figures"><h2 id="key-figures">Key figures</h2><div class="crisis-figures">{items}</div></section>')
     if headlines:
         chips = "".join(f'<span class="crisis-theme">{_sanitize_html(str(h))}</span>' for h in headlines[:8])
-        parts.append(f'<div class="crisis-card"><h2>🏷 Themes</h2><div class="crisis-themes">{chips}</div></div>')
+        parts.append(f'<section class="crisis-card" aria-labelledby="themes"><h2 id="themes">Themes</h2><div class="crisis-themes">{chips}</div></section>')
     if not parts:
-        parts.append('<div class="crisis-card"><p class="crisis-pending">Data pending — latest information will appear here as sources update.</p></div>')
+        parts.append('<section class="crisis-card"><p class="crisis-pending">Data pending. Latest information will appear here as sources update.</p></section>')
     body_html = "".join(parts)
 
-    title = f"{country} — live crisis overview"
+    title = f"{country}: live crisis overview"
     description = f"Live humanitarian overview for {country}: latest reports, alerts and key figures from trusted sources."
     json_ld = {
         "@context": "https://schema.org",
         "@type": "Dataset",
-        "name": f"Sightline — {country} crisis data",
+        "name": f"Sightline: {country} crisis data",
         "description": description,
         "datePublished": time.strftime("%Y-%m-%d"),
         "mainEntityOfPage": f"{SITE_URL}/crisis/{slug}",
@@ -567,6 +595,8 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         canonical=f"{SITE_URL}/crisis/{slug}",
         body_html=body_html,
         hero_badges=hero_badges,
+        map_url=map_url,
+        sitrep_url=sitrep_url,
         as_of=as_of,
         json_ld=json.dumps(json_ld, ensure_ascii=False),
         analytics_id=GOOGLE_ANALYTICS_ID,

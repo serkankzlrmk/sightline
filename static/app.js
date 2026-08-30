@@ -345,16 +345,31 @@ function updateUploadBtnVisibility() {
 // Freemium preview: anonymous visitors read public content; the slide-in
 // login panel appears ONLY on gated tab clicks (Chat, Database, Admin).
 document.addEventListener('DOMContentLoaded', () => {
-  // Deep link support: /app#crisis-map (from /map CTA, shared links) opens
-  // the crisis map tab directly. crisis-map is a public tab, so this works
-  // for anonymous visitors too.
+  // Country-aware deep links keep public crisis-page visitors in context:
+  // /app?country=Sudan#crisis-map focuses the map and opens the country card;
+  // /app?country=Sudan#sitrep opens the matching report or prefills creation.
   const openFromHash = () => {
     if (typeof switchTab !== 'function') return;
     const hash = window.location.hash;
+    const params = new URLSearchParams(window.location.search);
+    const country = params.get('country')?.trim() || '';
+    const report = params.get('report')?.trim() || '';
     if (hash === '#crisis-map') {
+      window.__pendingMapCountry = country;
       switchTab('crisis-map');
+      if (country && typeof window.focusMapCountry === 'function' && window.focusMapCountry(country)) {
+        window.__pendingMapCountry = '';
+      }
     } else if (hash === '#sitrep') {
+      window.__pendingSitrepCountry = country;
+      window.__pendingSitrepFile = report;
       switchTab('sitrep');
+      if (report && typeof window.openSitrepFile === 'function' && window.openSitrepFile(report)) {
+        window.__pendingSitrepFile = '';
+        window.__pendingSitrepCountry = '';
+      } else if (country && typeof window.openSitrepCountry === 'function' && window.openSitrepCountry(country)) {
+        window.__pendingSitrepCountry = '';
+      }
     }
   };
   openFromHash();
@@ -375,4 +390,3 @@ document.addEventListener('click', (e) => {
 // api/escHtml/toast/sanitizeHtml are in shared.js (loaded first).
 // switchTab stays exported from here — it depends on app.js currentTab state.
 window.switchTab = switchTab;
-

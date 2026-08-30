@@ -16,14 +16,62 @@ async function loadSitrepReportsList() {
       div.dataset.file = item.filename;
       div.dataset.action = 'open-sitrep-report';
       const country = item.filename.split('_')[0].replace(/\(/g, ' ').replace(/\)/g, '').trim();
+      div.dataset.country = country;
       div.innerHTML = `<span>${escHtml(country)}</span>` +
         (canDelete ? `<button class="report-item-delete" data-action="delete-sitrep-report" data-file="${escHtml(item.filename)}" title="Delete report (admin)">✕</button>` : '');
       list.appendChild(div);
     });
+    const pendingFile = window.__pendingSitrepFile || '';
+    const pendingCountry = window.__pendingSitrepCountry || '';
+    if (pendingFile && openSitrepFile(pendingFile)) {
+      window.__pendingSitrepFile = '';
+      window.__pendingSitrepCountry = '';
+    } else if (pendingCountry && openSitrepCountry(pendingCountry)) {
+      window.__pendingSitrepCountry = '';
+    } else if (pendingCountry) {
+      prefillSitrepCountry(pendingCountry);
+    }
   } catch {
     list.innerHTML = '<div class="empty-state">Could not connect to server.</div>';
   }
 }
+
+function prefillSitrepCountry(country) {
+  const input = document.getElementById('inp-country');
+  if (!input || !country) return false;
+  input.value = country;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+function openSitrepCountry(country) {
+  if (!country) return false;
+  const normalized = country.trim().toLowerCase();
+  const compact = normalized.replace(/[^a-z0-9]+/g, '');
+  const item = Array.from(document.querySelectorAll('#sitrep-reports-list .report-item')).find(el =>
+    String(el.dataset.country || '').trim().toLowerCase() === normalized ||
+    String(el.dataset.file || '').toLowerCase().replace(/[^a-z0-9]+/g, '').startsWith(compact)
+  );
+  if (!item) {
+    prefillSitrepCountry(country);
+    return false;
+  }
+  openSitrepReport(item.dataset.file, item);
+  return true;
+}
+
+function openSitrepFile(filename) {
+  if (!filename) return false;
+  const item = Array.from(document.querySelectorAll('#sitrep-reports-list .report-item')).find(el =>
+    el.dataset.file === filename
+  );
+  if (!item) return false;
+  openSitrepReport(item.dataset.file, item);
+  return true;
+}
+
+window.openSitrepCountry = openSitrepCountry;
+window.openSitrepFile = openSitrepFile;
 
 function deactivateSitrepItems() {
   document.querySelectorAll('.report-item.active').forEach(el => el.classList.remove('active'));
@@ -336,4 +384,3 @@ function showCitationFromEl(el) {
     el.dataset.url || ''
   );
 }
-

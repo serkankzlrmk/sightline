@@ -348,6 +348,15 @@ class TestCrisisPages:
         assert "live crisis overview" in html
         assert "Recent reports" in html or "Main themes" in html
         assert "auth-overlay" not in html
+        assert 'class="crisis-header"' in html
+        assert 'aria-label="Public pages"' in html
+        assert "Get this as a sitrep" in html
+        assert "/app?country=Sudan#crisis-map" in html
+        assert "/app?country=Sudan" in html and "#sitrep" in html
+        assert 'href="/country/sudan">Country summary</a>' in html
+        assert "—" not in html
+        assert "🟢" not in html
+        assert "⚡" not in html
 
     def test_crisis_detail_unknown_country_404(self, client):
         resp = client.get("/crisis/definitely-not-a-country")

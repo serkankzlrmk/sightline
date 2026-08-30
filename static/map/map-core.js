@@ -230,6 +230,23 @@ function openCountryCard(crisis) {
   }
 }
 
+function focusMapCountry(country) {
+  if (!country || !leafletMap) return false;
+  const normalized = country.trim().toLowerCase();
+  const match = Object.values(crisisMapData).find(item =>
+    String(item?.country || '').trim().toLowerCase() === normalized
+  );
+  if (!match) return false;
+  const lat = Number(match.coords?.lat);
+  const lng = Number(match.coords?.lng);
+  if (!lat || !lng) return false;
+  leafletMap.setView([lat, lng], 5);
+  openCountryCard(match);
+  return true;
+}
+
+window.focusMapCountry = focusMapCountry;
+
 function renderCountryCard(bodyEl, data, color, sevLabels, isAuthed) {
   let html = '';
   const severity = data.severity || 'low';
