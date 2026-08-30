@@ -8,8 +8,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function reloadReports() {
+  const tok = window.getIdToken ? window.getIdToken() : '';
   const role = window.__userRole || 'free';
   const isPremium = role === 'premium' || role === 'admin';
+  const isAnonymous = !tok;
   const banner = document.getElementById('db-premium-banner');
   const recentList = document.getElementById('db-recent-list');
   const fullAccess = document.getElementById('db-full-access');
@@ -20,7 +22,34 @@ async function reloadReports() {
     if (fullAccess) fullAccess.classList.remove('hidden');
     await Promise.all([loadStats(), loadFilterOptions()]);
     await applyFilters();
+  } else if (isAnonymous) {
+    // Anonymous: real totals + sign-in pitch instead of a failed auth call.
+    if (banner) {
+      banner.style.display = 'flex';
+      const bt = banner.querySelector('.db-premium-title');
+      const bd = banner.querySelector('.db-premium-desc');
+      const bb = banner.querySelector('.db-premium-btn');
+      if (bt) bt.textContent = 'Sign in to browse the database';
+      if (bb) bb.textContent = 'Sign in';
+      if (bd) {
+        // Fill real counts from the public stats call.
+        try {
+          const sr = await api('/api/public/stats');
+          const sd = await sr.json();
+          bd.textContent =
+            `${(sd.report_count || 0).toLocaleString()} reports and ` +
+            `${(sd.chunk_count || 0).toLocaleString()} data chunks ` +
+            `from ReliefWeb, HDX and GDACS — sign in for full search and filters.`;
+        } catch {
+          bd.textContent = 'Sign in for full search, filters and report browsing.';
+        }
+      }
+    }
+    if (recentList) recentList.style.display = 'none';
+    if (fullAccess) fullAccess.classList.add('hidden');
+    await loadStats();
   } else {
+    // Authenticated free user: premium pitch + last 3 days preview.
     if (banner) banner.style.display = 'flex';
     if (recentList) recentList.style.display = 'block';
     if (fullAccess) fullAccess.classList.add('hidden');
@@ -31,7 +60,11 @@ async function reloadReports() {
 
 async function loadStats() {
   try {
-    const r = await api('/api/db/stats');
+    // Anonymous visitors: public stats endpoint (aggregate counts only).
+    // Authenticated users get the richer /api/db/stats (top sources too).
+    const tok = window.getIdToken ? window.getIdToken() : '';
+    const url = tok ? '/api/db/stats' : '/api/public/stats';
+    const r = await api(url);
     const d = await r.json();
     document.getElementById('s-reports').textContent = (d.report_count || 0).toLocaleString();
     document.getElementById('s-chunks').textContent = (d.chunk_count || 0).toLocaleString();
