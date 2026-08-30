@@ -110,13 +110,12 @@ async function loadCommandCenter() {
 function ccStartSitrep() {
   const role = window.__userRole || 'free';
   const tok = window.getIdToken ? window.getIdToken() : '';
-  if (!tok || role === 'free') {
-    if (window.showLoginPanel) window.showLoginPanel();
-    return;
-  }
+  // SITREP reports are PUBLIC (anonymous can read them — the generation
+  // form is hidden in switchTab). Only the generation flow is premium.
+  switchTab('sitrep');
+  if (!tok || role === 'free') return;
   const sel = document.getElementById('cc-sitrep-country');
   const country = sel ? sel.value : '';
-  switchTab('sitrep');
   if (country) {
     setTimeout(() => {
       const inp = document.getElementById('inp-country');
