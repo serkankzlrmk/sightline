@@ -94,7 +94,9 @@ def sync_search_console(
 
     selected_site = (site_url or GSC_SITE_URL).strip()
     selected_db = Path(db_path or GSC_DB_PATH)
-    selected_credentials = Path(credentials_path or GSC_CREDENTIALS_PATH) if (credentials_path or GSC_CREDENTIALS_PATH) else None
+    selected_credentials = (
+        Path(credentials_path or GSC_CREDENTIALS_PATH) if (credentials_path or GSC_CREDENTIALS_PATH) else None
+    )
     days = max(1, int(lookback_days or GSC_LOOKBACK_DAYS))
     lag = max(0, int(data_lag_days if data_lag_days is not None else GSC_DATA_LAG_DAYS))
     limit = min(25000, max(1, int(row_limit or GSC_ROW_LIMIT)))

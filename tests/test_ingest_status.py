@@ -8,9 +8,7 @@ from reliefweb_api.ingest_status import database_freshness, read_ingest_status, 
 
 def _create_reports_db(path, report_date="2026-09-03"):
     conn = sqlite3.connect(path)
-    conn.execute(
-        "CREATE TABLE reports (report_id INTEGER PRIMARY KEY, date TEXT, ingested_at TEXT)"
-    )
+    conn.execute("CREATE TABLE reports (report_id INTEGER PRIMARY KEY, date TEXT, ingested_at TEXT)")
     conn.execute(
         "INSERT INTO reports VALUES (1, ?, '2026-09-04T06:00:00+00:00')",
         (report_date,),

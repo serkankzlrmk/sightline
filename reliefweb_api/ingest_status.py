@@ -26,9 +26,7 @@ def database_freshness(
     try:
         conn = sqlite3.connect(str(path))
         try:
-            row = conn.execute(
-                "SELECT MAX(SUBSTR(date, 1, 10)), MAX(ingested_at), COUNT(*) FROM reports"
-            ).fetchone()
+            row = conn.execute("SELECT MAX(SUBSTR(date, 1, 10)), MAX(ingested_at), COUNT(*) FROM reports").fetchone()
         finally:
             conn.close()
     except (OSError, sqlite3.Error):

@@ -249,10 +249,7 @@ def _aggregate_report_evidence(rows: list[dict]) -> dict:
     ]
     return {
         "top_themes": [theme for theme, _ in theme_counter.most_common(8)],
-        "top_sources": [
-            {"name": source, "count": count}
-            for source, count in source_counter.most_common(5)
-        ],
+        "top_sources": [{"name": source, "count": count} for source, count in source_counter.most_common(5)],
         "recent_reports": recent_reports,
         "evidence_report_count": len(reports),
     }

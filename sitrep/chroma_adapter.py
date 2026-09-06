@@ -818,8 +818,7 @@ class ChromaAdapter:
 
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
-                "SELECT report_id, date, countries FROM reports "
-                "WHERE countries IS NOT NULL AND countries != '[]'"
+                "SELECT report_id, date, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
             ).fetchall()
             conn.close()
 

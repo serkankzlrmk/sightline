@@ -164,11 +164,7 @@ def _sitrep_report_files() -> list[tuple[str, str]]:
 def _country_sitrep_filename(country: str) -> str:
     """Return the newest SITREP filename whose stable prefix is the country."""
     names = [country, _CRISIS_ALIASES.get(country, country)]
-    prefixes = {
-        safe_country_filename(name).strip("_").lower()
-        for name in names
-        if name
-    }
+    prefixes = {safe_country_filename(name).strip("_").lower() for name in names if name}
     for filename, _slug in _sitrep_report_files():
         stem = filename.rsplit(".", 1)[0].lower()
         if any(stem == prefix or stem.startswith(f"{prefix}_") for prefix in prefixes):
@@ -703,15 +699,12 @@ def _is_crisis_publishable(entry: dict) -> bool:
         return False
 
     has_report_link = any(
-        str(report.get("title") or "").strip()
-        and str(report.get("url") or "").startswith(("https://", "http://"))
+        str(report.get("title") or "").strip() and str(report.get("url") or "").startswith(("https://", "http://"))
         for report in (entry.get("recent_reports") or [])
         if isinstance(report, dict)
     )
     has_named_source = any(
-        str(source.get("name") or "").strip()
-        for source in (entry.get("top_sources") or [])
-        if isinstance(source, dict)
+        str(source.get("name") or "").strip() for source in (entry.get("top_sources") or []) if isinstance(source, dict)
     )
     return has_report_link and has_named_source
 
@@ -759,11 +752,10 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
 
     # Live GDACS alerts for this country (from the same cached payload)
     gdacs = entry.get("gdacs_alerts") or []
-    by_level = {
-        str(a.get("alert_level", "")).lower(): a
-        for a in gdacs if isinstance(a, dict)
-    }
-    alert_levels = sorted(by_level, key=lambda lv: ["green", "orange", "red"].index(lv) if lv in ("green", "orange", "red") else 99)
+    by_level = {str(a.get("alert_level", "")).lower(): a for a in gdacs if isinstance(a, dict)}
+    alert_levels = sorted(
+        by_level, key=lambda lv: ["green", "orange", "red"].index(lv) if lv in ("green", "orange", "red") else 99
+    )
     has_live_alert = any(lv in ("orange", "red") for lv in by_level)
 
     published = _is_crisis_publishable(entry)
@@ -782,7 +774,9 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     badges = []
     if by_level:
         for lv in alert_levels:
-            badge_cls = {"green": "crisis-badge-green", "orange": "crisis-badge-orange", "red": "crisis-badge-red"}.get(lv, "crisis-badge-neutral")
+            badge_cls = {"green": "crisis-badge-green", "orange": "crisis-badge-orange", "red": "crisis-badge-red"}.get(
+                lv, "crisis-badge-neutral"
+            )
             evt = by_level[lv].get("event_type", "")
             suffix = f" ({_sanitize_html(str(evt))})" if evt else ""
             badges.append(f'<span class="crisis-badge {badge_cls}">{lv.title()} alert{suffix}</span>')
@@ -822,23 +816,35 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
             level = str(a.get("alert_level", "")).lower()
             level_class = level if level in ("green", "orange", "red") else "neutral"
             level_label = _sanitize_html(str(a.get("alert_level", "Alert")))
-            lis.append(f'<li><span class="crisis-alert-level crisis-alert-level-{level_class}">{level_label}</span>{_sanitize_html(str(a.get("title", "")))}</li>')
-        parts.append(f'<section class="crisis-card" aria-labelledby="current-alerts"><h2 id="current-alerts">Current alerts</h2><ul>{"".join(lis)}</ul></section>')
+            lis.append(
+                f'<li><span class="crisis-alert-level crisis-alert-level-{level_class}">{level_label}</span>{_sanitize_html(str(a.get("title", "")))}</li>'
+            )
+        parts.append(
+            f'<section class="crisis-card" aria-labelledby="current-alerts"><h2 id="current-alerts">Current alerts</h2><ul>{"".join(lis)}</ul></section>'
+        )
     if recent:
         lis = []
         for r in recent[:5]:
             src = str(r.get("source", ""))
-            lis.append(f'<li class="crisis-reports"><a href="{_sanitize_html(str(r.get("url", "#")))}">{_sanitize_html(str(r.get("title", "")))}</a> <span class="crisis-report-source">({_sanitize_html(src)})</span></li>')
-        parts.append(f'<section class="crisis-card" aria-labelledby="recent-reports"><h2 id="recent-reports">Recent reports</h2><ul>{"".join(lis)}</ul></section>')
+            lis.append(
+                f'<li class="crisis-reports"><a href="{_sanitize_html(str(r.get("url", "#")))}">{_sanitize_html(str(r.get("title", "")))}</a> <span class="crisis-report-source">({_sanitize_html(src)})</span></li>'
+            )
+        parts.append(
+            f'<section class="crisis-card" aria-labelledby="recent-reports"><h2 id="recent-reports">Recent reports</h2><ul>{"".join(lis)}</ul></section>'
+        )
     if figures:
         items = "".join(
             f'<div class="crisis-figure"><strong>{_sanitize_html(str(f.get("value", "")))}</strong><span>{_sanitize_html(str(f.get("label", "")))}</span></div>'
             for f in figures[:6]
         )
-        parts.append(f'<section class="crisis-card" aria-labelledby="key-figures"><h2 id="key-figures">Key figures</h2><div class="crisis-figures">{items}</div></section>')
+        parts.append(
+            f'<section class="crisis-card" aria-labelledby="key-figures"><h2 id="key-figures">Key figures</h2><div class="crisis-figures">{items}</div></section>'
+        )
     if headlines:
         chips = "".join(f'<span class="crisis-theme">{_sanitize_html(str(h))}</span>' for h in headlines[:8])
-        parts.append(f'<section class="crisis-card" aria-labelledby="themes"><h2 id="themes">Themes</h2><div class="crisis-themes">{chips}</div></section>')
+        parts.append(
+            f'<section class="crisis-card" aria-labelledby="themes"><h2 id="themes">Themes</h2><div class="crisis-themes">{chips}</div></section>'
+        )
 
     # Top sources: who reports on this country (real data — trust signal)
     sources = entry.get("top_sources") or []
@@ -847,7 +853,9 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
             f'<span class="crisis-theme">{_sanitize_html(str(s.get("name", "")))} · {_sanitize_html(str(s.get("count", "")))}</span>'
             for s in sources[:6]
         )
-        parts.append(f'<section class="crisis-card" aria-labelledby="top-sources"><h2 id="top-sources">Top sources</h2><div class="crisis-themes">{src_chips}</div></section>')
+        parts.append(
+            f'<section class="crisis-card" aria-labelledby="top-sources"><h2 id="top-sources">Top sources</h2><div class="crisis-themes">{src_chips}</div></section>'
+        )
 
     # Coverage window — factual freshness line (only when date_range exists)
     dr = entry.get("date_range") or {}
@@ -859,7 +867,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     if freshness_status and freshness_status != "unknown":
         hero_extra += (
             '<p class="crisis-asof">Data freshness: '
-            f'{_sanitize_html(freshness_status.title())} · coverage through {_sanitize_html(str(as_of))}</p>'
+            f"{_sanitize_html(freshness_status.title())} · coverage through {_sanitize_html(str(as_of))}</p>"
         )
 
     # Related: country summary + bulletins (internal linking for Google crawl)
@@ -869,10 +877,14 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     for bs in list(_bulletin_slug_map())[:3]:
         rel.append(f'<li><a href="/bulletin/{bs}">Weekly bulletin</a></li>')
     if rel:
-        parts.append(f'<section class="crisis-card" aria-labelledby="related"><h2 id="related">Related</h2><ul>{"".join(rel)}</ul></section>')
+        parts.append(
+            f'<section class="crisis-card" aria-labelledby="related"><h2 id="related">Related</h2><ul>{"".join(rel)}</ul></section>'
+        )
 
     if not parts:
-        parts.append('<section class="crisis-card"><p class="crisis-pending">Data pending. Latest information will appear here as sources update.</p></section>')
+        parts.append(
+            '<section class="crisis-card"><p class="crisis-pending">Data pending. Latest information will appear here as sources update.</p></section>'
+        )
     body_html = "".join(parts)
 
     title = f"{country} humanitarian crisis overview"
@@ -948,12 +960,14 @@ def crisis_index():
         has_alert = _has_live_crisis_alert(c)
         if not _is_crisis_publishable(c):
             continue
-        items.append({
-            "url": f"/crisis/{c_slug}",
-            "title": f"{country} — humanitarian crisis overview",
-            "subtitle": f"{count} reports" + (" · live alert" if has_alert else ""),
-            "sort_count": count,
-        })
+        items.append(
+            {
+                "url": f"/crisis/{c_slug}",
+                "title": f"{country} — humanitarian crisis overview",
+                "subtitle": f"{count} reports" + (" · live alert" if has_alert else ""),
+                "sort_count": count,
+            }
+        )
     items.sort(key=lambda x: x["sort_count"], reverse=True)
     record_page_view("/crisis", request.headers.get("User-Agent", ""))
     return _render_list(

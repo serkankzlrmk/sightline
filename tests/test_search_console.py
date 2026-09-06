@@ -32,11 +32,7 @@ def test_sync_persists_totals_and_ranked_dimensions(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "GSC_SITE_URL", "sc-domain:sightlinehumanitarian.com")
     session = FakeSession(
         [
-            {
-                "rows": [
-                    {"clicks": 12, "impressions": 320, "ctr": 0.0375, "position": 11.4}
-                ]
-            },
+            {"rows": [{"clicks": 12, "impressions": 320, "ctr": 0.0375, "position": 11.4}]},
             {
                 "rows": [
                     {

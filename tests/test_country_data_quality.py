@@ -35,7 +35,15 @@ def country_db(tmp_path, monkeypatch):
     )
     reports = [
         (1, "Sudan response update", "2026-01-10", "Source A", "https://example.org/1", ["Sudan"], ["Health"]),
-        (2, "Regional response update", "2026-03-10", "Source B", "https://example.org/2", ["Jordan", "Sudan"], ["Food and Nutrition"]),
+        (
+            2,
+            "Regional response update",
+            "2026-03-10",
+            "Source B",
+            "https://example.org/2",
+            ["Jordan", "Sudan"],
+            ["Food and Nutrition"],
+        ),
         (3, "Sudan situation report", "2026-02-10", "Source A", "https://example.org/3", ["Sudan"], ["Health"]),
         (4, "South Sudan update", "2026-04-10", "Source C", "https://example.org/4", ["South Sudan"], ["Protection"]),
     ]
@@ -48,9 +56,7 @@ def country_db(tmp_path, monkeypatch):
             "INSERT INTO chunks (report_id, chunk_index, content) VALUES (?, 0, ?)",
             (report_id, f"content-{report_id}-0"),
         )
-    conn.execute(
-        "INSERT INTO chunks (report_id, chunk_index, content) VALUES (1, 1, 'content-1-1')"
-    )
+    conn.execute("INSERT INTO chunks (report_id, chunk_index, content) VALUES (1, 1, 'content-1-1')")
     conn.commit()
     conn.close()
     monkeypatch.setattr(config, "DB_PATH", db_path)

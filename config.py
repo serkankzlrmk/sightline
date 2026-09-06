@@ -417,6 +417,7 @@ SITE_URL: str = os.getenv("SITE_URL", "https://sightlinehumanitarian.com").rstri
 # (local/dev). Set in production, e.g. G-XXXXXXXXXX.
 GOOGLE_ANALYTICS_ID: str = os.getenv("GOOGLE_ANALYTICS_ID", "").strip()
 
+
 # Google AdSense publisher ID (e.g. "ca-pub-1234567890"). Empty = no ad code
 # rendered anywhere. Ads are only served on public SSR pages (crisis, bulletin,
 # sitrep, country) — never inside the SPA — and hidden for signed-in users.
