@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
 import config
-
 from growth.search_console import get_search_console_dashboard, sync_search_console
 
 

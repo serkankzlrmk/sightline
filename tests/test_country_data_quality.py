@@ -3,9 +3,9 @@ import sqlite3
 from copy import deepcopy
 from datetime import UTC, datetime
 
-import config
 import pytest
 
+import config
 from sitrep.chroma_adapter import ChromaAdapter
 from sitrep.country_summary import _aggregate_report_evidence, _data_freshness
 

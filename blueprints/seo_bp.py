@@ -749,14 +749,12 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     country is unknown; noindex only when below the evidence gate (and the
     route explicitly opts in, so crawlers only see the meta tag on thin pages,
     never on the real ones)."""
-    from sitrep.country_summary import _country_to_iso3
 
     data = _crisis_country_data()
     entry = next((c for c in data if _crisis_slug(c.get("country", "")) == slug), None)
     if entry is None:
         abort(404)
     country = entry.get("country", "")
-    iso3 = _country_to_iso3(country) or entry.get("iso3") or ""
     count = entry.get("report_count", 0) or 0
 
     # Live GDACS alerts for this country (from the same cached payload)

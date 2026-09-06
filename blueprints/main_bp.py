@@ -69,7 +69,7 @@ def google_verification():
 
 @main_bp.route("/app")
 def spa():
-    from config import GOOGLE_ANALYTICS_ID, CARTO_API_KEY
+    from config import CARTO_API_KEY, GOOGLE_ANALYTICS_ID
 
     return render_template(
         "index.html",
