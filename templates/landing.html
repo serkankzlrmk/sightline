@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Sightline - Humanitarian Intelligence Platform</title>
   <meta name="description" content="Generate cited situation reports, donor proposals, and weekly intelligence briefs from trusted humanitarian sources.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta property="og:title" content="Sightline - Humanitarian Intelligence Platform">
   <meta property="og:description" content="Secondary data analysis, report generation, and donor proposal writing for humanitarian professionals.">
-  <meta property="og:url" content="https://sightlinehumanitarian.com/">
+  <meta property="og:url" content="{{ site_url }}/">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://sightlinehumanitarian.com/static/logo-signal-horizon.png">
-  <meta name="twitter:card" content="summary">
-  <link rel="canonical" href="https://sightlinehumanitarian.com/">
+  <meta property="og:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sightline - Humanitarian Intelligence Platform">
+  <meta name="twitter:description" content="Cited crisis intelligence, situation reports and donor proposals from trusted humanitarian sources.">
+  <meta name="twitter:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <link rel="canonical" href="{{ site_url }}/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
@@ -22,9 +26,9 @@
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Sightline",
-    "url": "https://sightlinehumanitarian.com/",
+    "url": "{{ site_url }}/",
     "description": "Turn crisis data into decisive action. Cited SITREPs, donor proposals and weekly intelligence briefs from trusted humanitarian sources.",
-    "publisher": { "@type": "Organization", "name": "Sightline", "logo": { "@type": "ImageObject", "url": "https://sightlinehumanitarian.com/static/logo-signal-horizon.png" } }
+    "publisher": { "@type": "Organization", "name": "Sightline", "logo": { "@type": "ImageObject", "url": "{{ site_url }}/static/logo-signal-horizon.png" } }
   }
   </script>
   {% include '_analytics_head.html' %}
@@ -84,11 +88,14 @@
           </div>
           <h1>Turn crisis data into decisive action.</h1>
           <p>Generate cited SITREPs, donor proposals and weekly intelligence briefs from trusted humanitarian sources.</p>
-          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg">Login</a>
+          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg" data-track-event="cta_click"
+             data-track-name="login" data-track-location="landing_hero">Login</a>
         </div>
 
-        <button id="hero-world-trigger" class="hero-world-trigger" type="button" aria-label="Explore by selecting the world"></button>
-        <button id="hero-portal" class="hero-portal" type="button" aria-label="Explore the Sightline system">
+        <button id="hero-world-trigger" class="hero-world-trigger" type="button" aria-label="Explore by selecting the world"
+                data-track-event="cta_click" data-track-name="explore_system" data-track-location="landing_globe"></button>
+        <button id="hero-portal" class="hero-portal" type="button" aria-label="Explore the Sightline system"
+                data-track-event="cta_click" data-track-name="explore_system" data-track-location="landing_hero">
           <span class="hero-portal-brand" aria-hidden="true">
             <span class="hero-portal-logo-wrap">
               <img src="/static/logo-signal-horizon.webp" alt="" class="hero-portal-logo">
@@ -191,13 +198,25 @@
         <h2>See the crisis clearly.<br>Shape the response faster.</h2>
         <p>Turn global humanitarian data into cited intelligence, reports and actionable decisions.</p>
         <div class="lp-final-actions">
-          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg lp-cta-start">Start free</a>
-          <a href="/app" class="lp-btn lp-btn-ghost lp-btn-lg">Login</a>
+          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg lp-cta-start"
+             data-track-event="cta_click" data-track-name="start_free" data-track-location="landing_final">Start free</a>
+          <a href="/app" class="lp-btn lp-btn-ghost lp-btn-lg" data-track-event="cta_click"
+             data-track-name="login" data-track-location="landing_final">Login</a>
         </div>
         <p class="lp-final-links">
+          <a href="/solutions/sitrep">SITREP software</a>
+          &nbsp;·&nbsp;
+          <a href="/solutions/proposal">Proposal software</a>
+          &nbsp;·&nbsp;
           <a href="/bulletins">Read the weekly bulletin</a>
           &nbsp;·&nbsp;
           <a href="/countries">Explore country intelligence</a>
+          &nbsp;·&nbsp;
+          <a href="/privacy">Privacy</a>
+          &nbsp;·&nbsp;
+          <a href="/terms">Terms</a>
+          &nbsp;·&nbsp;
+          <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
         </p>
       </div>
     </section>

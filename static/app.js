@@ -161,12 +161,12 @@ function switchTab(name) {
     window.hideOverlay();
   }
 
-  // GA4: track tab views (no-op when gtag is absent — e.g. analytics off)
+  // Track virtual SPA navigation after analytics consent.
   try {
-    if (window.gtag) {
-      window.gtag('event', 'tab_view', { tab: name, page_path: window.location.pathname });
+    if (window.sightlineTrack) {
+      window.sightlineTrack('tab_view', { tab_name: name, page_path: window.location.pathname });
     }
-  } catch (e) { /* analytics must never break navigation */ }
+  } catch (e) { /* Measurement must never break navigation. */ }
 
   currentTab = name;
   const allTabs = TAB_NAMES;

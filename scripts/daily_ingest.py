@@ -64,7 +64,7 @@ log = logging.getLogger("daily_ingest")
 DB_PATH = str(config.DB_PATH)
 CHROMA_DIR = str(config.CHROMA_DIR)
 APPNAME = RELIEFWEB_APPNAME
-PURGE_DAYS = 30
+PURGE_DAYS = 90
 RELIEFWEB_API_URL = RELIEFWEB_REPORTS_API
 PAGE_SIZE = 100  # max per request (ReliefWeb API limit)
 
@@ -119,7 +119,7 @@ def fetch_report_ids_for_date(target_date: str) -> list:
             data = resp.json()
         except Exception as e:
             log.error("ReliefWeb API request failed (offset=%d): %s", offset, e)
-            break
+            raise RuntimeError("ReliefWeb report listing failed") from e
 
         results = data.get("data", [])
         if not results:
@@ -239,44 +239,83 @@ def main():
         yesterday = datetime.now(UTC) - timedelta(days=1)
         target_date = yesterday.strftime("%Y-%m-%d")
 
+    started_at = datetime.now(UTC).isoformat()
+    report_ids = []
+    ingest_result = {"ingested": 0, "skipped": 0, "errors": 0}
+    purge_result = {"reports_purged": 0, "chunks_purged_chroma": 0}
+
     log.info("=" * 60)
     log.info("Daily Ingest — %s", target_date)
     if args.dry_run:
         log.info("DRY RUN — no writes will be made")
     log.info("=" * 60)
 
-    ingest_result = {"ingested": 0, "skipped": 0, "errors": 0}
+    try:
+        log.info("Fetching report IDs for %s...", target_date)
+        report_ids = fetch_report_ids_for_date(target_date)
+        log.info("Found %d reports for %s", len(report_ids), target_date)
 
-    # Step 1: Fetch report IDs
-    log.info("Fetching report IDs for %s...", target_date)
-    report_ids = fetch_report_ids_for_date(target_date)
-    log.info("Found %d reports for %s", len(report_ids), target_date)
+        if not report_ids:
+            log.info("No reports found. Nothing to ingest.")
+        else:
+            log.info("Ingesting %d reports...", len(report_ids))
+            ingest_result = ingest_reports(report_ids, dry_run=args.dry_run)
+            log.info(
+                "Ingest complete: %d ingested, %d skipped, %d errors",
+                ingest_result["ingested"],
+                ingest_result["skipped"],
+                ingest_result["errors"],
+            )
 
-    if not report_ids:
-        log.info("No reports found. Nothing to ingest.")
-    else:
-        # Step 2: Ingest
-        log.info("Ingesting %d reports...", len(report_ids))
-        ingest_result = ingest_reports(report_ids, dry_run=args.dry_run)
-        log.info(
-            "Ingest complete: %d ingested, %d skipped, %d errors",
-            ingest_result["ingested"],
-            ingest_result["skipped"],
-            ingest_result["errors"],
-        )
+        if not args.no_purge:
+            log.info("Purging data older than %d days...", args.purge_days)
+            purge_result = purge_old_data(days=args.purge_days, dry_run=args.dry_run)
+            log.info(
+                "Purge complete: %d reports removed from SQLite, %d chunks from ChromaDB",
+                purge_result["reports_purged"],
+                purge_result["chunks_purged_chroma"],
+            )
+    except Exception as exc:
+        log.exception("Daily ingest failed: %s", exc)
+        if not args.dry_run:
+            try:
+                from reliefweb_api.ingest_status import write_ingest_status
 
-    # Step 3: Purge old data
-    purge_result = {"reports_purged": 0, "chunks_purged_chroma": 0}
-    if not args.no_purge:
-        log.info("Purging data older than %d days...", args.purge_days)
-        purge_result = purge_old_data(days=args.purge_days, dry_run=args.dry_run)
-        log.info(
-            "Purge complete: %d reports removed from SQLite, %d chunks from ChromaDB",
-            purge_result["reports_purged"],
-            purge_result["chunks_purged_chroma"],
-        )
+                write_ingest_status(
+                    {
+                        "status": "failed",
+                        "target_date": target_date,
+                        "started_at": started_at,
+                        "completed_at": datetime.now(UTC).isoformat(),
+                        "error_type": type(exc).__name__,
+                    }
+                )
+            except Exception as status_exc:
+                log.error("Could not write ingest status: %s", status_exc)
+        return 1
 
-    # Summary
+    status = "completed" if ingest_result.get("errors", 0) == 0 else "completed_with_errors"
+    if not args.dry_run:
+        try:
+            from reliefweb_api.ingest_status import write_ingest_status
+
+            write_ingest_status(
+                {
+                    "status": status,
+                    "target_date": target_date,
+                    "started_at": started_at,
+                    "completed_at": datetime.now(UTC).isoformat(),
+                    "fetched": len(report_ids),
+                    "ingested": ingest_result.get("ingested", 0),
+                    "skipped": ingest_result.get("skipped", 0),
+                    "errors": ingest_result.get("errors", 0),
+                    "purged_sql": purge_result["reports_purged"],
+                    "purged_chroma": purge_result["chunks_purged_chroma"],
+                }
+            )
+        except Exception as exc:
+            log.error("Could not write ingest status: %s", exc)
+
     log.info("=" * 60)
     log.info("SUMMARY")
     log.info("  Date:          %s", target_date)
@@ -287,11 +326,8 @@ def main():
     log.info("  Purged (SQL):  %d", purge_result["reports_purged"])
     log.info("  Purged (Vec):  %d", purge_result["chunks_purged_chroma"])
     log.info("=" * 60)
-
-    # Exit with error code if there were ingest errors
-    if ingest_result.get("errors", 0) > 0:
-        sys.exit(1)
+    return 1 if ingest_result.get("errors", 0) > 0 else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

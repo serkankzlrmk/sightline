@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page.page_title }} - Sightline</title>
+  <meta name="description" content="{{ page.page_description }}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta property="og:title" content="{{ page.page_title }} - Sightline">
+  <meta property="og:description" content="{{ page.page_description }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="{{ site_url }}/static/linkedin-sightline-cover.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page.page_title }} - Sightline">
+  <meta name="twitter:description" content="{{ page.page_description }}">
+  <meta name="twitter:image" content="{{ site_url }}/static/linkedin-sightline-cover.png">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
+  <link rel="preload" as="image" href="/static/linkedin-sightline-cover.webp" type="image/webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/solutions.css">
+  <script type="application/ld+json">{{ json_ld | safe }}</script>
+  {% include '_analytics_head.html' %}
+</head>
+<body class="solution-page solution-page-{{ solution_slug }}">
+  <a class="skip-link" href="#solution-content">Skip to content</a>
+  <header class="solution-header">
+    <nav class="solution-nav" aria-label="Primary navigation">
+      <a class="solution-brand" href="/" aria-label="Sightline home">
+        <img src="/static/logo-signal-horizon.png" width="38" height="38" alt="">
+        <span>Sightline</span>
+      </a>
+      <div class="solution-nav-links">
+        <a href="/crisis">Crisis data</a>
+        <a href="/bulletins">Bulletins</a>
+        <a class="solution-nav-action" href="/app" data-track-event="cta_click"
+           data-track-name="login" data-track-location="solution_nav">Sign in</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="solution-content">
+    <section class="solution-hero" aria-labelledby="solution-title">
+      <div class="solution-hero-copy">
+        <p class="solution-eyebrow">{{ page.product_name }}</p>
+        <h1 id="solution-title">{{ page.headline }}</h1>
+        <p class="solution-lead">{{ page.subtext }}</p>
+        <div class="solution-actions">
+          <a class="solution-button solution-button-primary" href="{{ page.primary_url }}"
+             data-track-event="cta_click" data-track-name="{{ page.primary_event }}"
+             data-track-location="solution_hero">{{ page.primary_label }}</a>
+          <a class="solution-button solution-button-secondary" href="{{ page.secondary_url }}"
+             data-track-event="cta_click" data-track-name="view_crisis_data"
+             data-track-location="solution_hero">{{ page.secondary_label }}</a>
+        </div>
+      </div>
+      <figure class="solution-hero-visual">
+        <img src="/static/linkedin-sightline-cover.webp" width="1584" height="396"
+             fetchpriority="high" alt="{{ page.hero_alt }}">
+      </figure>
+    </section>
+
+    <section class="solution-proof" aria-label="Product capabilities">
+      {% for point in page.proof_points %}
+      <p>{{ point }}</p>
+      {% endfor %}
+    </section>
+
+    <section class="solution-workflow" aria-labelledby="workflow-title">
+      <div class="solution-section-heading">
+        <h2 id="workflow-title">{{ page.workflow_title }}</h2>
+      </div>
+      <div class="solution-workflow-grid">
+        {% for item in page.workflow %}
+        <article>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.body }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="solution-use" aria-labelledby="use-title">
+      <div class="solution-use-copy">
+        <h2 id="use-title">{{ page.use_title }}</h2>
+        <p>{{ page.use_body }}</p>
+      </div>
+      <div class="solution-use-points">
+        {% for point in page.use_points %}
+        <p>{{ point }}</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="solution-boundary" aria-labelledby="boundary-title">
+      <div>
+        <h2 id="boundary-title">{{ page.boundary_title }}</h2>
+        <p>{{ page.boundary_body }}</p>
+      </div>
+      <a href="/privacy">Read our privacy approach</a>
+    </section>
+
+    <section class="solution-faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">Questions teams ask</h2>
+      <div class="solution-faq-grid">
+        {% for item in page.faqs %}
+        <article>
+          <h3>{{ item.question }}</h3>
+          <p>{{ item.answer }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="solution-final" aria-labelledby="final-title">
+      <div>
+        <h2 id="final-title">Start with a reviewable first draft.</h2>
+        <p>{{ page.subtext }}</p>
+      </div>
+      <a class="solution-button solution-button-primary" href="{{ page.primary_url }}"
+         data-track-event="cta_click" data-track-name="{{ page.primary_event }}"
+         data-track-location="solution_final">{{ page.primary_label }}</a>
+    </section>
+  </main>
+
+  <footer class="solution-footer">
+    <a href="/">Sightline</a>
+    <div>
+      <a href="/solutions/sitrep">SITREP software</a>
+      <a href="/solutions/proposal">Proposal software</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
+    </div>
+  </footer>
+</body>
+</html>

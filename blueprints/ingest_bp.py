@@ -28,6 +28,20 @@ MANUAL_ID_BASE = 9_000_000_000  # manual TR-prefixed IDs start above this
 # ─── Daily ingestion ────────────────────────────────────────────────────────
 
 
+@ingest_bp.route("/status", methods=["GET"])
+@require_admin
+def api_ingest_status():
+    """Return the last scheduler result and current database freshness."""
+    from reliefweb_api.ingest_status import database_freshness, read_ingest_status
+
+    return jsonify(
+        {
+            "last_run": read_ingest_status(),
+            "database": database_freshness(),
+        }
+    )
+
+
 @ingest_bp.route("/daily", methods=["POST"])
 @require_admin
 def api_ingest_daily():

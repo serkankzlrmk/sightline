@@ -126,3 +126,19 @@ class TestAnalyticsConfig:
         )
         assert out.returncode == 0, out.stderr
         assert out.stdout.strip() == "''"
+
+    def test_adsense_cmp_ready_defaults_false(self):
+        import os
+        import subprocess
+        import sys
+
+        env = {k: v for k, v in os.environ.items() if k != "GOOGLE_ADSENSE_CMP_READY"}
+        out = subprocess.run(
+            [sys.executable, "-c", "import config; print(config.GOOGLE_ADSENSE_CMP_READY)"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        assert out.returncode == 0, out.stderr
+        assert out.stdout.strip() == "False"

@@ -55,27 +55,22 @@ document.addEventListener('DOMContentLoaded', () => {
 <ul>
 <li><strong>Authentication data:</strong> Google account email and display name when you sign in</li>
 <li><strong>Usage data:</strong> Chat messages, SITREP reports, and bulletin requests you create</li>
-<li><strong>Analytics:</strong> We do not use third-party analytics or tracking services</li>
+<li><strong>Analytics:</strong> Google Analytics 4 loads only after you accept optional analytics</li>
 </ul>
-<h4>Data We Do NOT Collect</h4>
-<ul>
-<li>We do not sell, share, or distribute your personal data to third parties</li>
-<li>We do not use your data for advertising</li>
-<li>We do not track your browsing across other websites</li>
-<li>We do not collect device fingerprints or location data</li>
-</ul>
+<h4>Analytics and Advertising</h4>
+<p>When accepted, Analytics may process page paths, interactions, browser and device information, and approximate location derived from network information. Advertising is not loaded inside the signed-in application. Public pages may display Google AdSense only when publisher configuration and required consent controls are active.</p>
 <h4>Data Storage</h4>
-<p>Your chat history and reports are stored securely on our servers and are accessible only to you through your authenticated session. You can delete your data at any time by contacting us.</p>
+<p>Your account activity, chat history and reports are stored on Sightline infrastructure to provide the service. Contact us to request access or deletion.</p>
 <h4>Security</h4>
 <p>We use industry-standard encryption (HTTPS/TLS) for all data in transit. Authentication is handled through Firebase Auth with Google Sign-In. Access tokens are validated on every request.</p>
 <h4>Your Rights</h4>
 <ul>
 <li>Access your data at any time through the platform</li>
 <li>Request deletion of your account and all associated data</li>
-<li>Withdraw consent by discontinuing use of the service</li>
+<li>Decline or change optional analytics choices</li>
 </ul>
 <h4>Contact</h4>
-<p>For privacy inquiries or data deletion requests, please contact us through the platform.</p>`
+<p>Read the complete <a href="/privacy">Privacy Policy</a> for current details and contact information.</p>`
   };
 
   function showLegal(type) {

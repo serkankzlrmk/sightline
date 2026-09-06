@@ -93,22 +93,26 @@ window.escHtml = escHtml;
 window.toast = toast;
 window.sanitizeHtml = sanitizeHtml;
 
-// ── GA4 outbound / cross-surface link tracking ─────────────────────────────
-// Fires when the SPA links out to public content (SEO pages, proposal).
-// No-op unless gtag is present (analytics off in dev).
+// ── Consent-aware outbound / cross-surface link tracking ───────────────────
 document.addEventListener('click', (e) => {
   const a = e.target && e.target.closest ? e.target.closest('a') : null;
-  if (!a || !window.gtag) return;
+  if (!a || a.dataset.trackEvent || !window.sightlineTrack) return;
   const href = a.getAttribute('href') || '';
   if (
     href.startsWith('http') ||
     href.startsWith('/bulletins') ||
     href.startsWith('/countries') ||
     href.startsWith('/sitrep/') ||
-    href.startsWith('/map')
+    href.startsWith('/map') ||
+    href.startsWith('/crisis') ||
+    href.startsWith('/proposal')
   ) {
     try {
-      window.gtag('event', 'link_click', { link_url: href });
-    } catch (_) { /* analytics must never break navigation */ }
+      window.sightlineTrack('navigation_click', {
+        link_url: href,
+        link_location: 'app',
+        page_path: window.location.pathname,
+      });
+    } catch (_) { /* Measurement must never break navigation. */ }
   }
 }, true);

@@ -249,6 +249,19 @@ def api_admin_analytics():
         conn.close()
 
 
+@admin_bp.route("/growth/search-console")
+@require_admin
+def api_admin_search_console():
+    """Return the latest read-only Search Console performance snapshot."""
+    try:
+        from growth.search_console import get_search_console_dashboard
+
+        return jsonify(get_search_console_dashboard())
+    except Exception as exc:
+        logger.error("api_admin_search_console error: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load Search Console data"}), 500
+
+
 @admin_bp.route("/config", methods=["GET"])
 @require_admin
 def api_admin_config():

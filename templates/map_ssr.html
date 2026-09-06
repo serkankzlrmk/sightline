@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ page_title }}</title>
   <meta name="description" content="{{ page_description }}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta property="og:title" content="{{ page_title }}">
   <meta property="og:description" content="{{ page_description }}">
   <meta property="og:url" content="{{ canonical }}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://sightlinehumanitarian.com/static/logo-signal-horizon.png">
+  <meta property="og:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ page_description }}">
   <link rel="canonical" href="{{ canonical }}">
   <link rel="icon" href="/static/logo-signal-horizon.png">
   <script type="application/ld+json">
@@ -61,7 +65,8 @@
     </nav>
     <h1>{{ page_title }}</h1>
     <div class="seo-sub">{{ page_description }}</div>
-    <a class="map-cta" href="/app#crisis-map">Open interactive map →</a>
+    <a class="map-cta" href="/app#crisis-map" data-track-event="cta_click"
+       data-track-name="open_map" data-track-location="map_ssr">Open interactive map →</a>
     {% if countries %}
       <div class="country-grid">
         {% for c in countries %}
@@ -80,6 +85,10 @@
     {% endif %}
     <footer class="seo-footer">
       <a href="/">Sightline</a> &mdash; humanitarian intelligence platform: situation reports, bulletins and country summaries from trusted sources.
+      &nbsp;·&nbsp; <a href="/solutions/sitrep">SITREP software</a>
+      &nbsp;·&nbsp; <a href="/solutions/proposal">Proposal software</a>
+      &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
+      &nbsp;·&nbsp; <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
     </footer>
   </div>
 </body>

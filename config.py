@@ -78,6 +78,8 @@ BASE_DIR = PROJECT_ROOT
 DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", str(PROJECT_ROOT / "reliefweb_downloads")))
 DB_PATH = Path(os.getenv("DB_PATH", str(PROJECT_ROOT / "reliefweb.db")))
 CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))
+INGEST_STATUS_PATH = Path(os.getenv("INGEST_STATUS_PATH", str(DB_PATH.parent / "ingest_status.json")))
+DATA_FRESHNESS_MAX_AGE_DAYS: int = int(os.getenv("DATA_FRESHNESS_MAX_AGE_DAYS", "3"))
 
 # NOTE: DOWNLOADS_DIR is kept for backward compatibility but is no longer used
 # by the ingest pipeline. Reports are now processed in-memory (ingest_from_api)
@@ -431,6 +433,14 @@ def _normalize_adsense_client(value: str) -> str:
 
 
 GOOGLE_ADSENSE_CLIENT: str = _normalize_adsense_client(os.getenv("GOOGLE_ADSENSE_CLIENT", ""))
+GOOGLE_ADSENSE_SLOT_ID: str = os.getenv("GOOGLE_ADSENSE_SLOT_ID", "").strip()
+GOOGLE_ADSENSE_CMP_READY: bool = os.getenv("GOOGLE_ADSENSE_CMP_READY", "false").lower() == "true"
+
+# CARTO basemap API key (free tier: 5M tile requests/month, https://carto.com/basemaps/apikey/).
+# CARTO raster basemaps require a key since Aug 2026 — keyless requests return a
+# watermark tile instead of real map imagery. Empty = crisis map uses OpenStreetMap
+# tiles directly (keyless), which are the default fallback provider anyway.
+CARTO_API_KEY: str = os.getenv("CARTO_API_KEY", "").strip()
 
 # Per-IP cap for the SEO HTML routes (not /api/* — those have their own limiter).
 # Googlebot and known crawlers are exempt via user-agent allowlist.
@@ -457,6 +467,15 @@ CONTACT_EMAIL: str = os.getenv("CONTACT_EMAIL", "support@sightline.ai")
 
 # Firebase service account JSON path (env-driven, falls back to well-known locations)
 FIREBASE_SERVICE_ACCOUNT_PATH: str = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "")
+
+# Google Search Console performance snapshots (read-only service account).
+GSC_ENABLED: bool = os.getenv("GSC_ENABLED", "false").lower() == "true"
+GSC_SITE_URL: str = os.getenv("GSC_SITE_URL", f"{SITE_URL.rstrip('/')}/")
+GSC_CREDENTIALS_PATH: str = os.getenv("GSC_CREDENTIALS_PATH", "").strip() or FIREBASE_SERVICE_ACCOUNT_PATH
+GSC_DB_PATH = Path(os.getenv("GSC_DB_PATH", "").strip() or str(DB_PATH.parent / "growth.db"))
+GSC_LOOKBACK_DAYS: int = int(os.getenv("GSC_LOOKBACK_DAYS", "28"))
+GSC_DATA_LAG_DAYS: int = int(os.getenv("GSC_DATA_LAG_DAYS", "3"))
+GSC_ROW_LIMIT: int = int(os.getenv("GSC_ROW_LIMIT", "1000"))
 
 # In production (SERVER_DEBUG=false), reject wildcard CORS for safety.
 # Wildcard CORS allows any website to make authenticated API calls if it

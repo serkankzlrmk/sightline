@@ -1,0 +1,44 @@
+.sightline-consent {
+  position: fixed;
+  z-index: 100000;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 20px;
+  color: #f8fafc;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.3);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sightline-consent__copy strong { display: block; margin-bottom: 3px; font-size: 15px; }
+.sightline-consent__copy p { margin: 0 0 4px; color: #cbd5e1; }
+.sightline-consent__copy a { color: #bae6fd; }
+.sightline-consent__actions { display: flex; flex-shrink: 0; gap: 8px; }
+.sightline-consent__actions button {
+  min-height: 40px;
+  padding: 8px 14px;
+  color: #e2e8f0;
+  background: transparent;
+  border: 1px solid #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+.sightline-consent__actions button.is-primary { color: #082f49; background: #7dd3fc; border-color: #7dd3fc; }
+.sightline-consent__actions button:focus-visible { outline: 3px solid #f8fafc; outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .sightline-consent { right: 10px; bottom: 10px; left: 10px; align-items: stretch; flex-direction: column; gap: 14px; }
+  .sightline-consent__actions { width: 100%; }
+  .sightline-consent__actions button { flex: 1; }
+}

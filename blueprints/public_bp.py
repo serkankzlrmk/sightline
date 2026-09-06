@@ -175,7 +175,10 @@ def api_map_countries():
     try:
         from sitrep.country_summary import (
             COUNTRY_SUMMARY_DIR,
+            COUNTRY_SUMMARY_SCHEMA_VERSION,
+            _aggregate_report_evidence,
             _country_to_iso3,
+            _data_freshness,
         )
         from sitrep.weekly_bulletin import COUNTRY_COORDS, _determine_severity
 
@@ -227,62 +230,63 @@ def api_map_countries():
                     summary_data = json.loads(summary_path.read_text(encoding="utf-8"))
                 except Exception:
                     pass
+            summary_is_current = bool(
+                summary_data
+                and summary_data.get("schema_version") == COUNTRY_SUMMARY_SCHEMA_VERSION
+                and summary_data.get("report_count") == count
+            )
 
             # Build the response object
             iso3 = (summary_data or {}).get("iso3", "") or _country_to_iso3(country) if country else ""
 
             # Get date range from summary or compute from DB
-            date_range = (summary_data or {}).get("date_range", {})
+            date_range = dict((summary_data or {}).get("date_range", {})) if summary_is_current else {}
+            db_date_range = {}
+            if not (date_range.get("min_date") and date_range.get("max_date")):
+                try:
+                    db_date_range = db.get_date_range(country)
+                    date_range = {
+                        "min_date": db_date_range.get("min_date") or db_date_range.get("min") or "",
+                        "max_date": db_date_range.get("max_date") or db_date_range.get("max") or "",
+                    }
+                except Exception:
+                    pass
             last_updated = (summary_data or {}).get("generated_at", "")
 
             # Severity from summary or compute
-            severity = (summary_data or {}).get("severity", "")
+            severity = (summary_data or {}).get("severity", "") if summary_is_current else ""
             if not severity:
-                top_themes_raw = (summary_data or {}).get("top_themes", [])
+                top_themes_raw = (summary_data or {}).get("top_themes", []) if summary_is_current else []
                 severity = _determine_severity(count, top_themes_raw)
 
             # Headline + narrative from summary
-            headline = (summary_data or {}).get("headline", "")
-            narrative = (summary_data or {}).get("narrative", "")
+            headline = (summary_data or {}).get("headline", "") if summary_is_current else ""
+            narrative = (summary_data or {}).get("narrative", "") if summary_is_current else ""
 
             # Recent reports from summary or compute
-            recent_reports = (summary_data or {}).get("recent_reports", [])
+            report_rows = None
+            report_evidence = None
+            recent_reports = (summary_data or {}).get("recent_reports", []) if summary_is_current else []
             if not recent_reports:
                 try:
-                    chunks = db.get_chunks_by_country(country, limit=30)
-                    seen_titles = set()
-                    for chunk in chunks:
-                        title = chunk.get("title", "")
-                        if title and title not in seen_titles and len(recent_reports) < 3:
-                            seen_titles.add(title)
-                            recent_reports.append(
-                                {
-                                    "title": title,
-                                    "date": chunk.get("date", ""),
-                                    "source": chunk.get("source", ""),
-                                    "url": chunk.get("url", ""),
-                                }
-                            )
+                    report_rows = db.get_reports_by_country(country, limit=100)
+                    report_evidence = _aggregate_report_evidence(report_rows)
+                    recent_reports = report_evidence["recent_reports"]
                 except Exception:
                     pass
 
             # Top themes from summary or compute
-            top_themes = (summary_data or {}).get("top_themes", [])
-            chunks = None  # Will be loaded from DB if needed
+            top_themes = (summary_data or {}).get("top_themes", []) if summary_is_current else []
             if not top_themes:
                 try:
-                    chunks = db.get_chunks_by_country(country, limit=50)
-                    from collections import Counter as _Counter
-
-                    from sitrep.utils import parse_themes
-
-                    theme_counter = _Counter()
-                    for chunk in chunks:
-                        for t in parse_themes(chunk.get("themes", "")):
-                            theme_counter[t] += 1
-                    top_themes = [t for t, _ in theme_counter.most_common(5)]
+                    if report_rows is None:
+                        report_rows = db.get_reports_by_country(country, limit=100)
+                    report_evidence = report_evidence or _aggregate_report_evidence(report_rows)
+                    top_themes = report_evidence["top_themes"]
                 except Exception:
                     pass
+            if not summary_is_current:
+                severity = _determine_severity(count, top_themes)
 
             # HDX key figures + GDACS alerts from summary
             hdx_key_figures = (summary_data or {}).get("hdx_key_figures", [])
@@ -290,18 +294,13 @@ def api_map_countries():
             has_sitrep = (summary_data or {}).get("has_sitrep", False)
 
             # Top sources (name + count) from summary — LLM-free, straight from DB
-            top_sources = (summary_data or {}).get("top_sources", [])
+            top_sources = (summary_data or {}).get("top_sources", []) if summary_is_current else []
             if not top_sources:
                 try:
-                    from collections import Counter as _Counter
-
-                    chunks = db.get_chunks_by_country(country, limit=50)
-                    src_counter = _Counter()
-                    for chunk in chunks:
-                        src = chunk.get("source", "")
-                        if src:
-                            src_counter[src] += 1
-                    top_sources = [{"name": s, "count": c} for s, c in src_counter.most_common(5)]
+                    if report_rows is None:
+                        report_rows = db.get_reports_by_country(country, limit=100)
+                    report_evidence = report_evidence or _aggregate_report_evidence(report_rows)
+                    top_sources = report_evidence["top_sources"]
                 except Exception:
                     pass
 
@@ -309,6 +308,9 @@ def api_map_countries():
             hdx_fetched_at = (summary_data or {}).get("hdx_fetched_at", 0)
             gdacs_fetched_at = (summary_data or {}).get("gdacs_fetched_at", 0)
             worldbank_fetched_at = (summary_data or {}).get("worldbank_fetched_at", 0)
+            # Freshness is time-relative, so never reuse the value frozen into
+            # an older summary artifact.
+            data_freshness = _data_freshness(date_range.get("max_date"))
 
             # If no headline/narrative and no summary exists, generate them
             # deterministically from DB data (NO LLM — data-driven templates)
@@ -337,9 +339,8 @@ def api_map_countries():
             if not last_updated and date_range:
                 last_updated = date_range.get("max_date", "")
 
-            # Use summary report_count when available (consistent with headline/narrative)
-            summary_count = (summary_data or {}).get("report_count", 0)
-            display_count = summary_count if summary_count else count
+            # Report counts always come from the current database snapshot.
+            display_count = count
 
             result = {
                 "country": country,
@@ -347,9 +348,20 @@ def api_map_countries():
                 "coords": coords,
                 "severity": severity,
                 "report_count": display_count,
+                "primary_report_count": (
+                    (summary_data or {}).get("primary_report_count")
+                    if summary_is_current
+                    else db_date_range.get("primary_count")
+                ),
+                "mentioned_report_count": (
+                    (summary_data or {}).get("mentioned_report_count")
+                    if summary_is_current
+                    else db_date_range.get("mentioned_count")
+                ),
                 "headline": headline,
                 "narrative": narrative,
                 "date_range": date_range,
+                "data_freshness": data_freshness,
                 "last_updated": last_updated,
                 "recent_reports": recent_reports[:3],
                 "top_themes": top_themes[:5],
@@ -361,6 +373,7 @@ def api_map_countries():
                 "worldbank_fetched_at": worldbank_fetched_at,
                 "has_sitrep": has_sitrep,
                 "has_summary": summary_data is not None,
+                "summary_schema_current": summary_is_current,
             }
             results.append(result)
 

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="contact-email" content="{{ contact_email }}">
+  <meta name="robots" content="noindex,nofollow">
   <title>Sightline</title>
   <link rel="icon" href="/static/logo-signal-horizon.png" type="image/png">
   <!-- Preconnect to all CDN origins for faster handshake -->
@@ -78,7 +79,7 @@
       </button>
       <div class="auth-premium-hint">Premium: your own SITREPs, weekly bulletins &amp; donor-ready proposals</div>
       <div id="auth-error" class="auth-error"></div>
-      <div class="auth-legal">By signing in you agree to the <a href="#" id="terms-link">Terms of Use</a> and <a href="#" id="privacy-link">Privacy Policy</a></div>
+      <div class="auth-legal">By signing in you agree to the <a href="/terms" id="terms-link">Terms of Use</a> and <a href="/privacy" id="privacy-link">Privacy Policy</a></div>
     </div>
   </div>
 
@@ -711,6 +712,36 @@
       <div class="admin-section" id="admin-analytics" style="display:none;">
         <h2>Analytics Dashboard</h2>
         <div class="analytics-grid">
+          <div class="analytics-table">
+            <h4>Data Pipeline</h4>
+            <div class="analytics-cards" id="ingest-status-cards">
+              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading freshness</div></div>
+            </div>
+          </div>
+
+          <div class="analytics-table">
+            <h4>Google Search Console</h4>
+            <div class="analytics-cards" id="gsc-kpi-cards">
+              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading search performance</div></div>
+            </div>
+            <div class="analytics-charts">
+              <div class="chart-container">
+                <h4>Top Search Queries</h4>
+                <table id="gsc-query-table">
+                  <thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>Position</th></tr></thead>
+                  <tbody><tr><td colspan="4">No snapshot available</td></tr></tbody>
+                </table>
+              </div>
+              <div class="chart-container">
+                <h4>Top Search Pages</h4>
+                <table id="gsc-page-table">
+                  <thead><tr><th>Page</th><th>Clicks</th><th>Impressions</th><th>CTR</th></tr></thead>
+                  <tbody><tr><td colspan="4">No snapshot available</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
           <!-- KPI Cards -->
           <div class="analytics-cards" id="analytics-kpi-cards"></div>
 
@@ -952,6 +983,9 @@
 <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js" crossorigin="anonymous" integrity="sha384-XQqX/4yiUGu+oyr87jvWzRuqBUK/adrY0DunhL+tID9m/9dwSpV8h9Fk/Sg6ifVQ"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"></script>
 <!-- App scripts (defer — executes after CDN libs in order) -->
+<script defer src="/static/map/map-config.js"
+        id="sightline-map-config"
+        data-carto-key="{{ carto_api_key }}"></script>
 <script defer src="/static/firebase-config.js?v={{ v }}"></script>
 <script type="module" src="/static/auth.js?v={{ v }}"></script>
 <script defer src="/static/dist/app.js?v={{ v }}"></script>

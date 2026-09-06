@@ -825,8 +825,7 @@ body.sidebar-hidden .db-header {
   align-items: center;
   height: auto;
 }
-# freemium; login panel now slides in over the tab and mobile nav stays
-# visible so visitors can move to public tabs (Bulletin/SITREP/Map).
+/* The login panel overlays the selected tab while public mobile navigation remains visible. */
 
 .mobile-tab {
   display: flex;
@@ -1084,4 +1083,3 @@ body.sidebar-hidden .db-header {
 .toast-icon { flex-shrink: 0; font-size: 16px; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
-

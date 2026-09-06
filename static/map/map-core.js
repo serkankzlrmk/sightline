@@ -73,25 +73,47 @@ function initWorldMap() {
       touchZoom: true,
     });
 
-    // Tile layer with automatic fallback: CARTO primary, OSM as backup.
-    // If a CDN is blocked/slow (different regions/ISPs), the map still loads.
-    const TILE_PROVIDERS = [
-      {
-        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        options: {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-          subdomains: 'abcd',
-          maxZoom: 19,
-        },
-      },
-      {
-        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        options: {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-        },
-      },
-    ];
+    // Basemap tiles with automatic fallback. CARTO raster basemaps require an
+    // API key since Aug 2026 — keyless requests return a 200 PNG watermark
+    // ("API key required"), which is why zooming showed watermark tiles.
+    // Provider order comes from window.__mapBasemap (static/map/map-config.js):
+    // with a CARTO key, CARTO first; without one, OSM first (keyless, reliable).
+    const cartoKey = (window.__mapBasemap && window.__mapBasemap.cartoKey) || '';
+    const TILE_PROVIDERS = cartoKey
+      ? [
+          {
+            url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(cartoKey)}`,
+            options: {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+              subdomains: 'abcd',
+              maxZoom: 19,
+            },
+          },
+          {
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            options: {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+              maxZoom: 19,
+            },
+          },
+        ]
+      : [
+          {
+            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            options: {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+              maxZoom: 19,
+            },
+          },
+          {
+            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            options: {
+              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+              subdomains: 'abcd',
+              maxZoom: 19,
+            },
+          },
+        ];
 
     function addTileLayerWithFallback(map, index) {
       if (index >= TILE_PROVIDERS.length) return;

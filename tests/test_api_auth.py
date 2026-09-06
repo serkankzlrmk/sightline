@@ -129,6 +129,34 @@ class TestAdminOnlyRoutes:
             )
             assert resp.status_code == 403
 
+    def test_ingest_status_requires_admin(self, client):
+        fake_token = {"uid": "premium-user", "role": "premium"}
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
+            resp = client.get(
+                "/api/ingest/status",
+                headers={"Authorization": "Bearer token"},
+            )
+            assert resp.status_code == 403
+
+    def test_search_console_dashboard_requires_admin(self, client):
+        fake_token = {"uid": "premium-user", "role": "premium"}
+        with (
+            patch.object(auth, "_dev_mode", return_value=False),
+            patch.object(auth, "_api_key", return_value=""),
+            patch.object(auth, "verify_firebase_token", return_value=fake_token),
+            patch.object(auth, "_resolve_role", return_value="premium"),
+        ):
+            resp = client.get(
+                "/api/admin/growth/search-console",
+                headers={"Authorization": "Bearer token"},
+            )
+            assert resp.status_code == 403
+
     def test_upload_requires_admin(self, client):
         fake_token = {"uid": "premium-user", "role": "premium"}
         with (

@@ -11,6 +11,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import {
   getAuth,
   GoogleAuthProvider,
+  getAdditionalUserInfo,
   signInWithPopup,
   signOut as firebaseSignOut,
   onAuthStateChanged,
@@ -81,6 +82,9 @@ function showLoginPanel() {
     el.style.display = "";
   }
   document.body.classList.add("auth-locked");
+  if (window.sightlineTrack) {
+    window.sightlineTrack("login_prompt_view", { page_path: window.location.pathname });
+  }
 }
 
 function hideOverlay() {
@@ -313,6 +317,9 @@ function updateVisibility() {
 
 async function doSignIn() {
   setAuthError("");
+  if (window.sightlineTrack) {
+    window.sightlineTrack("login_start", { method: "Google" });
+  }
   try {
     const result = await signInWithPopup(auth, google);
     const token  = await result.user.getIdToken(true);
@@ -323,6 +330,12 @@ async function doSignIn() {
     showUserBar(result.user);
     window.__authReady = true;
     window.dispatchEvent(new Event('auth-ready'));
+    if (window.sightlineTrack) {
+      window.sightlineTrack("login", { method: "Google" });
+      if (getAdditionalUserInfo(result)?.isNewUser) {
+        window.sightlineTrack("sign_up", { method: "Google" });
+      }
+    }
   } catch (err) {
     console.error("Login failed:", err);
     if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
@@ -337,6 +350,9 @@ async function doSignIn() {
       setAuthError("Sign-in was cancelled.");
     } else {
       setAuthError("Sign-in failed: " + err.message);
+    }
+    if (window.sightlineTrack) {
+      window.sightlineTrack("login_error", { method: "Google", error_code: err.code || "unknown" });
     }
   }
 }

@@ -184,3 +184,4 @@ uv.lock
 # Code intelligence (local only, never push)
 .codebase-memory/
 proposal
+tmp/

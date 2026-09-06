@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ page_title }} - Sightline</title>
   <meta name="description" content="{{ page_description }}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta property="og:title" content="{{ page_title }}">
   <meta property="og:description" content="{{ page_description }}">
   <meta property="og:url" content="{{ canonical }}">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ page_description }}">
   <link rel="canonical" href="{{ canonical }}">
   <link rel="icon" href="/static/logo-signal-horizon.png">
   <style>
@@ -54,6 +59,10 @@
     {% endif %}
     <footer class="seo-footer">
       <a href="/">Sightline</a> &mdash; humanitarian intelligence platform: situation reports, bulletins and country summaries from trusted sources.
+      &nbsp;·&nbsp; <a href="/solutions/sitrep">SITREP software</a>
+      &nbsp;·&nbsp; <a href="/solutions/proposal">Proposal software</a>
+      &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
+      &nbsp;·&nbsp; <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
     </footer>
   </div>
 </body>

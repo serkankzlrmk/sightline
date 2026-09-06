@@ -6,11 +6,15 @@
   <meta name="theme-color" content="#FFFFFF">
   <title>{{ page_title }} - Sightline</title>
   <meta name="description" content="{{ page_description }}">
+  <meta name="robots" content="{{ robots }}">
   <meta property="og:title" content="{{ page_title }}">
   <meta property="og:description" content="{{ page_description }}">
   <meta property="og:url" content="{{ canonical }}">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://sightlinehumanitarian.com/static/logo-signal-horizon.png">
+  <meta property="og:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ page_description }}">
   <link rel="canonical" href="{{ canonical }}">
   <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
   <script type="application/ld+json">{{ json_ld | safe }}</script>
@@ -322,15 +326,14 @@
       {{ hero_badges | safe }}
             {{ hero_extra | safe }}
             <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
-      <p class="crisis-sub">Live humanitarian overview: reports, alerts and key figures from trusted sources.</p>
+      <p class="crisis-sub">Humanitarian overview with dated reports, alerts and key figures from trusted sources.</p>
       <p class="crisis-asof">As of {{ as_of }}</p>
     </section>
     {{ body_html | safe }}
     {% if adsense_client %}
     <div class="crisis-ad" id="crisis-ad-slot">
       <ins class="adsbygoogle" style="display:block" data-ad-client="{{ adsense_client }}"
-           data-ad-slot="ROOT_SLOT_ID" data-ad-format="auto" data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+           data-ad-slot="{{ adsense_slot }}" data-ad-format="auto" data-full-width-responsive="true"></ins>
     </div>
     {% endif %}
     <aside class="crisis-cta" aria-labelledby="crisis-cta-title">
@@ -338,11 +341,16 @@
         <strong id="crisis-cta-title">Need this as a situation report?</strong>
         <p>Turn this intelligence into a structured SITREP, generated, verified and export-ready in minutes.</p>
       </div>
-      <a href="{{ sitrep_url }}" onclick="gtag('event', 'cta_click', {cta_name: 'make_sitrep', page_title: '{{ page_title }}'});">Get this as a sitrep</a>
+      <a href="{{ sitrep_url }}" data-track-event="cta_click" data-track-name="make_sitrep"
+         data-track-location="crisis_detail">Get this as a sitrep</a>
     </aside>
   </main>
   <footer class="crisis-footer">
     <a href="/">Sightline</a>, humanitarian intelligence, situation reports and donor proposals from trusted sources.
+    &nbsp;·&nbsp; <a href="/solutions/sitrep">SITREP software</a>
+    &nbsp;·&nbsp; <a href="/solutions/proposal">Proposal software</a>
+    &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
+    &nbsp;·&nbsp; <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
   </footer>
 </body>
 </html>

@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ page_title }} - Sightline</title>
   <meta name="description" content="{{ page_description }}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta property="og:title" content="{{ page_title }}">
   <meta property="og:description" content="{{ page_description }}">
   <meta property="og:url" content="{{ canonical }}">
   <meta property="og:type" content="article">
+  <meta property="og:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ page_description }}">
   <link rel="canonical" href="{{ canonical }}">
   <link rel="stylesheet" href="/static/dist/landing.css">
   <script type="application/ld+json">{{ json_ld | safe }}</script>
@@ -52,17 +57,21 @@
     {% if adsense_client %}
     <div class="seo-ad" id="seo-ad-slot">
       <ins class="adsbygoogle" style="display:block" data-ad-client="{{ adsense_client }}"
-           data-ad-slot="ROOT_SLOT_ID" data-ad-format="auto" data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+           data-ad-slot="{{ adsense_slot }}" data-ad-format="auto" data-full-width-responsive="true"></ins>
     </div>
     {% endif %}
     <div class="seo-cta">
       <strong>Need this as a situation report?</strong>
       <p>Turn this intelligence into a structured SITREP — generated, verified and export-ready in minutes.</p>
-      <a href="/app#sitrep" onclick="gtag('event', 'cta_click', {cta_name: 'make_sitrep', page_title: '{{ page_title }}'});">Get this as a sitrep</a>
+      <a href="/app#sitrep" data-track-event="cta_click" data-track-name="make_sitrep"
+         data-track-location="seo_detail">Get this as a sitrep</a>
     </div>
     <footer class="seo-footer">
       <a href="/">Sightline</a> &mdash; humanitarian intelligence, situation reports and donor proposals from trusted sources.
+      &nbsp;·&nbsp; <a href="/solutions/sitrep">SITREP software</a>
+      &nbsp;·&nbsp; <a href="/solutions/proposal">Proposal software</a>
+      &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
+      &nbsp;·&nbsp; <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
     </footer>
   </div>
 </body>

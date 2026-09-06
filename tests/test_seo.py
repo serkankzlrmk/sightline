@@ -120,6 +120,20 @@ class TestSitrepFiles:
 
 
 class TestRoutes:
+    @pytest.mark.parametrize("slug", ["sitrep", "proposal"])
+    def test_solution_landing_pages_are_public_and_indexable(self, client, slug):
+        resp = client.get(f"/solutions/{slug}", headers={"User-Agent": "Mozilla/5.0"})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert 'content="index,follow,max-image-preview:large"' in html
+        assert f'href="{SITE_URL}/solutions/{slug}"' in html
+        assert 'data-track-event="cta_click"' in html
+        assert '"@type": "SoftwareApplication"' in html
+        assert '"@type": "FAQPage"' in html
+
+    def test_unknown_solution_landing_is_404(self, client):
+        assert client.get("/solutions/not-a-product").status_code == 404
+
     def test_bulletins_list_200(self, client):
         resp = client.get("/bulletins", headers={"User-Agent": "Mozilla/5.0"})
         assert resp.status_code == 200
@@ -184,13 +198,17 @@ class TestRoutes:
         assert "<urlset" in body
         assert SITE_URL in body
         assert "<url>" in body
+        assert f"{SITE_URL}/solutions/sitrep" in body
+        assert f"{SITE_URL}/solutions/proposal" in body
 
     def test_robots_txt(self, client):
         resp = client.get("/robots.txt", headers={"User-Agent": "Mozilla/5.0"})
         assert resp.status_code == 200
         body = resp.data.decode()
         assert "User-agent: *" in body
+        assert "Disallow: /api/" in body
         assert "Disallow: /app" in body
+        assert "Disallow: /proposal" in body
         assert f"Sitemap: {SITE_URL}/sitemap.xml" in body
 
     def test_traversal_slug_404(self, client):
@@ -312,7 +330,7 @@ class TestAnalyticsTag:
         for path in ("/", "/bulletins", "/app"):
             resp = client.get(path)
             assert resp.status_code == 200, path
-            assert "googletagmanager.com/gtag/js" not in resp.get_data(as_text=True), path
+            assert "/static/analytics.js" not in resp.get_data(as_text=True), path
 
     def test_tag_present_with_id(self, client, monkeypatch):
         import config
@@ -322,8 +340,34 @@ class TestAnalyticsTag:
             resp = client.get(path)
             assert resp.status_code == 200, path
             html = resp.get_data(as_text=True)
-            assert "gtag/js?id=G-TEST123" in html, path
-            assert "send_page_view" in html, path
+            assert "/static/analytics.js" in html, path
+            assert 'data-measurement-id="G-TEST123"' in html, path
+            assert '<script async src="https://www.googletagmanager.com' not in html, path
+
+        analytics_js = client.get("/static/analytics.js").get_data(as_text=True)
+        assert "send_page_view" in analytics_js
+        assert "sightline_analytics_consent_v1" in analytics_js
+
+    def test_spa_is_explicitly_noindex(self, client):
+        html = client.get("/app").get_data(as_text=True)
+        assert 'content="noindex,nofollow"' in html
+
+
+class TestLegalPages:
+    def test_privacy_and_terms_are_public_but_not_indexed(self, client):
+        for path in ("/privacy", "/terms"):
+            resp = client.get(path)
+            assert resp.status_code == 200
+            html = resp.get_data(as_text=True)
+            assert 'content="noindex,follow"' in html
+            assert "canonical" in html
+
+    def test_privacy_copy_matches_analytics_behavior(self, client, monkeypatch):
+        monkeypatch.setattr("config.GOOGLE_ANALYTICS_ID", "G-TEST123")
+        html = client.get("/privacy").get_data(as_text=True)
+        assert "not loaded until you select" in html
+        assert "Review analytics choices" in html
+        assert "We do not use third-party analytics" not in html
 
 
 # ── SSR Crisis Map page (/map) ────────────────────────────────────────────────
@@ -345,7 +389,7 @@ class TestCrisisPages:
         if resp.status_code == 404:
             pytest.skip("no populated data in this checkout")
         html = resp.get_data(as_text=True)
-        assert "live crisis overview" in html
+        assert "humanitarian crisis overview" in html
         assert "Recent reports" in html or "Main themes" in html
         assert "auth-overlay" not in html
         assert 'class="crisis-header"' in html
@@ -498,6 +542,8 @@ class TestAdSense:
         """When GOOGLE_ADSENSE_CLIENT is configured, public SSR pages ship the
         ad slot; ads.txt returns 200 with the network directive."""
         monkeypatch.setattr("config.GOOGLE_ADSENSE_CLIENT", "ca-pub-1234567890")
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_SLOT_ID", "9876543210")
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_CMP_READY", True)
         resp = client.get("/crisis/sudan")
         if resp.status_code == 404:
             pytest.skip("no populated data in this checkout")
@@ -505,8 +551,30 @@ class TestAdSense:
         assert "adsbygoogle" in html
         assert "crisis-ad" in html
         assert "ca-pub-1234567890" in html
+        assert 'data-ad-slot="9876543210"' in html
 
         ads = client.get("/ads.txt")
         assert ads.status_code == 200
         body = ads.get_data(as_text=True)
         assert "google.com, 1234567890, DIRECT, f08c47fec0942fa0" in body
+
+    def test_ads_do_not_render_until_cmp_is_ready(self, client, monkeypatch):
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_CLIENT", "ca-pub-1234567890")
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_SLOT_ID", "9876543210")
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_CMP_READY", False)
+
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        assert "adsbygoogle" not in resp.get_data(as_text=True)
+        assert client.get("/ads.txt").status_code == 200
+
+    def test_ads_do_not_render_with_placeholder_or_missing_slot(self, client, monkeypatch):
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_CLIENT", "ca-pub-1234567890")
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_SLOT_ID", "")
+        monkeypatch.setattr("config.GOOGLE_ADSENSE_CMP_READY", True)
+
+        resp = client.get("/crisis/sudan")
+        if resp.status_code == 404:
+            pytest.skip("no populated data in this checkout")
+        assert "adsbygoogle" not in resp.get_data(as_text=True)

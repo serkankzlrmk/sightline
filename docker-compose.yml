@@ -34,6 +34,12 @@ services:
       DESKTOP_MODE: ${DESKTOP_MODE:-false}
       # Firebase service account path (env-driven)
       FIREBASE_SERVICE_ACCOUNT_PATH: /app/firebase-service-account.json
+      # Read-only Search Console reporting. The same service account can be
+      # granted access to the configured Search Console property.
+      GSC_ENABLED: ${GSC_ENABLED:-false}
+      GSC_SITE_URL: ${GSC_SITE_URL:-https://sightlinehumanitarian.com/}
+      GSC_CREDENTIALS_PATH: /app/firebase-service-account.json
+      GSC_DB_PATH: /app/data/growth.db
       # Proposal bridge: Proposal blueprints run inside the Sightline process
       PROPOSAL_BRIDGE: "1"
       # Proposal DB stays separate from Sightline's reliefweb.db
@@ -41,9 +47,14 @@ services:
       # Proposal PDF output — writable Sightline volume (not the ro repo mount)
       OUTPUT_DIR: /app/output
       # Google Analytics 4 Measurement ID (empty = tag not rendered)
-      GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
+      GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-G-SJMDY64ZKG}
       # Google AdSense publisher ID (empty = no ad code; public SSR pages only)
       GOOGLE_ADSENSE_CLIENT: ${GOOGLE_ADSENSE_CLIENT:-}
+      GOOGLE_ADSENSE_SLOT_ID: ${GOOGLE_ADSENSE_SLOT_ID:-}
+      # Keep disabled until the site's Google-certified CMP is verified.
+      GOOGLE_ADSENSE_CMP_READY: ${GOOGLE_ADSENSE_CMP_READY:-false}
+      # CARTO basemap API key (empty = crisis map falls back to OpenStreetMap tiles)
+      CARTO_API_KEY: ${CARTO_API_KEY:-}
     volumes:
       - reliefweb_db:/app/data
       - chroma_data:/app/reliefweb_chroma

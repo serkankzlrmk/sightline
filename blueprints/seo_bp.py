@@ -228,32 +228,246 @@ def _cached(key: str, cache: dict, ttl: int, builder) -> str:
 
 
 # ── Render helpers ─────────────────────────────────────────────────────────────
+def _active_adsense_config() -> tuple[str, str]:
+    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ADSENSE_CMP_READY, GOOGLE_ADSENSE_SLOT_ID
+
+    if not GOOGLE_ADSENSE_CMP_READY:
+        return "", ""
+    if not re.fullmatch(r"ca-pub-\d+", GOOGLE_ADSENSE_CLIENT):
+        return "", ""
+    if not re.fullmatch(r"\d+", GOOGLE_ADSENSE_SLOT_ID):
+        return "", ""
+    return GOOGLE_ADSENSE_CLIENT, GOOGLE_ADSENSE_SLOT_ID
+
+
 def _render_detail(title: str, description: str, path: str, body_html: str, json_ld: dict) -> str:
-    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ANALYTICS_ID
+
+    adsense_client, adsense_slot = _active_adsense_config()
 
     return render_template(
         "seo_detail.html",
         page_title=title,
         page_description=description,
         canonical=f"{SITE_URL}/{path}",
+        site_url=SITE_URL,
         body_html=body_html,
         json_ld=json.dumps(json_ld, ensure_ascii=False),
         analytics_id=GOOGLE_ANALYTICS_ID,
-        adsense_client=GOOGLE_ADSENSE_CLIENT,
+        adsense_client=adsense_client,
+        adsense_slot=adsense_slot,
     )
 
 
 def _render_list(title: str, description: str, items: list[dict], path: str) -> str:
-    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ANALYTICS_ID
+
+    adsense_client, adsense_slot = _active_adsense_config()
 
     return render_template(
         "seo_list.html",
         page_title=title,
         page_description=description,
         canonical=f"{SITE_URL}/{path}",
+        site_url=SITE_URL,
         items=items,
         analytics_id=GOOGLE_ANALYTICS_ID,
-        adsense_client=GOOGLE_ADSENSE_CLIENT,
+        adsense_client=adsense_client,
+        adsense_slot=adsense_slot,
+    )
+
+
+# =============================================================================
+# ROUTES - Solutions (campaign and high-intent organic landing pages)
+# =============================================================================
+
+_SOLUTION_PAGES = {
+    "sitrep": {
+        "product_name": "Sightline SITREP",
+        "page_title": "Humanitarian Situation Report Software",
+        "page_description": (
+            "Create cited humanitarian situation reports from trusted sources with a guided, reviewable workflow."
+        ),
+        "headline": "Build cited SITREPs.",
+        "subtext": "Build cited reports from trusted humanitarian sources, structured for review and export.",
+        "primary_label": "Create a SITREP",
+        "primary_url": "/app#sitrep",
+        "primary_event": "create_sitrep",
+        "secondary_label": "View crisis data",
+        "secondary_url": "/crisis",
+        "hero_alt": "Sightline signal across a humanitarian data map",
+        "proof_points": [
+            "Source-linked findings",
+            "Explicit coverage dates",
+            "Human review before use",
+            "Structured export",
+        ],
+        "workflow_title": "From source material to reviewed report",
+        "workflow": [
+            {
+                "title": "Collect",
+                "body": "Bring ReliefWeb reports, HDX data, alerts, weather and economic context into one evidence layer.",
+            },
+            {
+                "title": "Structure",
+                "body": "Turn selected evidence into report sections, findings and a cited narrative through a guided pipeline.",
+            },
+            {
+                "title": "Review",
+                "body": "Inspect sources, dates and generated sections before the report is used or shared.",
+            },
+            {
+                "title": "Export",
+                "body": "Produce a structured situation report for team review and operational use.",
+            },
+        ],
+        "use_title": "Designed for time-critical secondary analysis",
+        "use_body": (
+            "Sightline helps humanitarian analysts assemble scattered source material into a transparent draft. "
+            "It keeps evidence visible so teams can review conclusions instead of trusting an unexplained output."
+        ),
+        "use_points": [
+            "Country and crisis evidence remains linked to its source.",
+            "Report coverage dates are visible throughout the public data surface.",
+            "Missing source data is shown as unavailable instead of being invented.",
+        ],
+        "boundary_title": "Decision support with clear boundaries",
+        "boundary_body": (
+            "Sightline supports research and report preparation. It is not an official warning service, "
+            "and it does not replace field assessment, coordination mechanisms or professional judgment."
+        ),
+        "faqs": [
+            {
+                "question": "Which sources can support a SITREP?",
+                "answer": (
+                    "Sightline can combine ReliefWeb reports with available HDX, GDACS, weather and economic context. "
+                    "The exact evidence depends on source coverage for the selected country and period."
+                ),
+            },
+            {
+                "question": "Can teams review the generated report?",
+                "answer": (
+                    "Yes. The workflow is designed for source inspection and human review before operational use or export."
+                ),
+            },
+        ],
+    },
+    "proposal": {
+        "product_name": "Sightline Proposal Studio",
+        "page_title": "Humanitarian Proposal Writing Software",
+        "page_description": (
+            "Draft donor-ready humanitarian proposals with guided structure, evidence support, quality checks and export."
+        ),
+        "headline": "Build donor-ready proposals.",
+        "subtext": "Draft donor-ready proposals with evidence support, quality checks and structured export.",
+        "primary_label": "Open Proposal Studio",
+        "primary_url": "/proposal",
+        "primary_event": "open_proposal",
+        "secondary_label": "View crisis data",
+        "secondary_url": "/crisis",
+        "hero_alt": "Sightline signal across a humanitarian data map",
+        "proof_points": [
+            "ECHO, USAID/BHA and OCHA CBPF structures",
+            "SMART indicator review",
+            "Cross-section consistency checks",
+            "PDF and Markdown export",
+        ],
+        "workflow_title": "Move from call requirements to a coherent draft",
+        "workflow": [
+            {
+                "title": "Frame",
+                "body": "Start with the donor, call requirements, response context and the problem the intervention must address.",
+            },
+            {
+                "title": "Draft",
+                "body": "Develop the proposal through a guided sequence that keeps objectives, activities and indicators connected.",
+            },
+            {
+                "title": "Check",
+                "body": "Review SMART indicators, source quality, completeness and consistency across proposal sections.",
+            },
+            {
+                "title": "Export",
+                "body": "Prepare a reviewable PDF or Markdown output for the team and the next approval stage.",
+            },
+        ],
+        "use_title": "Built for proposal teams that need traceability",
+        "use_body": (
+            "Proposal Studio connects programme logic, evidence and donor structure in one workflow. "
+            "Quality checks help teams find weak sections before a draft reaches internal review."
+        ),
+        "use_points": [
+            "Objectives, activities and indicators stay connected across sections.",
+            "Evidence can be carried forward from Sightline crisis intelligence.",
+            "Quality feedback remains review guidance, not an automatic approval decision.",
+        ],
+        "boundary_title": "A drafting system, not a funding guarantee",
+        "boundary_body": (
+            "Proposal Studio supports preparation and review. Donor eligibility, compliance, budget approval "
+            "and final submission remain the responsibility of the applicant organization."
+        ),
+        "faqs": [
+            {
+                "question": "Which donor structures are supported?",
+                "answer": (
+                    "The current workflow supports proposal structures for ECHO HIP, USAID/BHA and OCHA CBPF use cases."
+                ),
+            },
+            {
+                "question": "Does Proposal Studio submit an application?",
+                "answer": (
+                    "No. It supports drafting, checking and export. Your organization retains review, approval and submission responsibility."
+                ),
+            },
+        ],
+    },
+}
+
+
+@seo_bp.route("/solutions/<slug>")
+def solution_landing(slug: str):
+    page = _SOLUTION_PAGES.get(slug)
+    if not page:
+        abort(404)
+
+    from config import GOOGLE_ANALYTICS_ID
+
+    canonical = f"{SITE_URL}/solutions/{slug}"
+    json_ld = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "SoftwareApplication",
+                "name": page["product_name"],
+                "applicationCategory": "BusinessApplication",
+                "operatingSystem": "Web",
+                "url": canonical,
+                "description": page["page_description"],
+                "featureList": page["proof_points"],
+                "publisher": {"@type": "Organization", "name": "Sightline"},
+            },
+            {
+                "@type": "FAQPage",
+                "mainEntity": [
+                    {
+                        "@type": "Question",
+                        "name": item["question"],
+                        "acceptedAnswer": {"@type": "Answer", "text": item["answer"]},
+                    }
+                    for item in page["faqs"]
+                ],
+            },
+        ],
+    }
+    record_page_view(f"/solutions/{slug}", request.headers.get("User-Agent", ""))
+    return render_template(
+        "solution_landing.html",
+        page=page,
+        solution_slug=slug,
+        canonical=canonical,
+        site_url=SITE_URL,
+        analytics_id=GOOGLE_ANALYTICS_ID,
+        json_ld=json.dumps(json_ld, ensure_ascii=False),
     )
 
 
@@ -450,7 +664,7 @@ def sitrep_detail(slug: str):
 # ROUTES — Crisis (Programmatic per-country pages, P2 real-data gate)
 # =============================================================================
 
-_CRISIS_PUBLISH_MIN_REPORTS = 3  # P2 publish predicate: report_count >= N OR live GDACS alert
+_CRISIS_PUBLISH_MIN_REPORTS = 3
 
 # Country name variants → canonical English name for slug consistency
 # (mirrors the alias table in public_bp.api_map_countries).
@@ -469,6 +683,53 @@ def _crisis_slug(country: str) -> str:
     return slugify(name.replace(" ", "_"))
 
 
+def _has_live_crisis_alert(entry: dict) -> bool:
+    return any(
+        str(alert.get("alert_level", "")).lower() in ("orange", "red")
+        for alert in (entry.get("gdacs_alerts") or [])
+        if isinstance(alert, dict)
+    )
+
+
+def _is_crisis_publishable(entry: dict) -> bool:
+    """Require traceable report evidence, with live alerts as an override."""
+    if _has_live_crisis_alert(entry):
+        return True
+    if int(entry.get("report_count") or 0) < _CRISIS_PUBLISH_MIN_REPORTS:
+        return False
+
+    primary_count = entry.get("primary_report_count")
+    if primary_count is not None and int(primary_count or 0) < 1:
+        return False
+
+    has_report_link = any(
+        str(report.get("title") or "").strip()
+        and str(report.get("url") or "").startswith(("https://", "http://"))
+        for report in (entry.get("recent_reports") or [])
+        if isinstance(report, dict)
+    )
+    has_named_source = any(
+        str(source.get("name") or "").strip()
+        for source in (entry.get("top_sources") or [])
+        if isinstance(source, dict)
+    )
+    return has_report_link and has_named_source
+
+
+def _crisis_entry_lastmod(entry: dict) -> str:
+    """Use the source coverage date instead of pretending every page changed today."""
+    candidates = [
+        (entry.get("data_freshness") or {}).get("coverage_through"),
+        (entry.get("date_range") or {}).get("max_date"),
+        entry.get("last_updated"),
+    ]
+    for candidate in candidates:
+        value = str(candidate or "")[:10]
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            return value
+    return time.strftime("%Y-%m-%d")
+
+
 def _crisis_country_data() -> list[dict]:
     """Country data for /crisis pages — reuses the public map endpoint so the
     data shape and caching stay in one place (no ChromaDB access here)."""
@@ -485,7 +746,7 @@ def _crisis_country_data() -> list[dict]:
 
 def _crisis_page(slug: str, allow_noindex: bool = False):
     """Build a /crisis/<slug> SSR page. Returns (html, status) — 404 when the
-    country is unknown; noindex only when below the publish predicate (and the
+    country is unknown; noindex only when below the evidence gate (and the
     route explicitly opts in, so crawlers only see the meta tag on thin pages,
     never on the real ones)."""
     from sitrep.country_summary import _country_to_iso3
@@ -507,7 +768,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     alert_levels = sorted(by_level, key=lambda lv: ["green", "orange", "red"].index(lv) if lv in ("green", "orange", "red") else 99)
     has_live_alert = any(lv in ("orange", "red") for lv in by_level)
 
-    published = count >= _CRISIS_PUBLISH_MIN_REPORTS or has_live_alert
+    published = _is_crisis_publishable(entry)
     noindex = allow_noindex and not published
 
     map_url = f"/app?{urlencode({'country': country})}#crisis-map"
@@ -552,7 +813,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     headlines = entry.get("top_themes") or []
     recent = entry.get("recent_reports") or []
     figures = entry.get("hdx_key_figures") or []
-    as_of = (entry.get("last_updated") or entry.get("generated_at") or time.strftime("%Y-%m-%d"))
+    as_of = _crisis_entry_lastmod(entry)
     if isinstance(as_of, str) and len(as_of) > 10:
         as_of = as_of[:10]
 
@@ -595,6 +856,13 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     lo, hi = dr.get("min_date"), dr.get("max_date")
     if lo and hi:
         hero_extra += f'<p class="crisis-asof">Reports from {_sanitize_html(str(lo))} to {_sanitize_html(str(hi))}</p>'
+    freshness = entry.get("data_freshness") or {}
+    freshness_status = str(freshness.get("status") or "").strip().lower()
+    if freshness_status and freshness_status != "unknown":
+        hero_extra += (
+            '<p class="crisis-asof">Data freshness: '
+            f'{_sanitize_html(freshness_status.title())} · coverage through {_sanitize_html(str(as_of))}</p>'
+        )
 
     # Related: country summary + bulletins (internal linking for Google crawl)
     rel = []
@@ -609,27 +877,42 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         parts.append('<section class="crisis-card"><p class="crisis-pending">Data pending. Latest information will appear here as sources update.</p></section>')
     body_html = "".join(parts)
 
-    title = f"{country}: live crisis overview"
-    description = f"Live humanitarian overview for {country}: latest reports, alerts and key figures from trusted sources."
+    title = f"{country} humanitarian crisis overview"
+    description = (
+        f"{count} humanitarian reports for {country}, with source coverage through {as_of}, "
+        "plus alerts and key figures from trusted sources."
+    )
     json_ld = {
         "@context": "https://schema.org",
         "@type": "Dataset",
         "name": f"Sightline: {country} crisis data",
         "description": description,
-        "datePublished": time.strftime("%Y-%m-%d"),
+        "datePublished": as_of,
+        "dateModified": as_of,
         "mainEntityOfPage": f"{SITE_URL}/crisis/{slug}",
         "publisher": {"@type": "Organization", "name": "Sightline"},
+        "spatialCoverage": {"@type": "Place", "name": country},
+        "citation": [
+            report.get("url")
+            for report in recent[:5]
+            if isinstance(report, dict) and str(report.get("url") or "").startswith(("https://", "http://"))
+        ],
     }
+    if lo and hi:
+        json_ld["temporalCoverage"] = f"{lo}/{hi}"
     if noindex:
         json_ld["url"] = f"{SITE_URL}/crisis/{slug}"
 
-    from config import GOOGLE_ADSENSE_CLIENT, GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ANALYTICS_ID
+
+    adsense_client, adsense_slot = _active_adsense_config()
 
     html = render_template(
         "crisis_detail.html",
         page_title=title,
         page_description=description,
         canonical=f"{SITE_URL}/crisis/{slug}",
+        site_url=SITE_URL,
         body_html=body_html,
         hero_badges=hero_badges,
         hero_extra=hero_extra,
@@ -638,10 +921,10 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         as_of=as_of,
         json_ld=json.dumps(json_ld, ensure_ascii=False),
         analytics_id=GOOGLE_ANALYTICS_ID,
-        adsense_client=GOOGLE_ADSENSE_CLIENT,
+        adsense_client=adsense_client,
+        adsense_slot=adsense_slot,
+        robots="noindex,follow" if noindex else "index,follow,max-image-preview:large",
     )
-    if noindex:
-        html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
     return html
 
 
@@ -664,23 +947,20 @@ def crisis_index():
         if not c_slug:
             continue
         count = c.get("report_count", 0) or 0
-        gdacs = c.get("gdacs_alerts") or []
-        has_alert = any(
-            str(a.get("alert_level", "")).lower() in ("orange", "red")
-            for a in gdacs if isinstance(a, dict)
-        )
-        if count < _CRISIS_PUBLISH_MIN_REPORTS and not has_alert:
+        has_alert = _has_live_crisis_alert(c)
+        if not _is_crisis_publishable(c):
             continue
         items.append({
             "url": f"/crisis/{c_slug}",
-            "title": f"{country} — live crisis overview",
+            "title": f"{country} — humanitarian crisis overview",
             "subtitle": f"{count} reports" + (" · live alert" if has_alert else ""),
+            "sort_count": count,
         })
-    items.sort(key=lambda x: x["subtitle"], reverse=True)
+    items.sort(key=lambda x: x["sort_count"], reverse=True)
     record_page_view("/crisis", request.headers.get("User-Agent", ""))
     return _render_list(
-        "Crisis overviews — live humanitarian country pages",
-        "Per-country live crisis overviews: reports, alerts and key figures from trusted sources.",
+        "Crisis overviews — humanitarian country pages",
+        "Per-country humanitarian overviews with dated reports, alerts and key figures from trusted sources.",
         items,
         "crisis",
     )
@@ -737,10 +1017,11 @@ def crisis_map():
             "map_ssr.html",
             page_title="Humanitarian Crisis Map — Sightline",
             page_description=(
-                "Live humanitarian crisis map: 60 countries ranked by ReliefWeb "
+                "Humanitarian crisis map: 60 countries ranked by ReliefWeb "
                 "report volume, severity, and displacement data from HDX and GDACS."
             ),
             canonical=f"{SITE_URL}/map",
+            site_url=SITE_URL,
             countries=cards,
             analytics_id=GOOGLE_ANALYTICS_ID,
         )
@@ -770,6 +1051,8 @@ def _sitemap_builder() -> str:
     # underlying file's mtime so Search Console doesn't see stale dates.
     urls: list[tuple[str, str]] = [
         (f"{SITE_URL}/", today),
+        (f"{SITE_URL}/solutions/sitrep", today),
+        (f"{SITE_URL}/solutions/proposal", today),
         (f"{SITE_URL}/bulletins", today),
         (f"{SITE_URL}/countries", today),
         (f"{SITE_URL}/map", today),
@@ -781,21 +1064,14 @@ def _sitemap_builder() -> str:
         urls.append((f"{SITE_URL}/country/{slug}", _lastmod(COUNTRY_SUMMARY_DIR / filename)))
     for fname, slug in _sitrep_report_files():
         urls.append((f"{SITE_URL}/sitrep/{slug}", _lastmod(OUTPUT_REPORTS_DIR / fname)))
-    # /crisis/<slug> — only countries passing the P2 publish predicate
-    # (report_count >= 3 OR live orange/red alert) enter the sitemap;
-    # below-threshold pages stay noindex and are excluded here.
+    # /crisis/<slug> — only pages with traceable country evidence or a live
+    # orange/red alert enter the sitemap. Thin pages remain available but noindex.
     for c in _crisis_country_data():
         c_slug = _crisis_slug(c.get("country", ""))
         if not c_slug:
             continue
-        count = c.get("report_count", 0) or 0
-        gdacs = c.get("gdacs_alerts") or []
-        has_alert = any(
-            str(a.get("alert_level", "")).lower() in ("orange", "red")
-            for a in gdacs if isinstance(a, dict)
-        )
-        if count >= _CRISIS_PUBLISH_MIN_REPORTS or has_alert:
-            urls.append((f"{SITE_URL}/crisis/{c_slug}", today))
+        if _is_crisis_publishable(c):
+            urls.append((f"{SITE_URL}/crisis/{c_slug}", _crisis_entry_lastmod(c)))
     if len(urls) <= 3:
         # An empty sitemap violates the protocol and triggers Search Console
         # errors — serve 404 instead (D16).
@@ -819,7 +1095,8 @@ def sitemap_xml():
 @seo_bp.route("/robots.txt")
 def robots_txt():
     return (
-        f"User-agent: *\nAllow: /\nDisallow: /app\nSitemap: {SITE_URL}/sitemap.xml\n",
+        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /app\n"
+        f"Disallow: /proposal\nSitemap: {SITE_URL}/sitemap.xml\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )

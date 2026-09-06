@@ -20,6 +20,10 @@ sqlite3 "$APP_DIR/data/reliefweb.db" ".backup $BACKUP_DIR/reliefweb_$DATE.db" 2>
     cp "$APP_DIR/data/reliefweb.db" "$BACKUP_DIR/reliefweb_$DATE.db"
 sqlite3 "$APP_DIR/data/chats.db" ".backup $BACKUP_DIR/chats_$DATE.db" 2>/dev/null || \
     cp "$APP_DIR/data/chats.db" "$BACKUP_DIR/chats_$DATE.db"
+if [ -f "$APP_DIR/data/growth.db" ]; then
+    sqlite3 "$APP_DIR/data/growth.db" ".backup $BACKUP_DIR/growth_$DATE.db" 2>/dev/null || \
+        cp "$APP_DIR/data/growth.db" "$BACKUP_DIR/growth_$DATE.db"
+fi
 
 # ChromaDB backup (directory copy)
 echo "[$DATE] Backing up ChromaDB..."

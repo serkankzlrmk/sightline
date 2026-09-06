@@ -43,6 +43,7 @@ HDX_TOP_COUNTRIES = int(os.getenv("COUNTRY_SUMMARY_HDX_TOP", "30"))
 # These datasets change slowly (monthly at best) — 30 days is the sweet spot.
 EXTERNAL_DATA_TTL_DAYS = int(os.getenv("COUNTRY_SUMMARY_EXTERNAL_TTL_DAYS", "30"))
 EXTERNAL_DATA_TTL = EXTERNAL_DATA_TTL_DAYS * 86400
+COUNTRY_SUMMARY_SCHEMA_VERSION = 2
 
 
 def _get_db():
@@ -191,6 +192,98 @@ def _build_data_narrative(
     return {"headline": headline, "narrative": narrative}
 
 
+def _aggregate_report_evidence(rows: list[dict]) -> dict:
+    """Aggregate chunk metadata once per report, prioritizing primary-country evidence."""
+    reports: dict[object, dict] = {}
+    for row in rows:
+        report_id = row.get("report_id")
+        key = report_id or (
+            row.get("url", ""),
+            row.get("title", ""),
+            row.get("date", ""),
+        )
+        report = reports.setdefault(
+            key,
+            {
+                "report_id": report_id,
+                "title": row.get("title", ""),
+                "date": row.get("date", ""),
+                "source": row.get("source", ""),
+                "url": row.get("url", ""),
+                "is_primary_country": bool(row.get("is_primary_country", True)),
+                "themes": set(),
+            },
+        )
+        report["themes"].update(parse_themes(row.get("themes", "")))
+
+    ranked = sorted(
+        reports.values(),
+        key=lambda report: (
+            bool(report["is_primary_country"]),
+            str(report.get("date") or ""),
+            int(report.get("report_id") or 0),
+        ),
+        reverse=True,
+    )
+    primary_reports = [report for report in ranked if report["is_primary_country"]]
+    evidence_reports = primary_reports or ranked
+
+    theme_counter = Counter()
+    source_counter = Counter()
+    for report in evidence_reports:
+        theme_counter.update(report["themes"])
+        source = report.get("source", "")
+        if source:
+            source_counter[source] += 1
+
+    recent_reports = [
+        {
+            "title": report.get("title", ""),
+            "date": report.get("date", ""),
+            "source": report.get("source", ""),
+            "url": report.get("url", ""),
+            "country_relevance": "primary" if report["is_primary_country"] else "mentioned",
+        }
+        for report in ranked
+        if report.get("title")
+    ]
+    return {
+        "top_themes": [theme for theme, _ in theme_counter.most_common(8)],
+        "top_sources": [
+            {"name": source, "count": count}
+            for source, count in source_counter.most_common(5)
+        ],
+        "recent_reports": recent_reports,
+        "evidence_report_count": len(reports),
+    }
+
+
+def _data_freshness(max_date: str | None, now: datetime | None = None) -> dict:
+    """Return a stable freshness label for the newest ReliefWeb report date."""
+    if not max_date:
+        return {"status": "unknown", "age_days": None, "coverage_through": ""}
+    try:
+        coverage_date = datetime.fromisoformat(str(max_date)[:10]).date()
+        current_date = (now or datetime.now(UTC)).date()
+        age_days = max(0, (current_date - coverage_date).days)
+    except (TypeError, ValueError):
+        return {"status": "unknown", "age_days": None, "coverage_through": ""}
+
+    if age_days <= 7:
+        status = "active"
+    elif age_days <= 30:
+        status = "current"
+    elif age_days <= 90:
+        status = "aging"
+    else:
+        status = "stale"
+    return {
+        "status": status,
+        "age_days": age_days,
+        "coverage_through": coverage_date.isoformat(),
+    }
+
+
 def generate_country_summary(country: str, force_hdx: bool = False) -> dict | None:
     """Generate a full intelligence summary for a single country.
 
@@ -213,44 +306,17 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
     if report_count < MIN_REPORTS:
         return None
 
-    # 2. Get chunks for themes, sources, recent reports
+    # 2. Get report metadata for themes, sources, and recent reports
     try:
-        chunks = db.get_chunks_by_country(country, limit=100)
+        report_rows = db.get_reports_by_country(country, limit=100)
     except Exception as e:
-        logger.warning("Failed to fetch chunks for %s: %s", country, e)
-        chunks = []
+        logger.warning("Failed to fetch report metadata for %s: %s", country, e)
+        report_rows = []
 
-    # Aggregate themes + sources
-    theme_counter = Counter()
-    source_counter = Counter()
-    recent_reports = []
-    seen_titles = set()
-
-    for chunk in chunks:
-        # Themes
-        raw_themes = chunk.get("themes", "")
-        for t in parse_themes(raw_themes):
-            theme_counter[t] += 1
-        # Sources
-        source = chunk.get("source", "")
-        if source:
-            source_counter[source] += 1
-        # Recent reports (dedup by title)
-        title = chunk.get("title", "")
-        if title and title not in seen_titles and len(recent_reports) < 10:
-            seen_titles.add(title)
-            recent_reports.append(
-                {
-                    "title": title,
-                    "date": chunk.get("date", ""),
-                    "source": source,
-                    "url": chunk.get("url", ""),
-                }
-            )
-
-    top_themes = [t for t, _ in theme_counter.most_common(8)]
-    # top_sources: list of {name, count} dicts (LLM-free, straight from DB)
-    top_sources = [{"name": s, "count": c} for s, c in source_counter.most_common(5)]
+    evidence = _aggregate_report_evidence(report_rows)
+    top_themes = evidence["top_themes"]
+    top_sources = evidence["top_sources"]
+    recent_reports = evidence["recent_reports"]
     severity = _determine_severity(report_count, top_themes)
     coords = _get_country_coords(country)
     iso3 = _country_to_iso3(country)
@@ -296,7 +362,9 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
         worldbank_fetched_at = prev_wb_fetched
 
     # 6. Data-driven narrative (NO LLM — deterministic templates)
-    date_str = f"{date_range.get('min_date', '?')} to {date_range.get('max_date', '?')}"
+    min_date = date_range.get("min_date") or date_range.get("min") or ""
+    max_date = date_range.get("max_date") or date_range.get("max") or ""
+    date_str = f"{min_date or '?'} to {max_date or '?'}"
     narrative = _build_data_narrative(country, report_count, top_themes, top_sources, hdx_data, gdacs_alerts, date_str)
 
     # 7. Check for existing SITREP reports
@@ -309,15 +377,20 @@ def generate_country_summary(country: str, force_hdx: bool = False) -> dict | No
 
     # 8. Build summary
     summary = {
+        "schema_version": COUNTRY_SUMMARY_SCHEMA_VERSION,
         "country": country,
         "iso3": iso3,
         "coords": coords,
         "severity": severity,
         "report_count": report_count,
+        "primary_report_count": date_range.get("primary_count"),
+        "mentioned_report_count": date_range.get("mentioned_count"),
+        "evidence_report_count": evidence["evidence_report_count"],
         "date_range": {
-            "min_date": date_range.get("min_date", ""),
-            "max_date": date_range.get("max_date", ""),
+            "min_date": min_date,
+            "max_date": max_date,
         },
+        "data_freshness": _data_freshness(max_date),
         "headline": narrative.get("headline", ""),
         "narrative": narrative.get("narrative", ""),
         "top_themes": top_themes,
@@ -393,7 +466,11 @@ def generate_all_country_summaries(max_countries: int = 80) -> dict:
         if existing_path.exists():
             try:
                 existing = json.loads(existing_path.read_text(encoding="utf-8"))
-                if existing.get("report_count") == count and time.time() - existing.get("generated_ts", 0) < 12 * 3600:
+                if (
+                    existing.get("schema_version") == COUNTRY_SUMMARY_SCHEMA_VERSION
+                    and existing.get("report_count") == count
+                    and time.time() - existing.get("generated_ts", 0) < 12 * 3600
+                ):
                     skipped += 1
                     continue
             except Exception:

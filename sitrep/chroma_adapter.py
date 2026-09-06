@@ -154,8 +154,12 @@ class ChromaAdapter:
         if self.backend == "pgvector":
             try:
                 result = self._get_pgvector().get_date_range(normalized)
-                if result.get("min"):
-                    return result
+                if result.get("min") or result.get("min_date"):
+                    return {
+                        **result,
+                        "min_date": result.get("min_date") or result.get("min"),
+                        "max_date": result.get("max_date") or result.get("max"),
+                    }
             except Exception:
                 pass
             # SQLite fallback
@@ -189,11 +193,13 @@ class ChromaAdapter:
         "nigeria": "Nigeria",
         "haiti": "Haiti",
         "occupied palestinian territory": "occupied Palestinian territory",
+        "opt": "occupied Palestinian territory",
         "palestine": "occupied Palestinian territory",
         "gaza": "occupied Palestinian territory",
         "israel": "Israel",
         "lebanon": "Lebanon",
         "iraq": "Iraq",
+        "iran": "Iran (Islamic Republic of)",
         "libya": "Libya",
         "mali": "Mali",
         "niger": "Niger",
@@ -240,6 +246,17 @@ class ChromaAdapter:
         # No match found — return original (will likely return 0 results)
         return country
 
+    @classmethod
+    def _country_match_terms(cls, country: str) -> set[str]:
+        """Return case-insensitive aliases that represent the same country."""
+        requested = country.strip().lower()
+        canonical = cls._COUNTRY_ALIASES.get(requested, country).strip().lower()
+        terms = {requested, canonical}
+        for alias, value in cls._COUNTRY_ALIASES.items():
+            if value.strip().lower() == canonical:
+                terms.add(alias.strip().lower())
+        return terms
+
     def list_countries_with_counts(self) -> list[dict]:
         """Returns countries with chunk counts, sorted by count descending.
         Useful for UI dropdowns to show data availability."""
@@ -277,7 +294,8 @@ class ChromaAdapter:
         ingest. Embeddings are NOT included (clustering re-embeds on demand).
 
         Returns:
-            [{id, text, title, url, source, date, themes, primary_country}]
+            [{id, report_id, text, title, url, source, date, themes,
+              primary_country, country_relevance, is_primary_country}]
         """
         normalized = self._normalize_country(country)
 
@@ -303,7 +321,7 @@ class ChromaAdapter:
                     FROM chunks c
                     JOIN reports r ON c.report_id = r.report_id
                     WHERE c.report_id IN ({placeholders})
-                    ORDER BY c.report_id, c.chunk_index
+                    ORDER BY COALESCE(r.date, '') DESC, r.report_id DESC, c.chunk_index
                     LIMIT ?
                     """,
                     (*report_ids, limit),
@@ -337,13 +355,17 @@ class ChromaAdapter:
                 chroma_id = f"{report_id}_{chunk_index}"
                 # primary_country: prefer the queried country; fall back to the
                 # first listed country (some reports list "World" first).
-                if normalized in countries:
+                match_terms = self._country_match_terms(normalized)
+                normalized_countries = [str(c).strip().lower() for c in countries]
+                if any(c in match_terms for c in normalized_countries):
                     primary = normalized
                 else:
                     primary = countries[0] if countries else normalized
+                is_primary_country = bool(normalized_countries and normalized_countries[0] in match_terms)
                 output.append(
                     {
                         "id": chroma_id,
+                        "report_id": report_id,
                         "text": content or "",
                         "title": title or "",
                         "url": url or "",
@@ -352,6 +374,9 @@ class ChromaAdapter:
                         "themes": ", ".join(themes_list) if themes_list else "",
                         "primary_country": primary,
                         "all_countries": ", ".join(countries) if countries else "",
+                        "all_countries_list": countries,
+                        "country_relevance": "primary" if is_primary_country else "mentioned",
+                        "is_primary_country": is_primary_country,
                     }
                 )
             return output
@@ -360,6 +385,68 @@ class ChromaAdapter:
             # SQLite read failing means something is broken; return [] instead
             # of risking a process-killing C-level crash.
             logger.warning("SQLite chunk read failed for %s: %s — returning empty", country, exc)
+            return []
+
+    def get_reports_by_country(self, country: str, limit: int = 100) -> list[dict]:
+        """Return newest report metadata for a country without chunk-level duplication."""
+        normalized = self._normalize_country(country)
+        try:
+            import json as _json
+            import sqlite3
+
+            from config import DB_PATH
+
+            report_ids = self._sqlite_find_report_ids_by_country(normalized, limit=limit)
+            if not report_ids:
+                return []
+            placeholders = ",".join("?" * len(report_ids))
+            conn = sqlite3.connect(str(DB_PATH))
+            try:
+                rows = conn.execute(
+                    f"""
+                    SELECT report_id, title, date, source, url, countries, themes
+                    FROM reports
+                    WHERE report_id IN ({placeholders})
+                    ORDER BY COALESCE(date, '') DESC, report_id DESC
+                    """,
+                    report_ids,
+                ).fetchall()
+            finally:
+                conn.close()
+
+            match_terms = self._country_match_terms(normalized)
+            output = []
+            for report_id, title, date, source, url, countries_raw, themes_raw in rows:
+                try:
+                    countries = _json.loads(countries_raw) if countries_raw else []
+                except (TypeError, ValueError):
+                    countries = []
+                try:
+                    themes = _json.loads(themes_raw) if themes_raw else []
+                except (TypeError, ValueError):
+                    themes = []
+                normalized_countries = [str(item).strip().lower() for item in countries]
+                is_primary_country = bool(normalized_countries and normalized_countries[0] in match_terms)
+                output.append(
+                    {
+                        "id": f"report_{report_id}",
+                        "report_id": report_id,
+                        "text": "",
+                        "title": title or "",
+                        "date": date or "",
+                        "source": source or "",
+                        "url": url or "",
+                        "themes": ", ".join(themes) if themes else "",
+                        "primary_country": normalized if is_primary_country else (countries[0] if countries else ""),
+                        "all_countries": ", ".join(countries) if countries else "",
+                        "all_countries_list": countries,
+                        "country_relevance": "primary" if is_primary_country else "mentioned",
+                        "is_primary_country": is_primary_country,
+                    }
+                )
+            return output
+        except Exception as exc:
+            logger.warning("SQLite report read failed for %s: %s — returning empty", country, exc)
             return []
 
     def get_chunks_by_country_and_themes(
@@ -680,19 +767,46 @@ class ChromaAdapter:
             ).fetchall()
             conn.close()
             dates = []
+            primary_count = 0
+            mentioned_count = 0
+            match_terms = self._country_match_terms(normalized) | self._country_match_terms(country)
             for r in rows:
                 try:
                     cs = _json.loads(r[1])
-                    if normalized in cs or country in cs:
+                    normalized_countries = [str(c).strip().lower() for c in cs]
+                    if any(c in match_terms for c in normalized_countries):
+                        if normalized_countries and normalized_countries[0] in match_terms:
+                            primary_count += 1
+                        else:
+                            mentioned_count += 1
                         if r[0]:
                             dates.append(r[0][:10])
                 except (ValueError, TypeError):
                     pass
-            if dates:
-                return {"min": min(dates), "max": max(dates), "count": len(dates)}
+            report_count = primary_count + mentioned_count
+            if report_count:
+                min_date = min(dates) if dates else None
+                max_date = max(dates) if dates else None
+                return {
+                    "min": min_date,
+                    "max": max_date,
+                    "min_date": min_date,
+                    "max_date": max_date,
+                    "count": report_count,
+                    "primary_count": primary_count,
+                    "mentioned_count": mentioned_count,
+                }
         except Exception:
             pass
-        return {"min": None, "max": None, "count": 0}
+        return {
+            "min": None,
+            "max": None,
+            "min_date": None,
+            "max_date": None,
+            "count": 0,
+            "primary_count": 0,
+            "mentioned_count": 0,
+        }
 
     def _sqlite_find_report_ids_by_country(self, country: str, limit: int = 2000) -> list[int]:
         """Find report IDs that mention a country (in the countries JSON array)."""
@@ -704,32 +818,26 @@ class ChromaAdapter:
 
             conn = sqlite3.connect(str(DB_PATH))
             rows = conn.execute(
-                "SELECT report_id, countries FROM reports WHERE countries IS NOT NULL AND countries != '[]'"
+                "SELECT report_id, date, countries FROM reports "
+                "WHERE countries IS NOT NULL AND countries != '[]'"
             ).fetchall()
             conn.close()
 
-            country_lower = country.strip().lower()
-            aliases = {
-                "syria": "syrian arab republic",
-                "turkey": "türkiye",
-                "iran": "iran (islamic republic of)",
-                "dr congo": "democratic republic of the congo",
-                "opt": "occupied palestinian territory",
-            }
-            alias_lower = aliases.get(country_lower, country_lower)
+            match_terms = self._country_match_terms(country)
 
             ids = []
-            for rid, countries_json in rows:
+            for rid, report_date, countries_json in rows:
                 try:
                     countries = _json.loads(countries_json)
                     for c in countries:
-                        c_lower = c.strip().lower()
-                        if c_lower == country_lower or c_lower == alias_lower:
-                            ids.append(rid)
+                        c_lower = str(c).strip().lower()
+                        if c_lower in match_terms:
+                            ids.append((report_date or "", int(rid)))
                             break
                 except (ValueError, TypeError):
                     pass
-            return ids[:limit]
+            ids.sort(reverse=True)
+            return [rid for _, rid in ids[:limit]]
         except Exception:
             return []
 

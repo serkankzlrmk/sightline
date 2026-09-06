@@ -16,9 +16,14 @@ while :; do
       yesterday=$(date -u +%F)
     fi
     echo "[daily] ingesting text for $yesterday"
-    python scripts/daily_ingest.py --date "$yesterday" --no-purge || true
-    echo "[daily] visual enrichment for $yesterday"
-    python scripts/daily_visual_pipeline.py --date "$yesterday" --r2-required || true
+    if python scripts/daily_ingest.py --date "$yesterday" --no-purge; then
+      if [ -f scripts/daily_visual_pipeline.py ]; then
+        echo "[daily] visual enrichment for $yesterday"
+        python scripts/daily_visual_pipeline.py --date "$yesterday" --r2-required || true
+      fi
+    else
+      echo "[daily] ingest failed; visual enrichment skipped" >&2
+    fi
     rmdir /tmp/sightline-daily-ingest.lock 2>/dev/null || true
   fi
 done

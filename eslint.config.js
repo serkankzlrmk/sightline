@@ -39,6 +39,8 @@ export default [
     // is never parsed as script.
     files: [
       'static/app.js',
+      'static/analytics.js',
+      'static/adsense-loader.js',
       'static/proposal/proposal-wizard.js',
       'static/proposal/proposal-render.js',
       'static/proposal/proposal-review.js',
@@ -56,6 +58,7 @@ export default [
       'static/dashboard.js',
       'static/map/map-core.js',
       'static/map/map-init.js',
+      'static/map/map-config.js',
       'static/bulletin.js',
       'static/landing3d.js',
       'static/advisor-chat.js',

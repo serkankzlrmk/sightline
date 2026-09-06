@@ -18,6 +18,7 @@ from config import (
     BASE_DIR,
     CONTACT_EMAIL,
     DB_PATH,
+    SITE_URL,
 )
 from reliefweb_api.hdx_tools import get_hdx_client
 from reliefweb_api.news_tools import get_news_client
@@ -52,7 +53,12 @@ def _frontend_version() -> str:
 def landing():
     from config import GOOGLE_ANALYTICS_ID
 
-    return render_template("landing.html", v=_frontend_version(), analytics_id=GOOGLE_ANALYTICS_ID)
+    return render_template(
+        "landing.html",
+        v=_frontend_version(),
+        analytics_id=GOOGLE_ANALYTICS_ID,
+        site_url=SITE_URL,
+    )
 
 
 @main_bp.route("/googleb68b482e730d338b.html")
@@ -63,13 +69,51 @@ def google_verification():
 
 @main_bp.route("/app")
 def spa():
-    from config import GOOGLE_ANALYTICS_ID
+    from config import GOOGLE_ANALYTICS_ID, CARTO_API_KEY
 
     return render_template(
         "index.html",
         v=_frontend_version(),
         contact_email=CONTACT_EMAIL,
         analytics_id=GOOGLE_ANALYTICS_ID,
+        carto_api_key=CARTO_API_KEY,
+    )
+
+
+@main_bp.route("/privacy")
+def privacy_policy():
+    from config import (
+        GOOGLE_ADSENSE_CLIENT,
+        GOOGLE_ADSENSE_CMP_READY,
+        GOOGLE_ADSENSE_SLOT_ID,
+        GOOGLE_ANALYTICS_ID,
+    )
+
+    return render_template(
+        "legal.html",
+        document="privacy",
+        page_title="Privacy Policy",
+        canonical=f"{SITE_URL}/privacy",
+        contact_email=CONTACT_EMAIL,
+        analytics_id=GOOGLE_ANALYTICS_ID,
+        analytics_enabled=bool(GOOGLE_ANALYTICS_ID),
+        ads_enabled=bool(GOOGLE_ADSENSE_CLIENT and GOOGLE_ADSENSE_SLOT_ID and GOOGLE_ADSENSE_CMP_READY),
+    )
+
+
+@main_bp.route("/terms")
+def terms_of_use():
+    from config import GOOGLE_ANALYTICS_ID
+
+    return render_template(
+        "legal.html",
+        document="terms",
+        page_title="Terms of Use",
+        canonical=f"{SITE_URL}/terms",
+        contact_email=CONTACT_EMAIL,
+        analytics_id=GOOGLE_ANALYTICS_ID,
+        analytics_enabled=bool(GOOGLE_ANALYTICS_ID),
+        ads_enabled=False,
     )
 
 
@@ -83,7 +127,7 @@ def health():
     """
     from config import CHROMA_DIR
 
-    checks = {"status": "ok", "version": "1.2"}
+    checks = {"status": "ok", "version": "1.3"}
 
     # SQLite DB check
     db_ok = False
@@ -105,6 +149,15 @@ def health():
     # HDX/News checks (boolean only)
     checks["hdx"] = get_hdx_client() is not None
     checks["news"] = get_news_client() is not None
+
+    # Data freshness is observable but non-critical for process health. A
+    # stale source snapshot should alert operators without restarting the app.
+    try:
+        from reliefweb_api.ingest_status import database_freshness
+
+        checks["data_fresh"] = database_freshness()["is_fresh"]
+    except Exception:
+        checks["data_fresh"] = False
 
     # Overall status: ok only if all critical checks pass
     all_ok = db_ok and checks.get("vector", False) and checks["llm"]

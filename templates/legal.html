@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }} - Sightline</title>
+  <meta name="description" content="{{ page_title }} for the Sightline humanitarian intelligence platform.">
+  <meta name="robots" content="noindex,follow">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="icon" href="/static/logo-signal-horizon.png">
+  <style>
+    body { margin: 0; background: #f8fafc; color: #172033; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 22px 72px; }
+    nav { display: flex; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #dbe2ea; }
+    a { color: #155eaa; }
+    h1 { margin: 36px 0 4px; font-size: clamp(30px, 5vw, 44px); line-height: 1.1; }
+    h2 { margin: 34px 0 8px; font-size: 21px; }
+    .updated { margin: 0 0 32px; color: #64748b; font-size: 14px; }
+    .choice { margin-top: 28px; padding: 18px; background: #eaf4ff; border: 1px solid #bfdbfe; border-radius: 10px; }
+    button { min-height: 42px; padding: 9px 15px; color: #fff; background: #155eaa; border: 0; border-radius: 7px; cursor: pointer; font: inherit; font-weight: 650; }
+    footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid #dbe2ea; color: #64748b; font-size: 14px; }
+  </style>
+  {% include '_analytics_head.html' %}
+</head>
+<body>
+  <main>
+    <nav aria-label="Legal pages"><a href="/">Sightline</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+    <h1>{{ page_title }}</h1>
+    <p class="updated">Last updated: 5 September 2026</p>
+
+    {% if document == 'privacy' %}
+      <p>This policy explains what Sightline processes when you browse public crisis information or use authenticated product features.</p>
+
+      <h2>Information you provide</h2>
+      <p>When you sign in, Firebase Authentication processes your Google account identifier, email address, display name and profile image. Sightline stores the account identifier, role and service activity needed to provide chats, reports, proposals and rate limits.</p>
+
+      <h2>Service and security data</h2>
+      <p>The service may process request timestamps, IP-based rate-limit counters, authentication events and technical logs to operate the platform, prevent abuse and investigate failures.</p>
+
+      <h2>Analytics</h2>
+      {% if analytics_enabled %}
+        <p>Google Analytics 4 is available on this site, but its tag is not loaded until you select “Accept analytics.” If accepted, Google may process page paths, interactions, browser and device information, and approximate location derived from network information. Sightline disables Google Signals and advertising-personalization signals in its Analytics configuration.</p>
+      {% else %}
+        <p>Third-party audience analytics are currently disabled.</p>
+      {% endif %}
+
+      <h2>Advertising</h2>
+      {% if ads_enabled %}
+        <p>Public, signed-out content pages may display advertising through Google AdSense. Advertising is not loaded inside the signed-in application. Where Google requires it, advertising is enabled only with a configured Google-certified consent management platform.</p>
+      {% else %}
+        <p>Advertising is currently disabled. If it is enabled later, this policy and the site’s consent controls will identify the advertising provider and applicable choices before advertising is loaded where required.</p>
+      {% endif %}
+
+      <h2>Humanitarian source data</h2>
+      <p>Public crisis information is derived from external humanitarian sources such as ReliefWeb, HDX, GDACS and the World Bank. Source publishers retain responsibility for their original material.</p>
+
+      <h2>Your choices and requests</h2>
+      <p>You can decline optional Analytics, reopen your privacy choices below, and request access or deletion by contacting <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>. Some security and account records may be retained when necessary to protect the service or meet applicable obligations.</p>
+      <div class="choice">
+        <button type="button" data-privacy-choices>Review analytics choices</button>
+      </div>
+    {% else %}
+      <p>By accessing Sightline, you agree to these terms. If you do not agree, do not use the service.</p>
+
+      <h2>Purpose</h2>
+      <p>Sightline supports humanitarian research, secondary-data analysis, situation reporting and proposal development. It is not an official warning service or a substitute for professional field assessment.</p>
+
+      <h2>Source material and generated outputs</h2>
+      <p>External source publishers retain rights in their original material. Automated summaries, analyses and generated documents may contain omissions or errors. Verify consequential decisions against cited original sources.</p>
+
+      <h2>Acceptable use</h2>
+      <p>Do not misuse the service, bypass access controls, overload infrastructure, introduce malicious content, or present generated material as official guidance without appropriate review.</p>
+
+      <h2>Availability and liability</h2>
+      <p>The service is provided on an “as available” basis. Data coverage, external services and generated outputs can change or be unavailable. To the extent permitted by applicable law, Sightline does not guarantee completeness, fitness for a particular purpose or uninterrupted operation.</p>
+
+      <h2>Changes and contact</h2>
+      <p>These terms may be updated as the service evolves. Material changes will be reflected by the date above. Questions can be sent to <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+    {% endif %}
+
+    <footer>Sightline humanitarian intelligence · <a href="/">Return home</a></footer>
+  </main>
+</body>
+</html>

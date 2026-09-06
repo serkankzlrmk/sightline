@@ -63,6 +63,8 @@ window.setUserRole = setUserRole;
 async function loadAnalytics() {
   const tok = window.getIdToken ? window.getIdToken() : '';
   if (!tok) return;
+  loadIngestStatus();
+  loadSearchConsole();
   try {
     const resp = await fetch('/api/admin/analytics', {
       headers: { 'Authorization': 'Bearer ' + tok }
@@ -123,6 +125,94 @@ async function loadAnalytics() {
 }
 window.loadAnalytics = loadAnalytics;
 
+async function loadIngestStatus() {
+  const container = document.getElementById('ingest-status-cards');
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!container || !tok) return;
+  try {
+    const resp = await fetch('/api/ingest/status', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Failed to load ingest status');
+    const data = await resp.json();
+    const database = data.database || {};
+    const lastRun = data.last_run || {};
+    const age = database.age_days == null ? 'Unknown' : `${database.age_days}d`;
+    container.innerHTML = [
+      { label: 'Source freshness', value: database.status || 'unknown' },
+      { label: 'Coverage through', value: database.latest_report_date || '—' },
+      { label: 'Source lag', value: age },
+      { label: 'Reports available', value: database.report_count || 0 },
+      { label: 'Last ingest run', value: lastRun.status || 'unknown' },
+      { label: 'Ingest target', value: lastRun.target_date || '—' },
+    ].map(item => `
+      <div class="kpi-card">
+        <div class="kpi-value">${esc(item.value)}</div>
+        <div class="kpi-label">${esc(item.label)}</div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Ingest status load error:', error);
+    container.innerHTML = '<div class="kpi-card"><div class="kpi-value">Unavailable</div><div class="kpi-label">Data pipeline</div></div>';
+  }
+}
+window.loadIngestStatus = loadIngestStatus;
+
+async function loadSearchConsole() {
+  const cards = document.getElementById('gsc-kpi-cards');
+  const queryBody = document.querySelector('#gsc-query-table tbody');
+  const pageBody = document.querySelector('#gsc-page-table tbody');
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!cards || !queryBody || !pageBody || !tok) return;
+  try {
+    const resp = await fetch('/api/admin/growth/search-console', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Failed to load Search Console data');
+    const data = await resp.json();
+    const snapshot = data.snapshot;
+    if (!snapshot) {
+      const label = data.configured ? 'Awaiting first sync' : 'Integration disabled';
+      cards.innerHTML = `<div class="kpi-card"><div class="kpi-value">${esc(data.status || 'unavailable')}</div><div class="kpi-label">${label}</div></div>`;
+      return;
+    }
+
+    const integer = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+    const decimal = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
+    cards.innerHTML = [
+      { label: 'Organic clicks', value: integer.format(snapshot.clicks || 0) },
+      { label: 'Search impressions', value: integer.format(snapshot.impressions || 0) },
+      { label: 'Search CTR', value: `${decimal.format((snapshot.ctr || 0) * 100)}%` },
+      { label: 'Average position', value: decimal.format(snapshot.position || 0) },
+      { label: 'Coverage start', value: snapshot.start_date || '—' },
+      { label: 'Coverage end', value: snapshot.end_date || '—' },
+    ].map(item => `
+      <div class="kpi-card">
+        <div class="kpi-value">${esc(item.value)}</div>
+        <div class="kpi-label">${esc(item.label)}</div>
+      </div>
+    `).join('');
+
+    queryBody.innerHTML = (data.top_queries || []).map(item => `<tr>
+      <td>${esc(item.value)}</td>
+      <td>${integer.format(item.clicks || 0)}</td>
+      <td>${integer.format(item.impressions || 0)}</td>
+      <td>${decimal.format(item.position || 0)}</td>
+    </tr>`).join('') || '<tr><td colspan="4">No query data in this period</td></tr>';
+
+    pageBody.innerHTML = (data.top_pages || []).map(item => `<tr>
+      <td>${esc(item.value)}</td>
+      <td>${integer.format(item.clicks || 0)}</td>
+      <td>${integer.format(item.impressions || 0)}</td>
+      <td>${decimal.format((item.ctr || 0) * 100)}%</td>
+    </tr>`).join('') || '<tr><td colspan="4">No page data in this period</td></tr>';
+  } catch (error) {
+    console.error('Search Console load error:', error);
+    cards.innerHTML = '<div class="kpi-card"><div class="kpi-value">Unavailable</div><div class="kpi-label">Search Console</div></div>';
+  }
+}
+window.loadSearchConsole = loadSearchConsole;
+
 // Chart.js helpers
 function _getOrCreateChartCtx(canvasId) {
   const ctx = document.getElementById(canvasId);
@@ -164,4 +254,3 @@ function renderDoughnutChart(canvasId, labels, data) {
 window.renderLineChart = renderLineChart;
 window.renderBarChart = renderBarChart;
 window.renderDoughnutChart = renderDoughnutChart;
-

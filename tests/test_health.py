@@ -15,7 +15,7 @@ def test_health_endpoint_structure():
     resp = client.get("/api/health")
     data = json.loads(resp.data)
 
-    required_keys = ["status", "db", "vector", "llm", "version"]
+    required_keys = ["status", "db", "vector", "llm", "data_fresh", "version"]
     for key in required_keys:
         assert key in data, f"Missing '{key}' key"
 
