@@ -207,7 +207,7 @@ class TestRoutes:
         body = resp.data.decode()
         assert "User-agent: *" in body
         assert "Disallow: /api/" in body
-        assert "Disallow: /app" in body
+        assert "Disallow: /app" not in body
         assert "Disallow: /proposal" in body
         assert f"Sitemap: {SITE_URL}/sitemap.xml" in body
 

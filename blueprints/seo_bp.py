@@ -1107,7 +1107,7 @@ def sitemap_xml():
 @seo_bp.route("/robots.txt")
 def robots_txt():
     return (
-        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /app\n"
+        f"User-agent: *\nAllow: /\nDisallow: /api/\n"
         f"Disallow: /proposal\nSitemap: {SITE_URL}/sitemap.xml\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
