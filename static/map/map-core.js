@@ -78,7 +78,19 @@ function initWorldMap() {
     // ("API key required"), which is why zooming showed watermark tiles.
     // Provider order comes from window.__mapBasemap (static/map/map-config.js):
     // with a CARTO key, CARTO first; without one, OSM first (keyless, reliable).
+    //
+    // Visual style: Esri Light Gray Canvas is the PRIMARY look — a minimal,
+    // low-detail basemap (no labels, no borders, no POIs) that lets the crisis
+    // markers do the talking. OSM stays as the fallback (keyless, but busier:
+    // dense labels, borders, place names).
     const cartoKey = (window.__mapBasemap && window.__mapBasemap.cartoKey) || '';
+    const esriLightGray = {
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      options: {
+        attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
+        maxZoom: 16,
+      },
+    };
     const TILE_PROVIDERS = cartoKey
       ? [
           {
@@ -89,27 +101,14 @@ function initWorldMap() {
               maxZoom: 19,
             },
           },
-          {
-            url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            options: {
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-              maxZoom: 19,
-            },
-          },
+          esriLightGray,
         ]
       : [
+          esriLightGray,
           {
             url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             options: {
               attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-              maxZoom: 19,
-            },
-          },
-          {
-            url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-            options: {
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-              subdomains: 'abcd',
               maxZoom: 19,
             },
           },
