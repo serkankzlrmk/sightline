@@ -820,7 +820,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
                 f'<li><span class="crisis-alert-level crisis-alert-level-{level_class}">{level_label}</span>{_sanitize_html(str(a.get("title", "")))}</li>'
             )
         parts.append(
-            f'<section class="crisis-card" aria-labelledby="current-alerts"><h2 id="current-alerts">Current alerts</h2><ul>{"".join(lis)}</ul></section>'
+            f'<section class="crisis-card crisis-card-wide" aria-labelledby="current-alerts"><h2 id="current-alerts">Current alerts</h2><ul>{"".join(lis)}</ul></section>'
         )
     if recent:
         lis = []
@@ -830,7 +830,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
                 f'<li class="crisis-reports"><a href="{_sanitize_html(str(r.get("url", "#")))}">{_sanitize_html(str(r.get("title", "")))}</a> <span class="crisis-report-source">({_sanitize_html(src)})</span></li>'
             )
         parts.append(
-            f'<section class="crisis-card" aria-labelledby="recent-reports"><h2 id="recent-reports">Recent reports</h2><ul>{"".join(lis)}</ul></section>'
+            f'<section class="crisis-card crisis-card-wide" aria-labelledby="recent-reports"><h2 id="recent-reports">Recent reports</h2><ul>{"".join(lis)}</ul></section>'
         )
     if figures:
         items = "".join(
@@ -838,7 +838,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
             for f in figures[:6]
         )
         parts.append(
-            f'<section class="crisis-card" aria-labelledby="key-figures"><h2 id="key-figures">Key figures</h2><div class="crisis-figures">{items}</div></section>'
+            f'<section class="crisis-card crisis-card-wide" aria-labelledby="key-figures"><h2 id="key-figures">Key figures</h2><div class="crisis-figures">{items}</div></section>'
         )
     if headlines:
         chips = "".join(f'<span class="crisis-theme">{_sanitize_html(str(h))}</span>' for h in headlines[:8])
@@ -878,7 +878,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         rel.append(f'<li><a href="/bulletin/{bs}">Weekly bulletin</a></li>')
     if rel:
         parts.append(
-            f'<section class="crisis-card" aria-labelledby="related"><h2 id="related">Related</h2><ul>{"".join(rel)}</ul></section>'
+            f'<section class="crisis-card crisis-card-wide" aria-labelledby="related"><h2 id="related">Related</h2><ul>{"".join(rel)}</ul></section>'
         )
 
     if not parts:
@@ -916,6 +916,8 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     from config import GOOGLE_ANALYTICS_ID
 
     adsense_client, adsense_slot = _active_adsense_config()
+    if noindex:
+        adsense_client, adsense_slot = "", ""
 
     html = render_template(
         "crisis_detail.html",

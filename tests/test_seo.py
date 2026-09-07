@@ -556,6 +556,9 @@ class TestAdSense:
         assert "crisis-ad" in html
         assert "ca-pub-1234567890" in html
         assert 'data-ad-slot="9876543210"' in html
+        assert 'data-ad-format="horizontal"' in html
+        assert 'aria-label="Advertisement"' in html
+        assert html.index('id="crisis-ad-slot"') < html.index('class="crisis-content-grid"')
 
         ads = client.get("/ads.txt")
         assert ads.status_code == 200

@@ -17,6 +17,9 @@
   <meta name="twitter:description" content="{{ page_description }}">
   <link rel="canonical" href="{{ canonical }}">
   <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
   <script type="application/ld+json">{{ json_ld | safe }}</script>
   <style>
     :root {
@@ -36,7 +39,7 @@
       --green: #10B981;
       --orange: #F59E0B;
       --red: #EF4444;
-      --content-width: 860px;
+      --content-width: 1180px;
       --focus-ring: rgba(14,165,233,.32);
     }
 
@@ -47,7 +50,7 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 16px;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
@@ -135,13 +138,40 @@
     .crisis-nav a:hover { color: var(--primary-dark); }
     .crisis-nav a[aria-current="page"] { color: var(--text); font-weight: 700; }
 
-    .crisis-wrap { padding: 28px 20px 64px; }
+    .crisis-wrap { padding: 42px 24px 76px; }
     .crisis-hero,
     .crisis-card,
     .crisis-cta { border-radius: var(--radius-card); }
     .crisis-hero,
     .crisis-card { border: 1px solid var(--border); background: var(--surface); }
-    .crisis-hero { margin-bottom: 16px; padding: 28px 28px 24px; }
+    .crisis-hero {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 22px;
+      padding: clamp(30px, 5vw, 58px);
+      border-color: rgba(14,165,233,.16);
+      background:
+        radial-gradient(circle at 92% 12%, rgba(14,165,233,.14), transparent 32%),
+        var(--surface);
+    }
+    .crisis-hero::after {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 5px;
+      background: var(--primary);
+      content: "";
+    }
+    .crisis-kicker {
+      margin: 0 0 14px;
+      color: var(--primary-dark);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
     .crisis-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
     .crisis-badge {
       display: inline-flex;
@@ -174,23 +204,69 @@
     a.crisis-badge:hover { background: #E0F2FE; }
     a.crisis-badge:active { transform: scale(.97); }
     .crisis-title {
-      margin: 0 0 6px;
+      max-width: 18ch;
+      margin: 0 0 12px;
       color: var(--text);
-      font-size: clamp(25px, 4vw, 32px);
-      font-weight: 750;
-      letter-spacing: -.025em;
-      line-height: 1.2;
+      font-size: clamp(34px, 5vw, 58px);
+      font-weight: 800;
+      letter-spacing: -.04em;
+      line-height: 1.02;
+      text-wrap: balance;
     }
-    .crisis-sub { max-width: 62ch; margin: 0 0 4px; color: var(--muted); font-size: 14.5px; }
-    .crisis-asof { margin: 10px 0 0; color: var(--muted-soft); font-size: 12.5px; }
-
-    .crisis-card { margin-bottom: 14px; padding: 22px 26px; }
-    .crisis-card h2 {
-      margin: 0 0 10px;
+    .crisis-sub {
+      max-width: 64ch;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(16px, 2vw, 18px);
+      line-height: 1.65;
+      text-align: left;
+      text-wrap: pretty;
+    }
+    .crisis-summary-block {
+      max-width: 72ch;
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid var(--divider);
+    }
+    .crisis-headline {
+      margin: 0 0 8px;
       color: var(--text);
       font-size: 17px;
-      font-weight: 750;
-      letter-spacing: -.01em;
+      font-weight: 650;
+      line-height: 1.5;
+      text-align: left;
+      text-wrap: pretty;
+    }
+    .crisis-narrative {
+      margin: 0;
+      color: #3F3F57;
+      font-size: 15px;
+      line-height: 1.75;
+      text-align: left;
+      text-wrap: pretty;
+    }
+    .crisis-asof {
+      margin: 11px 0 0;
+      color: var(--muted-soft);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .crisis-content-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: dense;
+      gap: 16px;
+    }
+    .crisis-card { min-width: 0; margin: 0; padding: 26px 28px 30px; }
+    .crisis-card-wide { grid-column: 1 / -1; }
+    .crisis-card h2 {
+      margin: 0 0 14px;
+      color: var(--text);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -.02em;
       line-height: 1.35;
     }
     .crisis-card ul { margin: 0; padding: 0; list-style: none; }
@@ -198,7 +274,10 @@
       padding: 10px 0;
       border-bottom: 1px solid var(--divider);
       color: #2B2B45;
-      font-size: 14.5px;
+      font-size: 15px;
+      line-height: 1.65;
+      text-align: left;
+      text-wrap: pretty;
     }
     .crisis-card li:last-child { padding-bottom: 2px; border-bottom: 0; }
     .crisis-alert-level {
@@ -217,9 +296,10 @@
     .crisis-report-source { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
     .crisis-reports a { color: var(--primary-dark); font-weight: 600; text-decoration: none; }
     .crisis-reports a:hover { text-decoration: underline; }
+    .crisis-card a { color: var(--primary-dark); font-weight: 600; text-decoration-thickness: 1px; }
     .crisis-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
     .crisis-figure { min-width: 0; padding: 12px 14px; border-radius: var(--radius-inner); background: var(--bg); }
-    .crisis-figure strong { display: block; color: var(--primary-dark); font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
+    .crisis-figure strong { display: block; color: var(--primary-dark); font-family: "JetBrains Mono", monospace; font-size: 17px; line-height: 1.35; overflow-wrap: anywhere; }
     .crisis-figure span { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
     .crisis-themes { display: flex; flex-wrap: wrap; gap: 8px; }
     .crisis-theme {
@@ -232,14 +312,38 @@
     }
     .crisis-pending { margin: 0; color: var(--muted); font-size: 14px; }
 
+    .ad-banner {
+      position: relative;
+      min-height: 132px;
+      margin: 0 0 22px;
+      padding: 30px 18px 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      background: rgba(255,255,255,.7);
+    }
+    .ad-banner-label {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      color: var(--muted-soft);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 9px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      transform: translateX(-50%);
+    }
+    .ad-banner ins { min-height: 90px; }
+
     .crisis-cta {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 18px 28px;
       margin-top: 22px;
-      padding: 24px 28px;
-      background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%);
+      padding: 30px 34px;
+      background: #082F49;
+      box-shadow: inset 0 1px rgba(255,255,255,.08);
       color: var(--surface);
     }
     .crisis-cta-copy { min-width: 0; }
@@ -262,7 +366,7 @@
       white-space: nowrap;
       transition: background-color .15s ease, transform .15s ease;
     }
-    .crisis-cta a:hover { background: var(--primary-light); }
+    .crisis-cta a:hover { background: #E0F2FE; }
     .crisis-cta a:active { transform: scale(.97); }
 
     .crisis-footer { padding: 20px 20px 30px; color: var(--muted-soft); font-size: 13px; }
@@ -275,9 +379,11 @@
       .crisis-wrap { padding: 18px 12px 48px; }
       .crisis-hero, .crisis-card { padding: 18px; }
       .crisis-hero { margin-bottom: 12px; }
-      .crisis-card { margin-bottom: 12px; }
+      .crisis-content-grid { grid-template-columns: 1fr; gap: 12px; }
+      .crisis-card-wide { grid-column: auto; }
       .crisis-card li { font-size: 14px; }
       .crisis-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ad-banner { min-height: 108px; margin-bottom: 12px; border-radius: 12px; }
       .crisis-cta { grid-template-columns: 1fr; padding: 20px; }
       .crisis-cta a { width: 100%; }
       .crisis-footer { padding: 18px 16px 26px; }
@@ -323,19 +429,23 @@
   </header>
   <main class="crisis-wrap" id="crisis-content">
     <section class="crisis-hero" aria-labelledby="crisis-title">
+      <p class="crisis-kicker">Live country briefing</p>
       {{ hero_badges | safe }}
-            {{ hero_extra | safe }}
-            <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
+      <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
       <p class="crisis-sub">Humanitarian overview with dated reports, alerts and key figures from trusted sources.</p>
+      <div class="crisis-summary-block">{{ hero_extra | safe }}</div>
       <p class="crisis-asof">As of {{ as_of }}</p>
     </section>
-    {{ body_html | safe }}
     {% if adsense_client %}
-    <div class="crisis-ad" id="crisis-ad-slot">
+    <aside class="crisis-ad ad-banner" id="crisis-ad-slot" aria-label="Advertisement">
+      <span class="ad-banner-label">Advertisement</span>
       <ins class="adsbygoogle" style="display:block" data-ad-client="{{ adsense_client }}"
-           data-ad-slot="{{ adsense_slot }}" data-ad-format="auto" data-full-width-responsive="true"></ins>
-    </div>
+           data-ad-slot="{{ adsense_slot }}" data-ad-format="horizontal" data-full-width-responsive="true"></ins>
+    </aside>
     {% endif %}
+    <div class="crisis-content-grid">
+      {{ body_html | safe }}
+    </div>
     <aside class="crisis-cta" aria-labelledby="crisis-cta-title">
       <div class="crisis-cta-copy">
         <strong id="crisis-cta-title">Need this as a situation report?</strong>
