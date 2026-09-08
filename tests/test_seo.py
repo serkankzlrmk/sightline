@@ -563,7 +563,7 @@ class TestAdSense:
         ads = client.get("/ads.txt")
         assert ads.status_code == 200
         body = ads.get_data(as_text=True)
-        assert "google.com, 1234567890, DIRECT, f08c47fec0942fa0" in body
+        assert "google.com, pub-1234567890, DIRECT, f08c47fec0942fa0" in body
 
     def test_ads_do_not_render_until_cmp_is_ready(self, client, monkeypatch):
         monkeypatch.setattr("config.GOOGLE_ADSENSE_CLIENT", "ca-pub-1234567890")

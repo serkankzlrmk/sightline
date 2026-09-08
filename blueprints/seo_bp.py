@@ -1124,7 +1124,7 @@ def ads_txt():
 
     if not GOOGLE_ADSENSE_CLIENT:
         abort(404)
-    pub_id = GOOGLE_ADSENSE_CLIENT.replace("ca-pub-", "")
+    pub_id = GOOGLE_ADSENSE_CLIENT.removeprefix("ca-")
     # Format: <ad-network>, <publisher-id>, DIRECT, <certification-id>
     return (
         f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n",
