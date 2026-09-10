@@ -417,10 +417,11 @@ class TestCrisisPages:
         html = resp.get_data(as_text=True)
         assert "Crisis Overviews" in html or "Crisis overviews" in html
         # Country links only appear when the publish predicate finds data;
-        # CI runners have an empty DB, so skip the link check there.
-        if "No content published yet" in html:
-            pytest.skip("no populated data in this checkout")
-        assert "crisis/" in html  # country links present
+        # CI runners have an empty DB, so verify the empty state there.
+        if 'class="publication-empty"' in html:
+            assert "No editions are available yet" in html
+        else:
+            assert 'href="/crisis/' in html
 
     def test_crisis_detail_known_country(self, client):
         # Sudan is a high-report country in any populated checkout.
