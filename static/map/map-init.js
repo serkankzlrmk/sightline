@@ -471,65 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'go-db':
         switchTab('db');
         break;
-      case 'cc-start-sitrep':
-        ccStartSitrep();
-        break;
-      case 'cc-start-proposal':
-        switchTab('proposal');
-        break;
-      case 'cc-start-bulletin':
-        ccStartBulletin();
-        break;
-      case 'cc-open-crisis-map':
-        switchTab('crisis-map');
-        break;
-      case 'cc-open-db':
-        switchTab('db');
-        break;
-      case 'cc-open-agent':
-        switchTab('agent');
-        break;
-      case 'cc-open-proposal':
-        switchTab('proposal');
-        break;
-      case 'cc-open-sitrep': {
-        const file = target.dataset.file;
-        switchTab('sitrep');
-        setTimeout(() => {
-          const itemEl = document.querySelector(`#sitrep-reports-list .report-item[data-file="${file}"]`);
-          if (itemEl) {
-            itemEl.click();
-          } else {
-            openSitrepReport(file);
-          }
-        }, 150);
-        break;
-      }
-      case 'cc-open-bulletin': {
-        const bFile = target.dataset.file;
-        switchTab('bulletin');
-        setTimeout(() => {
-          const itemEl = document.querySelector(`#bulletin-tabs .bulletin-tab-pill[data-filename="${bFile}"]`);
-          if (itemEl) {
-            itemEl.click();
-          } else {
-            openBulletin(bFile);
-          }
-        }, 150);
-        break;
-      }
-      case 'toggle-cc-acc': {
-        const targetId = target.dataset.target;
-        const targetCard = document.getElementById(targetId);
-        if (targetCard) {
-          const isOpen = targetCard.classList.contains('open');
-          document.querySelectorAll('.cc-acc-card').forEach(card => card.classList.remove('open'));
-          if (!isOpen) {
-            targetCard.classList.add('open');
-          }
-        }
-        break;
-      }
       case 'go-sitrep-country':
         switchTab('sitrep');
         setTimeout(() => {
@@ -655,9 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_previewInited) return;
     _previewInited = true;
     console.warn('[app] initPreviewData — showing app with login overlay');
-    // Load Command Center (visible behind login panel)
     switchTab(window.initialTabFromLocation());
-    loadCommandCenter();
   }
 
   function initAppData() {

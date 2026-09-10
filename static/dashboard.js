@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
-// dashboard.js — Home Dashboard (stats, command center) — extracted from app.js
+// dashboard.js — Crisis map data and shared display labels
 // Loaded via <script> tag after shared.js, before app.js
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HOME DASHBOARD
+// CRISIS MAP STATE
 // ═══════════════════════════════════════════════════════════════════════════
 
 let dashboardLoaded = false;
@@ -36,96 +36,6 @@ function humanizeWeekLabel(label) {
     return `${ordinals[Math.min(weekOfMonth, 4)]} week of ${monthNames[sd.getMonth()]} ${sd.getFullYear()}`;
   }
   return `${sd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${ed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// COMMAND CENTER (Home tab)
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function loadCommandCenter() {
-  const tok = window.getIdToken ? window.getIdToken() : '';
-  const isAuthed = !!tok;
-
-  // Auth CTA
-  const authCta = document.getElementById('cc-auth-cta');
-  if (authCta) authCta.style.display = isAuthed ? 'none' : 'block';
-
-  // 1. Fetch and render existing SITREPs
-  try {
-    const res = await api('/api/public/sitrep/reports');
-    const sitreps = await res.json();
-    const container = document.getElementById('cc-recent-sitreps');
-    if (container && Array.isArray(sitreps)) {
-      if (sitreps.length > 0) {
-        container.innerHTML = sitreps.slice(0, 5).map(item => {
-          const country = item.filename.split('_')[0].replace(/\(/g, ' ').replace(/\)/g, '').trim();
-          return `<div class="cc-recent-item" data-action="cc-open-sitrep" data-file="${esc(item.filename)}" style="font-size:13px; padding:6px 0; cursor:pointer; color:var(--primary); font-weight:500;">
-            <span style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              ${escHtml(country)}
-            </span>
-          </div>`;
-        }).join('');
-      } else {
-        container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">No reports yet</div>';
-      }
-    }
-  } catch {
-    const container = document.getElementById('cc-recent-sitreps');
-    if (container) container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
-  }
-
-  // 2. Recent proposals (modül yeniden tasarlanıyor — placeholder)
-  const proposalsContainer = document.getElementById('cc-recent-proposals');
-  if (proposalsContainer) {
-    proposalsContainer.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">🚧 Coming soon — being redesigned</div>';
-  }
-
-  // 3. Bulletins list
-  try {
-    const res = await api('/api/public/bulletins');
-    const data = await res.json();
-    const bulletins = data.bulletins || data || [];
-    const container = document.getElementById('cc-recent-bulletins');
-    if (container && Array.isArray(bulletins)) {
-      if (bulletins.length > 0) {
-        container.innerHTML = bulletins.slice(0, 5).map(b =>
-          `<div class="cc-recent-item" data-action="cc-open-bulletin" data-file="${esc(b.filename)}" style="font-size:13px; padding:6px 0; cursor:pointer; color:var(--primary); font-weight:500;">
-            <span style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M16 8h2m-6 4h6m-6 4h6M6 8h4v8H6z"/></svg>
-              ${escHtml(humanizeWeekLabel(b.week_label))}
-            </span>
-          </div>`
-        ).join('');
-      } else {
-        container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">No bulletins yet</div>';
-      }
-    }
-  } catch {
-    const container = document.getElementById('cc-recent-bulletins');
-    if (container) container.innerHTML = '<div style="font-size:12.5px; color:var(--text-secondary);">Failed to load</div>';
-  }
-}
-
-function ccStartSitrep() {
-  const role = window.__userRole || 'free';
-  const tok = window.getIdToken ? window.getIdToken() : '';
-  // SITREP reports are PUBLIC (anonymous can read them — the generation
-  // form is hidden in switchTab). Only the generation flow is premium.
-  switchTab('sitrep');
-  if (!tok || role === 'free') return;
-  const sel = document.getElementById('cc-sitrep-country');
-  const country = sel ? sel.value : '';
-  if (country) {
-    setTimeout(() => {
-      const inp = document.getElementById('inp-country');
-      if (inp) inp.value = country;
-    }, 200);
-  }
-}
-
-function ccStartBulletin() {
-  switchTab('bulletin');
 }
 
 async function loadDashboard() {

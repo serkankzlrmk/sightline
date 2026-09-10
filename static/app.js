@@ -8,7 +8,7 @@
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const ADMIN_EMAIL = document.querySelector('meta[name="contact-email"]')?.content || 'support@sightline.ai';
-const TAB_NAMES = ['home', 'crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
+const TAB_NAMES = ['crisis-map', 'agent', 'sitrep', 'bulletin', 'db', 'admin'];
 const DEFAULT_MODEL = 'flash';
 const CHAT_MODELS = {
   flash: { name: 'Flash', desc: 'Fast responses', premium: false },
@@ -27,7 +27,7 @@ const CUSTOM_MODELS = {
 };
 
 // ── Shared state ────────────────────────────────────────────────────────────
-let currentTab = 'agent';
+let currentTab = 'crisis-map';
 
 // DB tab state
 const dbState = {
@@ -122,9 +122,8 @@ function md(text) {
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function initialTabFromLocation() {
-  if (window.location.hash === '#crisis-map') return 'crisis-map';
   if (window.location.hash === '#sitrep') return 'sitrep';
-  return 'home';
+  return 'crisis-map';
 }
 window.initialTabFromLocation = initialTabFromLocation;
 
@@ -146,7 +145,7 @@ function toggleSidebarNav() {
 
 function switchTab(name) {
   // Freemium preview: gated tabs require auth — Chat and Database stay
-  // locked behind the login panel; Bulletin, SITREP, Map, Home, Countries
+  // locked behind the login panel; Bulletin, SITREP, Map and Countries
   // are open to anonymous visitors (public read APIs serve them).
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
@@ -154,7 +153,7 @@ function switchTab(name) {
   if (!isAuthed && GATED_TABS.includes(name)) {
     // Open the gated tab's panel so the visitor sees where they clicked,
     // then slide in the login panel over it (backdrop locks the page).
-    // Public tabs (bulletin/sitrep/map/home) never show the login panel —
+    // Public tabs (bulletin/sitrep/map) never show the login panel —
     // anonymous visitors browse them freely.
     if (window.showLoginPanel) {
       window.showLoginPanel();
@@ -162,7 +161,7 @@ function switchTab(name) {
     // NOTE: deliberately NO return — the tab switch continues below so the
     // gated panel becomes visible behind the locked login overlay.
   } else if (window.hideOverlay) {
-    // Moving to a PUBLIC tab (bulletin/sitrep/map/home) releases the login
+    // Moving to a PUBLIC tab (bulletin/sitrep/map) releases the login
     // panel — anonymous visitors browse those freely. Sign-in also lands
     // here (isAuthed=true), where the overlay is already hidden.
     window.hideOverlay();
@@ -203,13 +202,7 @@ function switchTab(name) {
     btn.classList.toggle('active', btn.dataset.tab === name);
   });
 
-  // Home: hide sidebar, show hamburger
-  if (name === 'home') {
-    if (sidebar) sidebar.classList.add('hidden');
-    document.body.classList.add('sidebar-hidden');
-    if (main) main.style.marginLeft = '0';
-    if (hamburger) hamburger.style.display = '';
-  } else if (name === 'crisis-map') {
+  if (name === 'crisis-map') {
     if (sidebar) sidebar.classList.remove('hidden');
     document.body.classList.remove('sidebar-hidden');
     if (sidebar && sidebar.classList.contains('collapsed')) {
@@ -237,7 +230,6 @@ function switchTab(name) {
     }
   }
 
-  if (name === 'home') loadCommandCenter();
   if (name === 'crisis-map') {
     // Build and measure Leaflet only after its panel is visible.
     initWorldMap();

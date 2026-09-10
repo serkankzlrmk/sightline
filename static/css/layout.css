@@ -143,6 +143,5 @@ body.sidebar-collapsed .main {
    LAYOUT
    ═══════════════════════════════════════════════════════════════════════════ */
 .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
-#panel-home, #panel-db { overflow-y: auto; overflow-x: hidden; height: 100%; }
+#panel-db { overflow-y: auto; overflow-x: hidden; height: 100%; }
 .panel.active { display: flex; }
-
