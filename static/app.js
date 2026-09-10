@@ -121,6 +121,13 @@ function md(text) {
 }
 
 // ── Tab switching ────────────────────────────────────────────────────────────
+function initialTabFromLocation() {
+  if (window.location.hash === '#crisis-map') return 'crisis-map';
+  if (window.location.hash === '#sitrep') return 'sitrep';
+  return 'home';
+}
+window.initialTabFromLocation = initialTabFromLocation;
+
 function toggleSidebarNav() {
   const nav = document.getElementById('sidebar-nav');
   const main = document.querySelector('.main');

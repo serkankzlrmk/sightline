@@ -656,7 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _previewInited = true;
     console.warn('[app] initPreviewData — showing app with login overlay');
     // Load Command Center (visible behind login panel)
-    switchTab('home');
+    switchTab(window.initialTabFromLocation());
     loadCommandCenter();
   }
 
@@ -665,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _appInited = true;
     const tok = window.getIdToken ? window.getIdToken() : '';
     if (!tok) return;
-    switchTab('home');
+    switchTab(window.initialTabFromLocation());
     loadChatList();
     updateVisibilityFromAuth();
   }
