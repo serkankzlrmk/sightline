@@ -26,7 +26,7 @@ import time
 from urllib.parse import urlencode
 
 import bleach
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, redirect, render_template, request
 
 from blueprints.helpers import _is_bot_user_agent, record_page_view
 from config import (
@@ -1151,67 +1151,10 @@ def crisis_index():
     )
 
 
-# =============================================================================
-# ROUTES — Crisis Map (SSR)
-# =============================================================================
-
-
-def _map_countries_ssr() -> list[dict]:
-    """Top-60 country list for the SSR map page.
-
-    Reuses the public /api/map/countries response so caching and data shape
-    stay in one place (no ChromaDB access from this surface).
-    """
-    from blueprints.public_bp import api_map_countries
-
-    try:
-        result = api_map_countries()
-        # Route funcs may return (Response, status) tuples — unwrap safely.
-        resp = result[0] if isinstance(result, tuple) else result
-        data = resp.get_json()
-    except Exception:
-        return []
-    return data if isinstance(data, list) else []
-
-
 @seo_bp.route("/map")
 def crisis_map():
-    """SSR crisis map page: country grid with severity + report counts."""
-    record_page_view("/map", request.headers.get("User-Agent", ""))
-
-    def _render() -> str:
-        from config import GOOGLE_ANALYTICS_ID
-
-        countries = _map_countries_ssr()
-        cards = []
-        for c in countries:
-            name = c.get("country") or c.get("name", "")
-            if not name:
-                continue
-            cards.append(
-                {
-                    "name": name,
-                    "severity": c.get("severity", ""),
-                    "count": c.get("report_count", 0),
-                    "headline": (c.get("headline") or "")[:160],
-                    "url": f"/country/{slugify(safe_country_filename(name))}",
-                }
-            )
-        cards.sort(key=lambda x: x["count"], reverse=True)
-        return render_template(
-            "map_ssr.html",
-            page_title="Humanitarian Crisis Map — Sightline",
-            page_description=(
-                "Humanitarian crisis map: 60 countries ranked by ReliefWeb "
-                "report volume, severity, and displacement data from HDX and GDACS."
-            ),
-            canonical=f"{SITE_URL}/map",
-            site_url=SITE_URL,
-            countries=cards,
-            analytics_id=GOOGLE_ANALYTICS_ID,
-        )
-
-    return _cached("map", _bulletin_cache, _BULLETIN_CACHE_TTL, _render)
+    """Keep legacy links working while the interactive map lives in the app."""
+    return redirect("/app#crisis-map", code=301)
 
 
 # =============================================================================
@@ -1241,7 +1184,6 @@ def _sitemap_builder() -> str:
         (f"{SITE_URL}/bulletins", today),
         (f"{SITE_URL}/sitreps", today),
         (f"{SITE_URL}/countries", today),
-        (f"{SITE_URL}/map", today),
         (f"{SITE_URL}/crisis", today),
     ]
     for slug, filename in _bulletin_slug_map().items():

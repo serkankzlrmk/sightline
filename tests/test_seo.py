@@ -510,28 +510,16 @@ class TestCrisisPages:
         assert ">https://" in text and "/crisis</loc>" in text
 
 
-class TestCrisisMapSsr:
-    def test_map_page_renders(self, client):
+class TestCrisisMapRedirect:
+    def test_map_redirects_to_interactive_workspace(self, client):
         resp = client.get("/map")
-        assert resp.status_code == 200
-        html = resp.get_data(as_text=True)
-        assert "Humanitarian Crisis Map" in html
-        assert "Open interactive map" in html
-        assert "canonical" in html
-        assert "Crisis Map" in html  # nav link present
+        assert resp.status_code == 301
+        assert resp.headers["Location"] == "/app#crisis-map"
 
-    def test_map_no_login_overlay(self, client):
-        """SSR pages must never ship the auth overlay or auth scripts."""
-        resp = client.get("/map")
-        html = resp.get_data(as_text=True)
-        assert "auth-overlay" not in html
-        assert "showLoginPanel" not in html
-        assert "firebase" not in html.lower()
-
-    def test_map_in_sitemap(self, client):
+    def test_map_is_not_in_sitemap(self, client):
         resp = client.get("/sitemap.xml")
         text = resp.get_data(as_text=True)
-        assert ">https://" in text and "/map</loc>" in text
+        assert "/map</loc>" not in text
 
     def test_sitemap_lastmod_format(self, client):
         resp = client.get("/sitemap.xml", headers={"User-Agent": "Mozilla/5.0"})
