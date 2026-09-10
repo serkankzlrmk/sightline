@@ -325,7 +325,8 @@ def _sitrep_sources(report: dict) -> list[dict]:
 
 
 def _sitrep_title(report: dict, filename: str) -> str:
-    country = str((report.get("hdx_data") or {}).get("country") or "").strip()
+    hdx_data = report.get("hdx_data") or {}
+    country = str(hdx_data.get("country") or "").strip() if isinstance(hdx_data, dict) else ""
     raw = str(report.get("title") or report.get("file_name") or filename.rsplit(".", 1)[0])
     raw = re.sub(r"_[0-9a-f]{8}(?=_|$)", "", raw, flags=re.IGNORECASE)
     raw = re.sub(r"[_-]+", " ", raw)
@@ -334,11 +335,26 @@ def _sitrep_title(report: dict, filename: str) -> str:
     for token in raw.split():
         if not tokens or tokens[-1].lower() != token.lower():
             tokens.append(token)
+    for width in range(len(tokens) // 2, 0, -1):
+        first = [token.lower() for token in tokens[:width]]
+        second = [token.lower() for token in tokens[width : width * 2]]
+        if first == second:
+            tokens = tokens[:width] + tokens[width * 2 :]
+            break
     label = " ".join(tokens).strip()
     if country and label.lower() == country.lower():
         label = country
     label = label or country or "Humanitarian"
-    display_label = " ".join(token if token.isupper() else token[:1].upper() + token[1:] for token in label.split())
+    small_words = {"and", "for", "in", "of", "on", "the", "to"}
+    display_tokens = []
+    for index, token in enumerate(label.split()):
+        if token.isupper():
+            display_tokens.append(token)
+        elif index and token.lower() in small_words:
+            display_tokens.append(token.lower())
+        else:
+            display_tokens.append(token[:1].upper() + token[1:])
+    display_label = " ".join(display_tokens)
     return f"{display_label} Situation Report"
 
 

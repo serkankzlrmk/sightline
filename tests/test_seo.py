@@ -116,6 +116,26 @@ class TestSitrepFiles:
             assert not n.endswith("_test_report.json"), f"test artifact leaked: {n}"
 
 
+class TestSitrepTitle:
+    def test_repeated_country_phrase_is_collapsed(self):
+        from blueprints.seo_bp import _sitrep_title
+
+        report = {"file_name": "Syrian Arab Republic_Syrian Arab Republic"}
+        assert _sitrep_title(report, "fallback.json") == "Syrian Arab Republic Situation Report"
+
+    def test_repeated_country_token_keeps_subject(self):
+        from blueprints.seo_bp import _sitrep_title
+
+        report = {"file_name": "Colombia_Colombia conflict"}
+        assert _sitrep_title(report, "fallback.json") == "Colombia Conflict Situation Report"
+
+    def test_country_connectors_keep_sentence_case(self):
+        from blueprints.seo_bp import _sitrep_title
+
+        report = {"file_name": "Democratic Republic of the Congo_Democratic Republic of the Congo"}
+        assert _sitrep_title(report, "fallback.json") == "Democratic Republic of the Congo Situation Report"
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 
