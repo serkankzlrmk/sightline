@@ -138,6 +138,40 @@ class TestRoutes:
         resp = client.get("/bulletins", headers={"User-Agent": "Mozilla/5.0"})
         assert resp.status_code == 200
         assert b"Bulletin" in resp.data
+        html = resp.get_data(as_text=True)
+        assert 'class="publication-hero"' in html
+        assert 'href="/sitreps"' in html
+        assert 'aria-label="Publication type"' in html
+
+    def test_sitreps_list_200_and_excludes_test_artifacts(self, client):
+        resp = client.get("/sitreps", headers={"User-Agent": "Mozilla/5.0"})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "Humanitarian Situation Reports" in html
+        assert 'aria-current="page">SITREPs</a>' in html
+        assert "Sudan test" not in html
+        assert "Sudan_test" not in html
+
+    def test_sitrep_detail_renders_source_register(self, client):
+        import json
+
+        from blueprints.seo_bp import OUTPUT_REPORTS_DIR, _sitrep_report_files, _sitrep_sources
+
+        files = _sitrep_report_files()
+        if not files:
+            pytest.skip("no real sitrep reports on disk")
+        slug = files[0][1]
+        resp = client.get(f"/sitrep/{slug}", headers={"User-Agent": "Mozilla/5.0"})
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert 'href="/sitreps" aria-current="page"' in html
+        assert 'class="article-layout"' in html
+        with open(OUTPUT_REPORTS_DIR / files[0][0], encoding="utf-8") as fh:
+            report = json.load(fh)
+        if _sitrep_sources(report):
+            assert "Evidence register" in html
+            assert 'class="source-register"' in html
+            assert 'target="_blank"' in html
 
     def test_bulletin_detail_200_and_trimmed(self, client):
         from blueprints.seo_bp import _bulletin_slug_map
@@ -200,6 +234,7 @@ class TestRoutes:
         assert "<url>" in body
         assert f"{SITE_URL}/solutions/sitrep" in body
         assert f"{SITE_URL}/solutions/proposal" in body
+        assert f"{SITE_URL}/sitreps" in body
 
     def test_robots_txt(self, client):
         resp = client.get("/robots.txt", headers={"User-Agent": "Mozilla/5.0"})

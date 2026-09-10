@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#FFFFFF">
   <title>{{ page_title }} - Sightline</title>
   <meta name="description" content="{{ page_description }}">
   <meta name="robots" content="index,follow,max-image-preview:large">
@@ -15,64 +16,88 @@
   <meta name="twitter:title" content="{{ page_title }}">
   <meta name="twitter:description" content="{{ page_description }}">
   <link rel="canonical" href="{{ canonical }}">
-  <link rel="stylesheet" href="/static/dist/landing.css">
+  <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/publications.css">
   <script type="application/ld+json">{{ json_ld | safe }}</script>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #1a1a2e; margin: 0; background: #fafafd; }
-    .seo-wrap { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
-    .seo-nav { display: flex; gap: 16px; font-size: 14px; padding: 12px 0 20px; border-bottom: 1px solid #e5e5ee; margin-bottom: 24px; }
-    .seo-nav a { color: #2053a8; text-decoration: none; }
-    .seo-nav a:hover { text-decoration: underline; }
-    h1 { font-size: 30px; line-height: 1.25; color: #111128; margin: 0 0 8px; }
-    .seo-meta { font-size: 14px; color: #5a5a72; margin-bottom: 28px; }
-    .seo-body h2 { font-size: 20px; margin: 28px 0 10px; color: #111128; }
-    .seo-body h3 { font-size: 17px; margin: 20px 0 8px; color: #22223c; }
-    .seo-body p { margin: 8px 0; color: #2b2b45; }
-    .seo-body ul { padding-left: 20px; }
-    .seo-body li { margin: 4px 0; }
-    .seo-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e5ee; font-size: 13px; color: #8a8aa0; }
-    .seo-footer a { color: #2053a8; text-decoration: none; }
-    .seo-cta { margin-top: 40px; padding: 20px 22px; background: #f0f5ff; border: 1px solid #c9dcff; border-radius: 10px; }
-    .seo-cta strong { font-size: 16px; color: #111128; display: block; margin-bottom: 4px; }
-    .seo-cta p { margin: 6px 0 12px; font-size: 14px; color: #2b2b45; }
-    .seo-cta a { display: inline-block; padding: 10px 18px; background: #2053a8; color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; }
-    .seo-cta a:hover { background: #1a4388; }
-  </style>
   {% include '_analytics_head.html' %}
   {% include '_adsense_head.html' %}
 </head>
 <body>
-  <div class="seo-wrap">
-    <nav class="seo-nav">
-      <a href="/">Home</a>
-      <a href="/bulletins">Bulletins</a>
-      <a href="/countries">Country Summaries</a>
-      <a href="/map">Crisis Map</a>
-      <a href="/crisis">Crisis Overviews</a>
-      <a href="/proposal">Proposal Studio</a>
+  <a class="skip-link" href="#article-content">Skip to report</a>
+  <header class="publication-header">
+    <div class="publication-header-inner">
+      <a class="publication-brand" href="/" aria-label="Sightline home">
+        <img src="/static/logo-signal-horizon.png" width="28" height="28" alt="">
+        <span>Sightline</span>
+      </a>
+      <nav class="publication-nav" aria-label="Public pages">
+        <a href="/crisis">Crisis Overviews</a>
+        <a href="/bulletins"{% if active_section == 'bulletins' %} aria-current="page"{% endif %}>Bulletins</a>
+        <a href="/sitreps"{% if active_section == 'sitreps' %} aria-current="page"{% endif %}>SITREPs</a>
+        <a href="/countries"{% if active_section == 'countries' %} aria-current="page"{% endif %}>Country Summaries</a>
+        <a href="/map">Crisis Map</a>
+      </nav>
+      <a class="publication-app-link" href="/app">Open Sightline</a>
+    </div>
+  </header>
+
+  <main class="article-shell" id="article-content">
+    <nav class="article-breadcrumb" aria-label="Breadcrumb">
+      <a href="/{% if active_section %}{{ active_section }}{% endif %}">{{ content_kind }} archive</a>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      <span>Current edition</span>
     </nav>
-    <h1>{{ page_title }}</h1>
-    <div class="seo-meta">{{ page_description }}</div>
-    <div class="seo-body">{{ body_html | safe }}</div>
+
+    <header class="article-hero">
+      <p class="publication-kicker">{{ content_kind }}</p>
+      <h1>{{ page_title }}</h1>
+      <p>{{ page_description }}</p>
+      <div class="article-rule"><span></span></div>
+    </header>
+
     {% if adsense_client %}
-    <div class="seo-ad" id="seo-ad-slot">
+    <aside class="publication-ad" aria-label="Advertisement">
+      <span>Advertisement</span>
       <ins class="adsbygoogle" style="display:block" data-ad-client="{{ adsense_client }}"
-           data-ad-slot="{{ adsense_slot }}" data-ad-format="auto" data-full-width-responsive="true"></ins>
-    </div>
+           data-ad-slot="{{ adsense_slot }}" data-ad-format="horizontal" data-full-width-responsive="true"></ins>
+    </aside>
     {% endif %}
-    <div class="seo-cta">
-      <strong>Need this as a situation report?</strong>
-      <p>Turn this intelligence into a structured SITREP — generated, verified and export-ready in minutes.</p>
+
+    <article class="article-layout">
+      <div class="article-body">{{ body_html | safe }}</div>
+      <aside class="article-rail">
+        <p>About this edition</p>
+        <strong>Traceable humanitarian intelligence</strong>
+        <span>Built from dated source material and structured for rapid operational review.</span>
+        <a href="/{% if active_section %}{{ active_section }}{% endif %}">Browse all {{ active_section or 'publications' }}</a>
+      </aside>
+    </article>
+
+    <aside class="article-cta" aria-labelledby="article-cta-title">
+      <div>
+        <p>Build from verified evidence</p>
+        <strong id="article-cta-title">Create a situation report for your operation</strong>
+        <span>Generate, review and export a cited SITREP inside Sightline.</span>
+      </div>
       <a href="/app#sitrep" data-track-event="cta_click" data-track-name="make_sitrep"
-         data-track-location="seo_detail">Get this as a sitrep</a>
+         data-track-location="seo_detail">Open SITREP workspace</a>
+    </aside>
+  </main>
+
+  <footer class="publication-footer">
+    <div>
+      <p><a href="/">Sightline</a> turns trusted humanitarian sources into traceable intelligence.</p>
+      <nav aria-label="Footer links">
+        <a href="/solutions/sitrep">SITREP software</a>
+        <a href="/solutions/proposal">Proposal software</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
+      </nav>
     </div>
-    <footer class="seo-footer">
-      <a href="/">Sightline</a> &mdash; humanitarian intelligence, situation reports and donor proposals from trusted sources.
-      &nbsp;·&nbsp; <a href="/solutions/sitrep">SITREP software</a>
-      &nbsp;·&nbsp; <a href="/solutions/proposal">Proposal software</a>
-      &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/terms">Terms</a>
-      &nbsp;·&nbsp; <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
-    </footer>
-  </div>
+  </footer>
 </body>
 </html>
