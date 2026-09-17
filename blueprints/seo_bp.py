@@ -366,10 +366,7 @@ def _link_sitrep_citations(narrative: str, sources: list[dict]) -> str:
         index = int(match.group(1))
         if index not in available:
             return match.group(0)
-        return (
-            f'<a class="citation-ref" href="#source-{index}" '
-            f'aria-label="Source {index}">[{index}]</a>'
-        )
+        return f'<a class="citation-ref" href="#source-{index}" aria-label="Source {index}">[{index}]</a>'
 
     return re.sub(r"\[(\d+)\]", replace, sanitized)
 
@@ -665,7 +662,7 @@ def bulletin_detail(slug: str):
                 crisis_items.append(f'<article class="bulletin-crisis"><h3>{c_title}</h3><p>{c_summary}</p></article>')
             sections.append(
                 '<section class="bulletin-crises"><p class="section-label">Country monitoring</p>'
-                f'<h2>Priority crises</h2>{"".join(crisis_items)}</section>'
+                f"<h2>Priority crises</h2>{''.join(crisis_items)}</section>"
             )
         json_ld = {
             "@context": "https://schema.org",
@@ -802,7 +799,7 @@ def sitrep_detail(slug: str):
         sections += (
             '<section class="source-register" aria-labelledby="source-register-title">'
             f'<div class="source-register-head"><p>Evidence register</p><h2 id="source-register-title">Sources</h2>'
-            f'<span>{len(sources)} verified links</span></div><ol>{source_items}</ol></section>'
+            f"<span>{len(sources)} verified links</span></div><ol>{source_items}</ol></section>"
         )
     generated_at = report.get("generated_at") or report.get("date", "")
     json_ld = {
@@ -892,6 +889,52 @@ def _crisis_entry_lastmod(entry: dict) -> str:
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
             return value
     return time.strftime("%Y-%m-%d")
+
+
+def _crisis_digest_entry(entry: dict) -> dict | None:
+    """Newest digest (≤3 days old) for a crisis-page country, via the loader (D5).
+
+    Returns the validated digest dict or None. All fields are LLM-derived —
+    callers MUST sanitize every rendered value with _sanitize_html().
+    """
+    from sitrep.daily_digest import newest_digest
+
+    country = str(entry.get("country") or "")
+    if not country:
+        return None
+    try:
+        return newest_digest(country)
+    except Exception:
+        logger.warning("Digest lookup failed for %s", country, exc_info=True)
+        return None
+
+
+def _crisis_digest_lastmod(slug: str) -> str:
+    """Digest coverage date for a crisis slug — a legitimate lastmod candidate
+    because the page genuinely changes when its latest digest changes (D12)."""
+    from sitrep.daily_digest import cached_published_dates
+    from sitrep.utils import safe_filename
+
+    # Reverse slug lookup over crisis data entries (slug → country name).
+    country = ""
+    for entry in _crisis_country_data():
+        if _crisis_slug(str(entry.get("country") or "")) == slug:
+            country = str(entry.get("country") or "")
+            break
+    if not country:
+        return ""
+    fname = f"{safe_filename(country)}.json"
+    for date_str in cached_published_dates():
+        if (_digest_root() / date_str / fname).exists():
+            return date_str
+    return ""
+
+
+def _digest_root():
+    """Digest storage root — resolved lazily so tests can monkeypatch it."""
+    from sitrep.daily_digest import DIGEST_ROOT
+
+    return DIGEST_ROOT
 
 
 def _crisis_country_data() -> list[dict]:
@@ -1041,6 +1084,32 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
             f"{_sanitize_html(freshness_status.title())} · coverage through {_sanitize_html(str(as_of))}</p>"
         )
 
+    # Latest developments — daily LLM digest (D1: every field is LLM-derived,
+    # so every rendered value passes _sanitize_html; D5: newest ≤3 days).
+    digest = _crisis_digest_entry(entry)
+    if digest:
+        digest_rows = []
+        for field, label in (
+            ("key_developments", "Key developments"),
+            ("key_concerns", "Key concerns"),
+            ("humanitarian_impact", "Humanitarian impact"),
+            ("information_gaps", "Information gaps"),
+        ):
+            value = str(digest.get(field) or "").strip()
+            if value:
+                digest_rows.append(
+                    f'<div class="crisis-digest-row"><h3>{_sanitize_html(label)}</h3>'
+                    f"<p>{_sanitize_html(value)}</p></div>"
+                )
+        if digest_rows:
+            headline = str(digest.get("headline") or "").strip()
+            head_html = f'<p class="crisis-headline">{_sanitize_html(headline)}</p>' if headline else ""
+            parts.append(
+                '<section class="crisis-card crisis-card-wide" aria-labelledby="latest-developments">'
+                f'<h2 id="latest-developments">Latest developments</h2>{head_html}'
+                f"{''.join(digest_rows)}</section>"
+            )
+
     # Related: country summary + bulletins (internal linking for Google crawl)
     rel = []
     if entry.get("has_summary") and _country_slug_map().get(slug):
@@ -1158,6 +1227,186 @@ def crisis_map():
 
 
 # =============================================================================
+# ROUTES — daily digest pages (Tier B)
+# =============================================================================
+
+
+def _digest_country_to_slug(country_stem: str) -> str:
+    """Map a digest file stem (safe_filename form) back to a crisis slug."""
+    for entry in _crisis_country_data():
+        country = str(entry.get("country") or "")
+        from sitrep.utils import safe_filename
+
+        if safe_filename(country) == country_stem:
+            crisis_slug = _crisis_slug(country)
+            if crisis_slug:
+                return crisis_slug
+    return ""
+
+
+def _crisis_url_for_digest(stem: str) -> str:
+    """/crisis/<slug> link for a digest country stem; "" when no crisis page."""
+    slug = _digest_country_to_slug(stem)
+    return f"/crisis/{slug}" if slug else ""
+
+
+@seo_bp.route("/digest")
+def digest_archive():
+    """Archive index of published digest dates (D3: indefinite retention)."""
+    from sitrep.daily_digest import cached_published_dates
+
+    items = []
+    for date_str in cached_published_dates()[:90]:  # index lists recent dates
+        day = load_day_safe(date_str)
+        if not day:
+            continue
+        items.append(
+            {
+                "url": f"/digest/{date_str}",
+                "title": f"Daily digest — {date_str}",
+                "subtitle": f"{len(day)} countries",
+                "sort_date": date_str,
+            }
+        )
+    if not items:
+        abort(404)
+    items.sort(key=lambda x: x["sort_date"], reverse=True)
+    record_page_view("/digest", request.headers.get("User-Agent", ""))
+    return _render_list(
+        "Daily crisis digests",
+        "ACAPS-style daily humanitarian digests per crisis country, synthesized from trusted reporting.",
+        items,
+        "digest",
+    )
+
+
+def load_day_safe(date_str: str) -> dict:
+    """load_day() guarded — malformed dirs or module errors never 500 the page."""
+    try:
+        from sitrep.daily_digest import load_day
+
+        return load_day(date_str)
+    except Exception:
+        logger.warning("load_day failed for %s", date_str, exc_info=True)
+        return {}
+
+
+def _digest_detail_html(country_stem: str, digest: dict, coverage_date: str) -> str:
+    """Render one single-country digest page body (all fields sanitized, D1)."""
+    from sitrep.utils import safe_filename
+
+    country = country_stem  # display fallback; reverse map below when found
+    for entry in _crisis_country_data():
+        entry_country = str(entry.get("country") or "")
+        if safe_filename(entry_country) == country_stem:
+            country = entry_country
+            break
+    rows = []
+    for field, label in (
+        ("key_developments", "Key developments"),
+        ("key_concerns", "Key concerns"),
+        ("humanitarian_impact", "Humanitarian impact"),
+        ("information_gaps", "Information gaps"),
+    ):
+        value = str(digest.get(field) or "").strip()
+        if value:
+            rows.append(
+                f'<div class="crisis-digest-row"><h2>{_sanitize_html(label)}</h2><p>{_sanitize_html(value)}</p></div>'
+            )
+    headline = str(digest.get("headline") or "").strip()
+    headline_html = f'<p class="crisis-headline">{_sanitize_html(headline)}</p>' if headline else ""
+    crisis_url = _crisis_url_for_digest(country_stem)
+    crisis_link = (
+        f'<p><a href="{_sanitize_html(crisis_url)}">Full {_sanitize_html(country)} crisis overview</a></p>'
+        if crisis_url
+        else ""
+    )
+    return (
+        '<div class="crisis-card crisis-card-wide">'
+        f"<h1>Daily digest: {_sanitize_html(country)} — {_sanitize_html(coverage_date)}</h1>"
+        f"{headline_html}{''.join(rows)}{crisis_link}</div>"
+    )
+
+
+@seo_bp.route("/digest/<date_str>")
+def digest_day(date_str: str):
+    """SSR index of one coverage date's digests; 404 on empty days (P5)."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str):
+        abort(404)
+    day = load_day_safe(date_str)
+    if not day:
+        abort(404)
+    items = []
+    for stem, digest in day.items():
+        crisis_url = _crisis_url_for_digest(stem)
+        items.append(
+            {
+                "url": f"/digest/{date_str}/{stem}",
+                "title": str(digest.get("headline") or stem)[:120],
+                "subtitle": crisis_url,
+                "sort_stem": stem,
+            }
+        )
+    items.sort(key=lambda x: x["sort_stem"])
+    record_page_view(f"/digest/{date_str}", request.headers.get("User-Agent", ""))
+    return _render_list(
+        f"Daily digest — {date_str}",
+        "ACAPS-style daily humanitarian digests per crisis country, synthesized from trusted sources.",
+        items,
+        f"digest/{date_str}",
+    )
+
+
+@seo_bp.route("/digest/<date_str>/<country_stem>")
+def digest_country(date_str: str, country_stem: str):
+    """Single-country digest page; 'Data pending' fallback on malformed JSON."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str):
+        abort(404)
+    day = load_day_safe(date_str)
+    digest = day.get(country_stem)
+    if digest is None:
+        # Distinguish: valid date dir but bad file → pending card; no file → 404.
+        from sitrep.daily_digest import DIGEST_ROOT
+
+        raw_path = DIGEST_ROOT / date_str / f"{country_stem}.json"
+        if not raw_path.exists():
+            abort(404)
+        body = (
+            '<div class="crisis-card"><p class="crisis-pending">'
+            "Data pending. Latest information will appear here as sources update.</p></div>"
+        )
+    else:
+        body = _digest_detail_html(country_stem, digest, date_str)
+    record_page_view(f"/digest/{date_str}/{country_stem}", request.headers.get("User-Agent", ""))
+    return _render_detail_generic(body, country_stem, date_str)
+
+
+def _render_detail_generic(body_html: str, country_stem: str, date_str: str) -> str:
+    """Digest detail wrapper on the crisis_detail template (accepts body_html)."""
+    from config import GOOGLE_ANALYTICS_ID
+
+    adsense_client, adsense_slot = _active_adsense_config()
+    return render_template(
+        "crisis_detail.html",
+        page_title=f"Daily digest {date_str} — {country_stem.replace('_', ' ').title()}",
+        page_description="ACAPS-style daily humanitarian digest synthesized from trusted sources.",
+        canonical=f"{SITE_URL}/digest/{date_str}/{country_stem}",
+        site_url=SITE_URL,
+        body_html=body_html,
+        hero_badges="",
+        hero_extra="",
+        map_url="/app#crisis-map",
+        sitrep_url="/app#sitrep",
+        as_of=date_str,
+        json_ld="",
+        analytics_id=GOOGLE_ANALYTICS_ID,
+        adsense_client=adsense_client,
+        adsense_slot=adsense_slot,
+        robots="index,follow",
+    )
+
+
+# =============================================================================
 # ROUTES — sitemap + robots
 # =============================================================================
 
@@ -1199,7 +1448,26 @@ def _sitemap_builder() -> str:
         if not c_slug:
             continue
         if _is_crisis_publishable(c):
-            urls.append((f"{SITE_URL}/crisis/{c_slug}", _crisis_entry_lastmod(c)))
+            lastmod = _crisis_entry_lastmod(c)
+            # Digest date is a legitimate lastmod candidate (D12): the page
+            # genuinely changes when its latest daily digest lands.
+            digest_lastmod = _crisis_digest_lastmod(c_slug)
+            if digest_lastmod > lastmod:
+                lastmod = digest_lastmod
+            urls.append((f"{SITE_URL}/crisis/{c_slug}", lastmod))
+    # Single-country digest pages only (D10: /digest/<date> index pages are
+    # deferred from the sitemap — thin-page dilution risk).
+    try:
+        from sitrep.daily_digest import cached_published_dates
+
+        for date_str in cached_published_dates():
+            day = load_day_safe(date_str)
+            for stem in sorted(day):
+                crisis_url = _crisis_url_for_digest(stem)
+                if crisis_url:  # only countries with a live crisis page
+                    urls.append((f"{SITE_URL}/digest/{date_str}/{stem}", date_str))
+    except Exception:
+        logger.warning("Digest sitemap entries failed", exc_info=True)
     if len(urls) <= 3:
         # An empty sitemap violates the protocol and triggers Search Console
         # errors — serve 404 instead (D16).
@@ -1223,8 +1491,7 @@ def sitemap_xml():
 @seo_bp.route("/robots.txt")
 def robots_txt():
     return (
-        f"User-agent: *\nAllow: /\nDisallow: /api/\n"
-        f"Disallow: /proposal\nSitemap: {SITE_URL}/sitemap.xml\n",
+        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /proposal\nSitemap: {SITE_URL}/sitemap.xml\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )
