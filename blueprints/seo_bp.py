@@ -1495,10 +1495,15 @@ def deep_dive_detail(week: str, slug: str):
             country = entry_country
             break
     if dive_path is None:
-        candidate = week_dir / f"{safe_filename(slug)}.json"
-        if candidate.exists():
-            dive_path = candidate
-            country = slug
+        # Fallback: raw-stem lookup. Files are stored as safe_filename(Country)
+        # (canonical case, e.g. Haiti.json); a slug like "haiti" may not match
+        # on case-sensitive filesystems, so probe the slug and its title-case.
+        for candidate_name in (slug, slug.replace("-", "_"), slug.title(), slug.replace("-", "_").title()):
+            candidate = week_dir / f"{safe_filename(candidate_name)}.json"
+            if candidate.exists():
+                dive_path = candidate
+                country = candidate_name
+                break
     if dive_path is None or not dive_path.exists():
         abort(404)
     try:
