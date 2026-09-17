@@ -161,7 +161,8 @@ class TestRoutes:
         html = resp.get_data(as_text=True)
         assert 'class="publication-hero"' in html
         assert 'href="/sitreps"' in html
-        assert 'aria-label="Publication type"' in html
+        assert 'href="/digest"' in html
+        assert "data-publication-search" in html
 
     def test_sitreps_list_200_and_excludes_test_artifacts(self, client):
         resp = client.get("/sitreps", headers={"User-Agent": "Mozilla/5.0"})

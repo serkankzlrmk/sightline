@@ -1,0 +1,51 @@
+/* Public reading surfaces: compact archives and comfortable report typography. */
+.publication-shell, .article-shell { max-width: 1080px; padding-top: 40px; }
+.publication-hero { margin-bottom: 28px; gap: 24px; }
+.publication-hero h1, .article-hero h1 { max-width: 28ch; font-size: clamp(30px, 4vw, 46px); line-height: 1.14; letter-spacing: -.035em; }
+.publication-description, .article-hero > p:not(.publication-kicker) { font-size: 16px; margin-top: 14px; }
+.publication-count strong { font-size: 28px; }
+.publication-nav { gap: 20px; }
+.publication-card, .publication-card-featured { min-height: 0; grid-column: auto; padding: 24px; background: var(--publication-surface); }
+.publication-card-topline { margin-bottom: 16px; flex-wrap: wrap; gap: 6px; letter-spacing: 0; text-transform: none; }
+.publication-card h2, .publication-card:not(.publication-card-featured) h2 { max-width: none; font-size: 22px; line-height: 1.3; text-wrap: pretty; }
+.publication-card p { margin: 12px 0 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.publication-card-footer { padding-top: 18px; gap: 12px; flex-wrap: wrap; }
+.publication-card[hidden] { display: none; }
+.reader-search { display: grid; gap: 8px; margin: 0 0 24px; max-width: 460px; }
+.reader-search label, .reader-search [role="status"] { font-size: 13px; color: var(--publication-muted); }
+.reader-search input { width: 100%; font: inherit; padding: 12px 14px; color: var(--publication-text); background: var(--publication-surface); border: 1px solid var(--publication-border-strong); border-radius: var(--publication-radius-sm); }
+.reader-search input:focus-visible { outline: 3px solid var(--publication-focus); outline-offset: 2px; }
+.reader-search [role="status"]:empty { display: none; }
+.article-breadcrumb { margin-bottom: 28px; flex-wrap: wrap; }
+.article-layout { display: block; max-width: 72ch; margin: 32px auto 0; }
+.article-hero { max-width: 800px; margin-bottom: 24px; }
+.article-rail { position: static; margin-top: 40px; padding: 20px 0; border-left: 0; border-top: 1px solid var(--publication-border); }
+.article-body p, .article-body li, .article-body blockquote { font-size: 16px; line-height: 1.8; overflow-wrap: anywhere; }
+.article-body h2 { font-size: 26px; margin-top: 36px; }
+.article-body h3 { font-size: 20px; }
+.article-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.article-body th, .article-body td { padding: 10px; border-bottom: 1px solid var(--publication-border); text-align: left; }
+.article-body .crisis-digest-field { margin: 24px 0; }
+.article-body .crisis-digest-label { display: block; font-weight: 600; margin-bottom: 8px; }
+.article-cta { margin-top: 48px; background: var(--publication-surface); color: var(--publication-text); border: 1px solid var(--publication-border); }
+.article-cta p, .article-cta span { color: var(--publication-muted); }
+.article-cta > a { background: var(--publication-text); color: var(--publication-surface); }
+.crisis-hero { padding: 28px; background: var(--surface); }
+.crisis-hero::after { display: none; }
+.crisis-title { font-size: clamp(30px, 4vw, 46px); line-height: 1.15; max-width: 28ch; }
+.crisis-narrative, .crisis-headline, .crisis-digest-field p { max-width: 72ch; line-height: 1.8; overflow-wrap: anywhere; text-align: left; }
+.crisis-report-source { white-space: normal; }
+.crisis-digest-grid { grid-template-columns: 1fr; }
+.crisis-digest-field { background: transparent; padding: 20px 0; border-bottom: 1px solid var(--border); }
+.crisis-digest-field p { margin-bottom: 0; }
+.crisis-digest-head h1 { font-size: 24px; line-height: 1.3; }
+.crisis-content-grid { gap: 20px; }
+.crisis-card { padding: 24px; }
+.crisis-card h2 { font-size: 22px; line-height: 1.3; }
+.crisis-nav a { white-space: nowrap; }
+@media (max-width: 680px) {
+  .publication-shell, .article-shell { padding-top: 28px; }
+  .publication-card, .crisis-hero, .crisis-card { padding: 20px; }
+  .publication-card-footer { flex-direction: row; }
+  .crisis-digest-head { flex-wrap: wrap; }
+}

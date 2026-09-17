@@ -497,6 +497,8 @@
   </style>
   {% include '_analytics_head.html' %}
   {% include '_adsense_head.html' %}
+  <link rel="stylesheet" href="/static/css/reader.css?v=1">
+  <script defer src="/static/publication-reader.js?v=1"></script>
 </head>
 <body>
   <a class="skip-link" href="#crisis-content">Skip to crisis overview</a>
@@ -509,17 +511,13 @@
       <a class="crisis-home" href="/">Back to home</a>
     </div>
     <nav class="crisis-nav" aria-label="Public pages">
-      <a href="/crisis" aria-current="page">Crisis Overviews</a>
-      <a href="/bulletins">Bulletins</a>
-      <a href="/sitreps">SITREPs</a>
-      <a href="/countries">Country Summaries</a>
-      <a href="{{ map_url }}">Crisis Map</a>
-      <a href="/proposal">Proposal Studio</a>
+      {% include '_publication_nav.html' %}
+      <a href="{{ map_url }}">Open map</a>
     </nav>
   </header>
   <main class="crisis-wrap" id="crisis-content">
     <section class="crisis-hero" aria-labelledby="crisis-title">
-      <p class="crisis-kicker">Live country briefing</p>
+      <p class="crisis-kicker">{{ 'Daily digest' if request.path.startswith('/digest/') else 'Country briefing' }}</p>
       {{ hero_badges | safe }}
       <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
       <p class="crisis-sub">Humanitarian overview with dated reports, alerts and key figures from trusted sources.</p>
