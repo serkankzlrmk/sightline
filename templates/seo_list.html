@@ -23,6 +23,8 @@
   <link rel="stylesheet" href="/static/css/publications.css">
   {% include '_analytics_head.html' %}
   {% include '_adsense_head.html' %}
+  <link rel="stylesheet" href="/static/css/reader.css?v=1">
+  <script defer src="/static/publication-reader.js?v=1"></script>
 </head>
 <body>
   <a class="skip-link" href="#publication-content">Skip to publications</a>
@@ -33,11 +35,7 @@
         <span>Sightline</span>
       </a>
       <nav class="publication-nav" aria-label="Public pages">
-        <a href="/crisis">Crisis Overviews</a>
-        <a href="/bulletins"{% if active_section == 'bulletins' %} aria-current="page"{% endif %}>Bulletins</a>
-        <a href="/sitreps"{% if active_section == 'sitreps' %} aria-current="page"{% endif %}>SITREPs</a>
-        <a href="/countries"{% if active_section == 'countries' %} aria-current="page"{% endif %}>Country Summaries</a>
-        <a href="/app#crisis-map">Crisis Map</a>
+        {% include '_publication_nav.html' %}
       </nav>
       <a class="publication-app-link" href="/app">Open Sightline</a>
     </div>
@@ -52,20 +50,15 @@
       </div>
       <div class="publication-count" aria-label="Published items">
         <strong>{{ items|length }}</strong>
-        <span>Published editions</span>
+        <span>Available entries</span>
       </div>
     </section>
 
-    <nav class="publication-switcher" aria-label="Publication type">
-      <a href="/bulletins"{% if active_section == 'bulletins' %} aria-current="page"{% endif %}>
-        <span>Weekly briefings</span>
-        <strong>Bulletins</strong>
-      </a>
-      <a href="/sitreps"{% if active_section == 'sitreps' %} aria-current="page"{% endif %}>
-        <span>Evidence-led reports</span>
-        <strong>SITREPs</strong>
-      </a>
-    </nav>
+    <div class="reader-search">
+      <label for="publication-search">Find a country or report</label>
+      <input id="publication-search" type="search" placeholder="Search this collection" data-publication-search>
+      <span role="status" data-search-status></span>
+    </div>
 
     {% if adsense_client %}
     <aside class="publication-ad" aria-label="Advertisement">
@@ -81,7 +74,7 @@
       <a class="publication-card{% if loop.first %} publication-card-featured{% endif %}" href="{{ item.url }}">
         <div class="publication-card-topline">
           <span>{{ item.eyebrow or 'Published intelligence' }}</span>
-          <time>{{ item.subtitle }}</time>
+          <span>{{ item.sort_stem|replace('_', ' ') if item.sort_stem else item.subtitle }}</span>
         </div>
         <h2>{{ item.title }}</h2>
         {% if item.summary %}<p>{{ item.summary }}</p>{% endif %}

@@ -24,6 +24,8 @@
   <script type="application/ld+json">{{ json_ld | safe }}</script>
   {% include '_analytics_head.html' %}
   {% include '_adsense_head.html' %}
+  <link rel="stylesheet" href="/static/css/reader.css?v=1">
+  <script defer src="/static/publication-reader.js?v=1"></script>
 </head>
 <body>
   <a class="skip-link" href="#article-content">Skip to report</a>
@@ -34,11 +36,7 @@
         <span>Sightline</span>
       </a>
       <nav class="publication-nav" aria-label="Public pages">
-        <a href="/crisis">Crisis Overviews</a>
-        <a href="/bulletins"{% if active_section == 'bulletins' %} aria-current="page"{% endif %}>Bulletins</a>
-        <a href="/sitreps"{% if active_section == 'sitreps' %} aria-current="page"{% endif %}>SITREPs</a>
-        <a href="/countries"{% if active_section == 'countries' %} aria-current="page"{% endif %}>Country Summaries</a>
-        <a href="/app#crisis-map">Crisis Map</a>
+        {% include '_publication_nav.html' %}
       </nav>
       <a class="publication-app-link" href="/app">Open Sightline</a>
     </div>

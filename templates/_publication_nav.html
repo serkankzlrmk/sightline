@@ -1,0 +1,3 @@
+{% for path, label in [('/crisis', 'Crisis'), ('/digest', 'Digest'), ('/bulletins', 'Bulletins'), ('/sitreps', 'SITREPs'), ('/countries', 'Countries')] %}
+<a href="{{ path }}"{% if request.path == path or (path == '/digest' and request.path.startswith('/digest/')) or (path == '/crisis' and request.path.startswith('/crisis/')) or (path == '/bulletins' and request.path.startswith('/bulletin/')) or (path == '/sitreps' and request.path.startswith('/sitrep/')) or (path == '/countries' and request.path.startswith('/country/')) %} aria-current="page"{% endif %}>{{ label }}</a>
+{% endfor %}
