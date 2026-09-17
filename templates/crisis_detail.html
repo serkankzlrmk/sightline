@@ -35,7 +35,11 @@
       --divider: rgba(0,0,0,.05);
       --radius-card: 16px;
       --radius-inner: 10px;
+      --radius-md: 10px;
+      --radius: 12px;
       --radius-pill: 9999px;
+      --text-secondary: #5B5B74;
+      --hover-bg: rgba(0,0,0,.04);
       --green: #10B981;
       --orange: #F59E0B;
       --red: #EF4444;
@@ -312,6 +316,91 @@
     }
     .crisis-pending { margin: 0; color: var(--muted); font-size: 14px; }
 
+    /* ── Digest / deep-dive blocks (0.2.x redesign) ──────────────────── */
+    .crisis-digest { padding: 24px 28px 28px; }
+    .crisis-digest-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .crisis-digest-head h1,
+    .crisis-digest-head h2 { margin: 0; }
+    .crisis-digest-date {
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      background: rgba(14,165,233,.09);
+      color: var(--primary-dark);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .crisis-digest-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 720px) {
+      .crisis-digest-grid { grid-template-columns: 1fr; }
+    }
+    .crisis-digest-field {
+      min-width: 0;
+      padding: 16px 18px;
+      border: 1px solid var(--divider);
+      border-left: 3px solid var(--primary);
+      border-radius: var(--radius-md);
+      background: var(--bg);
+    }
+    .crisis-digest-label {
+      display: inline-block;
+      margin-bottom: 7px;
+      color: var(--text-secondary);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+    .crisis-digest-field p {
+      margin: 0;
+      color: #2B2B45;
+      font-size: 15px;
+      line-height: 1.72;
+      text-wrap: pretty;
+    }
+    .crisis-digest-dive-headline {
+      margin: 0 0 6px !important;
+      color: var(--text);
+      font-size: 15.5px;
+      font-weight: 650;
+      line-height: 1.45;
+    }
+    .crisis-digest-footer { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--divider); }
+    .crisis-digest-cta {
+      display: inline-block;
+      padding: 9px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--primary-dark) !important;
+      font-weight: 650;
+      font-size: 14px;
+      text-decoration: none;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .crisis-digest-cta:hover { background: var(--hover-bg); }
+    .crisis-digest-cta:active { transform: scale(0.97); }
+    .crisis-kicker-line {
+      margin: 0 0 10px;
+      color: var(--text-secondary);
+      font-size: 13.5px;
+      font-weight: 600;
+      letter-spacing: .01em;
+    }
+
     .ad-banner {
       position: relative;
       min-height: 132px;
@@ -435,7 +524,6 @@
       <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
       <p class="crisis-sub">Humanitarian overview with dated reports, alerts and key figures from trusted sources.</p>
       <div class="crisis-summary-block">{{ hero_extra | safe }}</div>
-      <p class="crisis-asof">As of {{ as_of }}</p>
     </section>
     {% if adsense_client %}
     <aside class="crisis-ad ad-banner" id="crisis-ad-slot" aria-label="Advertisement">

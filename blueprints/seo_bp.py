@@ -711,14 +711,17 @@ def bulletin_detail(slug: str):
         if dives:
             dive_items = []
             for country, dive in dives:
+                what_changed = str(dive.get("what_changed") or "")
                 dive_items.append(
-                    f'<article class="bulletin-deep-dive"><h3>{_sanitize_html(str(dive.get("headline") or country))}</h3>'
-                    f"<p>{_sanitize_html(str(dive.get('what_changed') or ''))}</p>"
-                    f"<p>{_sanitize_html(str(dive.get('why_it_matters') or ''))}</p></article>"
+                    '<article class="crisis-digest-field">'
+                    f'<span class="crisis-digest-label">{_sanitize_html(country)}</span>'
+                    f'<p class="crisis-digest-dive-headline">{_sanitize_html(str(dive.get("headline") or ""))}</p>'
+                    f"<p>{_sanitize_html(what_changed)}</p></article>"
                 )
+            joined_dives = "".join(dive_items)
             sections.append(
-                '<section class="bulletin-deep-dives"><p class="section-label">Deep dives</p>'
-                f"<h2>Weekly deep dives</h2>{''.join(dive_items)}</section>"
+                '<section class="bulletin-deep-dives crisis-digest"><p class="section-label">Deep dives</p>'
+                f'<h2>Weekly deep dives</h2><div class="crisis-digest-grid">{joined_dives}</div></section>'
             )
         json_ld = {
             "@context": "https://schema.org",
@@ -1068,16 +1071,31 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         badges.append(f'<a class="crisis-badge crisis-badge-blue" href="{sitrep_url}">Sitrep available</a>')
     hero_badges = f'<div class="crisis-badges">{"".join(badges)}</div>' if badges else ""
 
-    # Hero enrichment: headline + narrative (real data — P2). These are the
-    # exact strings Google surfaces in snippets, so they stay factual.
-    headline = _sanitize_html(str(entry.get("headline") or ""))
-    narrative = _sanitize_html(str(entry.get("narrative") or ""))
+    # Hero enrichment: the LLM digest headline is the primary summary (when a
+    # fresh digest exists); the metadata headline degrades to a kicker chip so
+    # the page never shows two competing headlines. Date lines collapse into ONE
+    # meta line: coverage window + freshness + updated date.
+    digest = _crisis_digest_entry(entry)
+    headline = str(entry.get("headline") or "")
+    narrative = str(entry.get("narrative") or "")
+    digest_headline = str((digest or {}).get("headline") or "").strip()
+    kicker_bits = []
+    if digest_headline:
+        headline = digest_headline  # the synthesis reads better than "N reports · theme"
+    if count:
+        kicker_bits.append(f"{count} reports")
+    if entry.get("top_themes"):
+        kicker_bits.append(str(entry["top_themes"][0]))
+    kicker = " · ".join(kicker_bits)
     hero_extra = ""
+    if kicker:
+        hero_extra += f'<p class="crisis-kicker-line">{_sanitize_html(kicker)}</p>'
     if headline:
-        hero_extra += f'<p class="crisis-headline">{headline}</p>'
-    if narrative:
-        hero_extra += f'<p class="crisis-narrative">{narrative}</p>'
-
+        hero_extra += f'<p class="crisis-headline">{_sanitize_html(headline)}</p>'
+    if narrative and not digest_headline:
+        # Only show the deterministic narrative when there is no digest to
+        # replace it (the digest covers the same ground with fresh synthesis).
+        hero_extra += f'<p class="crisis-narrative">{_sanitize_html(narrative)}</p>'
     # Sections (real data only — P2; per-source failure → "Data pending" card)
     headlines = entry.get("top_themes") or []
     recent = entry.get("recent_reports") or []
@@ -1085,6 +1103,20 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     as_of = _crisis_entry_lastmod(entry)
     if isinstance(as_of, str) and len(as_of) > 10:
         as_of = as_of[:10]
+
+    # Hero meta line: ONE date line replacing the previous three stacked lines
+    # (coverage window + data freshness + updated date).
+    meta_bits = []
+    dr = entry.get("date_range") or {}
+    lo, hi = dr.get("min_date"), dr.get("max_date")
+    if lo and hi:
+        meta_bits.append(f"reports {str(lo)[5:]} to {str(hi)}")
+    freshness = entry.get("data_freshness") or {}
+    freshness_status = str(freshness.get("status") or "").strip().lower()
+    if freshness_status and freshness_status != "unknown":
+        meta_bits.append(f"{_sanitize_html(freshness_status)} data")
+    meta_bits.append(f"updated {as_of}")
+    hero_extra += f'<p class="crisis-asof">{" · ".join(meta_bits)}</p>'
 
     parts = []
     if gdacs:
@@ -1134,22 +1166,10 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
             f'<section class="crisis-card" aria-labelledby="top-sources"><h2 id="top-sources">Top sources</h2><div class="crisis-themes">{src_chips}</div></section>'
         )
 
-    # Coverage window — factual freshness line (only when date_range exists)
-    dr = entry.get("date_range") or {}
-    lo, hi = dr.get("min_date"), dr.get("max_date")
-    if lo and hi:
-        hero_extra += f'<p class="crisis-asof">Reports from {_sanitize_html(str(lo))} to {_sanitize_html(str(hi))}</p>'
-    freshness = entry.get("data_freshness") or {}
-    freshness_status = str(freshness.get("status") or "").strip().lower()
-    if freshness_status and freshness_status != "unknown":
-        hero_extra += (
-            '<p class="crisis-asof">Data freshness: '
-            f"{_sanitize_html(freshness_status.title())} · coverage through {_sanitize_html(str(as_of))}</p>"
-        )
-
     # Latest developments — daily LLM digest (D1: every field is LLM-derived,
     # so every rendered value passes _sanitize_html; D5: newest ≤3 days).
-    digest = _crisis_digest_entry(entry)
+    if not digest:
+        digest = _crisis_digest_entry(entry)
     if digest:
         digest_rows = []
         for field, label in (
@@ -1161,15 +1181,16 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
             value = str(digest.get(field) or "").strip()
             if value:
                 digest_rows.append(
-                    f'<div class="crisis-digest-row"><h3>{_sanitize_html(label)}</h3>'
+                    f'<div class="crisis-digest-field"><span class="crisis-digest-label">{_sanitize_html(label)}</span>'
                     f"<p>{_sanitize_html(value)}</p></div>"
                 )
         if digest_rows:
-            headline = str(digest.get("headline") or "").strip()
-            head_html = f'<p class="crisis-headline">{_sanitize_html(headline)}</p>' if headline else ""
             parts.append(
-                '<section class="crisis-card crisis-card-wide" aria-labelledby="latest-developments">'
-                f'<h2 id="latest-developments">Latest developments</h2>{head_html}'
+                '<section class="crisis-card crisis-card-wide crisis-digest" aria-labelledby="latest-developments">'
+                '<div class="crisis-digest-head">'
+                '<h2 id="latest-developments">Latest developments</h2>'
+                f'<span class="crisis-digest-date">{_sanitize_html(as_of)}</span>'
+                "</div>"
                 f"{''.join(digest_rows)}</section>"
             )
 
@@ -1374,20 +1395,25 @@ def _digest_detail_html(country_stem: str, digest: dict, coverage_date: str) -> 
         value = str(digest.get(field) or "").strip()
         if value:
             rows.append(
-                f'<div class="crisis-digest-row"><h2>{_sanitize_html(label)}</h2><p>{_sanitize_html(value)}</p></div>'
+                f'<div class="crisis-digest-field"><span class="crisis-digest-label">{_sanitize_html(label)}</span>'
+                f"<p>{_sanitize_html(value)}</p></div>"
             )
     headline = str(digest.get("headline") or "").strip()
     headline_html = f'<p class="crisis-headline">{_sanitize_html(headline)}</p>' if headline else ""
     crisis_url = _crisis_url_for_digest(country_stem)
     crisis_link = (
-        f'<p><a href="{_sanitize_html(crisis_url)}">Full {_sanitize_html(country)} crisis overview</a></p>'
+        f'<a class="crisis-digest-cta" href="{_sanitize_html(crisis_url)}">Full {_sanitize_html(country)} overview</a>'
         if crisis_url
         else ""
     )
     return (
-        '<div class="crisis-card crisis-card-wide">'
-        f"<h1>Daily digest: {_sanitize_html(country)} — {_sanitize_html(coverage_date)}</h1>"
-        f"{headline_html}{''.join(rows)}{crisis_link}</div>"
+        '<div class="crisis-card crisis-card-wide crisis-digest">'
+        '<div class="crisis-digest-head">'
+        f"<h1>Daily digest: {_sanitize_html(country)}</h1>"
+        f'<span class="crisis-digest-date">{_sanitize_html(coverage_date)}</span>'
+        "</div>"
+        f"{headline_html}{''.join(rows)}"
+        f'<div class="crisis-digest-footer">{crisis_link}</div></div>'
     )
 
 
@@ -1523,13 +1549,17 @@ def deep_dive_detail(week: str, slug: str):
         value = str(dive.get(field) or "").strip()
         if value:
             rows.append(
-                f'<div class="crisis-digest-row"><h2>{_sanitize_html(label)}</h2><p>{_sanitize_html(value)}</p></div>'
+                f'<div class="crisis-digest-field"><span class="crisis-digest-label">{_sanitize_html(label)}</span>'
+                f"<p>{_sanitize_html(value)}</p></div>"
             )
     headline = str(dive.get("headline") or "").strip()
     headline_html = f'<p class="crisis-headline">{_sanitize_html(headline)}</p>' if headline else ""
     body = (
-        '<div class="crisis-card crisis-card-wide">'
-        f"<h1>Weekly deep dive: {_sanitize_html(country)} — {_sanitize_html(week)}</h1>"
+        '<div class="crisis-card crisis-card-wide crisis-digest">'
+        '<div class="crisis-digest-head">'
+        f"<h1>Weekly deep dive: {_sanitize_html(country)}</h1>"
+        f'<span class="crisis-digest-date">{_sanitize_html(week)}</span>'
+        "</div>"
         f"{headline_html}{''.join(rows)}</div>"
     )
     record_page_view(f"/deep-dive/{week}/{slug}", request.headers.get("User-Agent", ""))
