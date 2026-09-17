@@ -651,38 +651,13 @@
   text-decoration: underline;
 }
 
-/* Anonymous Chat preview — a compact, illustrative conversation behind the sign-in panel. */
+/* Anonymous Chat preview — mirrors the rhythm of a real conversation behind the sign-in panel. */
 .guest-chat-demo { display: none; }
 body.auth-locked .guest-chat-demo {
   display: block;
-  width: min(520px, 100%);
-  margin: 30px auto 0;
-  padding: 13px 14px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: rgba(255,255,255,.48);
-  box-shadow: var(--shadow-sm);
+  width: min(610px, 100%);
+  margin: 36px auto 0;
   text-align: left;
-}
-.guest-chat-demo-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 2px 12px;
-  border-bottom: 1px solid var(--border-light);
-}
-.guest-chat-preview-kicker {
-  color: var(--text-secondary);
-  font: 600 10px/1 'JetBrains Mono', monospace;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-.guest-chat-preview-status {
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 .guest-chat-demo-thread { padding-top: 12px; }
 .guest-chat-demo-message {
@@ -691,6 +666,7 @@ body.auth-locked .guest-chat-demo {
   border-radius: 12px;
   font-size: 12px;
   line-height: 1.4;
+  animation: guest-chat-message-in .45s ease both;
 }
 .guest-chat-demo-message-user {
   margin-left: auto;
@@ -716,6 +692,9 @@ body.auth-locked .guest-chat-demo {
   background: rgba(245,247,249,.78);
   border: 1px solid var(--border-light);
 }
+.guest-chat-demo-message-second { animation-delay: 3.15s; }
+.guest-chat-demo-message-second + .guest-chat-demo-message-second { animation-delay: 3.35s; }
+.guest-chat-demo-message-second .guest-chat-demo-result { animation-delay: 3.7s; }
 .guest-chat-demo-label {
   color: var(--text);
   font: 600 9px/1 'JetBrains Mono', monospace;
@@ -736,6 +715,7 @@ body.auth-locked .guest-chat-demo {
 .guest-chat-demo-result { color: var(--text); font-weight: 600; animation: guest-chat-reveal .35s ease 1.9s forwards; }
 .guest-chat-demo-source { color: var(--text-muted); font-size: 10px; animation: guest-chat-reveal .35s ease 2.15s forwards; }
 @keyframes guest-chat-dot { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+@keyframes guest-chat-message-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes guest-chat-type { to { width: 100%; } }
 @keyframes guest-chat-caret { 50% { border-color: transparent; } }
 @keyframes guest-chat-typing-out { to { opacity: 0; height: 0; margin: -2px 0; } }
