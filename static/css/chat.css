@@ -650,3 +650,92 @@
 .rate-limit-msg-contact a:hover {
   text-decoration: underline;
 }
+
+/* Anonymous Chat preview — keeps the gated surface composed behind the sign-in panel. */
+.guest-chat-preview { display: none; }
+body.auth-locked .guest-chat-preview {
+  display: block;
+  width: min(680px, 100%);
+  margin: 28px auto 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.55);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+}
+.guest-chat-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.guest-chat-preview-kicker {
+  color: var(--text-secondary);
+  font: 600 10px/1 'JetBrains Mono', monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.guest-chat-preview-status {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.guest-chat-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 12px;
+}
+.guest-chat-preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,.5);
+}
+.guest-chat-preview-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: var(--radius-sm);
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.guest-chat-preview-icon.is-accent { background: var(--primary-soft); color: var(--primary); }
+.guest-chat-preview-icon.is-green { background: var(--green-light); color: var(--green-dark); }
+.guest-chat-preview-item strong {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.guest-chat-preview-item small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+body.auth-locked .chat-input-wrap {
+  opacity: .68;
+  animation: none;
+}
+body.auth-locked .chat-input-wrap .attach-btn,
+body.auth-locked .chat-input-wrap .model-selector,
+body.auth-locked .chat-input-wrap .send-btn {
+  pointer-events: none;
+}
+@media (max-width: 768px) {
+  body.auth-locked .guest-chat-preview { margin-top: 20px; }
+  .guest-chat-preview-grid { grid-template-columns: 1fr; }
+  .guest-chat-preview-item { align-items: center; }
+}

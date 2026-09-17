@@ -10,6 +10,7 @@ async function loadSitrepReportsList() {
     }
     list.innerHTML = '';
     const canDelete = (window.__userRole || 'free') === 'admin';
+    list.classList.toggle('can-delete', canDelete);
     items.forEach(item => {
       const div = document.createElement('div');
       div.className = 'report-item';

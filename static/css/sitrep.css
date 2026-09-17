@@ -127,8 +127,9 @@
 }
 .sitrep-reports-list .report-item {
   position: relative;
-  padding-right: 30px;
+  padding-right: 14px;
 }
+.sitrep-reports-list.can-delete .report-item { padding-right: 30px; }
 .sitrep-reports-list .report-item-delete {
   position: absolute;
   right: 4px;

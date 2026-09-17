@@ -1100,6 +1100,10 @@ body.sidebar-hidden .db-header {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+.map-search-icon {
+  top: 44px !important;
+  transform: translateY(-50%) !important;
+}
 #map-search-input {
   width: 100% !important;
   min-height: 44px;
@@ -1128,7 +1132,7 @@ body.sidebar-hidden .db-header {
 }
 .map-context-shell {
   top: 24px;
-  left: 24px;
+  left: 88px;
   max-width: 250px;
   padding: 14px 16px;
   border-radius: var(--radius-lg);
@@ -1194,6 +1198,20 @@ body.sidebar-hidden .db-header {
 .map-filter-btn.active { background: var(--text); color: var(--text-inverse); }
 .map-filter-btn:active { transform: scale(.97); }
 .map-filter-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.map-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--hover-bg-strong);
+  color: inherit;
+  font: 600 10px/1 'JetBrains Mono', monospace;
+}
+.map-filter-btn.active .map-filter-count { background: rgba(255,255,255,.18); }
 
 .map-legend-shell {
   right: 24px;

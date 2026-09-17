@@ -149,12 +149,17 @@ function countryHasActiveAlert(country) {
   return Array.isArray(country?.gdacs_alerts) && country.gdacs_alerts.length > 0;
 }
 
-function updateMapContextStats(countries) {
+function updateMapContextStats(countries, visibleCountries = countries) {
   const visibleEl = document.getElementById('map-visible-count');
   const alertEl = document.getElementById('map-alert-count');
-  const alertCount = countries.filter(countryHasActiveAlert).length;
-  if (visibleEl) visibleEl.textContent = countries.length.toLocaleString();
+  const alertCount = visibleCountries.filter(countryHasActiveAlert).length;
+  if (visibleEl) visibleEl.textContent = visibleCountries.length.toLocaleString();
   if (alertEl) alertEl.textContent = alertCount.toLocaleString();
+
+  const alertFilter = document.querySelector('[data-filter-count="alerts"]');
+  const highFilter = document.querySelector('[data-filter-count="high"]');
+  if (alertFilter) alertFilter.textContent = countries.filter(countryHasActiveAlert).length;
+  if (highFilter) highFilter.textContent = countries.filter(c => c.severity === 'high').length;
 }
 
 function updateMapMarkers() {
@@ -168,12 +173,12 @@ function updateMapMarkers() {
   leafletMarkers = [];
 
   const allCrises = Object.values(crisisMapData);
-  updateMapContextStats(allCrises);
   const crises = allCrises.filter(c => {
     if (mapMarkerFilter === 'alerts') return countryHasActiveAlert(c);
     if (mapMarkerFilter === 'high') return c.severity === 'high';
     return true;
   });
+  updateMapContextStats(allCrises, crises);
   const emptyState = document.getElementById('map-empty-state');
   if (emptyState) emptyState.classList.toggle('hidden', crises.length > 0);
   if (!crises.length) return;

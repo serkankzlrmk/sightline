@@ -144,4 +144,5 @@ body.sidebar-collapsed .main {
    ═══════════════════════════════════════════════════════════════════════════ */
 .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
 #panel-db { overflow-y: auto; overflow-x: hidden; height: 100%; }
+#panel-crisis-map { overflow-anchor: none; }
 .panel.active { display: flex; }

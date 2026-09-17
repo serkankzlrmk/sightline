@@ -274,8 +274,20 @@ body .nav {
 }
 
 /* ── Admin panel — Apple clean ─────────────────────────────────────────── */
+#panel-admin {
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .admin-panel-content {
-  max-width: 800px; margin: 0 auto; padding: 24px;
+  width: 100%;
+  max-width: 1200px;
+  min-height: max-content;
+  margin: 0 auto;
+  padding: 24px 28px 48px;
 }
 .admin-panel-content h2 {
   color: var(--text-primary); margin-bottom: 8px;
@@ -296,6 +308,8 @@ body .nav {
 /* ── Analytics dashboard ──────────────────────────────────────────────── */
 .analytics-grid {
   display: flex; flex-direction: column; gap: 20px;
+  min-width: 0;
+  padding-bottom: 12px;
 }
 .analytics-cards {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;
@@ -311,14 +325,14 @@ body .nav {
 }
 .chart-container {
   background: var(--card-bg, var(--bg)); border: 1px solid var(--border, rgba(0,0,0,.06));
-  border-radius: 12px; padding: 16px;
+  border-radius: 12px; padding: 16px; min-width: 0; overflow: hidden;
 }
 .chart-container h4 {
   font-size: 13px; color: var(--text-primary); margin-bottom: 12px; font-weight: 600;
 }
 .analytics-table {
   background: var(--card-bg, var(--bg)); border: 1px solid var(--border, rgba(0,0,0,.06));
-  border-radius: 12px; padding: 16px;
+  border-radius: 12px; padding: 16px; min-width: 0; overflow-x: auto;
 }
 .analytics-table h4 {
   font-size: 13px; color: var(--text-primary); margin-bottom: 12px; font-weight: 600;
@@ -477,4 +491,3 @@ body .nav {
 .msg.user .msg-body a { color: rgba(255,255,255,.85); }
 .msg-body hr    { border: none; border-top: 1px solid var(--border-light); margin: 12px 0; }
 .msg-body blockquote { border-left: 3px solid var(--blue); padding-left: 16px; color: var(--text-secondary); margin: 10px 0; font-style: italic; }
-

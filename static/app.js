@@ -143,6 +143,22 @@ function toggleSidebarNav() {
   }
 }
 
+function resetMapScrollPosition() {
+  const main = document.querySelector('.main');
+  const mapPanel = document.getElementById('panel-crisis-map');
+  const mapWrap = document.getElementById('dash-map-wrap');
+  [main, mapPanel, mapWrap].forEach((element) => {
+    if (element) element.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  });
+  // Recalculate Leaflet after the tab becomes visible without changing the
+  // user's intentional map center or zoom.
+  if (leafletMap) {
+    requestAnimationFrame(() => {
+      leafletMap.invalidateSize({ animate: false, pan: false });
+    });
+  }
+}
+
 function switchTab(name) {
   // Freemium preview: gated tabs require auth — Chat and Database stay
   // locked behind the login panel; Bulletin, SITREP, Map and Countries
@@ -231,6 +247,7 @@ function switchTab(name) {
   }
 
   if (name === 'crisis-map') {
+    resetMapScrollPosition();
     // Build and measure Leaflet only after its panel is visible.
     initWorldMap();
     loadDashboard();
