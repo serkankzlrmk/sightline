@@ -159,6 +159,21 @@ def health():
     except Exception:
         checks["data_fresh"] = False
 
+    # Digest freshness (D12): enrichment status date, observable but
+    # non-critical — a stale digest alerts operators without degrading app
+    # health. Absent status = enrichment not configured yet (not degraded).
+    try:
+        from sitrep.daily_digest import read_status
+
+        status = read_status()
+        if status and isinstance(status.get("date"), str) and status.get("date"):
+            checks["digest_fresh"] = True
+            checks["digest_date"] = str(status["date"])[:10]
+        else:
+            checks["digest_fresh"] = False
+    except Exception:
+        checks["digest_fresh"] = False
+
     # Overall status: ok only if all critical checks pass
     all_ok = db_ok and checks.get("vector", False) and checks["llm"]
     checks["status"] = "ok" if all_ok else "degraded"

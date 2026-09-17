@@ -21,6 +21,12 @@ while :; do
         echo "[daily] visual enrichment for $yesterday"
         python scripts/daily_visual_pipeline.py --date "$yesterday" --r2-required || true
       fi
+      # Daily content enrichment (ACAPS-style digests). Never fails the
+      # scheduler block (D2): '|| true' + status file for /api/health.
+      if [ -f scripts/daily_content_enrichment.py ]; then
+        echo "[daily] content enrichment for $yesterday"
+        python scripts/daily_content_enrichment.py --date "$yesterday" || true
+      fi
     else
       echo "[daily] ingest failed; visual enrichment skipped" >&2
     fi
