@@ -86,6 +86,8 @@ export default [
         escHtml: 'readonly',
         sanitizeHtml: 'readonly',
         switchTab: 'readonly',
+        mapMarkerFilter: 'writable',
+        updateMapMarkers: 'readonly',
         selectProposal: 'readonly',
         deleteProposalItem: 'readonly',
         generateSection: 'readonly',

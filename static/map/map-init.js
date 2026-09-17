@@ -112,6 +112,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Map filters — keep the filter state in the map layer, not the data source.
+  document.querySelectorAll('[data-map-filter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      mapMarkerFilter = button.dataset.mapFilter || 'all';
+      document.querySelectorAll('[data-map-filter]').forEach((item) => {
+        item.classList.toggle('active', item === button);
+      });
+      updateMapMarkers();
+    });
+  });
+
   // Mobile bottom tab bar
   document.querySelectorAll('.mobile-tab[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));

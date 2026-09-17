@@ -175,13 +175,44 @@
       <!-- Top Center Search -->
       <div class="map-search-shell">
         <div class="relative">
-          <input type="text" id="map-search-input" class="search-input-glass text-zinc-900 placeholder-zinc-400 pl-10 pr-4 py-2.5 rounded-full text-sm w-80 focus:outline-none transition-all" placeholder="Search country..." autocomplete="off">
+          <div class="map-search-label">Explore country intelligence</div>
+          <input type="text" id="map-search-input" class="search-input-glass text-zinc-900 placeholder-zinc-400 pl-10 pr-4 py-2.5 rounded-full text-sm w-80 focus:outline-none transition-all" placeholder="Search a country" autocomplete="off">
           <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
       </div>
       
+      <!-- Map context and filters -->
+      <div class="map-context-shell" aria-label="Map overview">
+        <div class="map-context-kicker">Global crisis monitor</div>
+        <div class="map-context-title">Humanitarian situation overview</div>
+        <div class="map-context-meta"><span id="map-visible-count">—</span> monitored countries <span class="map-context-divider"></span> <span id="map-alert-count">—</span> active alerts</div>
+      </div>
+
+      <div class="map-filter-shell" aria-label="Map filters">
+        <div class="map-filter-label">Show</div>
+        <div class="map-filter-group" id="map-filter-group" role="group" aria-label="Filter map markers">
+          <button type="button" class="map-filter-btn active" data-map-filter="all">All</button>
+          <button type="button" class="map-filter-btn" data-map-filter="alerts">Active alerts</button>
+          <button type="button" class="map-filter-btn" data-map-filter="high">High attention</button>
+        </div>
+      </div>
+
+      <div class="map-legend-shell" aria-label="Map legend">
+        <div class="map-legend-title">Signal key</div>
+        <div class="map-legend-items">
+          <span class="map-legend-item"><i class="map-legend-dot is-alert"></i>Active alert</span>
+          <span class="map-legend-item"><i class="map-legend-dot is-high"></i>High attention</span>
+          <span class="map-legend-item"><i class="map-legend-dot is-monitoring"></i>Monitored</span>
+        </div>
+      </div>
+
+      <div id="map-empty-state" class="map-empty-state hidden" role="status">
+        <div class="map-empty-title">No matching signals</div>
+        <div class="map-empty-copy">Try another map filter to continue exploring.</div>
+      </div>
+
       <!-- Top Right Sources -->
-      <div class="map-source-shell">
+      <div class="map-source-shell hidden" aria-hidden="true">
         <div class="map-source-list pointer-events-auto flex flex-wrap justify-end gap-1.5 max-w-[420px]">
           <!-- ReliefWeb -->
           <span class="source-badge-glass text-zinc-700" title="ReliefWeb Feed: Active">
@@ -234,7 +265,10 @@
       <!-- Crisis Detail Panel (slides in from right) -->
       <div id="dash-crisis-panel" class="dash-crisis-panel">
         <div class="dash-crisis-panel-header">
-          <h3 id="dash-crisis-panel-country" class="dash-crisis-panel-country"></h3>
+          <div>
+            <div class="dash-crisis-panel-eyebrow">Country intelligence</div>
+            <h3 id="dash-crisis-panel-country" class="dash-crisis-panel-country"></h3>
+          </div>
           <button id="dash-crisis-panel-close" class="dash-crisis-panel-close" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div id="dash-crisis-panel-body" class="dash-crisis-panel-body"></div>
@@ -242,7 +276,7 @@
     </div>
 
     <!-- Scroll indicator (subtle) -->
-    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none select-none opacity-40" id="map-scroll-hint">
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none select-none opacity-40 hidden" id="map-scroll-hint" aria-hidden="true">
       <div class="flex flex-col items-center gap-1">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
         <span class="text-white text-[9px] font-bold tracking-widest uppercase drop-shadow-lg">Scroll to explore</span>

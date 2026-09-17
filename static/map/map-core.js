@@ -143,6 +143,19 @@ function initWorldMap() {
 }
 
 let leafletMarkerGroup = null;   // L.FeatureGroup for all markers (efficient batch ops)
+let mapMarkerFilter = 'all';
+
+function countryHasActiveAlert(country) {
+  return Array.isArray(country?.gdacs_alerts) && country.gdacs_alerts.length > 0;
+}
+
+function updateMapContextStats(countries) {
+  const visibleEl = document.getElementById('map-visible-count');
+  const alertEl = document.getElementById('map-alert-count');
+  const alertCount = countries.filter(countryHasActiveAlert).length;
+  if (visibleEl) visibleEl.textContent = countries.length.toLocaleString();
+  if (alertEl) alertEl.textContent = alertCount.toLocaleString();
+}
 
 function updateMapMarkers() {
   if (!leafletMap || typeof L === 'undefined') return;
@@ -154,7 +167,15 @@ function updateMapMarkers() {
   leafletMarkerGroup = L.featureGroup();
   leafletMarkers = [];
 
-  const crises = Object.values(crisisMapData);
+  const allCrises = Object.values(crisisMapData);
+  updateMapContextStats(allCrises);
+  const crises = allCrises.filter(c => {
+    if (mapMarkerFilter === 'alerts') return countryHasActiveAlert(c);
+    if (mapMarkerFilter === 'high') return c.severity === 'high';
+    return true;
+  });
+  const emptyState = document.getElementById('map-empty-state');
+  if (emptyState) emptyState.classList.toggle('hidden', crises.length > 0);
   if (!crises.length) return;
 
   // GDACS-driven marker color: Red alert → red, Orange → orange,
@@ -179,11 +200,13 @@ function updateMapMarkers() {
     const color = crisisColor(c);
     const sevClass = (c.severity === 'high') ? 'severity-high' : (c.severity === 'medium') ? 'severity-medium' : 'severity-low';
 
+    const reportCount = Number(c.report_count) || 0;
+    const markerSize = Math.min(28, Math.max(16, 16 + Math.sqrt(reportCount) * 0.7));
     const icon = L.divIcon({
       className: 'crisis-marker',
-      html: `<div class="crisis-marker-dot ${sevClass}" style="background:${color};box-shadow:0 0 6px ${color}aa;"></div>`,
-      iconSize: [16, 16],
-      iconAnchor: [8, 8],
+      html: `<div class="crisis-marker-dot ${sevClass}" style="--marker-size:${markerSize}px;background:${color};box-shadow:0 0 6px ${color}aa;"></div>`,
+      iconSize: [markerSize, markerSize],
+      iconAnchor: [markerSize / 2, markerSize / 2],
     });
 
     const marker = L.marker([lat, lng], { icon })
