@@ -9,8 +9,9 @@
 #   1. Daily ingest (06:00 UTC) — fetches yesterday's reports
 #   2. Weekly bulletin (Monday 06:30 UTC) — generates last week's bulletin
 #   3. Weekly country summaries (Monday 07:00 UTC) — generates country cards
-#   4. Weekly Search Console sync (Monday 07:30 UTC)
-#   5. Daily backup (03:00 UTC) — SQLite + ChromaDB backup
+#   4. Weekly deep dives (Monday 06:45 UTC) — Tier C weekly analyses
+#   5. Weekly Search Console sync (Monday 07:30 UTC)
+#   6. Daily backup (03:00 UTC) — SQLite + ChromaDB backup
 #
 # Usage:
 #   sudo bash deploy/setup-crons-docker.sh
@@ -22,7 +23,7 @@ LOG_DIR="/var/log/reliefagent"
 mkdir -p "$LOG_DIR"
 
 # ── 1. Daily Ingest Cron ────────────────────────────────────────
-echo "[1/5] Installing daily ingest cron (06:00 UTC)..."
+echo "[1/6] Installing daily ingest cron (06:00 UTC)..."
 cat > /etc/cron.d/reliefagent-daily-ingest << 'EOF'
 # Sightline — Daily Ingest (Docker)
 SHELL=/bin/bash
@@ -33,7 +34,7 @@ chmod 644 /etc/cron.d/reliefagent-daily-ingest
 echo "  ✓ Installed /etc/cron.d/reliefagent-daily-ingest"
 
 # ── 2. Weekly Bulletin Cron ────────────────────────────────────
-echo "[2/5] Installing weekly bulletin cron (Monday 06:30 UTC)..."
+echo "[2/6] Installing weekly bulletin cron (Monday 06:30 UTC)..."
 cat > /etc/cron.d/reliefagent-bulletin << 'EOF'
 # Sightline — Weekly Bulletin Generation (Docker)
 SHELL=/bin/bash
@@ -44,7 +45,7 @@ chmod 644 /etc/cron.d/reliefagent-bulletin
 echo "  ✓ Installed /etc/cron.d/reliefagent-bulletin"
 
 # ── 3. Daily Country Summaries Cron ─────────────────────────────
-echo "[3/5] Installing daily country summaries cron (06:15 UTC)..."
+echo "[3/6] Installing daily country summaries cron (06:15 UTC)..."
 cat > /etc/cron.d/reliefagent-country-summaries << 'EOF'
 # Sightline — Daily Country Intelligence Summaries (Docker)
 # DB-derived fields refresh daily; HDX + World Bank respect a 30-day TTL.
@@ -55,8 +56,20 @@ EOF
 chmod 644 /etc/cron.d/reliefagent-country-summaries
 echo "  ✓ Installed /etc/cron.d/reliefagent-country-summaries"
 
-# ── 4. Weekly Search Console Cron ───────────────────────────────
-echo "[4/5] Installing Search Console sync cron (Monday 07:30 UTC)..."
+# ── 4. Weekly Deep Dives Cron ──────────────────────────────────
+echo "[4/6] Installing weekly deep dives cron (Monday 06:45 UTC)..."
+cat > /etc/cron.d/sightline-deep-dives << 'EOF'
+# Sightline - Weekly Deep Dive Analyses (Docker)
+# Runs after the 06:30 bulletin; reads the coverage week's report set.
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+45 6 * * 1 root docker exec sightline python /app/scripts/generate_deep_dives.py >> /var/log/reliefagent/deep-dives.log 2>&1
+EOF
+chmod 644 /etc/cron.d/sightline-deep-dives
+echo "  Installed /etc/cron.d/sightline-deep-dives"
+
+# ── 5. Weekly Search Console Cron ───────────────────────────────
+echo "[5/6] Installing Search Console sync cron (Monday 07:30 UTC)..."
 cat > /etc/cron.d/sightline-search-console << 'EOF'
 # Sightline - Weekly Search Console Sync (Docker)
 SHELL=/bin/bash
@@ -67,7 +80,7 @@ chmod 644 /etc/cron.d/sightline-search-console
 echo "  Installed /etc/cron.d/sightline-search-console"
 
 # ── 5. Daily Backup Cron ────────────────────────────────────────
-echo "[5/5] Installing daily backup cron (03:00 UTC)..."
+echo "[6/6] Installing daily backup cron (03:00 UTC)..."
 cat > /etc/cron.d/reliefagent-backup << 'EOF'
 # Sightline — Daily Backup
 SHELL=/bin/bash
@@ -86,6 +99,7 @@ echo ""
 echo "  Daily ingest:        06:00 UTC → docker exec sightline"
 echo "  Weekly bulletin:     Mon 06:30 UTC → docker exec sightline"
 echo "  Country summaries:  daily 06:15 UTC → docker exec sightline"
+echo "  Weekly deep dives:   Mon 06:45 UTC → docker exec sightline"
 echo "  Search Console:      Mon 07:30 UTC → docker exec sightline"
 echo "  Daily backup:       03:00 UTC → backup.sh"
 echo ""

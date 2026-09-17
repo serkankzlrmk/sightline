@@ -118,10 +118,11 @@ blueprints/seo_bp.py (EDIT)
        crisis pages: ADD digest date as a lastmod candidate — _crisis_entry_lastmod()
        (seo_bp.py:883-894) uses coverage dates, so daily enrichment would not bump lastmod otherwise
 
-DEFERRED to post-baseline (D10 — outside-voice scope reduction):
-  - scripts/generate_deep_dives.py (weekly deep dives) — near-duplicates the bulletin's weekly
-    synthesis of the same reports; revisit only if crisis-page enrichment proves organic lift
-  - /digest/<date> index pages in sitemap — routes stay live (internal navigation), just not submitted
+D10 REVERSAL (founder decision, 2026-09-17): both items below were initially deferred per the
+outside-voice scope reduction, then RE-INCLUDED at the founder's call before shipping:
+  - scripts/generate_deep_dives.py (weekly deep dives) — SHIPPED: Monday 06:45 cron, coverage-week
+    output, bulletin page renders "Weekly deep dives" section reading files directly, /deep-dive/<week>/<slug> SSR + sitemap
+  - /digest/<date> index pages in sitemap — SHIPPED: day indexes enter the sitemap when they have content
 ```
 
 **System prompt (ACAPS style, structured):** factual synthesis from provided chunks only; no speculation; information gaps stated explicitly; attribution to "trusted sources" (general, per UI copy rules); never invent numbers — all figures come from HDX context, not the LLM.

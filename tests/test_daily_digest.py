@@ -362,3 +362,130 @@ class TestDigestHealth:
         resp = app_client.get("/api/health")
         data = resp.get_json()
         assert data.get("digest_fresh") is False
+
+
+# ── Weekly deep dives (Tier C) ────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def dives_root(tmp_path, monkeypatch):
+    """Point the deep-dive store at a temp dir."""
+    root = tmp_path / "deep_dives"
+    monkeypatch.setattr("scripts.generate_deep_dives.DEEP_DIVES_DIR", root)
+    return root
+
+
+def _valid_dive(**overrides):
+    payload = {
+        "headline": "Access collapse deepens in urban centers",
+        "what_changed": "Conflict expanded and services degraded this week.",
+        "why_it_matters": "Displacement corridors are narrowing.",
+        "what_to_watch": "Funding gaps may force service cuts.",
+        "information_gaps": "Rural access data missing.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestDeepDives:
+    def test_script_dry_run_selects_from_bulletin(self, tmp_path):
+        from scripts import generate_deep_dives as gdd
+
+        bulletin = {
+            "crises": [
+                {"country": "Haiti", "report_count": 28},
+                {"country": "World", "report_count": 93},  # pseudo — filtered
+                {"country": "Chad", "report_count": 12},
+            ]
+        }
+        selected = gdd._select_countries(bulletin, 5)
+        assert "World" not in selected
+        assert selected == ["Haiti", "Chad"]
+
+    def test_script_synthesize_rejects_missing_fields(self, monkeypatch):
+        import sitrep.llm_client as llm
+        from scripts import generate_deep_dives as gdd
+
+        monkeypatch.setattr(llm, "chat_simple", lambda **kwargs: '{"headline": "h"}', raising=False)
+        try:
+            gdd._synthesize("prompt")
+            raised = False
+        except ValueError:
+            raised = True
+        assert raised
+
+    def test_deep_dive_route_renders(self, app_client, dives_root):
+        import json
+
+        week_dir = dives_root / "2026-W22"
+        week_dir.mkdir(parents=True)
+        (week_dir / "Haiti.json").write_text(json.dumps(_valid_dive()), encoding="utf-8")
+        resp = app_client.get("/deep-dive/2026-W22/haiti")
+        assert resp.status_code == 200
+        html = resp.get_data(as_text=True)
+        assert "What changed" in html
+        assert "<script>" not in html
+
+    def test_deep_dive_route_404(self, app_client, dives_root):
+        assert app_client.get("/deep-dive/2026-W22/neverland").status_code == 404
+        assert app_client.get("/deep-dive/bad-week/haiti").status_code == 404
+
+    def test_deep_dive_in_sitemap(self, app_client, dives_root):
+        import json
+
+        week_dir = dives_root / "2026-W22"
+        week_dir.mkdir(parents=True)
+        (week_dir / "Haiti.json").write_text(json.dumps(_valid_dive()), encoding="utf-8")
+        (week_dir / "status.json").write_text("{}", encoding="utf-8")  # excluded
+        resp = app_client.get("/sitemap.xml")
+        text = resp.get_data(as_text=True)
+        assert "/deep-dive/2026-W22/haiti" in text
+        assert "status.json" not in text
+
+    def test_bulletin_page_includes_deep_dives(self, app_client, dives_root):
+        import json
+
+        # Seed a deep dive for a country that appears in an existing bulletin.
+        resp = app_client.get("/bulletin/2026-w22")
+        if resp.status_code == 404:
+            pytest.skip("bulletin not present in this checkout")
+        # The bulletin's own week_start drives the coverage-week label; Haiti
+        # is a top crisis in the W22 checkout bulletin.
+        from datetime import date as _date
+
+        import sitrep.weekly_bulletin as wb
+
+        bulletin = wb.get_bulletin("2026-W22_bulletin.json")
+        if not bulletin:
+            pytest.skip("bulletin content unavailable")
+        monday = _date.fromisoformat(str(bulletin["week_start"])[:10])
+        iso_year, iso_week, _ = monday.isocalendar()
+        week_label = f"{iso_year}-W{iso_week:02d}"
+        week_dir = dives_root / week_label
+        week_dir.mkdir(parents=True, exist_ok=True)
+        (week_dir / "Haiti.json").write_text(json.dumps(_valid_dive(headline="Haiti weekly shift")), encoding="utf-8")
+        import blueprints.seo_bp as seo
+
+        seo._bulletin_cache.clear()
+        resp = app_client.get("/bulletin/2026-w22")
+        if resp.status_code == 404:
+            pytest.skip("bulletin not present in this checkout")
+        html = resp.get_data(as_text=True)
+        assert "Weekly deep dives" in html
+        assert "Haiti weekly shift" in html
+
+    def test_day_index_in_sitemap(self, app_client, digest_root):
+        import json
+
+        import sitrep.daily_digest as dd
+
+        today = date.today().isoformat()
+        (digest_root / today).mkdir(parents=True, exist_ok=True)
+        (digest_root / today / "Sudan.json").write_text(json.dumps(_valid_digest()), encoding="utf-8")
+        dd._index_cache._snapshot = {}
+        import blueprints.seo_bp as seo
+
+        seo._sitemap_cache.clear()
+        resp = app_client.get("/sitemap.xml")
+        text = resp.get_data(as_text=True)
+        assert f"/digest/{today}" in text

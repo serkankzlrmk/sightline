@@ -633,6 +633,47 @@ def sitrep_list():
     )
 
 
+def _deep_dives_for_week(trimmed: dict) -> list[tuple[str, dict]]:
+    """Deep dives for the bulletin's coverage week, read from disk at render.
+
+    Coverage week is derived from week_start; the file convention matches
+    generate_deep_dives.py ({ISO-week}/{Safe_Country}.json). Malformed or
+    missing files are skipped silently — deep dives never break the page.
+    """
+    import json as _json
+
+    from sitrep.utils import safe_filename
+
+    week_start = str(trimmed.get("week_start") or "")[:10]
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", week_start):
+        return []
+    try:
+        from datetime import date as _date
+
+        monday = _date.fromisoformat(week_start)
+        year, week, _ = monday.isocalendar()
+    except ValueError:
+        return []
+    week_dir = _deep_dives_root() / f"{year}-W{week:02d}"
+    if not week_dir.is_dir():
+        return []
+    dives: list[tuple[str, dict]] = []
+    for crisis in trimmed.get("crises") or []:
+        country = str(crisis.get("country") or "").strip()
+        if not country or country.strip().lower() in ("world", "global"):
+            continue
+        path = week_dir / f"{safe_filename(country)}.json"
+        if not path.exists():
+            continue
+        try:
+            dive = _json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(dive, dict) and str(dive.get("headline") or "").strip():
+            dives.append((country, dive))
+    return dives
+
+
 @seo_bp.route("/bulletin/<slug>")
 def bulletin_detail(slug: str):
     from blueprints.public_bp import _trim_bulletin_for_preview
@@ -663,6 +704,21 @@ def bulletin_detail(slug: str):
             sections.append(
                 '<section class="bulletin-crises"><p class="section-label">Country monitoring</p>'
                 f"<h2>Priority crises</h2>{''.join(crisis_items)}</section>"
+            )
+        # Weekly deep dives (Tier C): read directly from output/deep_dives/
+        # at render time — no bulletin JSON field (ordering deadlock, D10).
+        dives = _deep_dives_for_week(trimmed)
+        if dives:
+            dive_items = []
+            for country, dive in dives:
+                dive_items.append(
+                    f'<article class="bulletin-deep-dive"><h3>{_sanitize_html(str(dive.get("headline") or country))}</h3>'
+                    f"<p>{_sanitize_html(str(dive.get('what_changed') or ''))}</p>"
+                    f"<p>{_sanitize_html(str(dive.get('why_it_matters') or ''))}</p></article>"
+                )
+            sections.append(
+                '<section class="bulletin-deep-dives"><p class="section-label">Deep dives</p>'
+                f"<h2>Weekly deep dives</h2>{''.join(dive_items)}</section>"
             )
         json_ld = {
             "@context": "https://schema.org",
@@ -935,6 +991,13 @@ def _digest_root():
     from sitrep.daily_digest import DIGEST_ROOT
 
     return DIGEST_ROOT
+
+
+def _deep_dives_root():
+    """Deep-dive storage root — resolved lazily so tests can monkeypatch it."""
+    from scripts.generate_deep_dives import DEEP_DIVES_DIR
+
+    return DEEP_DIVES_DIR
 
 
 def _crisis_country_data() -> list[dict]:
@@ -1407,6 +1470,68 @@ def _render_detail_generic(body_html: str, country_stem: str, date_str: str) -> 
 
 
 # =============================================================================
+# ROUTES — weekly deep-dive pages (Tier C)
+# =============================================================================
+
+
+@seo_bp.route("/deep-dive/<week>/<slug>")
+def deep_dive_detail(week: str, slug: str):
+    """Single weekly deep-dive page; reads the file directly (no bulletin field)."""
+    if not re.fullmatch(r"\d{4}-W\d{2}", week):
+        abort(404)
+    from sitrep.utils import safe_filename
+
+    week_dir = _deep_dives_root() / week
+    if not week_dir.is_dir():
+        abort(404)
+    # Resolve the slug to either a crisis country's safe filename or a raw stem.
+    dive_path = None
+    country = slug
+    for entry in _crisis_country_data():
+        entry_country = str(entry.get("country") or "")
+        entry_slug = _crisis_slug(entry_country)
+        if entry_slug == slug:
+            dive_path = week_dir / f"{safe_filename(entry_country)}.json"
+            country = entry_country
+            break
+    if dive_path is None:
+        candidate = week_dir / f"{safe_filename(slug)}.json"
+        if candidate.exists():
+            dive_path = candidate
+            country = slug
+    if dive_path is None or not dive_path.exists():
+        abort(404)
+    try:
+        dive = json.loads(dive_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        dive = None
+    if not (isinstance(dive, dict) and str(dive.get("headline") or "").strip()):
+        abort(404)
+
+    rows = []
+    for field, label in (
+        ("what_changed", "What changed"),
+        ("why_it_matters", "Why it matters"),
+        ("what_to_watch", "What to watch"),
+        ("information_gaps", "Information gaps"),
+    ):
+        value = str(dive.get(field) or "").strip()
+        if value:
+            rows.append(
+                f'<div class="crisis-digest-row"><h2>{_sanitize_html(label)}</h2><p>{_sanitize_html(value)}</p></div>'
+            )
+    headline = str(dive.get("headline") or "").strip()
+    headline_html = f'<p class="crisis-headline">{_sanitize_html(headline)}</p>' if headline else ""
+    body = (
+        '<div class="crisis-card crisis-card-wide">'
+        f"<h1>Weekly deep dive: {_sanitize_html(country)} — {_sanitize_html(week)}</h1>"
+        f"{headline_html}{''.join(rows)}</div>"
+    )
+    record_page_view(f"/deep-dive/{week}/{slug}", request.headers.get("User-Agent", ""))
+    return _render_detail_generic(body, country, week)
+
+
+# =============================================================================
 # ROUTES — sitemap + robots
 # =============================================================================
 
@@ -1455,19 +1580,44 @@ def _sitemap_builder() -> str:
             if digest_lastmod > lastmod:
                 lastmod = digest_lastmod
             urls.append((f"{SITE_URL}/crisis/{c_slug}", lastmod))
-    # Single-country digest pages only (D10: /digest/<date> index pages are
-    # deferred from the sitemap — thin-page dilution risk).
+    # Single-country digest pages + day index pages (D10 reversal: all
+    # digest surface submitted). Day index only when it has content.
     try:
         from sitrep.daily_digest import cached_published_dates
 
         for date_str in cached_published_dates():
             day = load_day_safe(date_str)
+            if not day:
+                continue
+            urls.append((f"{SITE_URL}/digest/{date_str}", date_str))
             for stem in sorted(day):
                 crisis_url = _crisis_url_for_digest(stem)
                 if crisis_url:  # only countries with a live crisis page
                     urls.append((f"{SITE_URL}/digest/{date_str}/{stem}", date_str))
     except Exception:
         logger.warning("Digest sitemap entries failed", exc_info=True)
+    # Weekly deep-dive pages (Tier C): coverage-week URLs with week lastmod.
+    try:
+        dives_root = _deep_dives_root()
+        if dives_root.is_dir():
+            for week_dir in sorted(dives_root.iterdir()):
+                if not week_dir.is_dir() or not re.fullmatch(r"\d{4}-W\d{2}", week_dir.name):
+                    continue
+                for dive_path in sorted(week_dir.glob("*.json")):
+                    if dive_path.name == "status.json":
+                        continue
+                    try:
+                        dive = json.loads(dive_path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        continue
+                    if not (isinstance(dive, dict) and str(dive.get("headline") or "").strip()):
+                        continue
+                    stem = dive_path.stem
+                    # URL uses the crisis slug when the country has one, else the stem.
+                    dive_slug = _digest_country_to_slug(stem) or stem.lower().replace("_", "-")
+                    urls.append((f"{SITE_URL}/deep-dive/{week_dir.name}/{dive_slug}", _lastmod(dive_path)))
+    except Exception:
+        logger.warning("Deep-dive sitemap entries failed", exc_info=True)
     if len(urls) <= 3:
         # An empty sitemap violates the protocol and triggers Search Console
         # errors — serve 404 instead (D16).
