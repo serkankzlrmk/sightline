@@ -242,6 +242,17 @@ def main() -> int:
     log.info("=" * 60)
 
     bulletin = _load_bulletin(coverage_week)
+    if bulletin is None:
+        # Manual runs before Monday: the coverage week's bulletin does not
+        # exist yet. Fall back to the latest published bulletin so the run
+        # still produces dives from real data (crashes nothing).
+        from sitrep.weekly_bulletin import BULLETINS_DIR, get_bulletin
+
+        latest = sorted(BULLETINS_DIR.glob("*_bulletin.json"))
+        if latest:
+            fallback_week = latest[-1].stem.replace("_bulletin", "")
+            bulletin = get_bulletin(latest[-1].name)
+            log.warning("No bulletin for %s — falling back to %s", coverage_week, fallback_week)
     countries = _select_countries(bulletin, args.top)
     if not countries:
         log.warning("No countries selected (missing or empty bulletin %s) — nothing to do", coverage_week)
@@ -290,6 +301,7 @@ def main() -> int:
     }
     if not args.dry_run:
         status_path = DEEP_DIVES_DIR / "status.json"
+        status_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = status_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(tmp, status_path)
