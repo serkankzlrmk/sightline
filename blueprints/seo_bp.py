@@ -30,6 +30,7 @@ from flask import Blueprint, abort, redirect, render_template, request
 
 from blueprints.helpers import _is_bot_user_agent, record_page_view
 from config import (
+    INDEXNOW_KEY,
     OUTPUT_REPORTS_DIR,
     SEO_RATE_LIMIT_PER_MIN,
     SEO_RATE_WINDOW_SECONDS,
@@ -1470,16 +1471,39 @@ def digest_country(date_str: str, country_stem: str):
     return _render_detail_generic(body, country_stem, date_str)
 
 
-def _render_detail_generic(body_html: str, country_stem: str, date_str: str) -> str:
-    """Digest detail wrapper on the crisis_detail template (accepts body_html)."""
+def _render_detail_generic(
+    body_html: str,
+    country_stem: str,
+    date_str: str,
+    *,
+    title_override: str | None = None,
+    canonical_override: str | None = None,
+) -> str:
+    """Digest detail wrapper on the crisis_detail template (accepts body_html).
+
+    title_override / canonical_override exist for the weekly deep-dive pages,
+    whose canonical URL must match their own /deep-dive/{week}/{slug} path —
+    a digest-style canonical pointing at a nonexistent /digest/week URL makes
+    Google drop every deep-dive page from the index.
+    """
     from config import GOOGLE_ANALYTICS_ID
 
     adsense_client, adsense_slot = _active_adsense_config()
+    composed_title = (
+        f"Daily digest {date_str} — {country_stem.replace('_', ' ').title()}"
+        if title_override is None
+        else title_override
+    )
+    canonical = (
+        f"{SITE_URL}/digest/{date_str}/{country_stem}"
+        if canonical_override is None
+        else canonical_override
+    )
     return render_template(
         "crisis_detail.html",
-        page_title=f"Daily digest {date_str} — {country_stem.replace('_', ' ').title()}",
+        page_title=composed_title,
         page_description="ACAPS-style daily humanitarian digest synthesized from trusted sources.",
-        canonical=f"{SITE_URL}/digest/{date_str}/{country_stem}",
+        canonical=canonical,
         site_url=SITE_URL,
         body_html=body_html,
         hero_badges="",
@@ -1563,7 +1587,13 @@ def deep_dive_detail(week: str, slug: str):
         f"{headline_html}{''.join(rows)}</div>"
     )
     record_page_view(f"/deep-dive/{week}/{slug}", request.headers.get("User-Agent", ""))
-    return _render_detail_generic(body, country, week)
+    return _render_detail_generic(
+        body,
+        country,
+        week,
+        title_override=f"Weekly deep dive: {country} ({week})",
+        canonical_override=f"{request.base_url.rstrip('/')}",
+    )
 
 
 # =============================================================================
@@ -1680,6 +1710,13 @@ def robots_txt():
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )
+
+
+@seo_bp.route(f"/{INDEXNOW_KEY}.txt")
+def indexnow_key_file():
+    """IndexNow ownership verification: the raw key must be served at
+    https://<host>/<key>.txt exactly as-is (search engines fetch it once)."""
+    return (INDEXNOW_KEY, 200, {"Content-Type": "text/plain; charset=utf-8"})
 
 
 @seo_bp.route("/ads.txt")

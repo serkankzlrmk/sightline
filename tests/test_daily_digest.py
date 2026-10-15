@@ -425,6 +425,10 @@ class TestDeepDives:
         html = resp.get_data(as_text=True)
         assert "What changed" in html
         assert "<script>" not in html
+        # Canonical must point at the deep-dive URL itself — a digest-style
+        # canonical (→ 404) made Google drop every deep-dive page.
+        assert '<link rel="canonical" href="http://localhost/deep-dive/2026-W22/haiti">' in html
+        assert "Weekly deep dive:" in html
 
     def test_deep_dive_route_404(self, app_client, dives_root):
         assert app_client.get("/deep-dive/2026-W22/neverland").status_code == 404

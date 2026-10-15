@@ -478,6 +478,10 @@ GSC_LOOKBACK_DAYS: int = int(os.getenv("GSC_LOOKBACK_DAYS", "28"))
 GSC_DATA_LAG_DAYS: int = int(os.getenv("GSC_DATA_LAG_DAYS", "3"))
 GSC_ROW_LIMIT: int = int(os.getenv("GSC_ROW_LIMIT", "1000"))
 
+# IndexNow (Bing/Seznam instant submission). The fixed default key must be
+# mirrored by a root-level route serving the raw key text for verification.
+INDEXNOW_KEY: str = os.getenv("INDEXNOW_KEY", "a8df1d0078e145e29381e74bdf3b4adf").strip()
+
 # In production (SERVER_DEBUG=false), reject wildcard CORS for safety.
 # Wildcard CORS allows any website to make authenticated API calls if it
 # can obtain a token (e.g., via XSS). Dev mode keeps `*` for convenience.
