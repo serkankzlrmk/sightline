@@ -27,6 +27,9 @@ while :; do
         echo "[daily] content enrichment for $yesterday"
         python scripts/daily_content_enrichment.py --date "$yesterday" || true
       fi
+      # Ping IndexNow so the fresh digest URLs reach Bing/Seznam minutes
+      # after generation instead of waiting for discovery.
+      python scripts/notify_indexnow.py --days 3 || true
     else
       echo "[daily] ingest failed; visual enrichment skipped" >&2
     fi

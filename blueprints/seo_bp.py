@@ -1592,7 +1592,9 @@ def deep_dive_detail(week: str, slug: str):
         country,
         week,
         title_override=f"Weekly deep dive: {country} ({week})",
-        canonical_override=f"{request.base_url.rstrip('/')}",
+        # SITE_URL-based (not request.base_url) so ProxyFix/backend-scheme
+        # quirks can never emit an http://localhost canonical.
+        canonical_override=f"{SITE_URL}/deep-dive/{week}/{slug}",
     )
 
 

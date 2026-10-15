@@ -64,6 +64,7 @@ cat > /etc/cron.d/sightline-deep-dives << 'EOF'
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 45 6 * * 1 root docker exec sightline python /app/scripts/generate_deep_dives.py >> /var/log/reliefagent/deep-dives.log 2>&1
+50 6 * * 1 root docker exec sightline python /app/scripts/notify_indexnow.py --days 14 >> /var/log/reliefagent/indexnow.log 2>&1
 EOF
 chmod 644 /etc/cron.d/sightline-deep-dives
 echo "  Installed /etc/cron.d/sightline-deep-dives"
