@@ -211,6 +211,7 @@ seo_bp.before_request(_seo_rate_guard)
 # ── Render caches (D13) ───────────────────────────────────────────────────────
 _bulletin_cache: dict[str, tuple[float, str]] = {}
 _sitemap_cache: dict[str, tuple[float, str]] = {}
+_llms_cache: dict[str, tuple[float, str]] = {}
 _BULLETIN_CACHE_TTL = 300
 _SITEMAP_CACHE_TTL = 3600
 
@@ -1707,11 +1708,115 @@ def sitemap_xml():
 
 @seo_bp.route("/robots.txt")
 def robots_txt():
+    ai_bots = [
+        "GPTBot",
+        "OAI-SearchBot",
+        "ChatGPT-User",
+        "PerplexityBot",
+        "Perplexity-User",
+        "ClaudeBot",
+        "Claude-User",
+        "Google-Extended",
+        "Applebot-Extended",
+        "meta-externalagent",
+    ]
+    # Explicit allow-by-name groups for AI crawlers (they read
+    # group-specific records before the * fallback, so be unambiguous
+    # that all public SSR content is welcome in AI search surfaces).
+    blocks = "".join(f"User-agent: {b}\nAllow: /\nDisallow: /api/\nDisallow: /proposal\n" for b in ai_bots)
     return (
-        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /proposal\nSitemap: {SITE_URL}/sitemap.xml\n",
+        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /proposal\n"
+        f"{blocks}Sitemap: {SITE_URL}/sitemap.xml\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )
+
+
+def _llms_txt_builder() -> str:
+    """llms.txt (llmstxt.org): a short, curated, markdown index of the real
+    content for LLM-based search surfaces. Rebuilt from the same sources as
+    the sitemap so it never lists routes that do not exist.
+    """
+    lines: list[str] = [
+        "# Sightline",
+        "",
+        "> Situational awareness for the humanitarian sector: continuously "
+        "updated crisis intelligence per country (ReliefWeb reports, HDX "
+        "indicators, GDACS disaster alerts, weather and press monitoring in "
+        "one place), structured weekly bulletins, ACAPS-style daily digests, "
+        "and weekly deep-dive analyses on the world's largest emergencies.",
+        "",
+    ]
+
+    # Latest weekly bulletin (highest-value deep content first).
+    bulletins = _bulletin_slug_map()
+    if bulletins:
+        latest = sorted(bulletins, reverse=True)[0]
+        lines += ["## Latest weekly bulletin", "", f"- [Weekly bulletin {latest}]({SITE_URL}/bulletin/{latest})"]
+        lines += ["- [All weekly bulletins]({}/bulletins)".format(SITE_URL), ""]
+
+    # Crisis trackers, heaviest coverage first (these are the evergreen pages).
+    countries = [c for c in _crisis_country_data() if _crisis_slug(c.get("country", "")) and _is_crisis_publishable(c)]
+    countries.sort(key=lambda c: int(c.get("report_count") or 0), reverse=True)
+    if countries:
+        lines += ["## Country crisis trackers (evergreen, continuously updated)", ""]
+        for c in countries[:15]:
+            country = str(c.get("country") or "").strip()
+            slug = _crisis_slug(country)
+            count = int(c.get("report_count") or 0)
+            lines.append(f"- [{country}: humanitarian crisis overview]({SITE_URL}/crisis/{slug}) — {count} tracked reports")
+        lines += [""]
+
+    # Deep dives from the most recent coverage week.
+    dives_root = _deep_dives_root()
+    latest_dive_week = ""
+    if dives_root.is_dir():
+        weeks = sorted(d.name for d in dives_root.iterdir() if re.fullmatch(r"\d{4}-W\d{2}", d.name))
+        if weeks:
+            latest_dive_week = weeks[-1]
+            lines += [f"## Weekly deep dives — {latest_dive_week}", ""]
+            for dive_path in sorted((dives_root / latest_dive_week).glob("*.json")):
+                if dive_path.name == "status.json":
+                    continue
+                try:
+                    dive = json.loads(dive_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if not (isinstance(dive, dict) and str(dive.get("headline") or "").strip()):
+                    continue
+                stem = dive_path.stem
+                slug = _digest_country_to_slug(stem) or stem.lower().replace("_", "-")
+                country = stem.replace("_", " ")
+                lines.append(f"- [{country}: weekly deep dive]({SITE_URL}/deep-dive/{latest_dive_week}/{slug})")
+            lines += [""]
+
+    # Index pages + country intelligence summaries.
+    lines += [
+        "## Index pages",
+        "",
+        f"- [Countries overview]({SITE_URL}/countries)",
+        f"- [Crisis map and global alerts]({SITE_URL}/crisis)",
+        f"- [SITREP report library]({SITE_URL}/sitreps)",
+        f"- [About the SITREP pipeline]({SITE_URL}/solutions/sitrep)",
+        "",
+        "## Country intelligence summaries",
+        "",
+        "Per-country weekly summaries with severity rating, top sources, and key HDX indicators live under",
+        f"`{SITE_URL}/country/<country-slug>` — see [the countries overview]({SITE_URL}/countries) for the full list.",
+        "",
+        "## Daily digests",
+        "",
+        "Structured, ACAPS-style daily digests for the day's priority countries live under",
+        f"`{SITE_URL}/digest/<date>/<Country>` (e.g. recent days are linked from the [crisis overview]({SITE_URL}/crisis)).",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+@seo_bp.route("/llms.txt")
+def llms_txt():
+    body = _cached("llms", _llms_cache, _SITEMAP_CACHE_TTL, _llms_txt_builder)
+    return body, 200, {"Content-Type": "text/markdown; charset=utf-8"}
 
 
 @seo_bp.route(f"/{INDEXNOW_KEY}.txt")

@@ -266,6 +266,23 @@ class TestRoutes:
         assert "Disallow: /app" not in body
         assert "Disallow: /proposal" in body
         assert f"Sitemap: {SITE_URL}/sitemap.xml" in body
+        # AI search crawlers get explicit allow groups (ChatGPT/GPT Search,
+        # Perplexity, Claude, Gemini, Apple, Meta).
+        for bot in ("GPTBot", "OAI-SearchBot", "PerplexityBot", "ClaudeBot", "Google-Extended"):
+            assert f"User-agent: {bot}" in body
+
+    def test_llms_txt(self, client):
+        resp = client.get("/llms.txt", headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 404:
+            pytest.skip("no content in this checkout")
+        assert resp.status_code == 200
+        body = resp.data.decode()
+        assert body.startswith("# Sightline")
+        # Links must be real routes only: bulletin index and crisis pages
+        # referenced by their canonical SSR paths.
+        assert f"{SITE_URL}/bulletins" in body
+        assert f"{SITE_URL}/countries" in body
+        assert "/crisis/" in body
 
     def test_traversal_slug_404(self, client):
         resp = client.get("/bulletin/..%2f..%2fetc%2fpasswd", headers={"User-Agent": "Mozilla/5.0"})
