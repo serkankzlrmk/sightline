@@ -278,13 +278,17 @@ class TestRoutes:
         assert resp.status_code == 200
         body = resp.data.decode()
         assert body.startswith("# Sightline")
-        # Links must be real routes only: bulletin index and crisis pages
-        # referenced by their canonical SSR paths. The bulletin section is
-        # data-driven — CI checkouts may have no bulletin files at all.
+        # All content sections are data-driven — a bare CI checkout has no
+        # bulletin/crisis output files, so only static index links must hold.
+        assert f"{SITE_URL}/countries" in body
+        assert f"{SITE_URL}/crisis" in body
+        assert f"{SITE_URL}/sitreps" in body
+        # Data-driven sections: only assert their index links when the
+        # section actually rendered.
         if "/bulletin/" in body:
             assert f"{SITE_URL}/bulletins" in body
-        assert f"{SITE_URL}/countries" in body
-        assert "/crisis/" in body
+        if "/country/" in body:
+            assert f"{SITE_URL}/countries" in body
 
     def test_traversal_slug_404(self, client):
         resp = client.get("/bulletin/..%2f..%2fetc%2fpasswd", headers={"User-Agent": "Mozilla/5.0"})
