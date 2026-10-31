@@ -22,7 +22,10 @@ load_dotenv(dotenv_path=_ENV_PATH, override=True)
 # This ensures production .env stays in sync with config.py defaults.
 # Only updates keys that already exist in .env; does not add missing keys.
 _MODEL_MIGRATIONS = {
-    "google/gemini-2.5-flash": "google/gemma-4-31b-it",
+    # gemini-2.5-* stopped routing on this OpenRouter account (ZDR guardrail
+    # rejects every 2.5 endpoint), so stale .env values self-heal forward.
+    "google/gemini-2.5-flash": "google/gemini-3.8-flash",
+    "google/gemini-2.5-pro": "google/gemini-3.1-pro-preview",
 }
 _MODEL_KEYS = {
     "ACTIVE_MODEL",
@@ -250,20 +253,20 @@ LLM_MODEL: str = os.getenv("LLM_MODEL", ACTIVE_MODEL)
 CHAT_MODELS: dict = {
     "flash": {
         "name": "Flash",
-        "model": "google/gemini-2.5-flash",
+        "model": "google/gemini-3.8-flash",
         "desc": "Fast responses",
         "premium": False,
     },
     "deep_think": {
         "name": "Deep Think",
-        "model": "google/gemini-2.5-pro",
+        "model": "google/gemini-3.1-pro-preview",
         "desc": "Deep analysis with sequential reasoning",
         "premium": True,
         "sequential": True,
     },
     "vision": {
         "name": "Vision",
-        "model": "google/gemini-2.5-flash",
+        "model": "google/gemini-3.8-flash",
         "desc": "Image + document analysis (PDF/DOC/Image)",
         "premium": True,
         "vision": True,
@@ -280,18 +283,18 @@ CUSTOM_MODELS: dict = {
         "desc": "Strong generalist · cheap",
         "premium": True,
     },
-    "deepseek-r1": {"name": "DeepSeek R1", "model": "deepseek/deepseek-r1", "desc": "Reasoning", "premium": True},
+    "gpt-5.1": {"name": "GPT-5.1", "model": "openai/gpt-5.1", "desc": "Reasoning", "premium": True},
     "glm-4.6": {"name": "GLM-4.6", "model": "z-ai/glm-4.6", "desc": "Strong generalist", "premium": True},
-    "gemini-flash": {
-        "name": "Gemini 2.5 Flash",
-        "model": "google/gemini-2.5-flash",
+    "gemini-3.8": {
+        "name": "Gemini 3.8 Flash",
+        "model": "google/gemini-3.8-flash",
         "desc": "Fast + multimodal",
         "premium": True,
     },
     "gpt-4o-mini": {"name": "GPT-4o mini", "model": "openai/gpt-4o-mini", "desc": "Cheap generalist", "premium": True},
-    "claude-sonnet-4": {
-        "name": "Claude Sonnet 4",
-        "model": "anthropic/claude-sonnet-4",
+    "claude-sonnet-4.5": {
+        "name": "Claude Sonnet 4.5",
+        "model": "anthropic/claude-sonnet-4.5",
         "desc": "High quality · pricier",
         "premium": True,
     },

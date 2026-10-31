@@ -10,11 +10,18 @@ OpenRouter's catalog — verify against openrouter.ai/models when models change.
 
 from __future__ import annotations
 
-# Exact per-model rates for CHAT_MODELS entries (config.py)
+# Exact per-model rates for CHAT_MODELS / CUSTOM_MODELS entries (config.py)
 MODEL_PRICING = {
-    "google/gemini-2.5-flash": (0.30, 2.50),  # Flash / Vision
-    "google/gemini-2.5-pro": (1.25, 10.00),  # Ultra / Deep Think
-    "google/gemma-4-31b-it": (0.15, 0.15),  # Thinking — estimate, verify on OpenRouter
+    "google/gemini-3.8-flash": (0.825, 4.125),  # Flash / Vision
+    "google/gemini-3.1-pro-preview": (2.00, 12.00),  # Deep Think
+    "google/gemma-4-31b-it": (0.20, 0.40),  # SITREP pipeline default
+    # CUSTOM_MODELS
+    "deepseek/deepseek-chat": (0.257, 1.029),
+    "openai/gpt-5.1": (1.25, 10.00),
+    "z-ai/glm-4.6": (0.50, 2.00),
+    "openai/gpt-4o-mini": (0.15, 0.60),
+    "anthropic/claude-sonnet-4.5": (3.00, 15.00),
+    "openai/gpt-4o": (2.50, 10.00),
 }
 
 # Rough mid-catalog guess for any OpenRouter model not listed above

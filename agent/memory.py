@@ -41,7 +41,7 @@ _MEMORY_COLLECTION = "agent_memory"
 _FACTS_COLLECTION = "agent_facts"
 
 # Small/fast model used for the gate + consolidator (cheap single decisions).
-_SMALL_MODEL = "google/gemini-2.5-flash"
+_SMALL_MODEL = "google/gemini-3.1-flash-lite"
 _small_llm_cache = {}
 _small_llm_lock = threading.Lock()
 

@@ -149,7 +149,7 @@ write_files:
       LLM_PROVIDER=openrouter
       OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
       OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY_HERE
-      ACTIVE_MODEL=google/gemini-2.5-flash
+      ACTIVE_MODEL=google/gemma-4-31b-it
       RELIEFWEB_APPNAME=RELIEFWEB_APPNAME_PLACEHOLDER
       DAILY_MESSAGE_LIMIT=3
       ADMIN_UIDS=YOUR_FIREBASE_UID_HERE

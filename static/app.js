@@ -18,11 +18,11 @@ const CHAT_MODELS = {
 // Extra OpenRouter models (premium/admin only) — mirrors config.CUSTOM_MODELS
 const CUSTOM_MODELS = {
   'deepseek-v3': { name: 'DeepSeek V3', desc: 'Strong generalist · cheap', premium: true },
-  'deepseek-r1': { name: 'DeepSeek R1', desc: 'Reasoning', premium: true },
+  'gpt-5.1': { name: 'GPT-5.1', desc: 'Reasoning', premium: true },
   'glm-4.6': { name: 'GLM-4.6', desc: 'Strong generalist', premium: true },
-  'gemini-flash': { name: 'Gemini 2.5 Flash', desc: 'Fast + multimodal', premium: true },
+  'gemini-3.8': { name: 'Gemini 3.8 Flash', desc: 'Fast + multimodal', premium: true },
   'gpt-4o-mini': { name: 'GPT-4o mini', desc: 'Cheap generalist', premium: true },
-  'claude-sonnet-4': { name: 'Claude Sonnet 4', desc: 'High quality · pricier', premium: true },
+  'claude-sonnet-4.5': { name: 'Claude Sonnet 4.5', desc: 'High quality · pricier', premium: true },
   'gpt-4o': { name: 'GPT-4o', desc: 'High quality', premium: true },
 };
 

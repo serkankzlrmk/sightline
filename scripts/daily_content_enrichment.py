@@ -51,7 +51,7 @@ MAX_SAMPLED_REPORTS = 20  # distinct reports in the prompt
 PROMPT_CHUNK_CHARS = 500  # per-chunk text excerpt
 MAX_TOKENS = 800  # D9: thinking model budget headroom
 TEMPERATURE = 0.3
-MODEL = "google/gemini-2.5-flash"  # EXPLICIT per-job model (config default is gemma-4-31b-it)
+MODEL = "google/gemini-3.8-flash"  # EXPLICIT per-job model (config default is gemma-4-31b-it)
 PSEUDO_COUNTRIES = {"world", "global", "multiple countries", "not specified"}
 
 _SYSTEM_PROMPT = """You are a humanitarian analyst writing a daily country digest for Sightline, \
