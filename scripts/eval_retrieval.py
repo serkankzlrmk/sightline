@@ -256,7 +256,7 @@ def _build_adapter():
     )
 
 
-def curate(query: str, country: str, k: int = 10) -> list[dict]:
+def curate(query: str, country: str, k: int = 10, use_llm_subqueries: bool = True) -> list[dict]:
     """Candidate generation for human labeling: retrieve + print real reports.
 
     The caller marks which candidates are genuinely relevant; only those ids go
@@ -265,7 +265,7 @@ def curate(query: str, country: str, k: int = 10) -> list[dict]:
     """
     adapter = _build_adapter()
     pool = build_pool(adapter, country)
-    subqueries = _generate_subqueries(query)
+    subqueries = _generate_subqueries(query) if use_llm_subqueries else [query]
     ranked_lists: list[list[dict]] = [
         adapter.retrieve(query=sq, country=country, k=max(RETRIEVAL_TOP_K, k), candidate_pool=pool) for sq in subqueries
     ]
@@ -307,7 +307,7 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.curate:
-        candidates = curate(args.curate, args.country, k=args.k)
+        candidates = curate(args.curate, args.country, k=args.k, use_llm_subqueries=not args.single_query)
         print(
             json.dumps(
                 {"query": args.curate, "country": args.country, "candidates": candidates}, ensure_ascii=False, indent=2
