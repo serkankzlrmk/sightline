@@ -171,3 +171,13 @@ def test_citation_url_grounding():
     assert "https://reliefweb.int/node/123" in cleaned
     assert "example.test" not in cleaned
     assert "fake" in cleaned
+
+
+def test_numeric_claim_grounding():
+    from blueprints.agent_bp import _unsupported_numeric_claims
+
+    evidence = "12,000 people reached; 45% of the funding gap; 2.5 million USD requested."
+    assert _unsupported_numeric_claims("12,000 people reached and 45% funded.", evidence) == []
+    flagged = _unsupported_numeric_claims("12,000 people reached and 60% funded.", evidence)
+    assert any("60" in x for x in flagged)
+    assert _unsupported_numeric_claims("No figures available.", evidence) == []

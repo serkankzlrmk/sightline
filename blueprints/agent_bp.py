@@ -103,6 +103,45 @@ def _extract_urls(text: str) -> set[str]:
     return urls
 
 
+_NUM_CLAIM_RE = re.compile(
+    r"(?<![\w.])(\d{1,3}(?:[.,]\d{3})+|\d+(?:\.\d+)?)\s*"
+    r"(%)|(percent)|(million)|(billion)|(thousand)|(people|persons|households|children|women|men|"
+    r"litres|liters|metric\s+tons|USD|dollars)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_number(token: str) -> str:
+    return token.replace(",", "").replace(" ", "")
+
+
+def _unsupported_numeric_claims(answer: str, evidence: str, limit: int = 5) -> list[str]:
+    """Return numeric/unit claims whose value is absent from tool evidence.
+
+    This is deliberately conservative: only percentages and numbers with an
+    explicit unit are checked, and citations/URLs are ignored. It flags claims
+    for transparency; it does not rewrite the answer.
+    """
+    text = re.sub(r"https?://\S+", " ", answer or "")
+    text = re.sub(r"\[[^\]]*\]", " ", text)  # citation labels / reference ids
+    evidence_norm = _normalize_number((evidence or "").lower())
+    found = []
+    for match in _NUM_CLAIM_RE.finditer(text):
+        token = match.group(1)
+        if not token:
+            continue
+        value = _normalize_number(token)
+        if token in ("2024", "2025", "2026", "2027"):
+            continue
+        if value and value not in evidence_norm:
+            claim = match.group(0).strip()
+            if claim not in found:
+                found.append(claim)
+        if len(found) >= limit:
+            break
+    return found
+
+
 def _sanitize_citation_links(text: str, evidence_urls: set[str]) -> tuple[str, int]:
     """Remove Markdown links whose URL was not present in tool evidence.
 
@@ -436,6 +475,7 @@ def api_agent_chat():
             prev_node = None
             current_iteration = 0
             evidence_urls: set[str] = set()
+            evidence_text_parts: list[str] = []
             for chunk, metadata in agent.stream(
                 {"messages": messages_snapshot},
                 config=stream_config,
@@ -484,6 +524,7 @@ def api_agent_chat():
                         raw = " ".join(str(x) for x in raw)
                     tool_output = str(raw)
                     evidence_urls.update(_extract_urls(tool_output))
+                    evidence_text_parts.append(tool_output)
                     status = "error" if looks_like_tool_error(tool_output) else "ok"
                     error_class = error_tracking.classify_tool_error(tool_output) if status == "error" else ""
                     summary = (tool_output.split(". ")[0] if ". " in tool_output else tool_output)[:120]
@@ -564,6 +605,13 @@ def api_agent_chat():
                 full_response, removed_links = _sanitize_citation_links(full_response, evidence_urls)
                 if removed_links:
                     turn_meta["unverified_links_removed"] = removed_links
+                unsupported = _unsupported_numeric_claims(full_response, "\n".join(evidence_text_parts))
+                if unsupported:
+                    turn_meta["unsupported_numeric_claims"] = unsupported
+                    full_response += (
+                        "\n\n_Grounding note: some numeric claims could not be matched to the "
+                        "retrieved evidence; verify them against the cited source._"
+                    )
                 turn_status = "ok"
                 _db_add_message(chat_id, "assistant", full_response, meta=turn_meta)
 
