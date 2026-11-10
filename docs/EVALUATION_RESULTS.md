@@ -48,7 +48,9 @@ Operational notes:
 - Long-tail latency is driven by HDX rate limits; tool calls are capped per turn and the
   agent forces a final answer after the budget.
 - One answer could not be judged and is excluded rather than estimated.
-- The Pakistan answer exposed a citation-grounding failure (fabricated figures/URLs); this is tracked as the next fix.
+- The Pakistan answer exposed a citation-grounding failure (fabricated figures/URLs).
+- A post-generation URL grounding guard now removes links whose target was not present in
+  the turn's tool output (deployed in `4e3babc`). Numeric claims are not yet verified.
 
 ## 3. Retrieval evaluation — pending labels
 
@@ -144,7 +146,9 @@ Operational notes:
 - Long-tail latency is driven by HDX rate limits; tool calls are capped per turn and the
   agent forces a final answer after the budget.
 - One answer could not be judged and is excluded rather than estimated.
-- The Pakistan answer exposed a citation-grounding failure (fabricated figures/URLs); this is tracked as the next fix.
+- The Pakistan answer exposed a citation-grounding failure (fabricated figures/URLs).
+- A post-generation URL grounding guard now removes links whose target was not present in
+  the turn's tool output (deployed in `4e3babc`). Numeric claims are not yet verified.
 
 ## 3. Retrieval evaluation — pending labels
 
