@@ -1,6 +1,6 @@
 """
 Model initialization and management.
-Handles LLM provider setup (OpenRouter or Ollama) with proper error handling.
+Handles LLM provider setup (OpenRouter, Google Gemini, or Ollama) with proper error handling.
 """
 
 import logging
@@ -20,10 +20,34 @@ class ModelInitializationError(Exception):
     pass
 
 
+def _check_google_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
+    """Validate the Google Gemini API key against the OpenAI-compatible endpoint."""
+    url = f"{config.GOOGLE_BASE_URL.rstrip('/')}/models"
+    headers = {"Authorization": f"Bearer {config.GOOGLE_API_KEY}"}
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Checking Google Gemini connectivity (attempt {attempt + 1}/{max_retries})...")
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                logger.info("✓ Google Gemini is accessible")
+                return True
+            if response.status_code in (401, 403):
+                logger.error("✗ Google API key is invalid or lacks Gemini API access")
+                return False
+            logger.warning(f"Google Gemini returned status {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Google Gemini connection failed (attempt {attempt + 1}/{max_retries})")
+        except Exception as exc:
+            logger.warning(f"Error checking Google Gemini: {type(exc).__name__}")
+        if attempt < max_retries - 1:
+            time.sleep(retry_delay)
+    return False
+
+
 def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
     """
     Check if the LLM provider is accessible before initializing the model.
-    Supports both OpenRouter and Ollama.
+    Supports OpenRouter, Google Gemini and Ollama.
 
     Args:
         max_retries: Number of retry attempts
@@ -33,6 +57,9 @@ def check_llm_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
         True if the provider is accessible, False otherwise
     """
     provider = config.LLM_PROVIDER
+
+    if provider == "google":
+        return _check_google_connectivity(max_retries=max_retries, retry_delay=retry_delay)
 
     if provider == "openrouter":
         # OpenRouter: check /models endpoint with auth
@@ -95,9 +122,11 @@ def check_model_available(model_name: str) -> bool:
     Returns:
         True if model is available, False otherwise
     """
-    if config.LLM_PROVIDER == "openrouter":
-        # OpenRouter serves models on-demand, no need to check availability
-        logger.info(f"✓ OpenRouter model '{model_name}' will be served on-demand")
+    if config.LLM_PROVIDER in ("openrouter", "google"):
+        # Both providers serve models on demand; Google validates the key but not
+        # the individual model id at connection time.
+        label = "Google Gemini" if config.LLM_PROVIDER == "google" else "OpenRouter"
+        logger.info(f"✓ {label} model '{model_name}' will be served on-demand")
         return True
 
     # Ollama: check local model list
@@ -125,7 +154,7 @@ def check_model_available(model_name: str) -> bool:
 def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
     """
     Initialize the LLM model with error handling.
-    Supports OpenRouter and Ollama providers.
+    Supports OpenRouter, Google Gemini and Ollama providers.
 
     Args:
         skip_checks: Skip connectivity/model availability checks
@@ -137,7 +166,7 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
         ModelInitializationError: If model initialization fails
     """
     provider = config.LLM_PROVIDER
-    model_name = config.OLLAMA_MODEL
+    model_name = config.provider_model_name(config.OLLAMA_MODEL, provider)
     logger.info(f"Initializing model: {model_name} (provider: {provider})")
 
     if not skip_checks:
@@ -145,6 +174,10 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
             if provider == "openrouter":
                 raise ModelInitializationError(
                     f"Cannot connect to OpenRouter at {config._LLM_BASE_URL}. Check your OPENROUTER_API_KEY."
+                )
+            if provider == "google":
+                raise ModelInitializationError(
+                    f"Cannot connect to Google Gemini at {config._LLM_BASE_URL}. Check your GOOGLE_API_KEY."
                 )
             else:
                 raise ModelInitializationError(
@@ -163,7 +196,7 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
             api_key=config._LLM_API_KEY,
             temperature=config.MODEL_TEMPERATURE,
             max_tokens=config.MODEL_MAX_TOKENS,
-            timeout=config.OLLAMA_TIMEOUT,
+            timeout=config._LLM_TIMEOUT,
             stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
         )
         logger.info(f"✓ Model initialized successfully (provider: {provider})")

@@ -53,6 +53,9 @@ answer with averaged scores, evidence-aware prompt. The rubric scores factual gr
 relevance, completeness, citation discipline, and honest abstention. Length is not a
 quality signal; a grounded "no evidence found" is a valid answer.
 
+When only Google is configured, the judge defaults to `gemini-3.1-pro-preview`; this is
+same-family and must be treated as a weaker signal until calibrated with human labels.
+
 Results are visible under Admin > Observability > Chat Quality Evaluation. Re-running
 updates the same verdict (unique per turn, model, mode) instead of duplicating it.
 

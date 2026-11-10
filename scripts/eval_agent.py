@@ -46,6 +46,7 @@ from observability import store  # noqa: E402
 _QT = 4000  # max chars of question/answer sent to the judge
 _EVIDENCE_CHARS = 3000  # total tool-evidence budget per turn
 DEFAULT_JUDGE_MODEL = "openai/gpt-5.1"  # cross-family vs Gemini answer models
+GOOGLE_JUDGE_MODEL = "google/gemini-3.1-pro-preview"  # same-family fallback when only Google is available
 DEFAULT_SAMPLES = 3
 
 
@@ -270,7 +271,7 @@ def _judge_once(
     timeout: int,
 ) -> dict | None:
     payload = {
-        "model": judge_model,
+        "model": config.provider_model_name(judge_model),
         "temperature": 0.2,
         "max_tokens": 1200,
         "messages": _judge_messages(sample),
@@ -352,7 +353,7 @@ def run(
     turn_ids: list[str] | None = None,
 ) -> dict:
     """Sample chat turns, judge them, report (and optionally persist) verdicts."""
-    judge_model = judge_model or DEFAULT_JUDGE_MODEL
+    judge_model = judge_model or (GOOGLE_JUDGE_MODEL if config.LLM_PROVIDER == "google" else DEFAULT_JUDGE_MODEL)
     sampled = sample_turns(days=days, limit=limit, spread=spread, turn_ids=turn_ids)
     results: list[dict] = []
     same_family_warnings: list[str] = []
@@ -411,8 +412,11 @@ def main() -> int:
     ap.add_argument("--turn-ids", default="", help="comma-separated turn ids to evaluate (overrides sampling)")
     args = ap.parse_args()
 
-    if config.LLM_PROVIDER != "openrouter" or not config._LLM_API_KEY:
-        print("error: no OpenRouter API key available for the judge (LLM_PROVIDER)", file=sys.stderr)
+    if not config._LLM_API_KEY:
+        print(
+            f"error: no LLM API key available for judge (LLM_PROVIDER={config.LLM_PROVIDER})",
+            file=sys.stderr,
+        )
         return 2
 
     report = run(

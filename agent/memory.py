@@ -110,14 +110,15 @@ def _small_llm(max_tokens: int = 600):
             return _small_llm_cache[max_tokens]
         from langchain_openai import ChatOpenAI
 
-        from config import _LLM_API_KEY, _LLM_BASE_URL
+        from config import _LLM_API_KEY, _LLM_BASE_URL, _LLM_TIMEOUT, provider_model_name
 
         _small_llm_cache[max_tokens] = ChatOpenAI(
-            model=_SMALL_MODEL,
+            model=provider_model_name(_SMALL_MODEL),
             base_url=_LLM_BASE_URL,
             api_key=_LLM_API_KEY,
             temperature=0,
             max_tokens=max_tokens,
+            timeout=_LLM_TIMEOUT,
         )
         return _small_llm_cache[max_tokens]
 

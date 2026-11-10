@@ -190,7 +190,9 @@ Key variables:
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENROUTER_API_KEY` | ✅ | LLM access (chat + evaluation judge + SITREP) |
+| `LLM_PROVIDER` | Optional | `openrouter` (default), `google` (Gemini API) or `ollama` |
+| `OPENROUTER_API_KEY` | If OpenRouter | LLM access (chat + evaluation judge + SITREP) |
+| `GOOGLE_API_KEY` | If Google | Gemini API key; server-side only, never exposed to the browser |
 | `RELIEFWEB_APPNAME` | ✅ | ReliefWeb API identifier |
 | `HDX_APP_IDENTIFIER` | Optional | HDX API (base64 app identifier) |
 | `NEWS_API_KEY` | Optional | NewsAPI.org |

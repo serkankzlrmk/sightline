@@ -46,6 +46,7 @@ from blueprints.helpers import (
 from config import (
     _LLM_API_KEY,
     _LLM_BASE_URL,
+    _LLM_TIMEOUT,
     CHAT_MAX_CONCURRENT,
     CHAT_MODELS,
     CUSTOM_MODELS,
@@ -53,7 +54,8 @@ from config import (
     MODEL_MAX_TOKENS,
     MODEL_TEMPERATURE,
     OLLAMA_MODEL,
-    OLLAMA_TIMEOUT,
+    model_available_for_provider,
+    provider_model_name,
 )
 from observability import (
     answer_signals,
@@ -338,8 +340,16 @@ def api_agent_chat():
             except Exception:
                 pass
 
-            # Use selected model or default agent
+            # Use selected model or default agent. Google can only serve Gemini
+            # models, so fall back to Flash if a non-Google custom model is requested.
             selected_model_name = model_config["model"]
+            if not model_available_for_provider(selected_model_name, LLM_PROVIDER):
+                logger.warning(
+                    "Model %s is not available on provider %s; falling back to flash",
+                    selected_model_name,
+                    LLM_PROVIDER,
+                )
+                selected_model_name = CHAT_MODELS["flash"]["model"]
             if selected_model_name != OLLAMA_MODEL:
                 # Build a per-request agent with the selected model (single factory)
                 from langchain_openai import ChatOpenAI
@@ -347,12 +357,12 @@ def api_agent_chat():
                 from agent.relief_agent import build_agent
 
                 temp_llm = ChatOpenAI(
-                    model=selected_model_name,
+                    model=provider_model_name(selected_model_name, LLM_PROVIDER),
                     base_url=_LLM_BASE_URL,
                     api_key=_LLM_API_KEY,
                     temperature=MODEL_TEMPERATURE,
                     max_tokens=MODEL_MAX_TOKENS,
-                    timeout=OLLAMA_TIMEOUT,
+                    timeout=_LLM_TIMEOUT,
                     stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
                 )
                 agent = build_agent(
@@ -576,7 +586,7 @@ def api_agent_chat():
                         "iterations": iterations,
                         "tokens_in": usage_in,
                         "tokens_out": usage_out,
-                        "cost": compute_cost(usage_in, usage_out, model_config.get("model", ""), LLM_PROVIDER),
+                        "cost": compute_cost(usage_in, usage_out, selected_model_name, LLM_PROVIDER),
                         "groups": {
                             g: sum(1 for t in tools_used if t.get("group", "Other") == g)
                             for g in {t.get("group", "Other") for t in tools_used}
@@ -704,7 +714,9 @@ def api_agent_capabilities():
             "sources": sources,
             "tool_count": sum(n for _, n in groups.items()),
             "models": [
-                {"key": k, "name": v.get("name", k), "premium": v.get("premium", False)} for k, v in CHAT_MODELS.items()
+                {"key": k, "name": v.get("name", k), "premium": v.get("premium", False)}
+                for k, v in CHAT_MODELS.items()
+                if model_available_for_provider(v.get("model", ""), LLM_PROVIDER)
             ],
         }
     )

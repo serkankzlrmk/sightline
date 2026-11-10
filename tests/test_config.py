@@ -9,7 +9,7 @@ def test_config_has_llm_provider():
     """LLM_PROVIDER must be set to a valid value."""
     from config import config
 
-    assert config.LLM_PROVIDER in ("openrouter", "ollama"), f"Invalid LLM_PROVIDER: {config.LLM_PROVIDER}"
+    assert config.LLM_PROVIDER in ("openrouter", "ollama", "google"), f"Invalid LLM_PROVIDER: {config.LLM_PROVIDER}"
 
 
 def test_config_has_model_name():

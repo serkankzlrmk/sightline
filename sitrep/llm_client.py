@@ -1,6 +1,6 @@
 """
 sitrep_pipeline/llm_client.py
-LLM wrapper — OpenRouter / Ollama (OpenAI-compatible API).
+LLM wrapper — OpenRouter / Google Gemini / Ollama (OpenAI-compatible APIs).
 """
 
 import logging
@@ -19,6 +19,7 @@ from config import (
     LLM_TIMEOUT,
     OLLAMA_API_KEY,
     OLLAMA_BASE_URL,
+    provider_model_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,11 @@ def _get_base_url_and_headers() -> tuple[str, dict]:
     """LLM provider base URL and HTTP headers."""
     headers = {"Content-Type": "application/json"}
 
-    if LLM_PROVIDER == "openrouter":
+    if LLM_PROVIDER in ("openrouter", "google"):
         headers["Authorization"] = f"Bearer {_LLM_API_KEY}"
-        headers["HTTP-Referer"] = "https://sightline.io"
-        headers["X-Title"] = "Sightline"
+        if LLM_PROVIDER == "openrouter":
+            headers["HTTP-Referer"] = "https://sightline.io"
+            headers["X-Title"] = "Sightline"
         return _LLM_BASE_URL, headers
     else:
         if OLLAMA_API_KEY:
@@ -65,12 +67,13 @@ def chat(
     base_url, headers = _get_base_url_and_headers()
 
     payload = {
-        "model": model,
+        "model": provider_model_name(model, LLM_PROVIDER),
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "think": False,
     }
+    if LLM_PROVIDER == "ollama":
+        payload["think"] = False
 
     last_error: Exception | None = None
 

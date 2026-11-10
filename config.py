@@ -257,14 +257,53 @@ LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openrouter")
 OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 
+# --- Google Gemini API (OpenAI-compatible endpoint) ---
+# Create a key in Google AI Studio and set it only in .env / the server env-file.
+# It is sent server-side as a Bearer token and never exposed to the browser.
+GOOGLE_BASE_URL: str = os.getenv("GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
+GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+GOOGLE_TIMEOUT: int = int(os.getenv("GOOGLE_TIMEOUT", "300"))
+
 # --- Ollama (legacy, for local dev) ---
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "")
 OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
+
+def provider_model_name(model: str, provider: str | None = None) -> str:
+    """Map an internal OpenRouter-style id to the active provider's model id.
+
+    Chat/custom model ids are stored OpenRouter-style (``google/gemini-...``)
+    so switching providers does not change the UI or stored telemetry. Google's
+    OpenAI-compatible endpoint expects the bare Gemini model id.
+    """
+    provider = (provider or LLM_PROVIDER or "").lower()
+    if provider == "google" and str(model).startswith("google/"):
+        return str(model)[len("google/") :]
+    return str(model)
+
+
+def model_available_for_provider(model: str, provider: str | None = None) -> bool:
+    """Whether a model id can be served by the active provider."""
+    provider = (provider or LLM_PROVIDER or "").lower()
+    if provider == "google":
+        return str(model).startswith("google/")
+    return True
+
+
 # --- Effective LLM settings (resolved based on LLM_PROVIDER) ---
-_LLM_BASE_URL: str = OPENROUTER_BASE_URL if LLM_PROVIDER == "openrouter" else OLLAMA_BASE_URL
-_LLM_API_KEY: str = OPENROUTER_API_KEY if LLM_PROVIDER == "openrouter" else OLLAMA_API_KEY
+if LLM_PROVIDER == "openrouter":
+    _LLM_BASE_URL: str = OPENROUTER_BASE_URL
+    _LLM_API_KEY: str = OPENROUTER_API_KEY
+    _LLM_TIMEOUT: int = OLLAMA_TIMEOUT
+elif LLM_PROVIDER == "google":
+    _LLM_BASE_URL: str = GOOGLE_BASE_URL
+    _LLM_API_KEY: str = GOOGLE_API_KEY
+    _LLM_TIMEOUT: int = GOOGLE_TIMEOUT
+else:
+    _LLM_BASE_URL: str = OLLAMA_BASE_URL
+    _LLM_API_KEY: str = OLLAMA_API_KEY
+    _LLM_TIMEOUT: int = OLLAMA_TIMEOUT
 
 # ============================================================================
 # ACTIVE MODEL
