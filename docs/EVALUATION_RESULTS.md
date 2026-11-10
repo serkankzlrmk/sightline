@@ -49,8 +49,10 @@ Operational notes:
   agent forces a final answer after the budget.
 - One answer could not be judged and is excluded rather than estimated.
 - The Pakistan answer exposed a citation-grounding failure (fabricated figures/URLs).
-- A post-generation URL grounding guard now removes links whose target was not present in
-  the turn's tool output (deployed in `4e3babc`). Numeric claims are not yet verified.
+- A post-generation URL grounding guard removes links whose target was not present in the
+  turn's tool output (deployed in `4e3babc`).
+- A numeric grounding check now flags percentages/unit-bearing figures that are absent
+  from tool evidence and appends a verification note (deployed in `fa6ad03`).
 
 ## 3. Retrieval evaluation — pending labels
 
@@ -147,8 +149,10 @@ Operational notes:
   agent forces a final answer after the budget.
 - One answer could not be judged and is excluded rather than estimated.
 - The Pakistan answer exposed a citation-grounding failure (fabricated figures/URLs).
-- A post-generation URL grounding guard now removes links whose target was not present in
-  the turn's tool output (deployed in `4e3babc`). Numeric claims are not yet verified.
+- A post-generation URL grounding guard removes links whose target was not present in the
+  turn's tool output (deployed in `4e3babc`).
+- A numeric grounding check now flags percentages/unit-bearing figures that are absent
+  from tool evidence and appends a verification note (deployed in `fa6ad03`).
 
 ## 3. Retrieval evaluation — pending labels
 
