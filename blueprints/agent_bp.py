@@ -366,6 +366,7 @@ def api_agent_chat():
                 )
                 selected_model_name = CHAT_MODELS["flash"]["model"]
             if selected_model_name != OLLAMA_MODEL:
+                logger.debug("agent path: per-request model=%s", selected_model_name)
                 # Build a per-request agent with the selected model (single factory)
                 from agent.model import build_chat_model
                 from agent.relief_agent import build_agent
@@ -381,6 +382,7 @@ def api_agent_chat():
                     memory_context=memory_context,
                 )
             else:
+                logger.debug("agent path: singleton model=%s", selected_model_name)
                 agent = _get_agent()
             full_response = ""
             tools_used = []  # [{tool, output, status, summary, duration_ms, result_chars}]

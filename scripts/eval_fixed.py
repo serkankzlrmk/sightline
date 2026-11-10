@@ -25,10 +25,26 @@ DEFAULT_QUESTIONS = ROOT / "scripts" / "eval_questions.json"
 DEFAULT_OUT = ROOT / "data" / "eval" / "fixed_run.json"
 
 
-def run_one(base_url: str, question: str, token: str, timeout: int) -> dict:
+def _headers(token: str) -> dict:
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _new_chat(base_url: str, headers: dict) -> str:
+    """Create an isolated chat so each evaluation question starts clean."""
+    resp = requests.post(base_url.rstrip("/") + "/api/agent/chats/new", headers=headers, timeout=30)
+    resp.raise_for_status()
+    return str(resp.json().get("id") or "")
+
+
+def run_one(base_url: str, question: str, token: str, timeout: int) -> dict:
+    headers = _headers(token)
+    try:
+        _new_chat(base_url, headers)
+    except Exception:
+        pass  # older servers / API key mode: fall back to the active chat
     payload = {"message": question}
     started = time.time()
     resp = requests.post(
@@ -70,7 +86,7 @@ def main() -> int:
     ap.add_argument("--base-url", default="http://127.0.0.1:5001")
     ap.add_argument("--token", default="")
     ap.add_argument("--out", default=str(DEFAULT_OUT))
-    ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--timeout", type=int, default=180)
     ap.add_argument("--sleep", type=float, default=1.0)
     ap.add_argument("--max", type=int, default=0, help="limit questions (0 = all)")
     ap.add_argument("--dry-run", action="store_true")
@@ -94,14 +110,16 @@ def main() -> int:
             outcome = {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
         results.append({**item, **outcome})
         print(f"  -> {outcome.get('status')} {outcome.get('turn_id', '')}", flush=True)
+        # Persist after every question so a timeout/kill cannot lose the run.
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps({"base_url": args.base_url, "results": results}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
         if args.sleep:
             time.sleep(args.sleep)
 
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        json.dumps({"base_url": args.base_url, "results": results}, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
     ids = [r["turn_id"] for r in results if r.get("turn_id")]
     print(f"\nwrote {out} ({len(ids)}/{len(results)} turns)")
     if ids:

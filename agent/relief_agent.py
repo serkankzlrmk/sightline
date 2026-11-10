@@ -973,6 +973,7 @@ def build_agent(
 
     user_tools = get_tools_for_mode(mode=mode, role=role)
     llm_with_tools = model.bind_tools(user_tools)
+    llm_no_tools = model.bind_tools([])
     system_prompt = _build_system_prompt(use_sequential=use_sequential, mode=mode, memory_context=memory_context)
     tool_budget = max(1, int(getattr(config, "MAX_TOOL_CALLS_PER_TURN", 8)))
 
@@ -994,7 +995,8 @@ def build_agent(
                         {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img}"}},
                     ]
                 )
-        used_tools = sum(1 for m in messages if isinstance(m, ToolMessage))
+        used_tools = sum(1 for m in messages if isinstance(m, ToolMessage) or getattr(m, "type", "") == "tool")
+        logger.debug("tool budget: used=%s/%s messages=%s", used_tools, tool_budget, len(messages))
         if used_tools >= tool_budget:
             # Hard stop for runaway tool loops: answer from evidence already gathered.
             messages = messages + [
@@ -1006,7 +1008,15 @@ def build_agent(
                     )
                 )
             ]
-            return {"messages": model.invoke(messages)}
+            final = llm_no_tools.invoke(messages)
+            if getattr(final, "tool_calls", None):
+                final = AIMessage(
+                    content=(
+                        "I gathered the available evidence but could not complete a reliable "
+                        "answer within the tool budget. Please narrow the question."
+                    )
+                )
+            return {"messages": final}
         return {"messages": llm_with_tools.invoke(messages)}
 
     tool_map = {t.name: t for t in user_tools}
