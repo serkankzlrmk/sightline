@@ -44,18 +44,12 @@ from blueprints.helpers import (
     _user_agent_busy_since,
 )
 from config import (
-    _LLM_API_KEY,
-    _LLM_BASE_URL,
-    _LLM_TIMEOUT,
     CHAT_MAX_CONCURRENT,
     CHAT_MODELS,
     CUSTOM_MODELS,
     LLM_PROVIDER,
-    MODEL_MAX_TOKENS,
-    MODEL_TEMPERATURE,
     OLLAMA_MODEL,
     model_available_for_provider,
-    provider_model_name,
 )
 from observability import (
     answer_signals,
@@ -352,19 +346,10 @@ def api_agent_chat():
                 selected_model_name = CHAT_MODELS["flash"]["model"]
             if selected_model_name != OLLAMA_MODEL:
                 # Build a per-request agent with the selected model (single factory)
-                from langchain_openai import ChatOpenAI
-
+                from agent.model import build_chat_model
                 from agent.relief_agent import build_agent
 
-                temp_llm = ChatOpenAI(
-                    model=provider_model_name(selected_model_name, LLM_PROVIDER),
-                    base_url=_LLM_BASE_URL,
-                    api_key=_LLM_API_KEY,
-                    temperature=MODEL_TEMPERATURE,
-                    max_tokens=MODEL_MAX_TOKENS,
-                    timeout=_LLM_TIMEOUT,
-                    stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
-                )
+                temp_llm = build_chat_model(selected_model_name)
                 agent = build_agent(
                     temp_llm,
                     mode=agent_mode,

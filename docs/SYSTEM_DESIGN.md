@@ -222,7 +222,7 @@ The active provider is selected by `LLM_PROVIDER`:
 | Provider | Endpoint | Key | Notes |
 |---|---|---|---|
 | `openrouter` (default) | OpenRouter API | `OPENROUTER_API_KEY` | Public default; serves all configured chat/custom models |
-| `google` | Gemini OpenAI-compatible endpoint | `GOOGLE_API_KEY` | Server-side only; serves Gemini models; non-Google custom models fall back to Flash |
+| `google` | Gemini API (native SDK for chat, OpenAI-compatible for text-only pipelines) | `GOOGLE_API_KEY` | Server-side only; native SDK preserves Gemini 3 `thought_signature`; non-Google custom models fall back to Flash |
 | `ollama` | local OpenAI-compatible server | optional `OLLAMA_API_KEY` | Local development |
 
 Internal model ids keep the OpenRouter-style `google/...` form; `provider_model_name()`

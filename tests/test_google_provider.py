@@ -4,7 +4,7 @@
 def test_provider_model_name_mapping():
     from config import model_available_for_provider, provider_model_name
 
-    assert provider_model_name("google/gemini-3.8-flash", "google") == "gemini-3.8-flash"
+    assert provider_model_name("google/gemini-3.8-flash", "google") == "gemini-3-flash-preview"
     assert provider_model_name("google/gemini-3.8-flash", "openrouter") == "google/gemini-3.8-flash"
     assert provider_model_name("deepseek/deepseek-chat", "google") == "deepseek/deepseek-chat"
     assert model_available_for_provider("google/gemini-3.8-flash", "google") is True
@@ -42,3 +42,15 @@ def test_google_connectivity_uses_key(monkeypatch):
     monkeypatch.setattr(model_mod.config, "GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
     monkeypatch.setattr(model_mod, "requests", FakeRequests)
     assert model_mod.check_llm_connectivity(max_retries=1, retry_delay=0) is True
+
+
+def test_build_chat_model_google(monkeypatch):
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    import agent.model as model_mod
+
+    monkeypatch.setattr(model_mod.config, "LLM_PROVIDER", "google")
+    monkeypatch.setattr(model_mod.config, "GOOGLE_API_KEY", "test-key")
+    monkeypatch.setattr(model_mod.config, "GOOGLE_API_VERSION", "v1beta")
+    llm = model_mod.build_chat_model("google/gemini-3.8-flash", temperature=0, max_tokens=64, timeout=10)
+    assert isinstance(llm, ChatGoogleGenerativeAI)

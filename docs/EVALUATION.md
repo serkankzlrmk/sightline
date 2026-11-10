@@ -55,6 +55,8 @@ quality signal; a grounded "no evidence found" is a valid answer.
 
 When only Google is configured, the judge defaults to `gemini-3.1-pro-preview`; this is
 same-family and must be treated as a weaker signal until calibrated with human labels.
+Google judge calls use the OpenAI-compatible endpoint (no tool loop), so they are not
+affected by Gemini function-call thought signatures.
 
 Results are visible under Admin > Observability > Chat Quality Evaluation. Re-running
 updates the same verdict (unique per turn, model, mode) instead of duplicating it.

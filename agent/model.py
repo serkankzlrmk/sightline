@@ -7,6 +7,7 @@ import logging
 import time
 
 import requests
+from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
 from config import config
@@ -18,6 +19,46 @@ class ModelInitializationError(Exception):
     """Model initialization failed."""
 
     pass
+
+
+def build_chat_model(
+    model_name: str | None = None,
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    timeout: int | None = None,
+) -> BaseChatModel:
+    """Build the chat model for the active provider.
+
+    Google uses the native SDK because Gemini 3 function calls carry a
+    ``thought_signature`` that the OpenAI-compatible endpoint does not round-trip
+    through LangChain; OpenRouter/Ollama keep their existing OpenAI client.
+    """
+    provider = config.LLM_PROVIDER
+    name = model_name or config.OLLAMA_MODEL
+    temperature = config.MODEL_TEMPERATURE if temperature is None else temperature
+    max_tokens = config.MODEL_MAX_TOKENS if max_tokens is None else max_tokens
+    timeout = config._LLM_TIMEOUT if timeout is None else timeout
+    if provider == "google":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        return ChatGoogleGenerativeAI(
+            model=config.provider_model_name(name, "google"),
+            google_api_key=config.GOOGLE_API_KEY,
+            api_version=config.GOOGLE_API_VERSION,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            timeout=timeout,
+        )
+    return ChatOpenAI(
+        model=config.provider_model_name(name, provider),
+        base_url=config._LLM_BASE_URL,
+        api_key=config._LLM_API_KEY,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        stream_usage=True,
+    )
 
 
 def _check_google_connectivity(max_retries: int = 3, retry_delay: int = 2) -> bool:
@@ -151,7 +192,7 @@ def check_model_available(model_name: str) -> bool:
         return False
 
 
-def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
+def initialize_model(skip_checks: bool = False) -> BaseChatModel:
     """
     Initialize the LLM model with error handling.
     Supports OpenRouter, Google Gemini and Ollama providers.
@@ -190,14 +231,11 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
                 logger.warning(f"Model '{model_name}' not found locally. Pull it with: `{pull_cmd}`")
 
     try:
-        model = ChatOpenAI(
-            model=model_name,
-            base_url=config._LLM_BASE_URL,
-            api_key=config._LLM_API_KEY,
+        model = build_chat_model(
+            config.OLLAMA_MODEL,
             temperature=config.MODEL_TEMPERATURE,
             max_tokens=config.MODEL_MAX_TOKENS,
             timeout=config._LLM_TIMEOUT,
-            stream_usage=True,  # usage_metadata on streamed chunks → per-turn token accounting
         )
         logger.info(f"✓ Model initialized successfully (provider: {provider})")
         return model
@@ -207,7 +245,7 @@ def initialize_model(skip_checks: bool = False) -> ChatOpenAI:
         raise ModelInitializationError(error_msg) from e
 
 
-def get_model(skip_checks: bool = False) -> ChatOpenAI | None:
+def get_model(skip_checks: bool = False) -> BaseChatModel | None:
     """
     Get or initialize the model singleton.
 
@@ -224,7 +262,7 @@ def get_model(skip_checks: bool = False) -> ChatOpenAI | None:
         return None
 
 
-def reinitialize_model() -> ChatOpenAI:
+def reinitialize_model() -> BaseChatModel:
     """
     Reinitialize the model singleton with current config values.
     Useful after config reload to pick up new model settings.

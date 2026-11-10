@@ -263,6 +263,18 @@ OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 GOOGLE_BASE_URL: str = os.getenv("GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 GOOGLE_TIMEOUT: int = int(os.getenv("GOOGLE_TIMEOUT", "300"))
+GOOGLE_API_VERSION: str = os.getenv("GOOGLE_API_VERSION", "v1beta")
+# Google AI Studio model availability changes over time; keep internal ids stable
+# and map them to currently served models here (all overridable via .env).
+GOOGLE_FLASH_MODEL: str = os.getenv("GOOGLE_FLASH_MODEL", "gemini-3-flash-preview")
+GOOGLE_PRO_MODEL: str = os.getenv("GOOGLE_PRO_MODEL", "gemini-3.1-pro-preview")
+GOOGLE_LITE_MODEL: str = os.getenv("GOOGLE_LITE_MODEL", "gemini-3.1-flash-lite")
+_GOOGLE_MODEL_ALIASES = {
+    "gemini-3.8-flash": GOOGLE_FLASH_MODEL,
+    "gemini-3.1-pro-preview": GOOGLE_PRO_MODEL,
+    "gemini-3.1-flash-lite": GOOGLE_LITE_MODEL,
+    "gemma-4-31b-it": GOOGLE_FLASH_MODEL,  # Gemma is not served by AI Studio API
+}
 
 # --- Ollama (legacy, for local dev) ---
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -278,8 +290,9 @@ def provider_model_name(model: str, provider: str | None = None) -> str:
     OpenAI-compatible endpoint expects the bare Gemini model id.
     """
     provider = (provider or LLM_PROVIDER or "").lower()
-    if provider == "google" and str(model).startswith("google/"):
-        return str(model)[len("google/") :]
+    if provider == "google":
+        bare = str(model)[len("google/") :] if str(model).startswith("google/") else str(model)
+        return _GOOGLE_MODEL_ALIASES.get(bare, bare)
     return str(model)
 
 
