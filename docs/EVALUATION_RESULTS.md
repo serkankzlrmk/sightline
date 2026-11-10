@@ -38,8 +38,8 @@ call returned no verdict and is excluded from the score distribution.
 
 Score distribution: 1 x1, 2 x1, 3 x2, 4 x3, 5 x3 (rounded judge scores).
 
-**Human calibration is pending.** Judge scores are not validated quality until 20-30
-answers are rated by a human reviewer. The 11 judged turns are available in the admin
+**Human calibration is pending.** Judge scores are not validated quality until the
+20 judged turns are rated by a human reviewer. They are available in the admin
 calibration queue; QWK will be added after review.
 
 Operational notes:
@@ -47,7 +47,7 @@ Operational notes:
 - The Google free-tier quota was replaced by a paid quota before this run.
 - Long-tail latency is driven by HDX rate limits; tool calls are capped per turn and the
   agent forces a final answer after the budget.
-- One judge call failed (empty verdict); it is excluded rather than estimated.
+- One answer could not be judged and one question timed out; both are excluded rather than estimated.
 
 ## 3. Retrieval evaluation — pending labels
 
@@ -103,8 +103,8 @@ The deployed release exposes:
 
 ## 6. Next steps
 
-1. Run the remaining 10 evaluation questions.
-2. Collect 20+ human labels and publish QWK (the 11 judged turns are already queued).
+1. Collect 20 human labels and publish QWK (the 20 judged turns are already queued).
+2. Re-run the two excluded questions (timeout / judge failure).
 3. Complete the 52 retrieval relevance labels and run the two-stage retrieval metrics.
 4. Extend proposal verification with adversarial fixtures and measure the LLM verifier
    against human review.
