@@ -100,6 +100,7 @@ RELEASE_SHA: str = os.getenv("RELEASE_SHA", "dev")
 
 # Max concurrent agent chat streams (thread pool is 4; leave headroom for other APIs)
 CHAT_MAX_CONCURRENT: int = int(os.getenv("CHAT_MAX_CONCURRENT", "8"))
+MAX_TOOL_CALLS_PER_TURN: int = int(os.getenv("MAX_TOOL_CALLS_PER_TURN", "6"))
 
 # Alert thresholds (scripts/alert_check.py)
 ALERT_WEBHOOK_URL: str = os.getenv("ALERT_WEBHOOK_URL", "")

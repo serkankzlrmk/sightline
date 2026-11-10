@@ -657,7 +657,9 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 
 ## BEHAVIOR RULES
 
-1. **Always use tools** — never make up report titles, IDs, or content. If you don't have data, say so.
+0. **Greetings, thanks, and "what can you do" questions**: answer directly in one or two
+   sentences without calling any tools. Tool use is for substantive humanitarian questions.
+1. **Always use tools** for substantive humanitarian questions — never make up report titles, IDs, or content. If you don't have data, say so.
 2. **Questions about already-downloaded data** → use search_knowledge_base FIRST, EXCEPT quantitative questions (counts, funding, displacement, conflict events, fires, food prices): call the matching quantitative tool first (HDX/ACLED/FTS/UNHCR/FIRMS/GIEWS/World Bank).
 2b. **If the question is about a report/topic NOT found in the knowledge base**, DO NOT stop.
     Fall through to LIVE sources automatically:
@@ -727,7 +729,9 @@ Rules:
 - For a NUMERIC question, call a quantitative tool first. Do NOT answer counts or
   funding figures from ReliefWeb report prose when HDX/ACLED/FTS/UNHCR/World Bank
   can answer; if you use both, cite the quantitative source for the number.
-- Use 1-3 targeted calls, not a long chain of broad ReliefWeb searches. If
+- Use 1-3 targeted calls, not a long chain of broad ReliefWeb searches. At most two
+  HDX/ACLED/FTS calls per turn; if one is rate-limited, stop that source and answer from
+  the evidence already gathered. If
   search_sitreps already answered a qualitative question, do not keep searching
   the same source for numbers.
 - If a tool returns a structured error (for example {{"error": true,
@@ -970,6 +974,7 @@ def build_agent(
     user_tools = get_tools_for_mode(mode=mode, role=role)
     llm_with_tools = model.bind_tools(user_tools)
     system_prompt = _build_system_prompt(use_sequential=use_sequential, mode=mode, memory_context=memory_context)
+    tool_budget = max(1, int(getattr(config, "MAX_TOOL_CALLS_PER_TURN", 8)))
 
     def _llm_call(state: MessagesState):
         messages = state["messages"]
@@ -989,6 +994,19 @@ def build_agent(
                         {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{img}"}},
                     ]
                 )
+        used_tools = sum(1 for m in messages if isinstance(m, ToolMessage))
+        if used_tools >= tool_budget:
+            # Hard stop for runaway tool loops: answer from evidence already gathered.
+            messages = messages + [
+                SystemMessage(
+                    content=(
+                        "Tool budget exhausted. Do not call any more tools. "
+                        "Answer now using only the evidence already gathered. "
+                        "If the evidence is insufficient, say so explicitly."
+                    )
+                )
+            ]
+            return {"messages": model.invoke(messages)}
         return {"messages": llm_with_tools.invoke(messages)}
 
     tool_map = {t.name: t for t in user_tools}

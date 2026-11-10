@@ -149,3 +149,12 @@ def test_prompt_documents_all_sources():
     for term in ("ACLED", "FTS", "UNHCR", "FIRMS", "GIEWS", "OSM", "HDX", "World Bank"):
         assert term in prompt, term
     assert "quantitative tool first" in prompt.lower()
+
+
+def test_content_to_text_normalizes_google_blocks():
+    from blueprints.agent_bp import _content_to_text
+
+    assert _content_to_text("hello") == "hello"
+    assert _content_to_text([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]) == "ab"
+    assert _content_to_text([{"text": "x"}, "y"]) == "xy"
+    assert _content_to_text(None) == ""

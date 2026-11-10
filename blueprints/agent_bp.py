@@ -69,6 +69,27 @@ agent_bp = Blueprint("agent", __name__, url_prefix="/api/agent")
 _chat_sem = threading.BoundedSemaphore(max(1, int(CHAT_MAX_CONCURRENT)))
 
 
+def _content_to_text(content) -> str:
+    """Normalize provider chunk content (str, block list, or dict) to text.
+
+    Google's native SDK returns AIContent block lists; OpenRouter/Ollama return
+    plain strings. Without this normalization streamed Google answers were
+    saved/displayed as empty.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        return str(content.get("text") or "")
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            text = _content_to_text(item)
+            if text:
+                parts.append(text)
+        return "".join(parts)
+    return ""
+
+
 # ─── Chat list & management ──────────────────────────────────────────────────
 
 
@@ -391,9 +412,10 @@ def api_agent_chat():
                         current_iteration += 1
                         yield f"data: {json.dumps({'type': 'llm', 'iteration': current_iteration})}\n\n"
 
-                    if hasattr(chunk, "content") and isinstance(chunk.content, str) and chunk.content:
-                        full_response += chunk.content
-                        yield f"data: {json.dumps({'type': 'token', 'text': chunk.content})}\n\n"
+                    chunk_text = _content_to_text(getattr(chunk, "content", ""))
+                    if chunk_text:
+                        full_response += chunk_text
+                        yield f"data: {json.dumps({'type': 'token', 'text': chunk_text})}\n\n"
 
                     # Per-turn token accounting — usage_metadata arrives on the
                     # final chunk of each LLM call (requires stream_usage=True).
