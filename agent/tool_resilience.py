@@ -31,10 +31,28 @@ _failures: dict[str, int] = {}
 _open_until: dict[str, float] = {}
 
 
+def looks_like_tool_error(text: str) -> bool:
+    """True for both plain 'Error: …' strings and JSON error envelopes.
+
+    Tools like ACLED/GIEWS return structured failures such as
+    ``{"error": true, "error_type": "ACLEDError", ...}``; treating those as
+    success makes tool health metrics and alerts silently wrong.
+    """
+    s = (text or "").lstrip().lower()
+    if s.startswith("error"):
+        return True
+    return any(
+        marker in s
+        for marker in ('"error": true', '"error":true', '"success": false', '"success":false', '"error_type"')
+    )
+
+
 def _classify(text: str) -> str:
     t = (text or "").lower()
     if "timed out" in t or "timeout" in t:
         return "timeout"
+    if "schema pending" in t or "schemapending" in t or "schema_pending" in t or "not configured" in t:
+        return "unavailable"
     if "401" in t or "403" in t or "unauthorized" in t or "forbidden" in t or "auth" in t:
         return "auth"
     if "429" in t or "rate limit" in t or "quota" in t:
@@ -103,7 +121,7 @@ def invoke_tool(tool, args: dict | None, tool_name: str = "") -> str:
         try:
             result = tool.invoke(args)
             text = str(result)
-            if text.lower().startswith("error:"):
+            if looks_like_tool_error(text):
                 last_error = text
                 cls = _classify(text)
                 if cls in _TRANSIENT and attempt < _ATTEMPTS:

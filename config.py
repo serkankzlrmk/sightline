@@ -207,6 +207,7 @@ OVERPASS_RATE_LIMIT_PERIOD: float = float(os.getenv("OVERPASS_RATE_LIMIT_PERIOD"
 # ============================================================================
 # FAO GIEWS — Food prices + crop forecasts (keyless; schema pending)
 # ============================================================================
+GIEWS_ENABLED: bool = os.getenv("GIEWS_ENABLED", "false").lower() == "true"
 GIEWS_BASE_URL: str = os.getenv("GIEWS_BASE_URL", "")
 GIEWS_TIMEOUT: float = float(os.getenv("GIEWS_TIMEOUT", "20.0"))
 GIEWS_CACHE_TTL: int = int(os.getenv("GIEWS_CACHE_TTL", "86400"))  # 24h — yıllık veri

@@ -61,3 +61,21 @@ def test_success_resets_failure_counter():
     tool = FakeTool("flaky", [RuntimeError("timeout"), "ok", "ok"])
     assert tr.invoke_tool(tool, {}, "flaky") == "ok"
     assert tr.circuit_open("flaky") is False
+
+
+def test_json_error_envelope_counts_as_error():
+    from agent.tool_resilience import looks_like_tool_error
+
+    assert looks_like_tool_error('{"error": true, "error_type": "ACLEDError", "message": "auth"}')
+    assert looks_like_tool_error('{"success": false, "message": "nope"}')
+    assert looks_like_tool_error("Error: boom")
+    assert not looks_like_tool_error('{"success": true, "data": []}')
+
+
+def test_auth_json_error_is_not_retried():
+    import agent.tool_resilience as tr
+
+    payload = '{"error": true, "error_type": "ACLEDError", "message": "ACLED auth yok"}'
+    tool = FakeTool("acled", [payload])
+    assert tr.invoke_tool(tool, {}, "acled") == payload
+    assert tool.calls == 1

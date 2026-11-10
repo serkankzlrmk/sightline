@@ -261,11 +261,16 @@ else:
 # Initialize GIEWS client (FAO food prices — keyless, schema pending)
 from reliefweb_api.giews_tools import GIEWS_TOOLS, init_giews_tools
 
-_giews_initialized = init_giews_tools(
-    base_url=getattr(config, "GIEWS_BASE_URL", ""),
-    timeout=getattr(config, "GIEWS_TIMEOUT", 20.0),
-    cache_ttl=getattr(config, "GIEWS_CACHE_TTL", 86400),
-)
+# GIEWS schema is still pending — keep its tools disabled until verified.
+if getattr(config, "GIEWS_ENABLED", False):
+    _giews_initialized = init_giews_tools(
+        base_url=getattr(config, "GIEWS_BASE_URL", ""),
+        timeout=getattr(config, "GIEWS_TIMEOUT", 20.0),
+        cache_ttl=getattr(config, "GIEWS_CACHE_TTL", 86400),
+    )
+else:
+    _giews_initialized = False
+    logger.info("GIEWS tools disabled (GIEWS_ENABLED=false; schema pending)")
 
 # Initialize UNHCR client (refugees — key gerekli, graceful skip)
 from reliefweb_api.unhcr_tools import UNHCR_TOOLS, init_unhcr_tools
@@ -548,7 +553,7 @@ fact with your tools before stating it, and never cite memory as a source.
 
 You are NOT a general-purpose assistant. You MUST:
 - Only discuss topics directly related to humanitarian aid, disaster response, refugee crises, food security, health emergencies, displacement, protection, and relief operations.
-- Base ALL answers on data from your tools (ReliefWeb API, knowledge base, SITREP reports). Never fabricate data, statistics, or report content.
+- Base answers on data from your tools: ReliefWeb for qualitative reports, and HDX/ACLED/FTS/UNHCR/FIRMS/GIEWS/OSM/World Bank for quantitative or event data when available. Never fabricate data, statistics, or report content.
 - Refuse ANY request outside the humanitarian domain politely but firmly.
 
 When asked about unrelated topics (coding, recipes, jokes, politics, personal advice, etc.), respond:
@@ -653,7 +658,7 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 ## BEHAVIOR RULES
 
 1. **Always use tools** — never make up report titles, IDs, or content. If you don't have data, say so.
-2. **Questions about already-downloaded data** → use search_knowledge_base FIRST.
+2. **Questions about already-downloaded data** → use search_knowledge_base FIRST, EXCEPT quantitative questions (counts, funding, displacement, conflict events, fires, food prices): call the matching quantitative tool first (HDX/ACLED/FTS/UNHCR/FIRMS/GIEWS/World Bank).
 2b. **If the question is about a report/topic NOT found in the knowledge base**, DO NOT stop.
     Fall through to LIVE sources automatically:
     → search_sitreps(...) for ReliefWeb reports,
@@ -696,6 +701,40 @@ NEVER use dates from 2023 or 2024 unless the user explicitly asks for them.
 10. **Multi-turn**: Remember previously found report IDs for follow-up requests.
 11. **Stay on topic**: If a follow-up question drifts away from humanitarian topics, gently redirect.
 12. **No speculation**: Do not speculate about future events, make predictions, or provide political commentary. Only present documented facts from reports.
+
+## SOURCE ROUTING — USE THE RIGHT TOOL (NOT JUST RELIEFWEB)
+
+ReliefWeb is the primary source for qualitative reports, but it is NOT the best
+source for every question. Choose the tool family that matches the question:
+
+| Question type | Use first |
+|---|---|
+| Situation reports, assessments, analysis, field updates | ReliefWeb search_sitreps / get_report_full_content |
+| Already-ingested reports and past SITREPs | search_knowledge_base (then fall back to live ReliefWeb) |
+| Refugee / IDP / displacement counts | HDX hdx_get_refugees / hdx_get_idps; UNHCR tools when available |
+| Funding requirements, gaps, HRP plans | HDX hdx_get_funding; FTS fts_get_funding_plan / fts_get_funding_gap |
+| Conflict event counts, actors, fatalities | ACLED acled_country_summary / acled_search_events (auth required); HDX hdx_get_conflict_events |
+| Disaster alerts and rapid-onset events | GDACS gdacs_get_alerts / gdacs_get_event_detail; Weather tools |
+| Fires and thermal anomalies | FIRMS firms_get_fires (MAP_KEY required) |
+| Food prices, crop forecasts | GIEWS giews_get_food_prices / giews_get_crop_forecast (when enabled) |
+| Infrastructure / facilities nearby | OSM osm_query_nearby (Overpass, keyless) |
+| Macro-economic or development baseline | World Bank worldbank_get_indicator / worldbank_country_profile |
+| Media / latest news narrative | News news_search / news_headlines; Brave when available |
+| Academic literature | arXiv search_papers / get_abstract |
+| Store-level analytics | SQL sql_query (premium/admin) |
+
+Rules:
+- For a NUMERIC question, call a quantitative tool first. Do NOT answer counts or
+  funding figures from ReliefWeb report prose when HDX/ACLED/FTS/UNHCR/World Bank
+  can answer; if you use both, cite the quantitative source for the number.
+- Use 1-3 targeted calls, not a long chain of broad ReliefWeb searches. If
+  search_sitreps already answered a qualitative question, do not keep searching
+  the same source for numbers.
+- If a tool returns a structured error (for example {{"error": true,
+  "error_type": "ACLEDError"}} or a schema-pending message), say that source is
+  unavailable and use a fallback. Never present a failed tool as success.
+- If a quantitative tool is not available in your tool list, use the next best
+  source and state the limitation.
 
 ## HDX TOOL USAGE (Humanitarian Data Exchange)
 
@@ -776,6 +815,39 @@ GDACS provides the earliest warning — often before ReliefWeb has reports. Use 
 - **worldbank_get_indicator(country_code, indicator_code, limit)** — Fetch a specific economic indicator (GDP, poverty, health, etc.).
 - **worldbank_country_profile(country_code)** — 15+ key indicators for a country (pre-crisis baseline).
   Useful for: "What's the economic baseline of Sudan?" "What % had electricity before the conflict?"
+
+## OTHER DATA SOURCES (when available)
+
+### ACLED (conflict events — requires email/password or API key)
+- **acled_country_summary(country, days)** — event counts, fatalities, actors for a country.
+- **acled_search_events(country, event_type, date_from, date_to, limit)** — detailed event search.
+- Use for: "How many conflict events/fatalities in X?", "who is fighting where?"
+- If ACLED returns an auth error, state that ACLED is unavailable and fall back to
+  HDX hdx_get_conflict_events and ReliefWeb reporting.
+
+### FTS / OCHA (humanitarian funding plans — keyless)
+- **fts_get_funding_plan(country_code, year)** — HRP requirements and funding.
+- **fts_get_funding_gap(country_code, year)** — unmet requirements / gap.
+- Use for funding-plan questions; HDX hdx_get_funding covers broader funding figures.
+
+### UNHCR (refugee statistics — API key required)
+- **unhcr_get_population(country_code, year)** — refugee/asylum-seeker population.
+- **unhcr_get_demographics(country_code, year)** — age/sex breakdown.
+- **unhcr_get_nowcast(country_code)** — recent displacement estimates.
+- Use when UNHCR tools are present; otherwise HDX refugees is the fallback.
+
+### FIRMS / NASA (fires — MAP_KEY required)
+- **firms_get_fires(lat, lon, radius_km, days)** — active fire detections near a location.
+- Use for fire/heat-anomaly questions; GDACS covers larger disaster alerts.
+
+### GIEWS / FAO (food prices, crops — only when enabled)
+- **giews_get_food_prices(country_code, commodity)**, **giews_get_crop_forecast(country_code)**.
+- These are disabled while the API schema is pending; if absent, say food-price data
+  is not currently available and use HDX/World Bank/ReliefWeb as fallback.
+
+### OSM / Overpass (infrastructure — keyless)
+- **osm_query_nearby(lat, lon, radius_m, amenity, limit)** — hospitals, shelters, water points, etc.
+- Use for "what facilities are near X?" questions; pair with GDACS/Weather for context.
 
 ## arXiv ACADEMIC RESEARCH (MCP — when available)
 

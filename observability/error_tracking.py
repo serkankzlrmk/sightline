@@ -190,6 +190,8 @@ def classify_tool_error(text: str) -> str:
         return "upstream_5xx"
     if "no results" in t or "not found" in t or "empty" in t:
         return "empty"
+    if "schema pending" in t or "schemapending" in t or "schema_pending" in t or "not configured" in t:
+        return "unavailable"
     if "json" in t or "parse" in t or "decode" in t:
         return "parse"
     if "invalid" in t or "validation" in t or "missing" in t or "required" in t:

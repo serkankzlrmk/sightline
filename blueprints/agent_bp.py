@@ -17,6 +17,7 @@ from flask import Blueprint, Response, g, jsonify, request
 from agent.memory import gated_recall, maybe_consolidate, remember_turn
 from agent.pricing import compute_cost
 from agent.relief_agent import TOOL_GROUP_MAP, TOOL_SERVER_MAP
+from agent.tool_resilience import looks_like_tool_error
 from auth import current_role, current_uid, require_admin, require_auth
 from blueprints.helpers import (
     _AGENT_BUSY_TIMEOUT,
@@ -428,7 +429,7 @@ def api_agent_chat():
                     if isinstance(raw, list):
                         raw = " ".join(str(x) for x in raw)
                     tool_output = str(raw)
-                    status = "error" if tool_output.lower().startswith("error") else "ok"
+                    status = "error" if looks_like_tool_error(tool_output) else "ok"
                     error_class = error_tracking.classify_tool_error(tool_output) if status == "error" else ""
                     summary = (tool_output.split(". ")[0] if ". " in tool_output else tool_output)[:120]
                     if status == "error":
@@ -469,7 +470,7 @@ def api_agent_chat():
                             "duration_ms": duration_ms,
                         }
                     )
-                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'group': TOOL_GROUP_MAP.get(tool_name, 'Other'), 'server': TOOL_SERVER_MAP.get(tool_name, 'native'), 'output': tool_output[:500], 'status': status, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
+                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'group': TOOL_GROUP_MAP.get(tool_name, 'Other'), 'server': TOOL_SERVER_MAP.get(tool_name, 'native'), 'output': tool_output[:500], 'status': status, 'error_class': error_class, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
 
                 prev_node = node
 
@@ -531,7 +532,7 @@ def api_agent_chat():
 
             signals = answer_signals(full_response)
             total_ms = int((_time.time() - turn_wall_start) * 1000)
-            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer']})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer']})}\n\n"
 
         except GeneratorExit:
             turn_status = "cancelled"

@@ -92,6 +92,7 @@ def test_tool_error_classification():
     assert classify_tool_error("Error: upstream 503") == "upstream_5xx"
     assert classify_tool_error("Error: no results found") == "empty"
     assert classify_tool_error("Error: invalid arguments") == "invalid_args"
+    assert classify_tool_error("Error: GIEWSSchemaPending — schema not verified") == "unavailable"
     assert classify_tool_error("Error: something odd") == "unknown"
 
 

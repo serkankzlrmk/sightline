@@ -139,3 +139,13 @@ class TestPremiumOnlyTools:
         premium_only = premium_tools - free_tools
         expected = {"sql_query"}
         assert premium_only == expected, f"Premium-only tools mismatch: {premium_only} vs {expected}"
+
+
+def test_prompt_documents_all_sources():
+    from agent.relief_agent import _build_system_prompt
+
+    prompt = _build_system_prompt()
+    assert "SOURCE ROUTING" in prompt
+    for term in ("ACLED", "FTS", "UNHCR", "FIRMS", "GIEWS", "OSM", "HDX", "World Bank"):
+        assert term in prompt, term
+    assert "quantitative tool first" in prompt.lower()
