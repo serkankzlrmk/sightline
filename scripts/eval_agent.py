@@ -52,21 +52,52 @@ DEFAULT_SAMPLES = 3
 # ── Sampling ─────────────────────────────────────────────────────────────────
 
 
-def sample_turns(days: int = 30, limit: int = 25) -> list[dict]:
-    """Pair recent ok turns (obs.db) with Q/A (chats.db) + tool evidence."""
+def sample_turns(
+    days: int = 30, limit: int = 25, spread: bool = False, turn_ids: list[str] | None = None
+) -> list[dict]:
+    """Pair recent ok turns (obs.db) with Q/A (chats.db) + tool evidence.
+
+    With ``spread=True`` the sample is taken evenly across the whole window
+    instead of only the newest turns, which avoids evaluating a handful of
+    recent sessions.
+    """
     samples: list[dict] = []
     with closing(store.get_obs_db()) as conn:
-        turns = conn.execute(
-            """
-            SELECT turn_id, chat_id, model_id, started_at, finished_at,
-                   latency_ms, tokens_in, tokens_out, no_answer
-            FROM turns
-            WHERE status = 'ok' AND started_at >= ?
-            ORDER BY started_at DESC
-            LIMIT ?
-            """,
-            (time.time() - max(1, int(days)) * 86400, max(1, int(limit))),
-        ).fetchall()
+        if turn_ids:
+            ids = [str(t) for t in turn_ids if t]
+            placeholders = ",".join("?" * len(ids))
+            turns = conn.execute(
+                f"""
+                SELECT turn_id, chat_id, model_id, started_at, finished_at,
+                       latency_ms, tokens_in, tokens_out, no_answer
+                FROM turns
+                WHERE status = 'ok' AND turn_id IN ({placeholders})
+                ORDER BY started_at DESC
+                """,
+                ids,
+            ).fetchall()
+        else:
+            turns = conn.execute(
+                """
+                SELECT turn_id, chat_id, model_id, started_at, finished_at,
+                       latency_ms, tokens_in, tokens_out, no_answer
+                FROM turns
+                WHERE status = 'ok' AND started_at >= ?
+                ORDER BY started_at DESC
+                """,
+                (time.time() - max(1, int(days)) * 86400,),
+            ).fetchall()
+    limit = max(1, min(int(limit), 50))
+    if turn_ids:
+        pass
+    elif spread and len(turns) > limit:
+        if limit == 1:
+            turns = [turns[0]]
+        else:
+            step = (len(turns) - 1) / (limit - 1)
+            turns = [turns[round(i * step)] for i in range(limit)]
+    else:
+        turns = turns[:limit]
 
     for t in turns:
         pair = _pair_with_messages(dict(t))
@@ -241,7 +272,7 @@ def _judge_once(
     payload = {
         "model": judge_model,
         "temperature": 0.2,
-        "max_tokens": 500,
+        "max_tokens": 1200,
         "messages": _judge_messages(sample),
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -255,8 +286,9 @@ def _judge_once(
             r.raise_for_status()
             content = r.json()["choices"][0]["message"]["content"] or ""
             return _parse_verdict(content)
-        except Exception:
+        except Exception as exc:
             if attempt == 2:
+                print(f"judge failed for {sample.get('turn_id')}: {type(exc).__name__}: {exc}", file=sys.stderr)
                 return None
             time.sleep(2)
     return None
@@ -316,10 +348,12 @@ def run(
     judge_model: str | None = None,
     samples: int = DEFAULT_SAMPLES,
     use_evidence: bool = True,
+    spread: bool = False,
+    turn_ids: list[str] | None = None,
 ) -> dict:
     """Sample chat turns, judge them, report (and optionally persist) verdicts."""
     judge_model = judge_model or DEFAULT_JUDGE_MODEL
-    sampled = sample_turns(days=days, limit=limit)
+    sampled = sample_turns(days=days, limit=limit, spread=spread, turn_ids=turn_ids)
     results: list[dict] = []
     same_family_warnings: list[str] = []
     for s in sampled:
@@ -373,6 +407,8 @@ def main() -> int:
     ap.add_argument("--apply", action="store_true", help="persist/update verdicts in obs.db (default: dry run)")
     ap.add_argument("--judge-model", default=None, help=f"judge model id (default: {DEFAULT_JUDGE_MODEL})")
     ap.add_argument("--no-evidence", action="store_true", help="do not send tool previews to the judge")
+    ap.add_argument("--spread", action="store_true", help="sample evenly across the window instead of newest only")
+    ap.add_argument("--turn-ids", default="", help="comma-separated turn ids to evaluate (overrides sampling)")
     args = ap.parse_args()
 
     if config.LLM_PROVIDER != "openrouter" or not config._LLM_API_KEY:
@@ -386,6 +422,8 @@ def main() -> int:
         judge_model=args.judge_model,
         samples=args.samples,
         use_evidence=not args.no_evidence,
+        spread=args.spread,
+        turn_ids=[t.strip() for t in args.turn_ids.split(",") if t.strip()],
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0

@@ -784,6 +784,7 @@ def calibration_queue(days: int = 3650, rater: str = "human", limit: int = 20) -
             FROM eval_scores e
             LEFT JOIN human_labels h ON h.turn_id = e.turn_id AND h.rater = ?
             WHERE h.id IS NULL
+              AND e.turn_id NOT LIKE 'demo-%'
               AND e.created_at >= ?
               AND e.id = (SELECT MAX(e2.id) FROM eval_scores e2 WHERE e2.turn_id = e.turn_id)
             ORDER BY e.created_at DESC
@@ -801,12 +802,12 @@ def calibration_progress(days: int = 3650, rater: str = "human") -> dict:
     _ensure_schema()
     with closing(_connect(db_path())) as conn:
         judged = conn.execute(
-            "SELECT COUNT(DISTINCT turn_id) AS n FROM eval_scores WHERE created_at >= ?",
+            "SELECT COUNT(DISTINCT turn_id) AS n FROM eval_scores WHERE created_at >= ? AND turn_id NOT LIKE 'demo-%'",
             (cutoff,),
         ).fetchone()["n"]
         labeled = conn.execute(
             "SELECT COUNT(*) AS n FROM human_labels h WHERE h.rater = ? AND EXISTS ("
-            "SELECT 1 FROM eval_scores e WHERE e.turn_id = h.turn_id AND e.created_at >= ?)",
+            "SELECT 1 FROM eval_scores e WHERE e.turn_id = h.turn_id AND e.created_at >= ? AND e.turn_id NOT LIKE 'demo-%')",
             (str(rater or "human"), cutoff),
         ).fetchone()["n"]
     judged = int(judged or 0)

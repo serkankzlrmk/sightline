@@ -1,0 +1,157 @@
+[
+  {
+    "id": "sudan_refugees",
+    "question": "How many refugees and asylum-seekers are currently recorded in Sudan? Give the figure and its source.",
+    "country": "SDN",
+    "expected_sources": ["HDX", "UNHCR"],
+    "expected_answerable": true
+  },
+  {
+    "id": "sudan_conflict",
+    "question": "Summarize the latest conflict event data for Sudan: event count, main actors and period covered.",
+    "country": "SDN",
+    "expected_sources": ["ACLED", "HDX"],
+    "expected_answerable": true
+  },
+  {
+    "id": "afghanistan_funding",
+    "question": "What is the current humanitarian funding gap for Afghanistan? Include requirements, received funding and the source year.",
+    "country": "AFG",
+    "expected_sources": ["FTS", "HDX"],
+    "expected_answerable": true
+  },
+  {
+    "id": "yemen_displacement",
+    "question": "How many internally displaced people are reported in Yemen, and what are the latest available figures?",
+    "country": "YEM",
+    "expected_sources": ["HDX", "UNHCR"],
+    "expected_answerable": true
+  },
+  {
+    "id": "syria_conflict",
+    "question": "How many conflict events and fatalities were recorded in Syria in the last 90 days?",
+    "country": "SYR",
+    "expected_sources": ["ACLED", "HDX"],
+    "expected_answerable": true
+  },
+  {
+    "id": "ukraine_refugees",
+    "question": "What is the latest available refugee population figure for Ukraine, and which countries host the largest numbers?",
+    "country": "UKR",
+    "expected_sources": ["UNHCR", "HDX"],
+    "expected_answerable": true
+  },
+  {
+    "id": "somalia_alerts",
+    "question": "Are there any active GDACS alerts for Somalia? Summarize the hazard, severity and affected area.",
+    "country": "SOM",
+    "expected_sources": ["GDACS"],
+    "expected_answerable": true
+  },
+  {
+    "id": "bangladesh_cyclone",
+    "question": "What is the latest cyclone or flood alert for Bangladesh, and what areas are expected to be affected?",
+    "country": "BGD",
+    "expected_sources": ["GDACS", "Weather"],
+    "expected_answerable": true
+  },
+  {
+    "id": "haiti_displacement",
+    "question": "How many people are internally displaced in Haiti, and what are the most recent reported figures?",
+    "country": "HTI",
+    "expected_sources": ["HDX", "UNHCR"],
+    "expected_answerable": true
+  },
+  {
+    "id": "ethiopia_food",
+    "question": "What does the latest available data say about food insecurity or food prices in Ethiopia?",
+    "country": "ETH",
+    "expected_sources": ["HDX", "World Bank"],
+    "expected_answerable": true
+  },
+  {
+    "id": "drc_conflict",
+    "question": "Summarize recent conflict events in the eastern Democratic Republic of the Congo, including the main actors.",
+    "country": "COD",
+    "expected_sources": ["ACLED", "HDX"],
+    "expected_answerable": true
+  },
+  {
+    "id": "lebanon_health",
+    "question": "What are the latest humanitarian reports on Lebanon's health system and access to care?",
+    "country": "LBN",
+    "expected_sources": ["ReliefWeb"],
+    "expected_answerable": true
+  },
+  {
+    "id": "pakistan_floods",
+    "question": "What are the latest reports on flood impact and humanitarian needs in Pakistan?",
+    "country": "PAK",
+    "expected_sources": ["ReliefWeb", "News"],
+    "expected_answerable": true
+  },
+  {
+    "id": "colombia_displacement",
+    "question": "How many people are reported as displaced or in need in Colombia, and what are the latest trends?",
+    "country": "COL",
+    "expected_sources": ["HDX", "UNHCR"],
+    "expected_answerable": true
+  },
+  {
+    "id": "myanmar_access",
+    "question": "What do recent reports say about humanitarian access constraints in Myanmar?",
+    "country": "MMR",
+    "expected_sources": ["ReliefWeb"],
+    "expected_answerable": true
+  },
+  {
+    "id": "chad_refugees",
+    "question": "How many refugees are hosted in Chad, and where are they arriving from?",
+    "country": "TCD",
+    "expected_sources": ["UNHCR", "HDX"],
+    "expected_answerable": true
+  },
+  {
+    "id": "mozambique_cyclone",
+    "question": "Is there a current cyclone alert for Mozambique? Summarize the latest hazard and affected population.",
+    "country": "MOZ",
+    "expected_sources": ["GDACS", "ReliefWeb"],
+    "expected_answerable": true
+  },
+  {
+    "id": "sudan_gdp",
+    "question": "What is the latest World Bank GDP figure for Sudan, and what does it show about the economic trend?",
+    "country": "SDN",
+    "expected_sources": ["World Bank"],
+    "expected_answerable": true
+  },
+  {
+    "id": "haiti_weather",
+    "question": "What is the weather forecast for Port-au-Prince over the next three days?",
+    "country": "HTI",
+    "expected_sources": ["Weather"],
+    "expected_answerable": true
+  },
+  {
+    "id": "khartoum_hospitals",
+    "question": "List hospitals near central Khartoum (15.50, 32.56) within five kilometres.",
+    "country": "SDN",
+    "expected_sources": ["OSM"],
+    "expected_answerable": true
+  },
+  {
+    "id": "turkiye_deprem",
+    "question": "Türkiye'deki son depremlerde insani ihtiyaçlar ve barınma durumu hakkında güncel raporları özetle.",
+    "country": "TUR",
+    "expected_sources": ["ReliefWeb", "News"],
+    "expected_answerable": true
+  },
+  {
+    "id": "sudan_eritrea",
+    "question": "Sudan'dan Eritre'ye son dönemde kaç kişi geçti? Kesin sayı ver.",
+    "country": "SDN",
+    "expected_sources": ["UNHCR", "HDX"],
+    "expected_answerable": false,
+    "note": "Unanswerable by design: no reliable recent crossing count; a grounded abstention is the correct answer."
+  }
+]

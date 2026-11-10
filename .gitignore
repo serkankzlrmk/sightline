@@ -193,3 +193,7 @@ tmp/
 docs/research/
 docs/designs/
 docs/ACQUISITION_PLAN.md
+
+# Local evaluation runs (aggregate reports are published separately)
+data/eval/
+data/calibration/

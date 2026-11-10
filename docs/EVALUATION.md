@@ -23,6 +23,23 @@ golden set -> pool retrieval -> Recall/nDCG/MRR -> eval_retrieval
 - `chats.db` stores the actual questions and answers.
 - `eval_scores` stores judge verdicts; `human_labels` stores human ratings.
 
+## Fixed evaluation set
+
+`scripts/eval_questions.json` contains a curated multilingual set covering
+qualitative reports, displacement, funding, conflict, alerts, weather, World Bank
+and OSM questions, plus one deliberately unanswerable case. It is the basis for a
+comparable baseline across model and prompt changes.
+
+```bash
+python scripts/eval_fixed.py --dry-run                 # review questions
+python scripts/eval_fixed.py --base-url http://127.0.0.1:5001
+python scripts/eval_agent.py --days 365 --turn-ids <ids> --samples 3 --apply
+python scripts/eval_report.py --out docs/EVALUATION_RESULTS.md
+```
+
+Use the generated run file (`data/eval/fixed_run.json`) to keep the exact question
+set and turn ids. Do not sample unrelated chats for a published baseline.
+
 ## Chat evaluation
 
 ```bash
