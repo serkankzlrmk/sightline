@@ -274,6 +274,7 @@ The historical `docker-compose.yml` is not production; use the CI workflow or th
 |---|---|
 | [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Current architecture, modules, data flows, storage, auth, deployment |
 | [docs/EVALUATION.md](docs/EVALUATION.md) | Chat evaluation + retrieval evaluation process |
+| [docs/EVALUATION_RESULTS.md](docs/EVALUATION_RESULTS.md) | Preliminary measured results and pending evaluations |
 | [docs/CALIBRATION.md](docs/CALIBRATION.md) | Human calibration of the LLM judge (UI + CSV) |
 | [docs/ERROR_MONITORING.md](docs/ERROR_MONITORING.md) | errors.db, request IDs, admin Errors, alerts, canary, audit |
 | [docs/LOAD_TESTING.md](docs/LOAD_TESTING.md) | Load-test baseline and capacity guards |
