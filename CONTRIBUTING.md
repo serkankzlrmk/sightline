@@ -8,9 +8,9 @@ contributions.
 
 ## 1. Project Context
 
-Sightline is a humanitarian intelligence platform: a 54-tool data agent,
-a 10-stage SITREP pipeline, a donor-specific proposal generator, and a
-country intelligence dashboard.
+Sightline is a humanitarian intelligence platform: a 46-native-tool data agent
+(60 tools active with MCP), a 10-stage SITREP pipeline, an embedded Proposal
+Studio, country intelligence cards, and LLM evaluation/observability.
 
 **License:** AGPL v3 (open core) + Commercial dual-license. All contributors
 must sign the CLA (Section 5 below).
@@ -34,20 +34,27 @@ git clone https://github.com/serkankzlrmk/sightline.git
 cd sightline
 cp .env.example .env
 # Edit .env — fill in your API keys (see .env.example for all ~75 variables)
-docker compose up -d --build
-# → http://localhost:5001
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+SERVER_HOST=127.0.0.1 DESKTOP_MODE=true .venv/bin/python server.py
+# → http://127.0.0.1:5001/app
+
+# Production is CI-driven (push main → GitHub Actions → docker run).
+# docker-compose.yml is legacy and not runnable; see docs/SYSTEM_DESIGN.md.
 ```
 
 ### Running Tests
 
 ```bash
-pytest tests/ -v   # 169+ tests
+pytest tests/ -v   # 436 passed, 6 skipped (current suite)
 ```
 
 ### Linting
 
 ```bash
 ruff check .
+ruff format --check .
+npm run lint && npm run build
 ```
 
 ---
@@ -56,8 +63,9 @@ ruff check .
 
 The agent integrates three MCP (Model Context Protocol) servers:
 
-- **arxiv** (uvx) — academic paper search
+- **arxiv** (uvx) — academic paper search (10-19 tools depending on version)
 - **sequential-thinking** (npx) — structured reasoning
+- **brave-search** (optional, `MCP_BRAVE_ENABLED=true` + `BRAVE_API_KEY`)
 - **brave-search** (npx) — web/news/image search
 
 To enable them locally:
@@ -201,33 +209,46 @@ once you sign, all future PRs are covered.
 See the directory structure in `CONTRIBUTING.md` for an overview.
 
 ```
-server.py                  — Flask app entry (config, middleware, blueprint registration)
-config.py                  — Environment-driven configuration
+server.py                  — Flask app init, request IDs, error handlers, middleware
+config.py                  — Environment-driven configuration (~159 env reads)
 auth.py                    — Firebase token verification, RBAC decorators
-agent/                     — LangGraph agent (54 tools)
-reliefweb_api/             — Tool groups (ReliefWeb, HDX, News, etc.)
-blueprints/                — Flask blueprints + shared helpers
-  helpers.py               — Shared utilities (DB, rate limit, chat CRUD)
-  agent_bp.py              — Chat agent + model selection
-  sitrep.py                — SITREP pipeline
-  proposal.py              — Proposal V1
-  guided_proposal.py       — Proposal V2 guided wizard
-  proposal_pdf.py          — PDF export
-  public_bp.py             — Map, dashboard, country data
-  db_bp.py                 — Database search & reports
+agent/                     — LangGraph agent, prompt, memory, tool resilience
+reliefweb_api/             — External clients/tools (ReliefWeb, HDX, ACLED, FTS, ...)
+blueprints/                — 14 route modules + shared helpers (~121 routes)
+  helpers.py               — DB, rate limits, chat CRUD, events/audit, jobs
+  agent_bp.py              — Chat agent + SSE + feedback
+  sitrep.py                — SITREP pipeline + bulletin
+  public_bp.py             — Map/dashboard/country data
+  seo_bp.py                — SSR publication pages + sitemap/robots
   admin_bp.py              — Admin panel & user management
-templates/index.html       — SPA frontend
-static/
-  app.js                   — Core frontend (chat, SITREP, map, admin)
-  proposal.js              — Proposal wizard (independently developable)
-  auth.js                  — Firebase auth
-tests/                     — Pytest tests (169 tests)
-scripts/                   — Cron scripts (daily_ingest, bulletin)
+  obs_bp.py                — Observability/eval/calibration API
+  error_bp.py              — Client errors + admin Errors API
+  ...                      — main, auth, db, hdx, news, ingest
+observability/             — obs.db, error tracking, calibration metrics
+templates/                 — SPA + SSR templates
+static/                    — SPA modules (esbuild bundle in static/dist)
+proposal/                  — Proposal Studio (separate repo, embedded)
+tests/                     — Pytest suite (436 collected)
+scripts/                   — Ingest, bulletin, eval, alerts, canary, load test
 ```
 
 ---
 
-## 8. Reporting Security Issues
+## 8. Documentation and release policy
+
+Public documentation is limited to the files tracked in git: `README.md`,
+`docs/SYSTEM_DESIGN.md`, `docs/TOOLS.md`, `docs/EVALUATION.md`,
+`docs/CALIBRATION.md`, `docs/ERROR_MONITORING.md`, `docs/LOAD_TESTING.md`,
+`docs/SRE_RUNBOOK.md`, `tests/README.md`, and this file. Internal notes
+(`AGENTS.md`, `docs/CODEMAP.md`, `docs/DEVELOPMENT.md`, `docs/DEPLOYMENT.md`,
+`docs/ROADMAP.md`, design notes and research scratchpads) are kept locally and ignored by
+git; they are not part of the public repository.
+
+Documentation changes are committed separately from code changes. The deploy workflow
+ignores documentation-only pushes (`**.md`, `docs/**`, `LICENSES/**`), so documentation can
+be published through CI checks without rebuilding the production image.
+
+## 9. Reporting Security Issues
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 

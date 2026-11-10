@@ -6,16 +6,16 @@
 
 **Humanitarian intelligence platform for crisis response teams.**
 
-Real-time data aggregation · 10-stage SITREP pipeline · donor-compliant proposal generator.
+Real-time data aggregation · 10-stage SITREP pipeline · LLM evaluation and observability · donor-compliant proposal generator.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Commercial License](https://img.shields.io/badge/Commercial-Dual_License-green.svg)](LICENSES/Commercial-LICENSE.md)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-250+-brightgreen.svg)](tests/)
-[![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](VERSION)
+[![Tests](https://img.shields.io/badge/tests-436-brightgreen.svg)](tests/)
+[![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)](VERSION)
 
-[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Self-Hosting](#self-hosting) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Observability](#observability--evaluation) · [Docs](#documentation) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -23,16 +23,18 @@ Real-time data aggregation · 10-stage SITREP pipeline · donor-compliant propos
 
 ## Why Sightline?
 
-Humanitarian professionals spend **30-60% of their time** collecting, synthesizing, and formatting
-information from scattered sources — ReliefWeb, HDX, GDACS, news feeds, field reports. Sightline
-automates this workflow with direct API integrations to humanitarian data sources and a
-donor-compliance-aware proposal generator.
+Humanitarian professionals spend a large share of their time collecting, synthesizing, and
+formatting information from scattered sources — ReliefWeb, HDX, GDACS, ACLED, FTS, UNHCR,
+news feeds, field reports. Sightline automates this workflow with direct API integrations,
+a 60-tool LangGraph agent, automated SITREP/bulletin/country intelligence generation, and a
+donor-compliance-aware Proposal Studio.
 
 | What | How |
 |---|---|
-| **54-tool data agent** | Directly queries ReliefWeb (17 tools), HDX (7), GDACS, World Bank, news — reasons over results with retrieval-augmented generation. Not a generic chatbot. |
-| **Donor-specific proposal generator** | 6 donor manifests (OCHA CBPF, USAID BHA, ECHO, EuropeAID PRAG, UNFPA, generic) with deterministic rule enforcement. Actual compliance validation, not generic grant writing. |
-| **10-stage SITREP pipeline** | UMAP + HDBSCAN clustering → question generation → RRF retrieval → synthesis. Produces structured situation reports from raw report corpora. |
+| **60-tool data agent** | 46 native tools (ReliefWeb, HDX, ACLED, FTS, UNHCR, FIRMS, GIEWS, OSM, GDACS, weather, World Bank, SQL) + 20 MCP tools (arXiv, sequential-thinking). Quantitative questions route to HDX/ACLED/FTS instead of defaulting to report search. |
+| **10-stage SITREP pipeline** | UMAP + HDBSCAN clustering → question generation → filtering → pool-based RRF retrieval → citation post-processing → synthesis. Produces structured situation reports from the report corpus. |
+| **Donor-compliant Proposal Studio** | Separate repository embedded in the same Flask process: 5-step pipeline, 6 donor manifests, deterministic scoring, Typst PDF export. |
+| **Evaluation & observability** | G-Eval chat evaluation, human calibration (QWK), 👍/👎 user feedback, per-turn telemetry, error monitoring, audit log, alerts and synthetic canary. |
 
 ---
 
@@ -42,252 +44,241 @@ donor-compliance-aware proposal generator.
 git clone https://github.com/serkankzlrmk/sightline.git
 cd sightline
 cp .env.example .env
-# Edit .env — fill in your API keys (see .env.example for all variables)
-docker compose up -d --build
-# → http://localhost:5001
+# Fill in at least OPENROUTER_API_KEY and RELIEFWEB_APPNAME
 ```
 
-> **No Firebase?** Set `DESKTOP_MODE=true` (with `SERVER_HOST=127.0.0.1`) to bypass auth
-> for local use. Copy `static/firebase-config.example.js` to `static/firebase-config.js`
-> to enable Firebase Google Sign-In.
+### Local development (no Firebase)
 
-> **No API keys?** The app starts without them — you'll see `status: degraded` on
-> `/api/health`. GDACS, Open-Meteo, and World Bank work keyless. Add keys for
-> ReliefWeb, HDX, News, Brave, and LLM as you get them.
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+SERVER_HOST=127.0.0.1 DESKTOP_MODE=true SERVER_DEBUG=true .venv/bin/python server.py
+# → http://127.0.0.1:5001/app
+```
 
-See [`.env.example`](.env.example) for all configuration variables.
+`DESKTOP_MODE`/`DEV_AUTH_BYPASS` only work on loopback; all requests get a mock admin user.
+
+### Docker (production-like)
+
+The production image is built by CI and run with `docker run` (see
+[docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) and `deploy/gunicorn.conf.py`).
+The repository's historical `docker-compose.yml` targets an old monorepo layout and is
+**not** the current deployment path.
+
+> **No API keys?** The app starts without them; `/api/health` reports `degraded`.
+> GDACS, Open-Meteo, FTS, Overpass, and World Bank are keyless. Add keys for ReliefWeb,
+> HDX, News, ACLED, UNHCR, FIRMS, Brave, and the LLM as needed.
+> See [docs/TOOLS.md](docs/TOOLS.md) for the full tool/key matrix.
 
 ---
 
 ## Features
 
-### Data Agent (54 tools)
+### Data agent (46 native + 20 MCP tools)
 
-The LangGraph agent has 35 native tools + 19 MCP tools:
+The agent uses a source-routing prompt: ReliefWeb for qualitative reports, HDX/UNHCR for
+displacement and refugee statistics, ACLED for conflict events, FTS for funding plans,
+World Bank for macro indicators, GDACS for rapid-onset alerts, FIRMS for fires, OSM for
+nearby infrastructure, News/Brave for media, arXiv for literature, and SQL for local
+database analytics.
 
-| Group | Tools | API Key Required | Source |
-|---|---|---|---|
-| **ReliefWeb** | 17 (search sitreps, disasters, headlines, knowledge base, PDF download, source search, ingest) | `RELIEFWEB_APPNAME` | [reliefweb.int](https://reliefweb.int) |
-| **HDX** | 7 (country overview, refugees, IDPs, funding, conflict events, data availability) | `HDX_APP_IDENTIFIER` | [humdata.org](https://data.humdata.org) |
-| **News** | 4 (search, headlines, sources) | `NEWS_API_KEY` | [newsapi.org](https://newsapi.org) |
-| **GDACS** | 3 (alerts, event detail) | ✗ keyless | [gdacs.org](https://www.gdacs.org) |
-| **Weather** | 4 (forecast, geocode, air quality) | ✗ keyless | [open-meteo.com](https://open-meteo.com) |
-| **World Bank** | 3 (indicators, country profile) | ✗ keyless | [worldbank.org](https://api.worldbank.org) |
-| **SQL** | 2 (read-only SELECT, 5s timeout) | ✗ local DB | — |
-| **arxiv (MCP)** | 10 (search, download, read, cite, semantic search) | ✗ keyless | `uvx arxiv-mcp-server` |
-| **sequential-thinking (MCP)** | 1 (structured reasoning for Deep Think mode) | ✗ keyless | `npx @modelcontextprotocol/server-sequential-thinking` |
-| **brave-search (MCP)** | 8 (web, news, image, video, local, summarizer, LLM context, place) | `BRAVE_API_KEY` | `npx @brave/brave-search-mcp-server` |
+Availability depends on keys; see [docs/TOOLS.md](docs/TOOLS.md). ACLED auth failures and
+GIEWS schema-pending errors are surfaced as tool errors (not silently counted as success).
 
-### SITREP Pipeline
+### SITREP pipeline
 
-A 10-stage automated situation report generator:
+`POST /api/sitrep/run` (premium) runs `sitrep/pipeline.py` in a subprocess and streams
+progress over a nonce-authenticated SSE endpoint:
 
-1. **Ingest** — ReliefWeb reports → ChromaDB chunks (in-memory, no disk writes)
-2. **Embed** — all-MiniLM-L6-v2 (384-dim, CPU-only)
-3. **Cluster** — UMAP (10D) → HDBSCAN (adaptive cluster count)
-4. **Question generation** — research questions per cluster
-5. **Question filtering** — dedup + relevance scoring
-6. **RRF retrieval** — reciprocal rank fusion across sub-queries
-7. **Answering** — RAG-grounded answers with citations
-8. **Synthesis** — per-cluster summaries + global overview
-9. **Report assembly** — structured SITREP with themes, countries, severity
-10. **Export** — JSON + PDF (via stream events)
+1. Load chunks from SQLite (country/theme/date filter)
+2. HDX enrichment (non-fatal)
+3. UMAP + HDBSCAN clustering (adaptive hyperparameter search)
+4. Question generation
+5. Question filtering + dedup
+6. Pool-based retrieval with reciprocal rank fusion over sub-queries
+7. RAG answers with citations
+8. Citation post-processing
+9. Cluster summaries + executive summary + narrative HTML
+10. JSON + Markdown report assembly
 
-### Guided Proposal V2
+Outputs live under `output/` (reports, clusters, questions, answers, summaries, bulletins,
+country summaries, daily digests, deep dives).
 
-Donor-specific proposal generator with manifest-driven compliance:
+### Weekly bulletin, country cards, digests
 
-- **6 donor manifests:** OCHA CBPF, USAID BHA, EuropeAID PRAG, ECHO, UNFPA, generic
-- **4-step wizard:** Situational Overview → Strategic Approach → Implementation & Coordination → Budget & Compliance
-- **Tool-calling generator:** uses ReliefWeb + HDX + Brave to gather evidence
-- **Blind verifier:** checks compliance against donor manifest (deterministic, no generation in validation)
-- **M&E reviewer:** reviews monitoring & evaluation sections on Step 3 lock
-- **Cross-section validation:** checks consistency across all 4 steps on Step 4 lock
-- **PDF export:** compiled proposal with all 4 steps
+- Weekly bulletin: top countries, severity, key figures, global overview.
+- Country intelligence cards: ReliefWeb + HDX + GDACS + World Bank, deterministic narrative,
+  map data for all countries, weekly freshness checks.
+- Daily digest + weekly deep-dives: SSR publication pages with structured JSON.
 
-### Country Intelligence Cards
+### Public / SEO surface
 
-- Aggregates ReliefWeb + HDX + GDACS + World Bank data per country
-- 30 country summaries generated, 143 countries visible on map
-- Weekly cron (Mon 07:00 UTC): only updates countries with changed `report_count`
+Server-rendered pages for crisis/country/SITREP/bulletin/digest/deep-dive content, plus
+sitemap/robots/llms.txt/IndexNow. Public SSR pages are cache-friendly; the SPA at `/app` is
+`noindex`.
 
-### Freemium Preview
+### Proposal Studio
 
-Anonymous visitors see: dashboard (map, global overview, crisis headlines), country summaries,
-SITREP report list. Login panel appears when accessing Chat, SITREP, Bulletin, Database, Admin tabs.
+A separate repository (`proposal/` symlink in development, mounted read-only in production)
+registered into the same Flask process by `proposal_bridge.py`. It owns the donor-call
+ingestion, 5-step proposal pipeline, deterministic verification, and Typst PDF export.
+API routes remain root-relative (`/api/proposals`, `/api/calls`, `/api/proposal-v2/...`).
 
 ---
 
 ## Architecture
 
 ```
-sightline/
-├── server.py                 # Flask app entry (378 lines — config, middleware, blueprint registration)
-├── config.py                 # Environment-driven configuration
-├── auth.py                   # Firebase token verification, RBAC decorators
-├── blueprints/
-│   ├── helpers.py             # Shared utilities (DB, rate limit, chat CRUD, event logging)
-│   ├── main_bp.py             # Landing, SPA, /api/health
-│   ├── auth_route.py          # /api/auth/me
-│   ├── agent_bp.py            # Chat agent + model selection
-│   ├── sitrep.py              # 10-stage SITREP pipeline
-│   ├── proposal.py            # Proposal V1 CRUD + generation
-│   ├── guided_proposal.py     # Proposal V2 guided wizard (4-step)
-│   ├── proposal_pdf.py        # PDF export
-│   ├── public_bp.py           # Map, dashboard, country data
-│   ├── db_bp.py               # Database search & reports
-│   ├── admin_bp.py            # Admin panel & user management
-│   ├── hdx_bp.py              # HDX data endpoints
-│   ├── news_bp.py             # News endpoints
-│   └── ingest_bp.py           # Knowledge base ingestion
-├── agent/
-│   ├── relief_agent.py        # LangGraph agent definition (54 tools)
-│   └── mcp_integration.py     # MCP server integration (arxiv, brave, sequential)
-├── static/
-│   ├── app.js                 # Core frontend (chat, SITREP, map, admin — 3700 lines)
-│   ├── proposal.js            # Proposal wizard frontend (3300 lines, independently developable)
-│   ├── auth.js                # Firebase auth (popup, token refresh)
-│   └── firebase-config.js     # Firebase config (gitignored — see firebase-config.example.js)
-├── templates/
-│   └── index.html             # SPA shell
-├── reliefweb_api/             # ReliefWeb + HDX API wrappers
-├── tests/                     # 169 tests (pytest)
-├── docker-compose.yml         # Production compose (app + Caddy)
-└── .env.example               # All ~75 configuration variables
+Browser
+ ├── /               landing page (marketing)
+ ├── /app            SPA (map, chat, database, SITREP, bulletin, admin)
+ ├── /crisis ...     SSR publication pages (SEO)
+ └── /proposal       Proposal Studio SPA (separate repo, same process)
+
+Flask — server.py (~600 lines: app init, request IDs, error handlers, middleware)
+├── blueprints/     14 route modules + helpers.py (~120 routes)
+├── auth.py         Firebase + RBAC (role source of truth: users table)
+├── agent/          LangGraph agent, models, memory, tool resilience
+├── reliefweb_api/  13+ external data clients + tools
+├── sitrep/         10-stage pipeline, bulletin, country summaries, digests
+├── observability/  turn telemetry, eval scores, error tracking
+└── proposal/       embedded Proposal Studio (separate repo)
+
+Storage
+├── reliefweb.db    reports + chunks (SQLite; chunk store is the retrieval source)
+├── chats.db        chats, messages, users, rate limits, events
+├── obs.db          turns, tool calls, feedback, eval scores, retrieval eval
+├── errors.db       error events, request stats, alert state
+├── chroma/         embeddings (384-dim) + agent memory collections
+└── output/         generated reports, bulletins, summaries, digests, caches
 ```
 
-```mermaid
-graph TB
-    User["User (Browser)"]
+**Runtime:** gunicorn 1 worker / 4 threads (SQLite + Chroma single-process constraint),
+Caddy for TLS and SSE, OpenRouter for LLM, Firebase for auth, MCP subprocesses for
+arXiv/sequential-thinking.
 
-    subgraph "Sightline (Docker / Python)"
-        Flask["Flask + Gunicorn<br/>(server.py → blueprints)"]
+---
 
-        subgraph "Agent"
-            LG["LangGraph Agent<br/>(54 tools)"]
-            RW["ReliefWeb Tools (17)"]
-            HDX["HDX Tools (7)"]
-            News["News Tools (4)"]
-            GDACS["GDACS Tools (3)"]
-            WB["WorldBank Tools (3)"]
-            WX["Weather Tools (4)"]
-            SQL["SQL Tools (2)"]
-            MCP["MCP Tools (19)<br/>arxiv + sequential + brave"]
-        end
+## Observability & evaluation
 
-        subgraph "Data"
-            SQLite["SQLite<br/>reliefweb.db + chats.db"]
-            Chroma["ChromaDB<br/>25K chunks, 384-dim"]
-        end
+Sightline records every chat turn in `obs.db` and every error in `errors.db`:
 
-        subgraph "Pipelines"
-            SITREP["SITREP Pipeline<br/>(10 stages)"]
-            Proposal["Guided Proposal V2<br/>(6 donor manifests)"]
-            Bulletin["Weekly Bulletin"]
-            Country["Country Summaries"]
-        end
-    end
+- **Turn telemetry:** model, tokens, cost, latency/total, iterations, tool calls, citations,
+  no-answer signal, tool evidence previews.
+- **Chat evaluation:** G-Eval judge (cross-family default, multi-sample), evidence-aware
+  rubric, low-score queue.
+- **Human calibration:** blind admin queue, 1–5 rating, QWK/Spearman/MAE against the judge.
+- **User feedback:** 👍/👎 under assistant answers (one vote per turn/user).
+- **Error monitoring:** request IDs (`X-Request-ID`, `ERR-…`), backend/frontend/tool/LLM/SSE
+  capture, grouped fingerprints, admin Errors panel, audit log.
+- **Alerts & canary:** threshold checks (`scripts/alert_check.py`) and synthetic uptime checks
+  (`scripts/canary.py`), webhook/Telegram delivery.
+- **Load testing:** async HTTP load script with p50/p95/p99 reporting.
 
-    subgraph "External APIs"
-        RWAPI["ReliefWeb API"]
-        HDXAPI["HDX API"]
-        NewsAPI["NewsAPI.org"]
-        GDACSAPI["GDACS RSS"]
-        OMAPI["Open-Meteo"]
-        WBAPI["World Bank API"]
-        LLM["OpenRouter / Ollama"]
-        FB["Firebase Auth"]
-    end
-
-    User --> Flask
-    Flask --> LG
-    LG --> RW & HDX & News & GDACS & WB & WX & SQL & MCP
-    RW --> RWAPI
-    HDX --> HDXAPI
-    News --> NewsAPI
-    GDACS --> GDACSAPI
-    WB --> WBAPI
-    WX --> OMAPI
-    LG --> LLM
-    Flask --> FB
-    Flask --> SQLite
-    LG --> Chroma
-    Flask --> SITREP & Proposal & Bulletin & Country
-    SITREP --> Chroma
-    SITREP --> LLM
-    Proposal --> RW & HDX
-    Proposal --> LLM
-```
+Details: [docs/EVALUATION.md](docs/EVALUATION.md), [docs/CALIBRATION.md](docs/CALIBRATION.md),
+[docs/ERROR_MONITORING.md](docs/ERROR_MONITORING.md), [docs/LOAD_TESTING.md](docs/LOAD_TESTING.md),
+[docs/SRE_RUNBOOK.md](docs/SRE_RUNBOOK.md), [docs/TOOLS.md](docs/TOOLS.md).
 
 ---
 
 ## Configuration
 
-Sightline is configured via environment variables (`.env` file). See [`.env.example`](.env.example)
-for all ~75 variables. Key ones:
+Configuration is environment-driven (`.env`); see [`.env.example`](.env.example) and
+[docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md#configuration) for the current groups.
+
+Key variables:
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENROUTER_API_KEY` | ✅ | LLM access (Gemini 2.5 Flash/Pro) |
+| `OPENROUTER_API_KEY` | ✅ | LLM access (chat + evaluation judge + SITREP) |
 | `RELIEFWEB_APPNAME` | ✅ | ReliefWeb API identifier |
-| `HDX_APP_IDENTIFIER` | Optional | HDX API access (base64 encoded) |
-| `NEWS_API_KEY` | Optional | NewsAPI.org access |
-| `BRAVE_API_KEY` | Optional | Brave Search MCP (30/day limit) |
-| `DESKTOP_MODE` | Optional | Bypass Firebase auth for local use (default: false) |
-| `LLM_PROVIDER` | Optional | `openrouter` (default) or `ollama` (local LLM) |
-| `ACTIVE_MODEL` | Optional | `google/gemini-2.5-flash` (default) |
+| `HDX_APP_IDENTIFIER` | Optional | HDX API (base64 app identifier) |
+| `NEWS_API_KEY` | Optional | NewsAPI.org |
+| `ACLED_EMAIL`/`ACLED_PASSWORD` or `ACLED_API_KEY` | Optional | ACLED conflict events |
+| `UNHCR_API_KEY` | Optional | UNHCR refugee statistics |
+| `FIRMS_MAP_KEY` | Optional | NASA FIRMS active fires |
+| `GIEWS_ENABLED` | Optional | Enable FAO GIEWS once schema is verified (default false) |
+| `BRAVE_API_KEY` + `MCP_BRAVE_ENABLED=true` | Optional | Brave search MCP |
+| `DESKTOP_MODE`/`DEV_AUTH_BYPASS` | Optional | Local auth bypass (loopback only) |
+| `OBS_DB_PATH`, `ERRORS_DB_PATH`, `ERRORS_SALT` | Optional | Telemetry/error stores |
+| `ALERT_WEBHOOK_URL`, `ALERT_TELEGRAM_*` | Optional | Alert delivery |
+| `CHAT_MAX_CONCURRENT` | Optional | Chat SSE concurrency guard |
+| `RELEASE_SHA` | Optional | Release identifier in health/errors |
+
+**Chat models** (current): `flash` → `google/gemini-3.8-flash` (free),
+`deep_think` → `google/gemini-3.1-pro-preview` (premium, sequential reasoning),
+`vision` → `google/gemini-3.8-flash` (premium), plus 7 premium custom models.
+SITREP/bulletin default model is `google/gemma-4-31b-it` (configurable via `LLM_MODEL`).
+
+---
+
+## Auth & RBAC
+
+| Role | Chat | SITREP | Bulletin | Database | Admin |
+|---|---|---|---|---|---|
+| free | 10/day | ✗ | read | last 3 days | ✗ |
+| premium | 100/day | ✓ | read | full | ✗ |
+| admin | unlimited | ✓ | generate | full | ✓ |
+
+Role resolution order: `ADMIN_UIDS` → `chats.db users.role` (source of truth) → Firebase
+custom claim → `free`. Decorators: `@require_auth`, `@require_admin`,
+`@require_role("premium")`, `@optional_auth`.
+
+Freemium gating (current code): gated tabs are **agent chat, database, admin**; SITREP and
+bulletin lists are publicly browsable, while SITREP generation remains premium.
 
 ---
 
 ## Development
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Tests — 436 passed, 6 skipped (current suite)
+.venv/bin/python -m pytest tests/ -q
 
-# Run tests
-pytest tests/ -v
-
-# Lint
+# Lint/format (CI gate)
 ruff check .
+ruff format --check .
 
-# Start dev server (hot reload, auth bypassed)
-SERVER_HOST=127.0.0.1 DESKTOP_MODE=true SERVER_DEBUG=true python server.py
+# Frontend bundle (required for /app after JS/CSS edits)
+npm run lint
+npm run build
+node --check static/dist/app.js
+
+# Dev server
+SERVER_HOST=127.0.0.1 DESKTOP_MODE=true SERVER_DEBUG=true .venv/bin/python server.py
 ```
 
-The frontend is split into two files:
-- `static/app.js` — core UI (chat, SITREP, map, admin)
-- `static/proposal.js` — proposal wizard (independently developable)
-
-Both are plain `<script>` tags — no build step required.
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development guide.
+The SPA is plain script-tag JavaScript bundled by esbuild (`static/dist/app.js`,
+`static/dist/style.css`). `static/dist/` is gitignored and built inside Docker.
 
 ---
 
-## Self-Hosting
+## Deployment
 
-- **Docker Compose** — app + Caddy (auto-TLS) on a VPS
-- **Manual deployment** — gunicorn + systemd + nginx
-- **Local desktop** — `DESKTOP_MODE=true` for offline/local use
+Production: Hetzner ARM64 + Docker + Caddy, image `ghcr.io/serkankzlrmk/sightline`.
+Pushing to `main` triggers GitHub Actions: test → ARM64 build → GHCR → SSH `docker run`
+→ health check → automatic rollback on failure. `RELEASE_SHA` is exposed in
+`/api/health` and error records.
 
-> **Before deploying:** Edit `Caddyfile` and replace `your-domain.com` with your
-> actual domain. Caddy automatically obtains TLS certificates — no certbot needed.
+The historical `docker-compose.yml` is not production; use the CI workflow or the
+`docker run` command in `.github/workflows/deploy.yml`. See
+[docs/SRE_RUNBOOK.md](docs/SRE_RUNBOOK.md) for operations.
 
 ---
 
-## Auth & RBAC
+## Documentation
 
-| Role | Chat | SITREP | Bulletin | DB | Admin |
-|---|---|---|---|---|---|
-| free | 10/day | ✗ | read | 3 days only | ✗ |
-| premium | 100/day | ✓ | read | full | ✗ |
-| admin | unlimited | ✓ | generate | full | ✓ |
-
-**Decorators:** `@require_auth`, `@require_admin`, `@require_role("premium")`, `@optional_auth`
-
-**DESKTOP_MODE:** Set `DESKTOP_MODE=true` + `SERVER_HOST=127.0.0.1` to bypass Firebase auth
-for local use. All requests get a mock admin user.
+| Doc | Purpose |
+|---|---|
+| [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) | Current architecture, modules, data flows, storage, auth, deployment |
+| [docs/EVALUATION.md](docs/EVALUATION.md) | Chat evaluation + retrieval evaluation process |
+| [docs/CALIBRATION.md](docs/CALIBRATION.md) | Human calibration of the LLM judge (UI + CSV) |
+| [docs/ERROR_MONITORING.md](docs/ERROR_MONITORING.md) | errors.db, request IDs, admin Errors, alerts, canary, audit |
+| [docs/LOAD_TESTING.md](docs/LOAD_TESTING.md) | Load-test baseline and capacity guards |
+| [docs/SRE_RUNBOOK.md](docs/SRE_RUNBOOK.md) | On-call checks, rollback, alerts |
+| [docs/TOOLS.md](docs/TOOLS.md) | Tool inventory and enablement matrix |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, CLA |
+| [SECURITY.md](SECURITY.md) | Vulnerability disclosure policy |
 
 ---
 
@@ -295,15 +286,8 @@ for local use. All requests get a mock admin user.
 
 Sightline is **dual-licensed**:
 
-1. **AGPL v3** ([`LICENSE`](LICENSE)) — for open-source use. If you modify and distribute
-   Sightline, or offer it as a network service, you must make your modifications' source code
-   available under AGPL v3.
-
-2. **Commercial License** ([`LICENSES/Commercial-LICENSE.md`](LICENSES/Commercial-LICENSE.md)) —
-   for use cases where AGPL v3's copyleft obligations are incompatible with your needs
-   (proprietary products, SaaS without source disclosure, enterprise internal use).
-
-See the [Commercial License](LICENSES/Commercial-LICENSE.md) for pricing tiers.
+1. **AGPL v3** ([`LICENSE`](LICENSE)) — open-source use; network use requires sharing modifications.
+2. **Commercial License** ([`LICENSES/Commercial-LICENSE.md`](LICENSES/Commercial-LICENSE.md)) — for proprietary/SaaS use.
 
 All contributions require signing the [CLA](CLA.md).
 
@@ -311,16 +295,8 @@ All contributions require signing the [CLA](CLA.md).
 
 ## Security
 
-See [`SECURITY.md`](SECURITY.md) for the vulnerability disclosure policy.
-**Do not open public GitHub issues for security vulnerabilities.** Use
-[GitHub Security Advisories](https://github.com/serkankzlrmk/sightline/security) instead.
-
----
-
-## Contributing
-
-Contributions are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before submitting
-a pull request. All contributors must sign the [CLA](CLA.md).
+See [`SECURITY.md`](SECURITY.md) for the vulnerability disclosure policy. Do not open public
+issues for security vulnerabilities; use GitHub Security Advisories.
 
 ---
 

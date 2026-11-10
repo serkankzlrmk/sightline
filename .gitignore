@@ -185,3 +185,11 @@ uv.lock
 .codebase-memory/
 proposal
 tmp/
+
+# ========================================
+# Internal research / design / growth notes
+# (kept locally, not part of the public repo)
+# ========================================
+docs/research/
+docs/designs/
+docs/ACQUISITION_PLAN.md

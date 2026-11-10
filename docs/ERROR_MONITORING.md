@@ -1,158 +1,83 @@
-# Error Monitoring — Sightline
+# Error Monitoring
 
-> Merkezi hata yakalama: backend, frontend, tool, LLM ve SSE hataları tek yerde
-> toplanır; admin panelinden görülür; eşik aşımında alarm üretir.
-> Tarih: 2026-11-10 · Durum: local, canlıya alınmadı.
+Sightline captures backend, frontend, tool, LLM and streaming failures in a dedicated
+store and exposes them to administrators.
 
----
+## Storage
 
-## 1. Neden ayrı `errors.db`?
+`errors.db` is separate from turn telemetry so error monitoring still works when
+`OBS_ENABLED=false`.
 
-- `obs.db` turn telemetrisi `OBS_ENABLED=false` ile kapatılabilir; hata izleme
-  kapanmamalı.
-- `chats.db` yazma yolu sohbetlerle paylaşılır; hata yazıları burayı kilitlemesin.
-- Retention/backup ayrı yönetilir.
+| Table | Content |
+|---|---|
+| `error_events` | one row per occurrence: kind, route, method, status, request id, release, uid hash, exception, sanitized message, stack hash, context, resolved |
+| `error_stats_minute` | per-minute request/error counters for SLOs and alerts |
+| `alert_state` | cooldown bookkeeping for alert checks |
 
-Env: `ERRORS_DB_PATH` (default `errors.db`), `ERRORS_ENABLED`,
-`ERRORS_RETENTION_DAYS=90`, `ERRORS_SALT` (uid hash tuzu), `RELEASE_SHA`.
+Configuration: `ERRORS_DB_PATH`, `ERRORS_ENABLED`, `ERRORS_RETENTION_DAYS=90`,
+`ERRORS_SALT`, `RELEASE_SHA`.
 
----
+## Request correlation
 
-## 2. Akış
+- Every request receives `X-Request-ID`; API errors include `request_id` and an
+  `ERR-xxxxxxxx` code.
+- Chat streaming includes the request id and code in the SSE `error` event.
+- Error fingerprints combine kind, normalized route, exception type, stack top and
+  message so repeated failures group together.
 
-```
-Backend exception ─┐
-Frontend JS error ──┤
-Tool failure ───────┼→ error_tracking.record_error()
-LLM/SSE failure ────┤        │ fingerprint + sanitize
-Job failure ────────┘        ▼
-                       errors.db error_events
-                              │
-              ┌───────────────┼────────────────┐
-              ▼               ▼                ▼
-      Admin → Errors   scripts/alert_check.py  request_id in logs/UI
-```
+## Capture points
 
-- Her istek `X-Request-ID` alır; hata yanıtlarında `request_id` + `ERR-xxxxxxxx`.
-- Fingerprint: `kind + normalize(route) + exception_type + stack-top + message`.
-  Aynı bug aynı grupta; farklı route yeni grup.
-- Sanitize: Bearer/token/nonce/e-posta/uzun hex temizlenir; gövde saklanmaz;
-  uid SHA-256 + salt ile hash'lenir.
+| Layer | Source |
+|---|---|
+| Backend | global `HTTPException`/`Exception` handlers in `server.py` |
+| Frontend | `static/error-reporter.js` (`window.onerror`, `unhandledrejection`, fetch failures) |
+| Tool | `tool_calls.error_class` plus `error_events` for structured/JSON errors |
+| LLM | chat exceptions and provider failures with sanitized stack |
+| Jobs | SITREP/bulletin failures with exit status and stderr excerpt |
 
----
+`POST /api/client-errors` is public but rate-limited (20/min/IP, 16 KB body limit) and
+sanitizes tokens, emails and nonces before storage.
 
-## 3. Yakalama noktaları
+## Admin interface
 
-| Katman | Nerede | Ne kaydedilir |
-|---|---|---|
-| Backend | `server.py` global error handlers | exception, route, status 500, stack hash, request_id |
-| Frontend | `static/error-reporter.js` | `window.onerror`, `unhandledrejection`, ağ hatası |
-| Tool | `blueprints/agent_bp.py` `tool_done` | tool adı, grup, server, `error_class` (timeout/auth/rate_limit/...) |
-| LLM | `agent_bp` chat exception | model, mode, stack; SSE `error` event'inde `code` |
-| Client API | `POST /api/client-errors` | rate-limit 20/dk/IP, gövde ≤16 KB, dedupe fingerprint |
+`/app > Admin > Errors` shows:
 
-`tool_calls.error_class` ayrıca `obs.db`'de saklanır; tool tablosunda görülebilir.
+- error counts, unresolved groups, affected users, request and 5xx rates;
+- grouped errors (kind, route, count, users, first/last, sample message);
+- recent events with request id and status;
+- resolve action and a synthetic test-error action.
 
----
-
-## 4. Admin paneli
-
-`/app → Admin → Errors`:
-
-- KPI: son 7 gün hata, unresolved, grup, etkilenen kullanıcı, istek, 5xx oranı.
-- **Grouped errors**: kind / route / count / users / first-last / örnek mesaj / Resolve.
-- **Recent events**: zaman, kind, route, status, request_id, mesaj.
-- **Create test error** butonu uçtan uca test için.
-
-API: `GET /api/admin/errors/{summary,groups,recent,<fingerprint>}`,
+APIs: `GET /api/admin/errors/summary|groups|recent`, `GET /api/admin/errors/<fingerprint>`,
 `POST /api/admin/errors/<fingerprint>/resolve`, `POST /api/admin/errors/test`.
 
----
+## Alerts
 
-## 5. Alarmlar
-
-`scripts/alert_check.py` cron ile 5 dakikada bir çalışır:
+`scripts/alert_check.py` is intended for cron (every 5 minutes):
 
 ```bash
-# .env: ALERT_WEBHOOK_URL veya ALERT_TELEGRAM_BOT_TOKEN/CHAT_ID
-python scripts/alert_check.py                 # gerçek gönderim
-python scripts/alert_check.py --dry-run       # sadece rapor
-python scripts/alert_check.py --test          # test mesajı
-python scripts/alert_check.py --health-url https://sightlinehumanitarian.com
+python scripts/alert_check.py --dry-run --health-url https://example.com
+python scripts/alert_check.py --test
 ```
 
-Eşikler (env): `ALERT_5XX_RATE=0.02`, `ALERT_TOOL_ERROR_RATE=0.10`,
-`ALERT_MIN_REQUESTS=20`, `ALERT_COOLDOWN_MIN=30`. Cooldown `errors.db.alert_state`.
+Thresholds: 5xx rate (`ALERT_5XX_RATE`), tool error rate (`ALERT_TOOL_ERROR_RATE`),
+daily cost (`ALERT_DAILY_COST_USD`), per-user cost (`ALERT_USER_DAILY_COST_USD`),
+minimum request sample (`ALERT_MIN_REQUESTS`) and cooldown (`ALERT_COOLDOWN_MIN`).
+Delivery uses `ALERT_WEBHOOK_URL` and/or Telegram (`ALERT_TELEGRAM_BOT_TOKEN`,
+`ALERT_TELEGRAM_CHAT_ID`). A health URL can be probed with `--health-url`.
 
-Örnek crontab (host):
+## Synthetic canary
 
-```cron
-*/5 * * * * cd /opt/reliefagent/current && docker exec sightline python /app/scripts/alert_check.py --health-url http://127.0.0.1:5001 >> /var/log/sightline-alerts.log 2>&1
-```
+`scripts/canary.py --base-url https://example.com` checks `/api/health`,
+`/api/public/stats` and `/crisis`; failures are recorded as `kind=canary` and can send the
+same webhook/Telegram alert.
 
----
+## Audit log
 
-## 6. Gizlilik / retention
+Administrative actions are stored as `audit:<action>` in `chats.db.events` and exposed at
+`GET /api/admin/audit?days=30`. Covered actions include role changes, config updates,
+deletions, evaluation runs, calibration labels, error resolution and telemetry pruning.
 
-- Gövde, Authorization, query string saklanmaz.
-- E-posta/token/nonce scrub; uid hash; IP saklanmaz (client endpoint IP'si yalnız
-  rate-limit için bellekte).
-- 90 gün retention (`prune` schema init'te); admin-only okuma.
-- Frontend raporları sayfa başına 20 ile sınırlı; sunucu 20/dk/IP.
+## Privacy
 
----
-
-## 7. Opsiyonel Sentry / OTel
-
-İlk sürümde ek servis yok. İleride:
-- `SENTRY_DSN` ile Flask + JS SDK (stack trace/source map).
-- OTel SDK + OTLP exporter → Grafana/Tempo/Loki (metrik/trace).
-Küçük VM'de self-host ağır; Sentry SaaS/GlitchTip dış servis önerilir.
-
----
-
-## 7.1 Local smoke (2026-11-10)
-
-- `/api/does-not-exist` → 404 JSON, `X-Request-ID` ve `ERR-xxxxxxxx`.
-- `POST /api/client-errors` → 202; admin Errors'ta frontend grubu.
-- `POST /api/admin/errors/test` → panelde backend grubu.
-- Load test 100 istek → `errors_5xx: 0`; summary istek sayacı 217'ye çıktı.
-- `scripts/alert_check.py --dry-run` → eşik altı, alarm yok (test ortamı).
-
----
-
-## 7.2 Canary, audit, cost, tool resilience
-
-**Canary** (`scripts/canary.py`, cron 5–15 dk): `/api/health` (status=ok),
-`/api/public/stats`, `/crisis`; hata olursa `kind=canary` kaydı + webhook.
-`--check-map` yalnız sıcak cache'te kullanılmalı.
-
-**Audit log**: admin rol/config/silme/eval/kalibrasyon/error-resolve işlemleri
-`events` tablosuna `audit:<action>` olarak yazılır; `GET /api/admin/audit?days=30`.
-
-**Maliyet alarmı**: `scripts/alert_check.py` artık günlük toplam maliyet
-(`ALERT_DAILY_COST_USD`) ve tek kullanıcı maliyetini (`ALERT_USER_DAILY_COST_USD`)
-de kontrol eder (obs.db `turns.cost`).
-
-**Tool resilience** (`agent/tool_resilience.py`): timeout/429/5xx için 2 deneme
-(exponential backoff), art arda 3 hatada 60 sn circuit open; auth/validation'da
-retry yok. `TOOL_RETRY_ATTEMPTS`, `TOOL_CIRCUIT_THRESHOLD`,
-`TOOL_CIRCUIT_COOLDOWN_SECONDS` ile ayarlanır.
-
-**Release**: deploy `RELEASE_SHA=${{ github.sha }}` geçirir; `/api/health` ve
-error kayıtları release taşır.
-
----
-
-## 8. Test
-
-```bash
-pytest tests/test_error_tracking.py tests/test_error_api.py tests/test_alert_check.py tests/test_load_test.py -q
-```
-
-Kabul:
-- `/api/missing` → 404 JSON + `request_id`, `X-Request-ID`.
-- Kasıtlı 500 → panelde backend grubu; log'da aynı ID.
-- Frontend hatası → client-errors kaydı.
-- Admin test error → panelde görünür.
-- `alert_check --dry-run` eşik raporu; test mesajı gönderilebilir.
+Request bodies and authorization headers are never stored. Tokens, emails, nonces and long
+hex identifiers are redacted; user ids are salted SHA-256 hashes; retention is 90 days.

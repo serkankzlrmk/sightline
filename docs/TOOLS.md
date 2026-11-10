@@ -1,38 +1,58 @@
-# Tool Inventory & Enablement — Sightline
+# Tool Inventory
 
-> Son güncelleme: 2026-11-10. Kodda 46 native + 28 MCP (potansiyel 74) tool var;
-> hangilerinin bağlanacağı env anahtarlarına bağlıdır. Admin doğrulaması:
-> `GET /api/agent/capabilities` (Bearer token) veya Admin → Observability → Tool Usage.
+Sightline defines 46 native tools and 28 MCP tools. The default deployment activates
+**60 tools** (40 native + 20 MCP); availability depends on environment keys and feature
+flags. Admin check: `GET /api/agent/capabilities` with a Bearer token, or Admin >
+Observability > Tool Usage.
 
-## Native tools (46 potential)
+## Native tools
 
-| Group | Tools | Required | Notes |
+| Group | Count | Requirement | Purpose |
 |---|---|---|---|
-| ReliefWeb | 17 | `RELIEFWEB_APPNAME` | Qualitative reports, KB, ingest, PDF |
-| HDX | 7 | `HDX_APP_IDENTIFIER` | Quantitative: refugees, IDPs, funding, conflict events |
-| NewsAPI | 3 | `NEWS_API_KEY` | Media narrative |
-| GDACS | 2 | keyless | Rapid-onset disaster alerts |
-| Weather | 3 | keyless | Forecast, geocode, air quality |
-| World Bank | 2 | keyless | Macro/development baseline |
-| ACLED | 2 | `ACLED_EMAIL`+`ACLED_PASSWORD` or `ACLED_API_KEY` | Conflict events; auth failures show as tool errors |
-| FTS (OCHA) | 2 | keyless | Funding plans/gaps |
-| OSM/Overpass | 1 | keyless | Nearby infrastructure |
-| GIEWS | 2 | `GIEWS_ENABLED=true` | Disabled until schema verified; otherwise `GIEWSSchemaPending` |
-| UNHCR | 3 | `UNHCR_API_KEY` | Refugee population/demographics/nowcast |
+| ReliefWeb | 17 | `RELIEFWEB_APPNAME` | Search reports/disasters/headlines, read full content, ingest, knowledge base |
+| HDX | 7 | `HDX_APP_IDENTIFIER` | Country overview, refugees, IDPs, IPC phases, funding, conflict events |
+| NewsAPI | 3 | `NEWS_API_KEY` | News search, headlines, sources |
+| GDACS | 2 | none | Rapid-onset disaster alerts and event details |
+| Weather | 3 | none | Forecast, geocoding, air quality |
+| World Bank | 2 | none | Development indicators and country profiles |
+| ACLED | 2 | `ACLED_EMAIL`+`ACLED_PASSWORD` or `ACLED_API_KEY` | Conflict event counts and searches |
+| FTS (OCHA) | 2 | none | Humanitarian funding plans and gaps |
+| OSM/Overpass | 1 | none | Nearby infrastructure (hospitals, shelters, water points) |
+| GIEWS | 2 | `GIEWS_ENABLED=true` | Food prices and crop forecasts (disabled until schema is verified) |
+| UNHCR | 3 | `UNHCR_API_KEY` | Refugee population, demographics, nowcast |
 | FIRMS | 1 | `FIRMS_MAP_KEY` | Active fire detections |
-| SQL | 1 | local DB | Free users excluded; premium/admin |
+| SQL | 1 | local DB | Read-only database analytics (premium/admin) |
 
-## MCP tools (28 potential)
+## MCP tools
 
-| Server | Tools | Required | Notes |
+| Server | Count | Requirement | Purpose |
 |---|---|---|---|
-| arxiv | 19 | `uvx` installed | Keyless academic search |
-| sequential-thinking | 1 | `npx` installed | Deep Think mode |
-| brave-search | 8 | `MCP_BRAVE_ENABLED=true` + `BRAVE_API_KEY` | 30/day limit |
+| arXiv | 19 | `uvx` installed | Academic paper search, download, abstract, citation graph |
+| sequential-thinking | 1 | `npx` installed | Structured reasoning for Deep Think mode |
+| Brave Search | 8 | `MCP_BRAVE_ENABLED=true` + `BRAVE_API_KEY` | Web/news/image/video/local search, summarizer |
 
-## Health/debug
+## Enabling optional sources
 
-- `GET /api/agent/capabilities` → active groups + counts.
-- Admin → Observability → Tool Usage → calls/error rate/p95 per tool.
-- Admin → Errors (`kind=tool`) → ACLED auth, GIEWS schema, MCP failures.
-- Log lines on startup: `✓ ... initialized` vs `... devre dışı`.
+Add keys to `.env` and restart the app container:
+
+```env
+ACLED_EMAIL=
+ACLED_PASSWORD=
+# or ACLED_API_KEY=
+UNHCR_API_KEY=
+FIRMS_MAP_KEY=
+GIEWS_ENABLED=false
+MCP_BRAVE_ENABLED=false
+BRAVE_API_KEY=
+```
+
+`FTS` and `Overpass` require no key. `HDX` and `News` bind tools even when keys are absent,
+but calls fail at runtime; configure keys for production use.
+
+## Tool health
+
+- Admin > Observability > Tool Usage: calls, error rate, p95 latency per tool.
+- Admin > Errors (`kind=tool`): structured tool failures (auth, timeout, schema pending).
+- Startup logs distinguish `initialized` from `disabled`.
+- Tool calls are retried for transient timeout/429/5xx errors; repeated failures open a
+  short circuit breaker per tool (`agent/tool_resilience.py`).

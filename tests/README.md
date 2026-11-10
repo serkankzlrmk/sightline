@@ -1,78 +1,73 @@
 # Tests
 
-Sightline has 197+ tests covering auth, API, security, and core functionality.
+Sightline has **436 collected tests** (437 test functions; parameterization accounts for the
+difference), covering auth/RBAC, API, security, evaluation, error monitoring, resilience,
+SITREP, SEO, ingest, and frontend deep links.
 
 ## Running Tests
 
 ```bash
 # Run all tests
-pytest tests/ -v
+.venv/bin/python -m pytest tests/ -v
 
-# Run a specific test file
-pytest tests/test_auth.py -v
+# Run a specific file
+.venv/bin/python -m pytest tests/test_auth.py -v
 
 # Run a specific test
-pytest tests/test_auth.py::TestDevMode::test_dev_auth_bypass_true -v
+.venv/bin/python -m pytest tests/test_auth.py::TestDevMode::test_dev_auth_bypass_true -v
 
-# Run with coverage (if pytest-cov installed)
-pytest tests/ --cov=. --cov-report=term-missing
+# With coverage (if pytest-cov installed)
+.venv/bin/python -m pytest tests/ --cov=. --cov-report=term-missing
 ```
 
-## Test Files
+CI runs `pytest tests/ -v --tb=short` with `SERVER_HOST=127.0.0.1`, `SERVER_DEBUG=true`,
+`DEV_AUTH_BYPASS=true`, and a fake OpenRouter key. Tests must not require real network
+access or Firebase credentials.
+
+## Test Files (current)
 
 | File | Tests | What it covers |
 |---|---|---|
-| `test_auth.py` | 25+ | Firebase token verification, RBAC roles, dev mode bypass, DESKTOP_MODE, admin UIDs |
-| `test_api_auth.py` | 15+ | API endpoint auth — 401/403 responses, dev mode bypass, `/api/auth/me` |
-| `test_health.py` | 5+ | `/api/health` endpoint — status checks, degraded mode |
-| `test_config.py` | 10+ | Config loading, env var overrides, model selection |
-| `test_dev_mode_safety.py` | 10+ | Dev bypass safety — loopback-only, blocked on 0.0.0.0, API key prevents bypass |
-| `test_path_traversal.py` | 10+ | Path traversal protection — `Path.is_relative_to()` containment |
-| `test_stream_nonce.py` | 10+ | SITREP stream nonce auth — single-use, TTL, job_id binding |
-| `test_imports.py` | 5+ | All modules import without error |
-| `test_ingest.py` | 5+ | ReliefWeb ingest pipeline — report parsing, chunk creation |
-| `test_vector_store.py` | 10+ | ChromaDB vector store — add, search, purge, stats |
-| `test_utils.py` | 15+ | Utility functions — country codes, ISO3 mapping, themes parsing |
-| `test_guided_proposal.py` | 30+ | Guided Proposal V2 — donor manifests, validation, E2E flow |
-| `test_migration.py` | 5+ | V1 → V2 proposal migration script |
+| `test_auth.py` | 46 | Firebase verification, RBAC, dev-mode bypass, admin UIDs |
+| `test_api_auth.py` | 20 | API auth gates (401/403), `/api/auth/me`, dev bypass |
+| `test_seo.py` | 64 | SSR pages, slugify, JSON-LD, sitemap/robots/llms, caching, SEO safety |
+| `test_utils.py` | 41 | Country/ISO3/theme helpers, formatting, utilities |
+| `test_daily_digest.py` | 36 | Digest JSON schema, sampling, SSR routes, deep dives, sitemap |
+| `test_ingest.py` | 21 | ReliefWeb ingest, chunking, purge, ingest status |
+| `test_sql_tools.py` | 21 | Read-only SQL tool, timeout, PII redaction |
+| `test_observability.py` | 21 | Turn telemetry, feedback, eval scores, obs/error APIs |
+| `test_sitrep.py` | 19 | Pipeline config, citation post-processing, report assembly |
+| `test_eval_agent.py` | 16 | G-Eval parsing/sampling, dry-run/apply, evidence, upsert |
+| `test_vector_store.py` | 13 | Chroma store add/search/purge/stats |
+| `test_eval_retrieval.py` | 13 | Recall/nDCG/MRR math, pool-based production path, golden set |
+| `test_agent_tools.py` | 11 | Agent tool registry, prompt source routing, tool modes |
+| `test_config.py` | 11 | Config loading, env overrides, chat models |
+| `test_imports.py` | 10 | All modules import without external services |
+| `test_calibration.py` | 8 | QWK/Spearman/MAE, blind export, label persistence |
+| `test_error_tracking.py` | 7 | Sanitization, fingerprinting, error stats, retention, taxonomy |
+| `test_country_data_quality.py` | 6 | Country card fields and data quality |
+| `test_dev_mode_safety.py` | 6 | Dev bypass only on loopback; blocked on public IP |
+| `test_tool_resilience.py` | 6 | Retry, circuit breaker, JSON error envelopes |
+| `test_alert_check.py` | 5 | Alert thresholds (5xx/tool/cost), cooldown, delivery |
+| `test_ingest_status.py` | 5 | Ingest freshness/status writes |
+| `test_path_traversal.py` | 5 | `Path.is_relative_to()` containment |
+| `test_stream_nonce.py` | 5 | SITREP stream nonce: single-use, TTL, job binding |
+| `test_error_api.py` | 4 | Request IDs, 404/500 handlers, client errors, admin error API |
+| `test_backfill_turns.py` | 3 | Historical chats → obs turns (idempotent) |
+| `test_frontend_deep_links.py` | 3 | SPA hash/deep-link tab routing |
+| `test_health.py` | 3 | `/api/health` status and release field |
+| `test_search_console.py` | 3 | GSC snapshot/dashboard (fake session) |
+| `test_audit.py` | 2 | Audit event helper + `/api/admin/audit` |
+| `test_canary.py` | 2 | Synthetic canary success/failure recording |
+| `test_load_test.py` | 1 | Load-test percentile helper |
+
+> Some tests skip when optional dependencies/data are absent (`6 skipped` locally);
+> this is expected.
 
 ## Test Conventions
 
-- Tests use `pytest` with `unittest.mock.patch` for dependency isolation.
-- Tests do **not** require external API keys or network access.
-- Tests do **not** require Firebase or a running server.
-- The test database is in-memory or temporary (no persistent state).
-- `conftest.py` sets up the Flask test client and common fixtures.
-
-## Writing New Tests
-
-1. Create `test_<feature>.py` in `tests/`.
-2. Import fixtures from `conftest.py` (Flask app, test client).
-3. Use `unittest.mock.patch` for external dependencies (API clients, LLM, Firebase).
-4. Follow the existing naming convention: `TestClassName::test_descriptive_name`.
-5. Run `pytest tests/ -v` to verify.
-
-```python
-"""Test my new feature."""
-
-from unittest.mock import patch
-
-
-def test_my_feature_works(client):
-    """My feature should return the expected result."""
-    resp = client.get("/api/my-feature")
-    assert resp.status_code == 200
-    assert resp.json["status"] == "ok"
-```
-
-## Security Tests
-
-Security tests are critical and should **never** be skipped:
-
-- `test_path_traversal.py` — validates all file-serving endpoints reject `../` and absolute paths.
-- `test_stream_nonce.py` — validates SITREP stream nonces are single-use and TTL-enforced.
-- `test_dev_mode_safety.py` — validates dev bypass only works on loopback, never on public IPs.
-
-## CI
-
-Tests run automatically on every PR via GitHub Actions (`.github/workflows/ci.yml`).
+- `pytest` with `unittest.mock.patch` for dependency isolation.
+- No real external API keys or network calls; LLM judges/clients are monkeypatched.
+- No Firebase or running server required; Flask test client + dev auth bypass.
+- `conftest.py` resets Flask-Limiter and per-IP counters per test; temp DBs use `tmp_path`.
+- New features should ship with tests; evaluation/error/alert code must remain deterministic.

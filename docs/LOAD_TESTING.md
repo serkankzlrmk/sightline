@@ -1,117 +1,64 @@
-# Load Testing — Sightline
+# Load Testing
 
-> Amaç: yüksek trafikte nerede tıkandığımızı **ölçmek**, sonra guard/ölçekleme
-> kararını veriyle vermek. Tarih: 2026-11-10 · Durum: local, canlıya alınmadı.
+Sightline runs one gunicorn worker with four threads. Chat answers are streamed over SSE,
+so each active streaming request occupies a thread for the duration of the answer. Public
+SSR/API pages are cheaper but still share the same worker and SQLite connection.
 
----
+## Capacity constraints
 
-## 1. Mevcut kapasite gerçekleri
-
-| Kısıt | Değer | Etki |
+| Constraint | Current value | Effect |
 |---|---|---|
-| Gunicorn worker | 1 | SQLite/Chroma tek-process kısıtı |
-| Thread | 4 (`gthread`) | Aynı anda ~4 uzun istek |
-| Chat SSE | 6–30 sn/istek | Her stream bir thread'i tutar |
-| `max_requests` | 1000 | Worker restart; in-memory nonce/job/rate sıfırlanır |
-| Caddy SSE | 300s read/write | Uzun stream'lerde timeout uyumu |
-| Gunicorn timeout | 120s | SSE ile uyumsuzluk riski |
-| Rate limit | 120/dk/IP; agent 30/dk; custom 100/gün/IP | Paylaşımlı IP tıkanabilir |
+| Gunicorn workers | 1 | SQLite/Chroma and in-memory state are single-process |
+| Threads | 4 (`gthread`) | approximately 4 concurrent long requests |
+| Chat stream | 6-30 s typical | each stream holds a thread |
+| `max_requests` | 1000 | worker recycle resets nonces, jobs and in-memory rate counters |
+| Caddy SSE timeouts | 300 s | proxy vs gunicorn timeout must stay aligned |
+| Rate limits | 120/min/IP; agent 30/min; 100/day/IP custom | shared IPs can exhaust budgets |
 
-**Beklenti:** public SSR/API yüksek RPS'e dayanabilir (cache ile), ama **eşzamanlı
-chat ~4** ile sınırlı. Bu yüzden chat için concurrency guard (503 + Retry-After)
-ve kuyruk/rate-limit tasarımı gerekir.
+Public SSR/API traffic scales better than chat. Chat capacity is the first limiting factor.
 
----
+## Tool
 
-## 2. Araç
-
-`scripts/load_test.py` — async httpx, harici bağımlılık yok:
+`scripts/load_test.py` uses async httpx and reports latency percentiles:
 
 ```bash
-# 20 eşzamanlı, 200 istek (public endpoint'ler)
-.venv/bin/python scripts/load_test.py --concurrency 20 --requests 200
-
-# Belirli path'ler
-.venv/bin/python scripts/load_test.py \
-  --paths /crisis,/countries,/api/public/stats \
+python scripts/load_test.py --concurrency 20 --requests 200
+python scripts/load_test.py --paths /crisis,/countries,/api/public/stats \
   --concurrency 50 --requests 500
+python scripts/load_test.py --json
 ```
 
-Çıktı: `rps`, `p50/p95/p99`, `error_rate`, `max_ms`, hata örnekleri.
+Output fields: `rps`, `p50_ms`, `p95_ms`, `p99_ms`, `max_ms`, `error_rate`, error samples.
 
-> Chat SSE yük testi gerçek LLM maliyeti yaratır. Bir sonraki adımda mock
-> OpenAI-compatible sunucu (`scripts/mock_openai_server.py`) ile yapılacak;
-> o zamana kadar chat için sadece düşük adetli smoke yapın.
+Chat load tests should use a mock OpenAI-compatible server so runs consume no LLM tokens;
+streaming load testing is a planned follow-up.
 
----
+## Scenarios
 
-## 3. Senaryolar
+1. Public reads: `/api/public/stats`, `/api/map/countries`, `/crisis`.
+2. SSR pages: `/countries`, `/sitreps`, `/bulletins`.
+3. Authenticated API: database search and report endpoints.
+4. Chat: 1/4/8/16 concurrent streams against a mock LLM.
+5. SITREP/bulletin/proposal: mock jobs or one controlled real run.
 
-1. **Public okuma** (varsayılan): `/api/public/stats`, `/api/map/countries`, `/crisis`.
-2. **SSR sayfalar**: `/countries`, `/sitreps`, `/bulletins`.
-3. **Auth/DB**: `/api/db/stats` (token gerekir; load test script şu an public).
-4. **Chat**: mock LLM; 1/4/8/16 eşzamanlı; guard davranışı.
-5. **SITREP/proposal**: mock job veya tek gerçek run (dikkatli).
+## Guards and caching
 
----
+- Chat concurrency guard `CHAT_MAX_CONCURRENT` returns 503 with `Retry-After` when saturated.
+- Public APIs and SSR pages send short cache headers (`max-age=60`, stale-while-revalidate).
+- Map data is disk-cached with single-flight refresh and stale serving.
+- Request/error counters are buffered and flushed to `errors.db` approximately every 30 s.
 
-## 4. Yorumlama
+## Interpreting results
 
-- p95 hedefi: public API < 500 ms, SSR < 1 sn (cache sonrası).
-- error_rate > %1 → guard/cache/DB incelemesi.
-- RPS artarken p95 dikleşiyorsa: CPU, thread pool, SQLite lock veya LLM.
-- 503 oranı > 0 ve Retry-After dönüyorsa concurrency guard devrede (beklenen).
-- `max_requests` restart'ları test sırasında görülürse state kaybı riski.
+- Target: public API p95 < 500 ms and SSR p95 < 1 s with warm caches.
+- A sharp p95 increase with rising RPS indicates CPU, thread-pool, SQLite or LLM saturation.
+- Controlled 503s with `Retry-After` are expected at chat capacity; 5xx errors are not.
+- Watch worker restarts during the test: they indicate `max_requests` recycling and
+  in-memory state loss.
 
----
+## Scaling path
 
-## 5. Guard'lar (uygulanan)
-
-- `CHAT_MAX_CONCURRENT` (default 8): chat SSE semaphore; doluysa 503 +
-  `retry_after=10`, `code=ERR-capacity`.
-- Public cache header: `/api/public/*`, `/api/map/*`, SSR yayın sayfaları 60 sn
-  (`stale-while-revalidate`).
-- Request/error sayaçları `errors.db.error_stats_minute`'a 30 sn'de bir toplu yazılır.
-- Rate limit / admin muafiyetleri mevcut.
-
-> Not: gunicorn 4 thread iken semaphore 8 pratikte devreye girmez; thread sayısı
-> veya replika artırıldığında etkili olur. Ölçüme göre `deploy/gunicorn.conf.py`
-> `threads` 8'e çıkarılabilir (bellek testi sonrası).
-
----
-
-## 5.1 Ölçülen baseline (local, 2026-11-10)
-
-Komut:
-
-```bash
-python scripts/load_test.py --concurrency 20 --requests 100 \
-  --paths /api/public/stats,/api/map/countries,/crisis
-```
-
-Sonuç (local Mac, dev sunucu):
-
-| Metrik | Değer |
-|---|---|
-| Toplam istek | 100 |
-| Hata | 0 (%0) |
-| RPS | 384.2 |
-| p50 | 35.3 ms |
-| p95 | 120.9 ms |
-| p99 | 128.4 ms |
-| max | 129.5 ms |
-
-**Bulgu:** `/api/map/countries` cold cache'te (60 ülke taraması) dakikalarca
-sürebiliyor ve gelen thread'leri tıkıyor. Düzeltme: `output/map_countries_cache.json`
-disk cache'i + 30 dk TTL + stale-while-revalidate + single-flight; restart sonrası
-ilk istek diskten **1.6 ms**. Cold build (cache yokken) hâlâ yavaştır; deploy
-sonrası bir kez ısıtma (`curl /api/map/countries` veya cron) önerilir.
-
----
-
-## 6. Sonraki adımlar (veriyle)
-
-1. Baseline raporunu doldur (RPS/p95/hata).
-2. Chat mock LLM load testi + guard 503 doğrulaması.
-3. Gerekirse: gunicorn threads 8, Redis rate-limit/job, Postgres/pgvector, CDN.
-4. SLO alarmları (`scripts/alert_check.py`) + uptime monitor.
+First measure. Then, if sustained concurrency exceeds roughly 50 users or chat p95 exceeds
+30 s, introduce Redis (rate limits/jobs/nonces), Postgres plus pgvector and a CDN, and move
+long-running generation to queue workers. A vertical upgrade is the cheapest first step
+before a multi-worker architecture.
