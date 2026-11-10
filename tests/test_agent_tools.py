@@ -158,3 +158,16 @@ def test_content_to_text_normalizes_google_blocks():
     assert _content_to_text([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]) == "ab"
     assert _content_to_text([{"text": "x"}, "y"]) == "xy"
     assert _content_to_text(None) == ""
+
+
+def test_citation_url_grounding():
+    from blueprints.agent_bp import _extract_urls, _sanitize_citation_links
+
+    evidence = _extract_urls('{"url": "https://reliefweb.int/node/123", "x": 1}')
+    assert "https://reliefweb.int/node/123" in evidence
+    text = "A [real](https://reliefweb.int/node/123) and [fake](https://example.test/fake)."
+    cleaned, removed = _sanitize_citation_links(text, evidence)
+    assert removed == 1
+    assert "https://reliefweb.int/node/123" in cleaned
+    assert "example.test" not in cleaned
+    assert "fake" in cleaned

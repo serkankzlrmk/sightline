@@ -8,6 +8,7 @@ from blueprints.helpers to avoid circular imports.
 
 import json
 import logging
+import re
 import threading
 import traceback
 import uuid
@@ -88,6 +89,39 @@ def _content_to_text(content) -> str:
                 parts.append(text)
         return "".join(parts)
     return ""
+
+
+_URL_RE = re.compile(r"https?://[^\s\)\]\}\"'<>]+")
+
+
+def _extract_urls(text: str) -> set[str]:
+    """Normalize URLs found in tool output for citation grounding."""
+    urls = set()
+    for raw in _URL_RE.findall(text or ""):
+        url = raw.rstrip('.,;:!?)]}"')
+        urls.add(url.split("#", 1)[0])
+    return urls
+
+
+def _sanitize_citation_links(text: str, evidence_urls: set[str]) -> tuple[str, int]:
+    """Remove Markdown links whose URL was not present in tool evidence.
+
+    Keeps the visible link label, drops only the unverifiable target. This is a
+    grounding guard, not a substitute for numeric claim verification.
+    """
+    removed = 0
+
+    def _replace(match):
+        nonlocal removed
+        label, url = match.group(1), match.group(2)
+        clean = url.split("#", 1)[0].rstrip('.,;:!?)]}"')
+        if clean in evidence_urls:
+            return match.group(0)
+        removed += 1
+        return label
+
+    cleaned = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", _replace, text or "")
+    return cleaned, removed
 
 
 # ─── Chat list & management ──────────────────────────────────────────────────
@@ -401,6 +435,7 @@ def api_agent_chat():
 
             prev_node = None
             current_iteration = 0
+            evidence_urls: set[str] = set()
             for chunk, metadata in agent.stream(
                 {"messages": messages_snapshot},
                 config=stream_config,
@@ -448,6 +483,7 @@ def api_agent_chat():
                     if isinstance(raw, list):
                         raw = " ".join(str(x) for x in raw)
                     tool_output = str(raw)
+                    evidence_urls.update(_extract_urls(tool_output))
                     status = "error" if looks_like_tool_error(tool_output) else "ok"
                     error_class = error_tracking.classify_tool_error(tool_output) if status == "error" else ""
                     summary = (tool_output.split(". ")[0] if ". " in tool_output else tool_output)[:120]
@@ -525,6 +561,9 @@ def api_agent_chat():
             }
 
             if full_response:
+                full_response, removed_links = _sanitize_citation_links(full_response, evidence_urls)
+                if removed_links:
+                    turn_meta["unverified_links_removed"] = removed_links
                 turn_status = "ok"
                 _db_add_message(chat_id, "assistant", full_response, meta=turn_meta)
 
