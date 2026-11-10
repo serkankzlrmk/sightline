@@ -1,6 +1,6 @@
 # Tests
 
-Sightline has **436 collected tests** (437 test functions; parameterization accounts for the
+Sightline has **445 collected tests** (437 test functions; parameterization accounts for the
 difference), covering auth/RBAC, API, security, evaluation, error monitoring, resilience,
 SITREP, SEO, ingest, and frontend deep links.
 

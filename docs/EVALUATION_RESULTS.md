@@ -13,24 +13,41 @@
 - Public report contains aggregate results only; no questions, answers, user ids or
   tool payloads.
 
-## 2. Chat quality evaluation — pending
+## 2. Chat quality evaluation — preliminary
 
-A fixed 22-question evaluation set is defined in `scripts/eval_questions.json`
-(qualitative reports, displacement, funding, conflict, alerts, weather, World Bank,
-OSM, one deliberately unanswerable case).
+A fixed evaluation set of 22 questions is defined in `scripts/eval_questions.json`. The
+first 12 were run end-to-end against the local agent using Google `gemini-3-flash-preview`;
+all 12 produced answers (no empty responses). Eleven were judged with a Google judge
+(`gemini-3.1-pro-preview` for 10 turns, `gemini-3-flash-preview` for one turn); one judge
+call returned no verdict and is excluded from the score distribution.
 
-The pipeline is implemented and tested:
+| Metric | Value |
+|---|---:|
+| Turns in run | 12 |
+| Judged turns | 11 |
+| Mean judge score (1-5) | 3.55 |
+| Median judge score | 3.67 |
+| Low-score rate (<3) | 27.3% (3/11) |
+| Citation rate | 36.4% |
+| No-answer rate | 0.0% |
+| Tool-use rate | 100% |
+| Average tool calls | 6.27 |
+| Median latency | 14.8 s |
+| p95 latency | 179 s |
+| Average cost per turn | $0.124 |
 
-- `scripts/eval_fixed.py` runs the fixed set and records exact turn ids.
-- `scripts/eval_agent.py --turn-ids` judges exactly those turns without sampling
-  unrelated conversations.
-- `scripts/eval_report.py` produces score distributions, citation/tool/no-answer
-  rates, latency/cost and judge-human agreement.
+Score distribution: 1 x1, 2 x1, 3 x2, 4 x3, 5 x3 (rounded judge scores).
 
-**No chat quality numbers are published yet.** The local Google API key currently hits
-the Free Tier limit (20 generate-content requests/day), so the 22-question run and
-judge calls cannot complete. An earlier pilot sample was discarded because it contained
-development/test prompts and was not representative.
+**Human calibration is pending.** Judge scores are not validated quality until 20-30
+answers are rated by a human reviewer. The 11 judged turns are available in the admin
+calibration queue; QWK will be added after review.
+
+Operational notes:
+
+- The Google free-tier quota was replaced by a paid quota before this run.
+- Long-tail latency is driven by HDX rate limits; tool calls are capped per turn and the
+  agent forces a final answer after the budget.
+- One judge call failed (empty verdict); it is excluded rather than estimated.
 
 ## 3. Retrieval evaluation — pending labels
 
@@ -86,8 +103,8 @@ The deployed release exposes:
 
 ## 6. Next steps
 
-1. Enable paid Google API quota or restore an OpenRouter balance.
-2. Run the 22-question chat evaluation and human calibration (target: 20+ labels, QWK).
+1. Run the remaining 10 evaluation questions.
+2. Collect 20+ human labels and publish QWK (the 11 judged turns are already queued).
 3. Complete the 52 retrieval relevance labels and run the two-stage retrieval metrics.
 4. Extend proposal verification with adversarial fixtures and measure the LLM verifier
    against human review.

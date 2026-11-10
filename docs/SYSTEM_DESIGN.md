@@ -244,7 +244,7 @@ restart; no code changes. The previous provider stays configured for rollback.
 
 ## 14. Tests and quality gates
 
-- `pytest tests/` — **436 passed, 6 skipped** (local; 2026-11-10).
+- `pytest tests/` — **445 passed, 6 skipped** (local; 2026-11-10).
 - CI: `ruff check .`, `ruff format --check .` (ruff pinned), tests; deploy workflow runs
   tests separately then builds/deploys.
 - Frontend: `npm run lint`, `npm run build`, `node --check static/dist/app.js`.

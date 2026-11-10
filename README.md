@@ -12,7 +12,7 @@ Real-time data aggregation · 10-stage SITREP pipeline · LLM evaluation and obs
 [![Commercial License](https://img.shields.io/badge/Commercial-Dual_License-green.svg)](LICENSES/Commercial-LICENSE.md)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-436-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-445-brightgreen.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)](VERSION)
 
 [Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Observability](#observability--evaluation) · [Docs](#documentation) · [Contributing](CONTRIBUTING.md)
