@@ -21,12 +21,24 @@ import asyncio
 import logging
 import os
 import threading
+import time
 from datetime import date
 
 logger = logging.getLogger(__name__)
 
 # MCP tools loaded at startup (sync-wrapped LangChain BaseTool list)
 MCP_TOOLS: list = []
+# tool name → MCP server key (arxiv / sequential_thinking / brave_search / tavily).
+# Kept separate from the "MCP" tool group so observability can attribute usage
+# per server instead of lumping every MCP tool together.
+MCP_TOOL_SERVERS: dict = {}
+_RAW_TOOL_SERVERS: dict = {}
+# Set once the background loader has finished (success OR failure). The agent
+# registration thread waits on this instead of blindly polling; before this
+# existed, a slow first-time npx/uvx download (>30s) could leave the agent
+# running without any MCP tools until the process restarted.
+_mcp_ready_event = threading.Event()
+MCP_READY_AT: float | None = None
 _mcp_initialized = False
 _mcp_lock = threading.Lock()
 
@@ -239,12 +251,13 @@ def init_mcp_tools() -> bool:
 
     # Run MCP init in background thread — non-blocking
     def _bg_init():
-        global MCP_TOOLS
+        global MCP_TOOLS, MCP_TOOL_SERVERS, MCP_READY_AT
         try:
             logger.info("MCP: Background init starting — loading MCP tools...")
             mcp_tools_raw = asyncio.run(_load_mcp_tools_async_impl())
             if mcp_tools_raw:
                 MCP_TOOLS = [_wrap_mcp_tool_sync(t) for t in mcp_tools_raw]
+                MCP_TOOL_SERVERS = {t.name: _RAW_TOOL_SERVERS.get(t.name, "mcp") for t in MCP_TOOLS}
                 logger.info("MCP: %d tools loaded and ready (background init complete)", len(MCP_TOOLS))
             else:
                 logger.info("MCP: No tools loaded (servers may not be installed)")
@@ -253,6 +266,11 @@ def init_mcp_tools() -> bool:
             import traceback
 
             logger.debug("MCP: Background init traceback: %s", traceback.format_exc())
+        finally:
+            # Always release waiters: failure is a valid "ready" state too,
+            # otherwise the registration thread would block for 5 minutes.
+            MCP_READY_AT = time.time()
+            _mcp_ready_event.set()
 
     t = threading.Thread(target=_bg_init, daemon=True)
     t.start()
@@ -281,6 +299,8 @@ async def _load_mcp_tools_async_impl() -> list:
             logger.info("MCP: Connecting to %s...", name)
             client = MultiServerMCPClient({name: conf})
             tools = await client.get_tools()
+            for t in tools:
+                _RAW_TOOL_SERVERS[t.name] = name
             logger.info("MCP: %s — %d tools loaded", name, len(tools))
             all_tools.extend(tools)
         except Exception as e:

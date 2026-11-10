@@ -8,6 +8,7 @@ Register in server.py with:
     app.register_blueprint(admin_bp)
 """
 
+import json
 import logging
 import time as _time
 from pathlib import Path
@@ -15,7 +16,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from auth import _admins, current_uid, require_admin
-from blueprints.helpers import _chats_db, _log_event
+from blueprints.helpers import _chats_db, _log_audit, _log_event
 from config import OUTPUT_REPORTS_DIR
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ def api_admin_set_role(uid):
         return jsonify({"error": "Failed to set role — Firebase Admin SDK not available or user not found"}), 500
     logger.info("api_admin_set_role: uid=%s → role=%s (by admin=%s)", uid, new_role, current_uid())
     _log_event(current_uid(), "role_changed", {"target_uid": uid, "new_role": new_role})
+    _log_audit(current_uid(), "role_changed", uid, {"new_role": new_role})
     return jsonify({"ok": True, "uid": uid, "role": new_role})
 
 
@@ -262,6 +264,44 @@ def api_admin_search_console():
         return jsonify({"error": "Failed to load Search Console data"}), 500
 
 
+@admin_bp.route("/audit", methods=["GET"])
+@require_admin
+def api_admin_audit():
+    """Admin audit trail (role/config/deletes/eval/calibration actions)."""
+    try:
+        days = max(1, min(int(request.args.get("days", 30)), 365))
+        limit = max(1, min(int(request.args.get("limit", 100)), 500))
+        cutoff = _time.time() - days * 86400
+        conn = _chats_db()
+        try:
+            rows = conn.execute(
+                "SELECT id, ts, uid, event, props FROM events "
+                "WHERE event LIKE 'audit:%' AND ts >= ? ORDER BY id DESC LIMIT ?",
+                (cutoff, limit),
+            ).fetchall()
+        finally:
+            conn.close()
+        events = []
+        for r in rows:
+            try:
+                props = json.loads(r["props"] or "{}")
+            except (ValueError, TypeError):
+                props = {}
+            events.append(
+                {
+                    "id": r["id"],
+                    "ts": r["ts"],
+                    "uid": r["uid"],
+                    "action": str(r["event"]).split("audit:", 1)[-1],
+                    "props": props,
+                }
+            )
+        return jsonify({"events": events, "days": days})
+    except Exception as exc:
+        logger.error("api_admin_audit failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load audit log"}), 500
+
+
 @admin_bp.route("/config", methods=["GET"])
 @require_admin
 def api_admin_config():
@@ -349,6 +389,7 @@ def api_admin_update_config():
     # Write back
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     logger.info("api_admin_update_config: Updated .env keys: %s", list(updates.keys()))
+    _log_audit(current_uid(), "config_updated", "env", {"keys": sorted(updates.keys())})
 
     # Reload config module
     import importlib
@@ -395,6 +436,7 @@ def api_admin_delete_sitrep(filename):
     try:
         path.unlink()
         _log_event(current_uid(), "sitrep_deleted", {"filename": filename})
+        _log_audit(current_uid(), "sitrep_deleted", filename)
         return jsonify({"message": "Report deleted"})
     except Exception as e:
         logger.error(f"api_admin_delete_sitrep error: {filename}, {e}")
@@ -418,6 +460,7 @@ def api_admin_delete_bulletin(filename):
     try:
         path.unlink()
         _log_event(current_uid(), "bulletin_deleted", {"filename": filename})
+        _log_audit(current_uid(), "bulletin_deleted", filename)
         return jsonify({"message": "Bulletin deleted"})
     except Exception as e:
         logger.error(f"api_admin_delete_bulletin error: {filename}, {e}")

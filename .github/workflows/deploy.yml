@@ -120,6 +120,7 @@ jobs:
               -e CHATS_DB_PATH=/app/data/chats.db \
               -e CHROMA_DIR=/app/reliefweb_chroma \
               -e CONTAINER_MODE=true \
+              -e RELEASE_SHA=${{ github.sha }} \
               -v reliefweb_db:/app/data \
               -v chroma_data:/app/reliefweb_chroma \
               -v output_data:/app/output \

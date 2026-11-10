@@ -586,6 +586,8 @@
       <div class="admin-subtabs">
         <button class="btn btn-xs admin-subtab active" data-admin-tab="users">Users</button>
         <button class="btn btn-xs admin-subtab" data-admin-tab="analytics">Analytics</button>
+        <button class="btn btn-xs admin-subtab" data-admin-tab="obs">Observability</button>
+        <button class="btn btn-xs admin-subtab" data-admin-tab="errors">Errors</button>
       </div>
 
       <!-- Users sub-section -->
@@ -672,6 +674,121 @@
               <tbody></tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- Observability sub-section (LLM/RAG telemetry, admin-only) -->
+      <div class="admin-section" id="admin-obs" style="display:none;">
+        <h2>LLM Observability</h2>
+        <p class="admin-hint" id="obs-health-line">Telemetry loading…</p>
+        <div class="analytics-cards" id="obs-kpi-cards"></div>
+        <div class="analytics-table">
+          <h4>Chat Quality Evaluation (G-Eval)</h4>
+          <div class="analytics-cards" id="obs-eval-kpis"></div>
+          <div class="obs-eval-controls">
+            <button class="btn btn-xs" id="obs-eval-run-btn">Run evaluation (10 turns)</button>
+            <label class="admin-hint"><input type="checkbox" id="obs-eval-dry" checked> dry run</label>
+            <span class="admin-hint" id="obs-eval-status"></span>
+          </div>
+          <p class="admin-hint" id="obs-calibration-line">Judge-human calibration: not run yet.</p>
+          <table id="obs-eval-table">
+            <thead><tr><th>When</th><th>Judge model</th><th>Score</th><th>Issues</th><th>Turn</th></tr></thead>
+            <tbody><tr><td colspan="5">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="analytics-table">
+          <h4>Human Calibration (admin rating queue)</h4>
+          <p class="admin-hint" id="obs-cal-progress">Load the queue to start rating judged answers.</p>
+          <div class="obs-eval-controls">
+            <button class="btn btn-xs" id="obs-cal-start">Load next unlabeled turns</button>
+            <button class="btn btn-xs btn-secondary" id="obs-cal-score">Compute QWK</button>
+            <span class="admin-hint" id="obs-cal-result"></span>
+          </div>
+          <div id="obs-cal-card" class="obs-cal-card" style="display:none;">
+            <div class="obs-cal-meta" id="obs-cal-meta"></div>
+            <div class="obs-cal-question" id="obs-cal-question"></div>
+            <div class="obs-cal-answer" id="obs-cal-answer"></div>
+            <details id="obs-cal-evidence-wrap" class="obs-cal-evidence">
+              <summary>Evidence (tool previews)</summary>
+              <pre id="obs-cal-evidence"></pre>
+            </details>
+            <div class="obs-cal-buttons" id="obs-cal-buttons"></div>
+            <textarea id="obs-cal-notes" rows="2" placeholder="Notes (optional)"></textarea>
+            <div class="obs-cal-actions">
+              <button class="btn btn-xs" id="obs-cal-submit">Submit rating</button>
+              <button class="btn btn-xs btn-secondary" id="obs-cal-skip">Skip</button>
+              <span class="admin-hint" id="obs-cal-reveal"></span>
+            </div>
+          </div>
+        </div>
+        <div class="analytics-table">
+          <h4>Retrieval Eval (golden set)</h4>
+          <p class="admin-hint" id="obs-retrieval-line">No retrieval runs yet. Run <code>scripts/eval_retrieval.py --gold … --apply</code>.</p>
+        </div>
+        <div class="analytics-charts">
+          <div class="chart-container">
+            <h4>Turns (14 days)</h4>
+            <canvas id="chart-obs-turns" height="200"></canvas>
+          </div>
+          <div class="chart-container">
+            <h4>P50 Latency (ms, 14 days)</h4>
+            <canvas id="chart-obs-p50" height="200"></canvas>
+          </div>
+          <div class="chart-container">
+            <h4>P95 Latency (ms, 14 days)</h4>
+            <canvas id="chart-obs-p95" height="200"></canvas>
+          </div>
+          <div class="chart-container">
+            <h4>Daily Cost (USD, 14 days)</h4>
+            <canvas id="chart-obs-cost" height="200"></canvas>
+          </div>
+        </div>
+        <div class="analytics-table">
+          <h4>Tool Usage (7 days)</h4>
+          <table id="obs-tool-table">
+            <thead><tr><th>Tool</th><th>Group / Server</th><th>Calls</th><th>Error rate</th><th>P95 ms</th><th>Avg result chars</th></tr></thead>
+            <tbody><tr><td colspan="6">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="analytics-table">
+          <h4>Model Comparison (7 days)</h4>
+          <table id="obs-model-table">
+            <thead><tr><th>Model</th><th>Turns</th><th>Share</th><th>P95 ms</th><th>Cost</th><th>Citation rate</th><th>Error rate</th></tr></thead>
+            <tbody><tr><td colspan="7">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="analytics-table">
+          <h4>Recent Turns</h4>
+          <table id="obs-turn-table">
+            <thead><tr><th>When</th><th>Model</th><th>Status</th><th>Latency</th><th>Tools</th><th>Citations</th><th>Cost</th></tr></thead>
+            <tbody><tr><td colspan="7">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Error Monitoring sub-section (backend/frontend/tool/LLM/SSE) -->
+      <div class="admin-section" id="admin-errors" style="display:none;">
+        <h2>Error Monitoring</h2>
+        <p class="admin-hint" id="err-health-line">Loading error telemetry…</p>
+        <div class="analytics-cards" id="err-kpi-cards"></div>
+        <div class="obs-eval-controls">
+          <button class="btn btn-xs" id="err-refresh-btn">Refresh</button>
+          <button class="btn btn-xs btn-secondary" id="err-test-btn">Create test error</button>
+          <span class="admin-hint" id="err-status"></span>
+        </div>
+        <div class="analytics-table">
+          <h4>Grouped errors</h4>
+          <table id="err-groups-table">
+            <thead><tr><th>Kind</th><th>Route</th><th>Count</th><th>Users</th><th>First</th><th>Last</th><th>Sample</th><th>Actions</th></tr></thead>
+            <tbody><tr><td colspan="8">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="analytics-table">
+          <h4>Recent error events</h4>
+          <table id="err-recent-table">
+            <thead><tr><th>When</th><th>Kind</th><th>Route</th><th>Status</th><th>Request ID</th><th>Message</th></tr></thead>
+            <tbody><tr><td colspan="6">Loading…</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>

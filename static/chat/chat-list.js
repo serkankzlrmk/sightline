@@ -55,7 +55,7 @@ async function loadChatList() {
             if (m.role === 'user') {
               addMsg('user', esc(m.content));
             } else {
-              const body = addMsg('assistant', sanitizeHtml(md(m.content)));
+              const body = addMsg('assistant', sanitizeHtml(md(m.content)), { turnId: m.meta && m.meta.turn_id, rating: m.feedback && m.feedback.rating });
               if (m.meta) {
                 const footer = renderTeleFooter(m.meta);
                 if (footer) body.insertAdjacentHTML('beforeend', footer);
@@ -119,7 +119,7 @@ async function selectChat(chatId) {
         if (m.role === 'user') {
           addMsg('user', esc(m.content));
         } else {
-          const body = addMsg('assistant', md(m.content));
+          const body = addMsg('assistant', md(m.content), { turnId: m.meta && m.meta.turn_id, rating: m.feedback && m.feedback.rating });
           if (m.meta) {
             const footer = renderTeleFooter(m.meta);
             if (footer) body.insertAdjacentHTML('beforeend', footer);
@@ -213,7 +213,7 @@ async function executeDeleteChat(chatId, btn) {
         for (const m of msgs.messages) {
           if (m.role === 'user') addMsg('user', esc(m.content));
           else {
-            const body = addMsg('assistant', sanitizeHtml(md(m.content)));
+            const body = addMsg('assistant', sanitizeHtml(md(m.content)), { turnId: m.meta && m.meta.turn_id, rating: m.feedback && m.feedback.rating });
             if (m.meta) {
               const footer = renderTeleFooter(m.meta);
               if (footer) body.insertAdjacentHTML('beforeend', footer);

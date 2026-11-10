@@ -1495,11 +1495,7 @@ def _render_detail_generic(
         if title_override is None
         else title_override
     )
-    canonical = (
-        f"{SITE_URL}/digest/{date_str}/{country_stem}"
-        if canonical_override is None
-        else canonical_override
-    )
+    canonical = f"{SITE_URL}/digest/{date_str}/{country_stem}" if canonical_override is None else canonical_override
     return render_template(
         "crisis_detail.html",
         page_title=composed_title,
@@ -1725,8 +1721,7 @@ def robots_txt():
     # that all public SSR content is welcome in AI search surfaces).
     blocks = "".join(f"User-agent: {b}\nAllow: /\nDisallow: /api/\nDisallow: /proposal\n" for b in ai_bots)
     return (
-        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /proposal\n"
-        f"{blocks}Sitemap: {SITE_URL}/sitemap.xml\n",
+        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /proposal\n{blocks}Sitemap: {SITE_URL}/sitemap.xml\n",
         200,
         {"Content-Type": "text/plain; charset=utf-8"},
     )
@@ -1753,7 +1748,7 @@ def _llms_txt_builder() -> str:
     if bulletins:
         latest = sorted(bulletins, reverse=True)[0]
         lines += ["## Latest weekly bulletin", "", f"- [Weekly bulletin {latest}]({SITE_URL}/bulletin/{latest})"]
-        lines += ["- [All weekly bulletins]({}/bulletins)".format(SITE_URL), ""]
+        lines += [f"- [All weekly bulletins]({SITE_URL}/bulletins)", ""]
 
     # Crisis trackers, heaviest coverage first (these are the evergreen pages).
     countries = [c for c in _crisis_country_data() if _crisis_slug(c.get("country", "")) and _is_crisis_publishable(c)]
@@ -1764,7 +1759,9 @@ def _llms_txt_builder() -> str:
             country = str(c.get("country") or "").strip()
             slug = _crisis_slug(country)
             count = int(c.get("report_count") or 0)
-            lines.append(f"- [{country}: humanitarian crisis overview]({SITE_URL}/crisis/{slug}) — {count} tracked reports")
+            lines.append(
+                f"- [{country}: humanitarian crisis overview]({SITE_URL}/crisis/{slug}) — {count} tracked reports"
+            )
         lines += [""]
 
     # Deep dives from the most recent coverage week.

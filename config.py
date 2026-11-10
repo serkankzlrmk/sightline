@@ -82,6 +82,35 @@ DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", str(PROJECT_ROOT / "reliefweb_do
 DB_PATH = Path(os.getenv("DB_PATH", str(PROJECT_ROOT / "reliefweb.db")))
 CHATS_DB_PATH = Path(os.getenv("CHATS_DB_PATH", str(PROJECT_ROOT / "chats.db")))
 INGEST_STATUS_PATH = Path(os.getenv("INGEST_STATUS_PATH", str(DB_PATH.parent / "ingest_status.json")))
+
+# ── Observability telemetry (LLM eval & obs feature) ─────────────────────────
+# A separate SQLite DB keeps analytics scans/retention pruning away from the
+# chats.db write path (1 gunicorn worker, WAL, short transactions). All writes
+# are best-effort: a telemetry failure must never break a chat turn.
+OBS_DB_PATH = Path(os.getenv("OBS_DB_PATH", "").strip() or str(CHATS_DB_PATH.parent / "obs.db"))
+OBS_ENABLED: bool = os.getenv("OBS_ENABLED", "true").lower() == "true"
+OBS_RETENTION_DAYS: int = int(os.getenv("OBS_RETENTION_DAYS", "90"))
+
+# ── Error monitoring (separate DB so it works even when OBS_ENABLED=false) ───
+ERRORS_DB_PATH = Path(os.getenv("ERRORS_DB_PATH", "").strip() or str(CHATS_DB_PATH.parent / "errors.db"))
+ERRORS_ENABLED: bool = os.getenv("ERRORS_ENABLED", "true").lower() == "true"
+ERRORS_RETENTION_DAYS: int = int(os.getenv("ERRORS_RETENTION_DAYS", "90"))
+ERRORS_SALT: str = os.getenv("ERRORS_SALT", "sightline-local-salt")
+RELEASE_SHA: str = os.getenv("RELEASE_SHA", "dev")
+
+# Max concurrent agent chat streams (thread pool is 4; leave headroom for other APIs)
+CHAT_MAX_CONCURRENT: int = int(os.getenv("CHAT_MAX_CONCURRENT", "8"))
+
+# Alert thresholds (scripts/alert_check.py)
+ALERT_WEBHOOK_URL: str = os.getenv("ALERT_WEBHOOK_URL", "")
+ALERT_TELEGRAM_BOT_TOKEN: str = os.getenv("ALERT_TELEGRAM_BOT_TOKEN", "")
+ALERT_TELEGRAM_CHAT_ID: str = os.getenv("ALERT_TELEGRAM_CHAT_ID", "")
+ALERT_5XX_RATE: float = float(os.getenv("ALERT_5XX_RATE", "0.02"))
+ALERT_TOOL_ERROR_RATE: float = float(os.getenv("ALERT_TOOL_ERROR_RATE", "0.10"))
+ALERT_MIN_REQUESTS: int = int(os.getenv("ALERT_MIN_REQUESTS", "20"))
+ALERT_COOLDOWN_MIN: int = int(os.getenv("ALERT_COOLDOWN_MIN", "30"))
+ALERT_DAILY_COST_USD: float = float(os.getenv("ALERT_DAILY_COST_USD", "25"))
+ALERT_USER_DAILY_COST_USD: float = float(os.getenv("ALERT_USER_DAILY_COST_USD", "5"))
 DATA_FRESHNESS_MAX_AGE_DAYS: int = int(os.getenv("DATA_FRESHNESS_MAX_AGE_DAYS", "3"))
 
 # NOTE: DOWNLOADS_DIR is kept for backward compatibility but is no longer used

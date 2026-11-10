@@ -51,6 +51,11 @@ logger = logging.getLogger(__name__)
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import START, MessagesState, StateGraph
 
+try:
+    from agent.tool_resilience import invoke_tool
+except ImportError:  # CLI runs with agent/ on sys.path
+    from tool_resilience import invoke_tool
+
 # MCP tools — external MCP servers (arxiv, sequential-thinking, etc.)
 import mcp_integration
 from reliefweb_api import (
@@ -327,6 +332,9 @@ tools_by_name = {t.name: t for t in all_tools}
 # Map every tool name → its group label (e.g. "search_sitreps" → "ReliefWeb").
 # _tool_groups and _tool_labels are parallel lists; labels look like "17 ReliefWeb".
 TOOL_GROUP_MAP = {}
+# Map MCP tool name → MCP server key (arxiv / sequential_thinking / brave_search).
+# Native tools are absent; observability treats missing entries as "native".
+TOOL_SERVER_MAP: dict = {}
 for _grp, _lbl in zip(_tool_groups, _tool_labels, strict=False):
     _gname = _lbl.split(" ", 1)[1] if " " in _lbl else _lbl
     for _t in _grp:
@@ -367,39 +375,48 @@ def get_tools_for_mode(mode: str = "analyst", role: str = "free") -> list:
 
 # Background MCP tool loader — when MCP tools finish loading, add them to the agent
 def _register_mcp_tools_when_ready():
-    """Poll for MCP tools in background and register them when available.
-    Uses a threading.Event for synchronization instead of busy-waiting."""
+    """Wait for the MCP background init, then register its tools exactly once.
+
+    mcp_integration sets ``_mcp_ready_event`` in a ``finally`` block, so a
+    failed/slow init still releases this thread (previously the attribute did
+    not exist and the wait was silently skipped → MCP tools could be missing
+    for the whole process lifetime if the first npx/uvx download was slow).
+    """
     import time as _t
 
     _mcp_event = getattr(mcp_integration, "_mcp_ready_event", None)
-    if _mcp_event:
-        # Wait up to 5 minutes for the event
+    if _mcp_event is not None:
         _mcp_event.wait(timeout=300)
-
-    # Try up to 3 times with 10s gaps (instead of 60 × 5s = 300s busy-wait)
-    for _attempt in range(3):
-        if mcp_integration.MCP_TOOLS:
-            new_count = 0
-            for t in mcp_integration.MCP_TOOLS:
-                if t.name not in tools_by_name:
-                    tools_by_name[t.name] = t
-                    TOOL_GROUP_MAP[t.name] = "MCP"
-                    all_tools.append(t)
-                    new_count += 1
-                    logger.info("✓ MCP tool registered: %s", t.name)
-            if new_count > 0:
-                # Rebind tools to model (thread-safe via _LazyModel)
-                try:
-                    global model_with_tools
-                    with _model_lock:
-                        model_with_tools = _get_model().bind_tools(all_tools) if _get_model() else None
-                    logger.info("✓ Model re-bound with MCP tools (%d total tools)", len(all_tools))
-                except Exception as e:
-                    logger.warning("Failed to rebind MCP tools: %s", e)
-            break
-        _t.sleep(10)
     else:
-        logger.warning("MCP tools did not become ready after 3 attempts — running without MCP tools")
+        # Fallback for an older mcp_integration module without the event.
+        for _ in range(3):
+            if mcp_integration.MCP_TOOLS:
+                break
+            _t.sleep(10)
+
+    if not mcp_integration.MCP_TOOLS:
+        logger.info("MCP tools not available — agent runs without MCP tools")
+        return
+
+    server_map = getattr(mcp_integration, "MCP_TOOL_SERVERS", {})
+    new_count = 0
+    for t in mcp_integration.MCP_TOOLS:
+        if t.name not in tools_by_name:
+            tools_by_name[t.name] = t
+            TOOL_GROUP_MAP[t.name] = "MCP"
+            TOOL_SERVER_MAP[t.name] = server_map.get(t.name, "mcp")
+            all_tools.append(t)
+            new_count += 1
+            logger.info("✓ MCP tool registered: %s (%s)", t.name, TOOL_SERVER_MAP[t.name])
+    if new_count > 0:
+        # Rebind tools to model (thread-safe via _LazyModel)
+        try:
+            global model_with_tools
+            with _model_lock:
+                model_with_tools = _get_model().bind_tools(all_tools) if _get_model() else None
+            logger.info("✓ Model re-bound with MCP tools (%d total tools)", len(all_tools))
+        except Exception as e:
+            logger.warning("Failed to rebind MCP tools: %s", e)
 
 
 import threading as _threading2
@@ -877,7 +894,6 @@ def build_agent(
     agent_bp.py keeps working without changes.
     """
     from langgraph.graph import START, MessagesState, StateGraph
-    from langgraph.prebuilt import ToolNode
 
     user_tools = get_tools_for_mode(mode=mode, role=role)
     llm_with_tools = model.bind_tools(user_tools)
@@ -903,9 +919,29 @@ def build_agent(
                 )
         return {"messages": llm_with_tools.invoke(messages)}
 
+    tool_map = {t.name: t for t in user_tools}
+
+    def _tool_node(state: MessagesState):
+        results = []
+        for call in state["messages"][-1].tool_calls:
+            name = call.get("name", "")
+            fn = tool_map.get(name)
+            if fn is None:
+                results.append(
+                    ToolMessage(
+                        content=f"Error: Unknown tool '{name}'.",
+                        tool_call_id=call.get("id", ""),
+                        name=name,
+                    )
+                )
+                continue
+            observation = invoke_tool(fn, call.get("args") or {}, name)
+            results.append(ToolMessage(content=str(observation), tool_call_id=call.get("id", ""), name=name))
+        return {"messages": results}
+
     builder = StateGraph(MessagesState)
     builder.add_node("llm_call", _llm_call)
-    builder.add_node("tool_node", ToolNode(user_tools))
+    builder.add_node("tool_node", _tool_node)
     builder.add_edge(START, "llm_call")
     builder.add_conditional_edges(
         "llm_call",
@@ -957,15 +993,13 @@ def tool_node(state: MessagesState):
                     ToolMessage(
                         content=f"Error: Unknown tool '{tool_name}'. Available tools: {', '.join(tools_by_name.keys())}",
                         tool_call_id=tool_call["id"],
+                        name=tool_name,
                     )
                 )
                 continue
         tool_fn = tools_by_name[tool_name]
-        try:
-            observation = tool_fn.invoke(tool_call["args"])
-        except Exception as e:
-            observation = f"Error: {e}"
-        results.append(ToolMessage(content=str(observation), tool_call_id=tool_call["id"]))
+        observation = invoke_tool(tool_fn, tool_call.get("args") or {}, tool_name)
+        results.append(ToolMessage(content=str(observation), tool_call_id=tool_call["id"], name=tool_name))
     return {"messages": results}
 
 

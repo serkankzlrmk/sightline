@@ -14,6 +14,9 @@ import logging
 
 # ── Suppress ONNX / TensorRT log noise before any onnxruntime import ─────────
 import os
+import time
+import traceback
+import uuid
 from pathlib import Path
 
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
@@ -22,15 +25,17 @@ os.environ.setdefault("ORT_TENSORRT_ENGINE_CACHE_ENABLE", "0")
 os.environ.setdefault("ONNXRUNTIME_PROVIDERS", "CUDAExecutionProvider,CPUExecutionProvider")
 
 import urllib3
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from flask_compress import Compress
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.exceptions import HTTPException
 
 from config import (
     CORS_ORIGINS,
     LOG_LEVEL,
+    RELEASE_SHA,
     SECRET_KEY,
     SERVER_API_KEY,
     SERVER_DEBUG,
@@ -38,6 +43,7 @@ from config import (
     SERVER_PORT,
     SSL_VERIFY,
 )
+from observability import error_tracking
 
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -84,17 +90,98 @@ app = Flask(
 app.secret_key = SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit (PDF reports)
 
+
+@app.before_request
+def _request_context():
+    """Attach a correlation id + start time before any other middleware runs."""
+    g.request_id = uuid.uuid4().hex[:12]
+    g.request_start = time.time()
+
+
+@app.errorhandler(HTTPException)
+def _handle_http_exception(exc):
+    """JSON errors (with request_id) for API routes; default HTML otherwise."""
+    code = int(exc.code or 500)
+    request_id = getattr(g, "request_id", "")
+    if code >= 500:
+        user = getattr(g, "current_user", None) or {}
+        error_tracking.record_error(
+            kind="backend",
+            route=request.path,
+            method=request.method,
+            status=code,
+            request_id=request_id,
+            uid=str(user.get("uid") or ""),
+            exc_type=exc.__class__.__name__,
+            message=str(exc.description or exc),
+            stack=traceback.format_exc(),
+            release=RELEASE_SHA,
+            context={"endpoint": request.endpoint or ""},
+        )
+    if request.path.startswith("/api/"):
+        return (
+            jsonify(
+                {
+                    "error": exc.description or "HTTP error",
+                    "request_id": request_id,
+                    "code": f"ERR-{request_id[:8]}" if request_id else "",
+                }
+            ),
+            code,
+        )
+    return exc.get_response()
+
+
+@app.errorhandler(Exception)
+def _handle_uncaught_exception(exc):
+    """Catch-all: record, log, and return a safe response with a correlation id."""
+    if isinstance(exc, HTTPException):
+        return _handle_http_exception(exc)
+    request_id = getattr(g, "request_id", "")
+    user = getattr(g, "current_user", None) or {}
+    logger.exception("Unhandled exception on %s %s (request_id=%s)", request.method, request.path, request_id)
+    error_tracking.record_error(
+        kind="backend",
+        route=request.path,
+        method=request.method,
+        status=500,
+        request_id=request_id,
+        uid=str(user.get("uid") or ""),
+        exc_type=exc.__class__.__name__,
+        message=str(exc),
+        stack=traceback.format_exc(),
+        release=RELEASE_SHA,
+        context={"endpoint": request.endpoint or ""},
+    )
+    if request.path.startswith("/api/"):
+        return (
+            jsonify(
+                {
+                    "error": "Internal server error",
+                    "request_id": request_id,
+                    "code": f"ERR-{request_id[:8]}" if request_id else "",
+                }
+            ),
+            500,
+        )
+    return "Internal server error", 500
+
+
 # ── Register Blueprints ──────────────────────────────────────────────────────
 from blueprints.admin_bp import admin_bp
 from blueprints.agent_bp import agent_bp
 from blueprints.db_bp import db_bp
+from blueprints.error_bp import error_bp
 from blueprints.hdx_bp import hdx_bp
 from blueprints.ingest_bp import ingest_bp
 from blueprints.news_bp import news_bp
+from blueprints.obs_bp import obs_bp
 from blueprints.public_bp import public_bp
 from blueprints.sitrep import sitrep_bp
 
 app.register_blueprint(admin_bp)
+app.register_blueprint(obs_bp)
+app.register_blueprint(error_bp)
 app.register_blueprint(sitrep_bp)
 app.register_blueprint(agent_bp)
 app.register_blueprint(public_bp)
@@ -324,6 +411,9 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 @app.after_request
 def add_security_headers(response):
+    request_id = getattr(g, "request_id", "")
+    if request_id:
+        response.headers["X-Request-ID"] = request_id
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
     response.headers["Cross-Origin-Embedder-Policy"] = "unsafe-none"
     response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
@@ -365,6 +455,22 @@ def add_security_headers(response):
     # HSTS — only when behind HTTPS (nginx sets X-Forwarded-Proto)
     if request.headers.get("X-Forwarded-Proto", "") == "https" or request.is_secure:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Short public cache headers: cacheable at the edge/CDN without staling content.
+    if request.method == "GET" and response.status_code == 200:
+        path = request.path
+        if path.startswith(("/api/public/", "/api/map/", "/api/country/summaries")):
+            response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
+        elif path.startswith(
+            ("/crisis", "/countries", "/sitreps", "/bulletins", "/bulletin/", "/digest", "/deep-dive", "/solutions")
+        ):
+            response.headers.setdefault("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+    # Buffered request/error counters for SLO + alerting (never blocks the request).
+    try:
+        if not request.path.startswith(("/static/", "/proposal/static/")):
+            started = getattr(g, "request_start", time.time())
+            error_tracking.record_request(request.path, response.status_code, int((time.time() - started) * 1000))
+    except Exception:
+        pass
     return response
 
 
@@ -382,13 +488,17 @@ def _apply_api_rate_limit():
     path = request.path
     if not path.startswith("/api/"):
         return None
-    # Exempt: health (Docker healthcheck), stream (long-lived SSE), public endpoints
+    # Exempt: health (Docker healthcheck), stream (long-lived SSE), public endpoints,
+    # and admin (auth-gated; the observability dashboard polls several endpoints
+    # and would otherwise exhaust the per-IP 100/day API budget by itself).
     if (
         path == "/api/health"
         or path.startswith("/api/sitrep/stream")
         or path.startswith("/api/public/")
         or path.startswith("/api/map/")
         or path.startswith("/api/country/summaries")
+        or path.startswith("/api/admin/")
+        or path.startswith("/api/client-errors")
     ):
         return None
     ok, remaining = _check_api_rate_limit()

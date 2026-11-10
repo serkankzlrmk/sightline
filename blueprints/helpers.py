@@ -397,6 +397,13 @@ def init_chats_db():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def log_audit(uid: str, action: str, target: str = "", details: dict | None = None) -> None:
+    """Record an admin action in the events table (event='audit:<action>')."""
+    props = {"target": str(target or "")}
+    props.update(details or {})
+    log_event(uid, f"audit:{action}", props)
+
+
 def log_event(uid: str, event: str, props: dict = None, session: str = ""):
     """Log a user/system event to the local events table."""
     try:
@@ -926,6 +933,7 @@ _db_conn = db_conn
 _row_to_dict = row_to_dict
 _parse_countries = parse_countries
 _log_event = log_event
+_log_audit = log_audit
 _upsert_user = upsert_user
 _new_chat_id = new_chat_id
 _db_chat_exists = db_chat_exists

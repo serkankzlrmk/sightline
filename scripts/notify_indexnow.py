@@ -41,7 +41,7 @@ MIN_INTERVAL_SECONDS = 600  # avoid hammering the endpoint across cron runs
 
 def fetch_sitemap() -> list[tuple[str, str]]:
     """Return [(url, lastmod or '')] from the live sitemap."""
-    with urllib.request.urlopen(SITEMAP_URL, timeout=30) as resp:
+    with urllib.request.urlopen(SITEMAP_URL, timeout=30) as resp:  # noqa: S310
         body = resp.read()
     root = ET.fromstring(body)
     out: list[tuple[str, str]] = []
@@ -52,6 +52,7 @@ def fetch_sitemap() -> list[tuple[str, str]]:
             url = (url_el.text or "").strip()
             out.append((url, (mod_el.text or "").strip() if mod_el is not None else ""))
     return out
+
 
 def should_submit(url: str, lastmod: str, days: int | None) -> bool:
     if days is None:
@@ -90,11 +91,11 @@ def submit(urls: list[str]) -> tuple[int, str]:
         payload = json.dumps(
             {"host": urllib.parse.urlparse(SITE_URL).netloc, "key": INDEXNOW_KEY, "urlList": batch}
         ).encode()
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             ENDPOINT, data=payload, headers={"Content-Type": "application/json; charset=utf-8"}, method="POST"
         )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
                 code = resp.status
         except urllib.error.HTTPError as exc:
             errors.append(f"HTTP {exc.code} on batch {i // BATCH_SIZE + 1}")
@@ -147,7 +148,7 @@ def main() -> int:
 
 def _keyfile_reachable() -> bool:
     try:
-        with urllib.request.urlopen(f"{SITE_URL}/{INDEXNOW_KEY}.txt", timeout=15) as resp:
+        with urllib.request.urlopen(f"{SITE_URL}/{INDEXNOW_KEY}.txt", timeout=15) as resp:  # noqa: S310
             return resp.status == 200 and resp.read().decode().strip() == INDEXNOW_KEY
     except (urllib.error.URLError, OSError):
         return False

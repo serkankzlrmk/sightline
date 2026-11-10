@@ -18,6 +18,7 @@ from config import (
     BASE_DIR,
     CONTACT_EMAIL,
     DB_PATH,
+    RELEASE_SHA,
     SITE_URL,
 )
 from reliefweb_api.hdx_tools import get_hdx_client
@@ -77,6 +78,7 @@ def spa():
         contact_email=CONTACT_EMAIL,
         analytics_id=GOOGLE_ANALYTICS_ID,
         carto_api_key=CARTO_API_KEY,
+        release=RELEASE_SHA,
     )
 
 
@@ -127,7 +129,7 @@ def health():
     """
     from config import CHROMA_DIR
 
-    checks = {"status": "ok", "version": "1.3"}
+    checks = {"status": "ok", "version": "1.3", "release": RELEASE_SHA}
 
     # SQLite DB check
     db_ok = False

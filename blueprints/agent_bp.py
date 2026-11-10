@@ -8,12 +8,15 @@ from blueprints.helpers to avoid circular imports.
 
 import json
 import logging
+import threading
+import traceback
+import uuid
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 
 from agent.memory import gated_recall, maybe_consolidate, remember_turn
 from agent.pricing import compute_cost
-from agent.relief_agent import TOOL_GROUP_MAP
+from agent.relief_agent import TOOL_GROUP_MAP, TOOL_SERVER_MAP
 from auth import current_role, current_uid, require_admin, require_auth
 from blueprints.helpers import (
     _AGENT_BUSY_TIMEOUT,
@@ -42,6 +45,7 @@ from blueprints.helpers import (
 from config import (
     _LLM_API_KEY,
     _LLM_BASE_URL,
+    CHAT_MAX_CONCURRENT,
     CHAT_MODELS,
     CUSTOM_MODELS,
     LLM_PROVIDER,
@@ -50,10 +54,22 @@ from config import (
     OLLAMA_MODEL,
     OLLAMA_TIMEOUT,
 )
+from observability import (
+    answer_signals,
+    error_tracking,
+    feedback_for_turns,
+    record_chat_turn,
+    record_feedback,
+    turn_owner,
+)
 
 logger = logging.getLogger(__name__)
 
 agent_bp = Blueprint("agent", __name__, url_prefix="/api/agent")
+
+# Bounded concurrent chat streams: each SSE holds a gunicorn thread for the whole
+# answer, so saturation must be rejected with 503 instead of piling up threads.
+_chat_sem = threading.BoundedSemaphore(max(1, int(CHAT_MAX_CONCURRENT)))
 
 
 # ─── Chat list & management ──────────────────────────────────────────────────
@@ -126,7 +142,40 @@ def api_agent_chats_messages(chat_id):
     if not _db_chat_belongs_to(chat_id, uid):
         return jsonify({"error": "Chat not found"}), 404
     msgs = _db_get_messages(chat_id)
+    # Attach this user's 👍/👎 (keyed by turn_id) so the UI can show the vote state.
+    turn_ids = []
+    for m in msgs:
+        meta = m.get("meta") if isinstance(m.get("meta"), dict) else {}
+        if m.get("role") == "assistant" and meta.get("turn_id"):
+            turn_ids.append(meta["turn_id"])
+    feedback = feedback_for_turns(uid, turn_ids)
+    for m in msgs:
+        meta = m.get("meta") if isinstance(m.get("meta"), dict) else {}
+        m["feedback"] = feedback.get(meta.get("turn_id")) if meta.get("turn_id") else None
     return jsonify({"messages": msgs})
+
+
+@agent_bp.route("/feedback", methods=["POST"])
+@require_auth
+def api_agent_feedback():
+    """Record 👍/👎 for one assistant turn (one vote per user+turn, toggles update)."""
+    uid = current_uid()
+    data = request.get_json(silent=True) or {}
+    turn_id = str(data.get("turn_id") or "").strip()[:64]
+    try:
+        rating = int(data.get("rating"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "rating must be +1 or -1"}), 400
+    if not turn_id or rating not in (1, -1):
+        return jsonify({"error": "turn_id and rating (+1/-1) are required"}), 400
+    owner = turn_owner(turn_id)
+    if not owner or owner.get("uid") != uid:
+        return jsonify({"error": "Turn not found"}), 404
+    comment = str(data.get("comment") or "")[:500]
+    if not record_feedback(rating=rating, uid=uid, turn_id=turn_id, comment=comment):
+        return jsonify({"error": "Feedback could not be saved"}), 500
+    _log_event(uid, "chat_feedback", {"turn_id": turn_id, "rating": rating})
+    return jsonify({"ok": True, "turn_id": turn_id, "rating": rating})
 
 
 @agent_bp.route("/chats/<chat_id>/rename", methods=["POST"])
@@ -172,6 +221,7 @@ def api_agent_chat():
 
     uid = current_uid()
     role = current_role()
+    request_id = getattr(g, "request_id", "")
 
     data = request.get_json(silent=True) or {}
     user_message = (data.get("message") or "").strip()
@@ -206,6 +256,16 @@ def api_agent_chat():
     # Deep Think: sequential reasoning flag
     use_sequential = model_config.get("sequential", False)
 
+    # ── Global stream concurrency guard ──────────────────────────────────
+    # Reject instead of stacking long-lived SSE requests beyond capacity.
+    if not _chat_sem.acquire(timeout=5):
+        return jsonify(
+            {
+                "error": "The assistant is at capacity right now. Please retry shortly.",
+                "retry_after": 10,
+                "code": "ERR-capacity",
+            }
+        ), 503
     # ── Busy flag + rate limit (atomic) ───────────────────────────────────
     # Rate limit check + busy flag check must be atomic to prevent TOCTOU races
     # where two concurrent requests for the same user both pass the checks.
@@ -218,6 +278,7 @@ def api_agent_chat():
 
         if _user_agent_busy.get(uid, False):
             _log_event(uid, "rate_limit_hit", {"reason": "agent_busy"})
+            _chat_sem.release()
             return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
 
         # Atomic rate-limit check + increment in a single DB transaction
@@ -225,6 +286,7 @@ def api_agent_chat():
             rate = _check_and_increment_rate_limit(uid, role)
             if not rate["allowed"]:
                 _log_event(uid, "rate_limit_hit", {"reason": "daily_limit", "limit": rate["limit"]})
+                _chat_sem.release()
                 return jsonify(
                     {
                         "error": "Daily message limit reached",
@@ -246,11 +308,23 @@ def api_agent_chat():
         # If setup fails before generate() starts, free the busy flag
         with _user_agent_busy_lock:
             _user_agent_busy[uid] = False
+        _chat_sem.release()
         logger.exception("Agent chat pre-stream setup failed for uid=%s", uid)
         return jsonify({"error": "Failed to start chat session"}), 500
 
     def generate():
         # busy flag was already set under _user_agent_busy_lock before this generator starts
+        # ── Turn telemetry accumulators (must exist in `finally`, even on error) ──
+        turn_id = uuid.uuid4().hex
+        turn_wall_start = _time.time()
+        full_response = ""
+        tools_used = []  # [{tool, group, server, output, status, summary, duration_ms, result_chars}]
+        usage_in = 0
+        usage_out = 0
+        iterations = 0
+        latency_ms = 0
+        turn_status = "error"
+        turn_error = ""
         try:
             # Save user message to DB and load full history
             _db_add_message(chat_id, "user", user_message)
@@ -292,7 +366,7 @@ def api_agent_chat():
             else:
                 agent = _get_agent()
             full_response = ""
-            tools_used = []  # [{tool, output, status, summary, duration_ms}]
+            tools_used = []  # [{tool, output, status, summary, duration_ms, result_chars}]
             usage_in = 0
             usage_out = 0
             iterations = 0
@@ -355,7 +429,26 @@ def api_agent_chat():
                         raw = " ".join(str(x) for x in raw)
                     tool_output = str(raw)
                     status = "error" if tool_output.lower().startswith("error") else "ok"
+                    error_class = error_tracking.classify_tool_error(tool_output) if status == "error" else ""
                     summary = (tool_output.split(". ")[0] if ". " in tool_output else tool_output)[:120]
+                    if status == "error":
+                        error_tracking.record_error(
+                            kind="tool",
+                            route=f"/api/agent/tool/{tool_name}",
+                            method="TOOL",
+                            status=500,
+                            request_id=request_id,
+                            uid=uid,
+                            exc_type="ToolError",
+                            message=tool_output,
+                            stack="",
+                            context={
+                                "tool": tool_name,
+                                "group": TOOL_GROUP_MAP.get(tool_name, "Other"),
+                                "server": TOOL_SERVER_MAP.get(tool_name, "native"),
+                                "error_class": error_class,
+                            },
+                        )
                     duration_ms = 0
                     for i, (tn, ts) in enumerate(_tool_start_times):
                         if tn == tool_name:
@@ -366,13 +459,17 @@ def api_agent_chat():
                         {
                             "tool": tool_name,
                             "group": TOOL_GROUP_MAP.get(tool_name, "Other"),
+                            "server": TOOL_SERVER_MAP.get(tool_name, "native"),
                             "output": tool_output[:500],
+                            "result_chars": len(tool_output),
+                            "result_preview": tool_output[:1200],
                             "status": status,
+                            "error_class": error_class,
                             "summary": summary,
                             "duration_ms": duration_ms,
                         }
                     )
-                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'group': TOOL_GROUP_MAP.get(tool_name, 'Other'), 'output': tool_output[:500], 'status': status, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
+                    yield f"data: {json.dumps({'type': 'tool_done', 'name': tool_name, 'group': TOOL_GROUP_MAP.get(tool_name, 'Other'), 'server': TOOL_SERVER_MAP.get(tool_name, 'native'), 'output': tool_output[:500], 'status': status, 'summary': summary, 'duration_ms': duration_ms})}\n\n"
 
                 prev_node = node
 
@@ -385,13 +482,16 @@ def api_agent_chat():
                 g = t.get("group", "Other")
                 sources[g] = sources.get(g, 0) + 1
             turn_meta = {
+                "turn_id": turn_id,
                 "tools": [
                     {
                         "tool": t["tool"],
                         "group": t.get("group", "Other"),
+                        "server": t.get("server", "native"),
                         "status": t["status"],
                         "summary": t["summary"],
                         "duration_ms": t["duration_ms"],
+                        "result_chars": t.get("result_chars", 0),
                     }
                     for t in tools_used
                 ],
@@ -400,10 +500,12 @@ def api_agent_chat():
                 "cost": cost,
                 "iterations": iterations,
                 "latency_ms": latency_ms,
+                "total_ms": int((_time.time() - turn_wall_start) * 1000),
                 "model": model_config.get("name", model_key),
             }
 
             if full_response:
+                turn_status = "ok"
                 _db_add_message(chat_id, "assistant", full_response, meta=turn_meta)
 
                 # Persist this turn to cross-chat episodic memory (best-effort)
@@ -424,15 +526,83 @@ def api_agent_chat():
                 conn.close()
                 if row and row["title"] == "New Chat":
                     _generate_chat_title(chat_id, user_message, full_response)
+            else:
+                turn_status = "empty"
 
-            yield f"data: {json.dumps({'type': 'done', 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'status': t['status'], 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'model': model_config.get('name', model_key)})}\n\n"
+            signals = answer_signals(full_response)
+            total_ms = int((_time.time() - turn_wall_start) * 1000)
+            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer']})}\n\n"
 
+        except GeneratorExit:
+            turn_status = "cancelled"
+            turn_error = "client disconnected"
+            raise
         except Exception as e:
+            turn_status = "error"
+            turn_error = str(e)
             logger.exception("Agent chat error: %s", e)
-            yield f"data: {json.dumps({'type': 'error', 'text': 'An internal error occurred. Please try again.'})}\n\n"
+            error_tracking.record_error(
+                kind="llm",
+                route="/api/agent/chat",
+                method="POST",
+                status=500,
+                request_id=request_id,
+                uid=uid,
+                exc_type=type(e).__name__,
+                message=str(e),
+                stack=traceback.format_exc(),
+                context={"model": model_key, "mode": agent_mode},
+            )
+            code = f"ERR-{request_id[:8]}" if request_id else ""
+            yield f"data: {json.dumps({'type': 'error', 'text': 'An internal error occurred. Please try again.', 'code': code, 'request_id': request_id})}\n\n"
         finally:
+            # Persist turn telemetry — best-effort, never break the chat turn.
+            try:
+                record_chat_turn(
+                    {
+                        "turn_id": turn_id,
+                        "uid": uid,
+                        "chat_id": chat_id or "",
+                        "model_key": model_key,
+                        "model_id": model_config.get("model", ""),
+                        "mode": agent_mode,
+                        "started_at": turn_wall_start,
+                        "finished_at": _time.time(),
+                        "latency_ms": latency_ms,
+                        "total_ms": int((_time.time() - turn_wall_start) * 1000),
+                        "status": turn_status,
+                        "error": turn_error,
+                        "iterations": iterations,
+                        "tokens_in": usage_in,
+                        "tokens_out": usage_out,
+                        "cost": compute_cost(usage_in, usage_out, model_config.get("model", ""), LLM_PROVIDER),
+                        "groups": {
+                            g: sum(1 for t in tools_used if t.get("group", "Other") == g)
+                            for g in {t.get("group", "Other") for t in tools_used}
+                        },
+                        "answer": full_response,
+                        "meta": {"model": model_config.get("name", model_key), "mode": agent_mode},
+                    },
+                    tools=[
+                        {
+                            "tool": t.get("tool", ""),
+                            "group": t.get("group", "Other"),
+                            "server": t.get("server", "native"),
+                            "status": t.get("status", "ok"),
+                            "error_class": t.get("error_class", ""),
+                            "duration_ms": t.get("duration_ms", 0),
+                            "result_chars": t.get("result_chars", 0),
+                            "result_preview": t.get("result_preview", ""),
+                            "summary": t.get("summary", ""),
+                        }
+                        for t in tools_used
+                    ],
+                )
+            except Exception:
+                logger.debug("obs: turn record failed (non-fatal)", exc_info=True)
             with _user_agent_busy_lock:
                 _user_agent_busy[uid] = False
+            _chat_sem.release()
 
     return Response(
         generate(),

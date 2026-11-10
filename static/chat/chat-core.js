@@ -27,7 +27,7 @@ function getWelcomeHTML() {
 </div>`;
 }
 
-function addMsg(role, html) {
+function addMsg(role, html, opts) {
   // Ensure chat-center container exists inside chat-messages
   let center = chatDiv.querySelector('.chat-center');
   if (!center) {
@@ -43,11 +43,60 @@ function addMsg(role, html) {
     wrap.innerHTML = `
       <div class="msg-label">Sightline</div>
       <div class="msg-body">${html}</div>`;
+    if (opts && opts.turnId) {
+      attachChatFeedback(wrap, opts.turnId, opts.rating || 0);
+    }
   }
   center.appendChild(wrap);
   chatDiv.scrollTop = chatDiv.scrollHeight;
   return wrap.querySelector('.msg-body');
 }
+
+// ── 👍/👎 user satisfaction (one vote per turn, toggles update) ──────────────
+function attachChatFeedback(wrap, turnId, rating) {
+  if (!wrap || !turnId) return;
+  const old = wrap.querySelector('.msg-feedback');
+  if (old) old.remove();
+  const bar = document.createElement('div');
+  bar.className = 'msg-feedback';
+  bar.innerHTML = `
+    <button class="fb-btn" data-action="chat-feedback" data-turn-id="${esc(turnId)}" data-rating="1" title="Helpful" aria-label="Helpful">👍</button>
+    <button class="fb-btn" data-action="chat-feedback" data-turn-id="${esc(turnId)}" data-rating="-1" title="Not helpful" aria-label="Not helpful">👎</button>`;
+  wrap.appendChild(bar);
+  setChatFeedbackState(wrap, rating);
+}
+
+function setChatFeedbackState(wrap, rating) {
+  if (!wrap) return;
+  wrap.querySelectorAll('.fb-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.rating) === Number(rating));
+  });
+}
+
+async function submitChatFeedback(btn) {
+  if (!btn) return;
+  const turnId = btn.dataset.turnId;
+  const rating = Number(btn.dataset.rating);
+  const wrap = btn.closest('.msg');
+  if (!turnId || (rating !== 1 && rating !== -1)) return;
+  try {
+    const resp = await api('/api/agent/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turn_id: turnId, rating }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      toast(err.error || 'Feedback could not be saved', 'error');
+      return;
+    }
+    setChatFeedbackState(wrap, rating);
+    toast(rating > 0 ? 'Thanks — marked as helpful' : 'Thanks — feedback saved', 'success', 2000);
+  } catch {
+    toast('Feedback could not be saved', 'error');
+  }
+}
+window.submitChatFeedback = submitChatFeedback;
 
 function addToolInd(name) {
   let center = chatDiv.querySelector('.chat-center');
@@ -246,7 +295,8 @@ async function sendMessage() {
           finalizeToolInd(evt.name, evt);
           finalizeObsStep(evt.name, evt);
         } else if (evt.type === 'error') {
-          chatState.currentAiEl.innerHTML = `<span class="msg-error">Error: ${esc(evt.text)}</span>`;
+          const errCode = evt.code ? ` (${esc(evt.code)})` : '';
+          chatState.currentAiEl.innerHTML = `<span class="msg-error">Error: ${esc(evt.text)}${errCode}</span>`;
           clearToolInds();
           obsTraceError(evt.text);
         } else if (evt.type === 'done') {
@@ -255,6 +305,10 @@ async function sendMessage() {
           if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '<span class="msg-placeholder">—</span>';
           const footer = renderTeleFooter(evt);
           if (footer) chatState.currentAiEl.insertAdjacentHTML('beforeend', footer);
+          // 👍/👎 on the just-finished answer (turn_id comes from the SSE done event)
+          if (evt.turn_id && chatState.currentAiEl) {
+            attachChatFeedback(chatState.currentAiEl.closest('.msg'), evt.turn_id, 0);
+          }
           renderObsFooter(evt);
           refreshObsTotals();
           if (typeof checkAdminStatus === 'function') checkAdminStatus();

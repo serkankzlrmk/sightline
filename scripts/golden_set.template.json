@@ -1,0 +1,19 @@
+[
+  {
+    "_comment": "TEMPLATE — replace every field with real labels. Run scripts/eval_retrieval.py --curate '<question>' --country 'Turkiye' to get real candidate report ids, then keep ONLY the ones a human confirms are genuinely relevant. Delete _comment keys before evaluating.",
+    "query": "How many people were displaced in the Turkiye earthquakes?",
+    "relevant": ["GW-0000-000001"],
+    "country": "Turkiye"
+  },
+  {
+    "query": "What assistance has been provided to Sudanese refugees?",
+    "relevant": ["GW-0000-000002", "GW-0000-000003"],
+    "country": "Sudan"
+  },
+  {
+    "query": "What is the current cholera situation in Yemen?",
+    "relevant": [],
+    "country": "Yemen",
+    "_comment": "deliberate unanswerable-style entry IF the corpus truly lacks relevant reports — use sparingly and honestly: an empty 'relevant' with no matching report will score 0 for every metric and requires recording why"
+  }
+]

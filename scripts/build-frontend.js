@@ -29,6 +29,7 @@ const DIST = join(SRC, 'dist');
 // app.js last (init + event delegation). proposal.js stays separate.
 const APP_BUNDLE = [
   'shared.js',
+  'error-reporter.js',
   'chat/chat-core.js',
   'chat/chat-obs.js',
   'chat/chat-list.js',

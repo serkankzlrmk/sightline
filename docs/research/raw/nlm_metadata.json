@@ -1,0 +1,586 @@
+{
+  "id": "6a35d852-3be2-4b6e-82b9-963d3cf3dc64",
+  "title": "Document Chunking and Semantic Retrieval Optimization",
+  "created_at": "2026-11-09T12:35:54+00:00",
+  "last_viewed_at": "2026-11-10T05:40:29+00:00",
+  "modified_at": "2026-11-10T05:40:29+00:00",
+  "is_owner": true,
+  "role": "owner",
+  "sources": [
+    {
+      "type": "web_page",
+      "title": "(PDF) G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment - ResearchGate",
+      "url": "https://www.researchgate.net/publication/369624117_GPTEval_NLG_Evaluation_using_GPT-4_with_Better_Human_Alignment"
+    },
+    {
+      "type": "web_page",
+      "title": "1 Introduction - arXiv",
+      "url": "https://arxiv.org/html/2608.00452v1"
+    },
+    {
+      "type": "web_page",
+      "title": "A Systematic Investigation of Document Chunking Strategies and Embedding Sensitivity",
+      "url": "https://arxiv.org/html/2603.06976v1"
+    },
+    {
+      "type": "web_page",
+      "title": "AI Observability metrics reference - Dynatrace Documentation",
+      "url": "https://docs.dynatrace.com/docs/observe/dynatrace-for-ai-observability/metrics-reference"
+    },
+    {
+      "type": "web_page",
+      "title": "Advanced RAG Chunking 2026: Late, Semantic, Parent-Child - Future AGI",
+      "url": "https://futureagi.com/blog/advanced-chunking-techniques-for-rag/"
+    },
+    {
+      "type": "markdown",
+      "title": "Architectural Foundations of Stateful Agentic Systems: Orchestration, Schema Validation, and Security Engineering",
+      "url": null
+    },
+    {
+      "type": "web_page",
+      "title": "Article: hybrid search bm25 dense vectors reciprocal rank fusion - XOFlux",
+      "url": "https://xoflux.com/blog/hybrid-search-bm25-dense-vectors-reciprocal-rank-fusion"
+    },
+    {
+      "type": "web_page",
+      "title": "BGE Reranker v2 vs Cohere Rerank 3 vs Qwen3 Reranker on M5 Max: Latency, Recall, and Cost for Local RAG (June 2026) - Contra Collective",
+      "url": "https://contracollective.com/blog/bge-reranker-v2-vs-cohere-rerank-3-vs-qwen3-reranker-m5-max-mlx-2026"
+    },
+    {
+      "type": "web_page",
+      "title": "Best Platforms for Stateful AI Agents in 2026: Ranked and Compared - Cognee",
+      "url": "https://www.cognee.ai/stateful-ai-agents-platforms"
+    },
+    {
+      "type": "web_page",
+      "title": "Best Rerankers for RAG in 2026: 7 Models Compared - Future AGI",
+      "url": "https://futureagi.com/blog/best-rerankers-for-rag-2026/"
+    },
+    {
+      "type": "web_page",
+      "title": "Best reranker in 2026: Qwen3, bge, mxbai, Jina, GTE and the hosted APIs compared",
+      "url": "https://reranker.uk/guides/compare-rerankers"
+    },
+    {
+      "type": "web_page",
+      "title": "Choosing an agent framework: LangChain vs LangGraph vs CrewAI vs PydanticAI vs Mastra vs Vercel AI SDK - Speakeasy",
+      "url": "https://www.speakeasy.com/blog/ai-agent-framework-comparison"
+    },
+    {
+      "type": "web_page",
+      "title": "Chunking Strategies for RAG: Fixed, Semantic, Recursive, and Parent-Document",
+      "url": "https://sureprompts.com/blog/chunking-strategies-for-rag"
+    },
+    {
+      "type": "web_page",
+      "title": "Chunking Strategies for RAG: Methods, Trade-offs & Best Practices - Atlan",
+      "url": "https://atlan.com/know/chunking-strategies-rag/"
+    },
+    {
+      "type": "web_page",
+      "title": "Chunking Strategies in RAG Comparison: Alternatives, Trade‑offs, and Examples",
+      "url": "https://www.glukhov.org/rag/retrieval/chunking-strategies-in-rag/"
+    },
+    {
+      "type": "web_page",
+      "title": "Cohere Rerank v3.5 vs BGE Reranker v2-m3 — compare AI models side by side | Opper AI",
+      "url": "https://opper.ai/compare/cohere/rerank-v3-5/baai/bge-reranker-v2-m3"
+    },
+    {
+      "type": "web_page",
+      "title": "Context Pruning: Cut LLM Tokens Without Losing Quality - Redis",
+      "url": "https://redis.io/blog/context-pruning-llm-tokens/"
+    },
+    {
+      "type": "web_page",
+      "title": "CrewAI Alternatives: 8 Agent Frameworks for Production Workflows - ZenML Blog",
+      "url": "https://www.zenml.io/blog/crewai-alternatives"
+    },
+    {
+      "type": "web_page",
+      "title": "Design Patterns for Securing LLM Agents Against Prompt Injection: What Every Pattern Leaves Open - ARMO Platform",
+      "url": "https://www.armosec.io/blog/design-patterns-for-securing-llm-agents/"
+    },
+    {
+      "type": "web_page",
+      "title": "Diverse And Private Synthetic Datasets Generation for RAG evaluation: A multi-agent framework - arXiv",
+      "url": "https://arxiv.org/html/2508.18929v1"
+    },
+    {
+      "type": "markdown",
+      "title": "Efficient Inference, Serving, and Local Runtimes: A Systematic Analysis of Quantization Mechanics, Engine Architecture, and Hybrid Serving Topologies",
+      "url": null
+    },
+    {
+      "type": "web_page",
+      "title": "Evaluating RAG systems with synthetic data and LLM judge - Modulai",
+      "url": "https://modulai.io/blog/evaluating-rag-systems-with-synthetic-data-and-llm-judge"
+    },
+    {
+      "type": "pdf",
+      "title": "Executive Briefing: Production AI Agent Architectures & Engineering Patterns - Leanpub",
+      "url": "https://leanpub.com/masteringaiagentshands-onproductioncode/sample.pdf"
+    },
+    {
+      "type": "web_page",
+      "title": "From Spark to Fire: Modeling and Mitigating Error Cascades in LLM-Based Multi-Agent Collaboration - arXiv",
+      "url": "https://arxiv.org/html/2603.04474v2"
+    },
+    {
+      "type": "pdf",
+      "title": "G-EVAL: NLG Evaluation using GPT-4 with Better Human Alignment - ACL Anthology",
+      "url": "https://aclanthology.org/2023.emnlp-main.153.pdf"
+    },
+    {
+      "type": "web_page",
+      "title": "G-Eval - NLG Evaluation using GPT-4 with Better Human Alignment - Shubhashis Roy Dipta",
+      "url": "https://roydipta.com/notes/papers/g-eval-nlg-evaluation-using-gpt-4-with-better-human-alignment/"
+    },
+    {
+      "type": "web_page",
+      "title": "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment - Hugging Face",
+      "url": "https://huggingface.co/papers/2303.16634"
+    },
+    {
+      "type": "web_page",
+      "title": "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment - Microsoft Research",
+      "url": "https://www.microsoft.com/en-us/research/publication/gpteval-nlg-evaluation-using-gpt-4-with-better-human-alignment/"
+    },
+    {
+      "type": "web_page",
+      "title": "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment - Semantic Scholar",
+      "url": "https://www.semanticscholar.org/paper/G-Eval%3A-NLG-Evaluation-using-GPT-4-with-Better-Liu-Iter/381ab7a640f5b46b62f7e08d1af4a8e0d3eadd55"
+    },
+    {
+      "type": "web_page",
+      "title": "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment | alphaXiv",
+      "url": "https://www.alphaxiv.org/abs/2303.16634"
+    },
+    {
+      "type": "web_page",
+      "title": "G-Eval: NLG Evaluation using Gpt-4 with Better Human Alignment - ACL Anthology",
+      "url": "https://aclanthology.org/2023.emnlp-main.153/"
+    },
+    {
+      "type": "web_page",
+      "title": "GGUF vs GPTQ vs AWQ: a format, two algorithms, one problem - LeCompute",
+      "url": "https://lecompute.fr/en/runtimes/gguf-vs-gptq-vs-awq/"
+    },
+    {
+      "type": "web_page",
+      "title": "H-RAG at SemEval-2026 Task 8: Hierarchical Parent–Child Retrieval for Multi-Turn RAG Conversations - arXiv",
+      "url": "https://arxiv.org/html/2605.00631v1"
+    },
+    {
+      "type": "web_page",
+      "title": "Human-in-the-Loop Approval Agent with LangGraph - GitHub",
+      "url": "https://github.com/NirDiamant/GenAI_Agents/blob/main/all_agents_tutorials/human_in_the_loop_approval_agent.ipynb"
+    },
+    {
+      "type": "web_page",
+      "title": "Human-in-the-loop - Docs by LangChain",
+      "url": "https://docs.langchain.com/oss/python/langchain/human-in-the-loop"
+    },
+    {
+      "type": "web_page",
+      "title": "Hybrid Search for RAG: Combining BM25 and Dense Vector Search (2026 Guide)",
+      "url": "https://denser.ai/blog/hybrid-search-for-rag/"
+    },
+    {
+      "type": "web_page",
+      "title": "Hybrid Search in PostgreSQL: BM25, Sparse Vectors, and Reciprocal Rank Fusion",
+      "url": "https://www.pgedge.com/blog/hybrid-search-in-postgresql-bm25-sparse-vectors-and-reciprocal-rank-fusion"
+    },
+    {
+      "type": "web_page",
+      "title": "Hybrid Search: BM25 and Dense Retrieval Combined - Interactive - Michael Brenndoerfer",
+      "url": "https://mbrenndoerfer.com/writing/hybrid-search-bm25-dense-retrieval-fusion"
+    },
+    {
+      "type": "web_page",
+      "title": "Inside the LLM Call: GenAI Observability with OpenTelemetry",
+      "url": "https://opentelemetry.io/blog/2026/genai-observability/"
+    },
+    {
+      "type": "web_page",
+      "title": "Interrupts - Docs by LangChain",
+      "url": "https://docs.langchain.com/oss/python/langgraph/interrupts"
+    },
+    {
+      "type": "web_page",
+      "title": "Jev as a Reranker: BEIR Benchmarks vs Cohere, Voyage & Jina - hev mind",
+      "url": "https://hevmind.com/writing/jev-as-a-reranker/"
+    },
+    {
+      "type": "web_page",
+      "title": "Judging the Judges: A Systematic Study of Position Bias in LLM-as-a-Judge - arXiv",
+      "url": "https://arxiv.org/html/2406.07791v9"
+    },
+    {
+      "type": "web_page",
+      "title": "LLM Firewall Using Validator Agent for Prevention Against Prompt Injection Attacks - MDPI",
+      "url": "https://www.mdpi.com/2076-3417/16/1/85"
+    },
+    {
+      "type": "web_page",
+      "title": "LLM Observability with OpenTelemetry GenAI Conventions - NexGen QA",
+      "url": "https://qa-automation.com/blog/llm-observability-opentelemetry"
+    },
+    {
+      "type": "youtube",
+      "title": "LLM Quantization Explained: GPTQ, AWQ, QLoRA, GGUF and More",
+      "url": "https://www.youtube.com/watch?v=WmvZwR4rKJg"
+    },
+    {
+      "type": "web_page",
+      "title": "LLM Quantization Explained: INT4, INT8, FP8, AWQ, and GPTQ in 2026 - VRLA Tech",
+      "url": "https://vrlatech.com/llm-quantization-explained-int4-int8-fp8-awq-and-gptq-in-2026/"
+    },
+    {
+      "type": "web_page",
+      "title": "LLM Quantization Methods: GPTQ, AWQ, GGUF - Cast AI",
+      "url": "https://cast.ai/blog/demystifying-quantizations-llms/"
+    },
+    {
+      "type": "web_page",
+      "title": "LLMLingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression",
+      "url": "https://arxiv.org/html/2403.12968v2"
+    },
+    {
+      "type": "web_page",
+      "title": "LangGraph Basics: Part 6 — Subgraphs & Human-in-the-Loop",
+      "url": "https://shafiqulai.github.io/blogs/blog_13.html"
+    },
+    {
+      "type": "web_page",
+      "title": "LangGraph: Stateful multi-agent systems - DataNorth AI",
+      "url": "https://datanorth.ai/blog/langgraph-stateful-multi-agent-systems"
+    },
+    {
+      "type": "pdf",
+      "title": "OWASP Top 10 for LLM Applications 2025",
+      "url": "https://owasp.github.io/www-project-top-10-for-large-language-model-applications/assets/PDF/OWASP-Top-10-for-LLMs-v2025.pdf"
+    },
+    {
+      "type": "web_page",
+      "title": "OpenTelemetry GenAI Semantic Conventions - Agentic AI Knowledge Base - Read the Docs",
+      "url": "https://agentic-ai.readthedocs.io/en/latest/Observability/otel-genai-conventions/"
+    },
+    {
+      "type": "web_page",
+      "title": "OpenTelemetry GenAI Semantic Conventions: A Practical Guide - OpenObserve",
+      "url": "https://openobserve.ai/blog/opentelemetry-genai-semantic-conventions/"
+    },
+    {
+      "type": "web_page",
+      "title": "OpenTelemetry GenAI: Monitor LLM Costs, Hallucinations & Latency | CodeWithYoha",
+      "url": "https://codewithyoha.com/blogs/opentelemetry-genai-monitor-llm-costs-hallucinations-latency"
+    },
+    {
+      "type": "web_page",
+      "title": "OpenTelemetry LLM Metrics Taxonomy: GenAI Names and Status | TestMu AI",
+      "url": "https://www.testmuai.com/learning-hub/opentelemetry-llm-metrics-taxonomy/"
+    },
+    {
+      "type": "web_page",
+      "title": "Optimization and Tuning - vLLM docs",
+      "url": "https://docs.vllm.ai/en/stable/configuration/optimization/"
+    },
+    {
+      "type": "web_page",
+      "title": "Optimizing RAG Retrieval: How to Select the Right Reranking Model | Splunk",
+      "url": "https://www.splunk.com/en_us/blog/artificial-intelligence/reranker-models.html"
+    },
+    {
+      "type": "pdf",
+      "title": "PROMETHEUS 2: An Open Source Language Model Specialized in Evaluating Other Language Models - arXiv",
+      "url": "https://arxiv.org/pdf/2405.01535"
+    },
+    {
+      "type": "web_page",
+      "title": "Post Training Quantization of Large Language Models with Microscaling Formats - arXiv",
+      "url": "https://arxiv.org/html/2405.07135v2"
+    },
+    {
+      "type": "web_page",
+      "title": "Practical Pydantic error-handling guide: turn ValidationError into usable, safe API errors",
+      "url": "https://tomodahinata.com/en/blog/pydantic-validation-error-handling-custom-messages-api-guide"
+    },
+    {
+      "type": "web_page",
+      "title": "Prometheus 2 - Distilabel Docs",
+      "url": "http://distilabel.argilla.io/1.4.2/sections/pipeline_samples/papers/prometheus/"
+    },
+    {
+      "type": "web_page",
+      "title": "Prometheus 2: An Open Source Language Model Specialized in Evaluating Other ... - ACL Anthology",
+      "url": "https://aclanthology.org/2024.emnlp-main.248/"
+    },
+    {
+      "type": "web_page",
+      "title": "Prometheus 2: An Open Source Language Model Specialized in Evaluating Other Language Models - ChapterPal",
+      "url": "https://www.chapterpal.com/s/bv1t4pw5/prometheus-2-an-open-source-language-model-specialized-in-evaluating-other-language-models"
+    },
+    {
+      "type": "web_page",
+      "title": "Prometheus 2: An Open Source Language Model Specialized in Evaluating Other Language Models - arXiv",
+      "url": "https://arxiv.org/html/2405.01535v2"
+    },
+    {
+      "type": "web_page",
+      "title": "Prometheus: Inducing Fine-Grained Evaluation Capability in Language Models",
+      "url": "https://openreview.net/forum?id=8euJaTveKw"
+    },
+    {
+      "type": "web_page",
+      "title": "Prompt Compression: Cut Token Costs Without Losing Quality - NeuralTrust AI",
+      "url": "https://neuraltrust.ai/blog/prompt-compression-guide"
+    },
+    {
+      "type": "web_page",
+      "title": "Prompt Compression: Fewer Tokens, Lower Cost - Ultralytics",
+      "url": "https://www.ultralytics.com/glossary/prompt-compression"
+    },
+    {
+      "type": "web_page",
+      "title": "Prompt Injection in AI Agents: Types, Incidents, Defenses | QueryNow®",
+      "url": "https://www.querynow.com/ai-agents/security/prompt-injection"
+    },
+    {
+      "type": "web_page",
+      "title": "PydanticAI - Detect Loop Vulnerabilities & Tool Risks - Inkog Docs",
+      "url": "https://docs.inkog.io/frameworks/pydantic-ai"
+    },
+    {
+      "type": "web_page",
+      "title": "PydanticAI Tutorial — Type-Safe AI Agents the FastAPI Way - jangwook.net",
+      "url": "https://jangwook.net/en/blog/en/pydantic-ai-type-safe-agent-tutorial-2026/"
+    },
+    {
+      "type": "markdown",
+      "title": "Quantitative Evaluation Frameworks, LLM-as-a-Judge De-biasing, and OpenTelemetry Observability in Enterprise LLM Architecture",
+      "url": null
+    },
+    {
+      "type": "web_page",
+      "title": "Quantization for Inference: GPTQ, AWQ, SmoothQuant, and FP8 - General Compute",
+      "url": "https://www.generalcompute.com/blog/quantization-for-inference-gptq-awq-smoothquant-fp8"
+    },
+    {
+      "type": "web_page",
+      "title": "Query-Adaptive Semantic Chunking for Retrieval-Augmented Generation: A Dynamic Strategy with Contextual Window Expansion - ResearchGate",
+      "url": "https://www.researchgate.net/publication/405221840_Query-Adaptive_Semantic_Chunking_for_Retrieval-Augmented_Generation_A_Dynamic_Strategy_with_Contextual_Window_Expansion"
+    },
+    {
+      "type": "web_page",
+      "title": "RAG Reranker Benchmark: Cohere Rerank vs BGE vs Jina vs ColBERT (2026)",
+      "url": "https://iotdigitaltwinplm.com/rag-reranker-benchmark-cohere-bge-jina-colbert-2026/"
+    },
+    {
+      "type": "web_page",
+      "title": "RAGAS: A Comprehensive Framework for RAG Evaluation and Synthetic Data Generation - GitHub Gist",
+      "url": "https://gist.github.com/donbr/1a1281f647419aaacb8673223b69569c"
+    },
+    {
+      "type": "web_page",
+      "title": "RAGAS: Automated Evaluation of Retrieval Augmented Generation - Hugging Face",
+      "url": "https://huggingface.co/papers/2309.15217"
+    },
+    {
+      "type": "web_page",
+      "title": "Reciprocal Rank Fusion (RRF): How It Works and When to Use It - BigData Boutique",
+      "url": "https://bigdataboutique.com/blog/reciprocal-rank-fusion-how-it-works-and-when-to-use-it"
+    },
+    {
+      "type": "web_page",
+      "title": "Reciprocal Rank Fusion: How Hybrid Search Really Works - Redis",
+      "url": "https://redis.io/blog/reciprocal-rank-fusion/"
+    },
+    {
+      "type": "web_page",
+      "title": "Reciprocal rank fusion | OpenSearch Documentation",
+      "url": "https://docs.opensearch.org/latest/vector-search/ai-search/hybrid-search/rrf/"
+    },
+    {
+      "type": "web_page",
+      "title": "Reranker Benchmark: Top 8 Models Compared - AIMultiple",
+      "url": "https://aimultiple.com/rerankers"
+    },
+    {
+      "type": "web_page",
+      "title": "Reranker for RAG: Cohere, BGE, Jina, Voyage Compared - Anas Rabhi",
+      "url": "https://ianas.fr/en/blog/2026/06/07/reranker-comparatif-cohere-bge-jina-voyage/"
+    },
+    {
+      "type": "markdown",
+      "title": "Robust Retrieval and Context Architecture: Advanced Segmentation, Multi-Modal Fusion, and Token Optimization in Enterprise RAG",
+      "url": null
+    },
+    {
+      "type": "web_page",
+      "title": "SGLang vs vLLM vs TensorRT-LLM: Choosing an Inference Engine - TrueFoundry",
+      "url": "https://www.truefoundry.com/blog/sglang-vs-vllm-vs-tensorrt-llm"
+    },
+    {
+      "type": "web_page",
+      "title": "Schema Validation for LLM Output: Zod & Pydantic | AI/TLDR",
+      "url": "https://ai-tldr.dev/learn/production-llmops/guardrails-reliability/llm-output-schema-validation/"
+    },
+    {
+      "type": "web_page",
+      "title": "Synthetic Test Data generation - Ragas",
+      "url": "https://docs.ragas.io/en/v0.1.21/concepts/testset_generation.html"
+    },
+    {
+      "type": "web_page",
+      "title": "The Big Picture · LangGraph Field Guide · Doc Holiday Library",
+      "url": "https://doc.holiday/library/langgraph/the-big-picture/"
+    },
+    {
+      "type": "web_page",
+      "title": "The Definitive Architecture Guide to the OWASP Agentic AI Top 10 - Penligent",
+      "url": "https://www.penligent.ai/hackinglabs/the-definitive-architecture-guide-to-the-owasp-agentic-ai-top-10/"
+    },
+    {
+      "type": "web_page",
+      "title": "TopoChunker: Topology-Aware Agentic Document Chunking Framework - arXiv",
+      "url": "https://arxiv.org/html/2603.18409v2"
+    },
+    {
+      "type": "web_page",
+      "title": "What is vLLM? Continuous batching and PagedAttention explained - By Dr Pranay Jha",
+      "url": "https://drpranayjha.com/what-is-vllm/"
+    },
+    {
+      "type": "web_page",
+      "title": "[2307.03172] Lost in the Middle: How Language Models Use Long Contexts - arXiv",
+      "url": "https://arxiv.org/abs/2307.03172"
+    },
+    {
+      "type": "web_page",
+      "title": "[2403.12968] LLMLingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression - arXiv",
+      "url": "https://arxiv.org/abs/2403.12968"
+    },
+    {
+      "type": "web_page",
+      "title": "[2605.15152] Widening the Gap: Exploiting LLM Quantization via Outlier Injection - arXiv",
+      "url": "https://arxiv.org/abs/2605.15152"
+    },
+    {
+      "type": "pdf",
+      "title": "arXiv:2403.02310v3 [cs.LG] 17 Jun 2024",
+      "url": "https://arxiv.org/pdf/2403.02310"
+    },
+    {
+      "type": "web_page",
+      "title": "https://luxananda.medium.com/enterprise-scale-agentic-systems-illustrated-part-1-3-using-langgraph-the-need-for-execution-d80577c24c24",
+      "url": "https://luxananda.medium.com/enterprise-scale-agentic-systems-illustrated-part-1-3-using-langgraph-the-need-for-execution-d80577c24c24"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@Nexumo_/10-vector-db-rerankers-quality-vs-latency-c747611f4c96",
+      "url": "https://medium.com/@Nexumo_/10-vector-db-rerankers-quality-vs-latency-c747611f4c96"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@aayushipatel135/evaluating-rag-systems-ragas-faithfulness-relevance-and-recall-metrics-2dc02ae4be36",
+      "url": "https://medium.com/@aayushipatel135/evaluating-rag-systems-ragas-faithfulness-relevance-and-recall-metrics-2dc02ae4be36"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@kuldeep.paul08/prompt-compression-techniques-reducing-context-window-costs-while-improving-llm-performance-afec1e8f1003",
+      "url": "https://medium.com/@kuldeep.paul08/prompt-compression-techniques-reducing-context-window-costs-while-improving-llm-performance-afec1e8f1003"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@nayankunwar678/human-in-the-loop-in-langgraph-a-small-practical-example-0e3f455e7d8b",
+      "url": "https://medium.com/@nayankunwar678/human-in-the-loop-in-langgraph-a-small-practical-example-0e3f455e7d8b"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@noumannawaz/lesson-8-hybrid-retrieval-bm25-dense-bac3c702318b",
+      "url": "https://medium.com/@noumannawaz/lesson-8-hybrid-retrieval-bm25-dense-bac3c702318b"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@seahorse.technologies.sl/parent-child-chunking-in-langchain-for-advanced-rag-e7c37171995a",
+      "url": "https://medium.com/@seahorse.technologies.sl/parent-child-chunking-in-langchain-for-advanced-rag-e7c37171995a"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@simoncalabrese94/pydanticai-temporal-codeact-c7c5fadb1a99",
+      "url": "https://medium.com/@simoncalabrese94/pydanticai-temporal-codeact-c7c5fadb1a99"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@vamsi.lakshman/speed-precision-and-late-interaction-a-deep-dive-into-bi-encoders-cross-encoders-and-colbert-7d090f55700b",
+      "url": "https://medium.com/@vamsi.lakshman/speed-precision-and-late-interaction-a-deep-dive-into-bi-encoders-cross-encoders-and-colbert-7d090f55700b"
+    },
+    {
+      "type": "web_page",
+      "title": "https://medium.com/@zolgeorgeai/ragas-for-rag-evaluation-our-approach-to-synthetic-test-data-and-automated-benchmarking-854658a30f9f",
+      "url": "https://medium.com/@zolgeorgeai/ragas-for-rag-evaluation-our-approach-to-synthetic-test-data-and-automated-benchmarking-854658a30f9f"
+    },
+    {
+      "type": "web_page",
+      "title": "https://www.agentnative.dev/compare/eagle-vs-medusa-vs-draft-models-for-speculative-decoding",
+      "url": "https://www.agentnative.dev/compare/eagle-vs-medusa-vs-draft-models-for-speculative-decoding"
+    },
+    {
+      "type": "web_page",
+      "title": "https://www.scribd.com/document/1068754641/LangChain-LangGraph-Tutorial",
+      "url": "https://www.scribd.com/document/1068754641/LangChain-LangGraph-Tutorial"
+    },
+    {
+      "type": "web_page",
+      "title": "semantic-conventions-genai/docs/gen-ai/gen-ai-metrics.md at main - GitHub",
+      "url": "https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-metrics.md"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM Explained: PagedAttention and Continuous Batching - Runpod",
+      "url": "https://www.runpod.io/articles/guides/vllm-pagedattention-continuous-batching"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM Explained: Why LLM Inference Is a Memory and Scheduling Problem | Ylang Labs",
+      "url": "https://ylanglabs.com/blogs/vllm-inference-engine-explained"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM Serving Internals: PagedAttention, Continuous Batching, Chunked Prefill - Cadre",
+      "url": "https://cadre.lorgarithm.com/learn/17-infrastructure-and-production/04-vllm-serving-internals"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM vs SGLang vs TensorRT-LLM 2026: Inference Engine Comparison | mlai.qa",
+      "url": "https://mlai.qa/blog/vllm-vs-sglang-vs-tensorrt-llm/"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM vs SGLang vs TensorRT-LLM in 2026: LLM inference engine benchmark deep-dive",
+      "url": "https://niteagent.com/blog/vllm-vs-sglang-vs-tensorrt-llm-2026/"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM vs SGLang vs TensorRT-LLM: Production Inference Engine Guide - NeuralChainAI",
+      "url": "https://neuralchainai.com/blog/vllm-vs-sglang-vs-tensorrt-llm-inference-engine-guide/"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM vs TensorRT-LLM vs SGLang (2026): Which to Pick - decodethefuture",
+      "url": "https://decodethefuture.org/en/vllm-vs-tensorrt-llm-vs-sglang-2026/"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM vs TensorRT-LLM vs SGLang: H100 Benchmarks 2026 - Cloud AI",
+      "url": "https://cloudai.pt/vllm-vs-tensorrt-llm-vs-sglang-h100-benchmarks-2026/"
+    },
+    {
+      "type": "web_page",
+      "title": "vLLM vs TensorRT-LLM vs SGLang: Which Is Fastest? (H100 Benchmarks, 2026) | Spheron",
+      "url": "https://www.spheron.network/blog/vllm-vs-tensorrt-llm-vs-sglang-benchmarks/"
+    }
+  ]
+}

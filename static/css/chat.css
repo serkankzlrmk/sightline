@@ -732,3 +732,15 @@ body.auth-locked .chat-input-wrap .send-btn {
 @media (max-width: 768px) {
   body.auth-locked .guest-chat-demo { margin-top: 20px; }
 }
+
+/* ── 👍/👎 feedback on assistant answers ─────────────────────────────────── */
+.msg-feedback { display: flex; gap: 6px; margin-top: 6px; }
+.fb-btn {
+  border: 1px solid var(--border, #e2e8f0); background: transparent;
+  border-radius: 999px; padding: 2px 8px; font-size: 13px; line-height: 1.5;
+  cursor: pointer; opacity: .55; transition: opacity .15s, background .15s, transform .1s;
+}
+.fb-btn:hover { opacity: 1; background: rgba(14,165,233,.08); }
+.fb-btn:active { transform: scale(.94); }
+.fb-btn.active { opacity: 1; border-color: var(--primary, #0EA5E9); background: rgba(14,165,233,.12); }
+.fb-btn[data-rating="-1"].active { border-color: #ef4444; background: rgba(239,68,68,.10); }

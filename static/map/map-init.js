@@ -550,25 +550,30 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'toggle-model-menu':
         // Handled by direct event listener above
         break;
+      case 'chat-feedback':
+        submitChatFeedback(target);
+        break;
     }
   });
 
-  // Admin sub-tab switching (Users / Analytics)
+  // Admin sub-tab switching (Users / Analytics / Observability)
   document.querySelectorAll('.admin-subtab').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.adminTab;
       document.querySelectorAll('.admin-subtab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const usersSec = document.getElementById('admin-users');
-      const analyticsSec = document.getElementById('admin-analytics');
-      if (tab === 'analytics') {
-        if (usersSec) usersSec.style.display = 'none';
-        if (analyticsSec) analyticsSec.style.display = '';
-        loadAnalytics();
-      } else {
-        if (analyticsSec) analyticsSec.style.display = 'none';
-        if (usersSec) usersSec.style.display = '';
-      }
+      const sections = {
+        users: document.getElementById('admin-users'),
+        analytics: document.getElementById('admin-analytics'),
+        obs: document.getElementById('admin-obs'),
+        errors: document.getElementById('admin-errors'),
+      };
+      Object.entries(sections).forEach(([key, section]) => {
+        if (section) section.style.display = key === tab ? '' : 'none';
+      });
+      if (tab === 'analytics') loadAnalytics();
+      if (tab === 'obs' && typeof loadObservability === 'function') loadObservability();
+      if (tab === 'errors' && typeof loadErrors === 'function') loadErrors();
     });
   });
 

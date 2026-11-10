@@ -10,13 +10,14 @@ Register in server.py with:
 
 import json
 import logging
+import threading
 import time as _time
 
 from flask import Blueprint, jsonify
 
 from auth import current_uid, require_admin, require_auth
 from blueprints.helpers import _db_conn, _get_chroma_adapter, _log_event
-from config import OUTPUT_REPORTS_DIR
+from config import OUTPUT_DIR, OUTPUT_REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,35 @@ def _trim_bulletin_for_preview(bulletin: dict) -> dict:
 
 
 # ── Shared state for map endpoint ──────────────────────────────────────────
+# Cold builds scan up to 60 countries and can take minutes on a 2-vCPU box;
+# cache aggressively, serve stale while one refresh runs, and never let
+# concurrent requests pile up building the same payload.
 _map_countries_cache = None
 _map_countries_cache_time = 0.0
+_MAP_CACHE_TTL = 1800
+_MAP_CACHE_STALE = 6 * 3600
+_MAP_CACHE_FILE = OUTPUT_DIR / "map_countries_cache.json"
+_map_build_lock = threading.Lock()
+_map_refresh_lock = threading.Lock()
+_map_refreshing = False
+
+try:  # Warm the in-process cache from disk (survives restarts/deploys).
+    if _MAP_CACHE_FILE.exists():
+        _cached = json.loads(_MAP_CACHE_FILE.read_text(encoding="utf-8"))
+        if isinstance(_cached, list) and _cached:
+            _map_countries_cache = _cached
+            _map_countries_cache_time = _MAP_CACHE_FILE.stat().st_mtime
+except Exception:
+    pass
+
+
+def _save_map_cache(results: list) -> None:
+    try:
+        tmp = _MAP_CACHE_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(results, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_MAP_CACHE_FILE)
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -152,26 +180,8 @@ def api_country_summaries():
 # =============================================================================
 
 
-@public_bp.route("/map/countries")
-def api_map_countries():
-    """Public: Top 60 countries with rich data for the crisis map.
-
-    Returns an array of country objects, sorted by report_count descending,
-    each containing:
-      - Basic: country, iso3, coords, severity, report_count, last_updated
-      - Summary: headline, narrative (from country_summary if available, else generated from chunks)
-      - Reports: recent_reports (last 3), date_range
-      - Extras: hdx_key_figures, gdacs_alerts, has_sitrep, top_themes
-
-    This replaces the previous 3-call pattern (bulletin + summaries + countries).
-    The data is cached in-memory for 5 minutes.
-    """
-    global _map_countries_cache, _map_countries_cache_time
-
-    # Cache for 5 minutes
-    if _map_countries_cache is not None and (_time.time() - _map_countries_cache_time) < 300:
-        return jsonify(_map_countries_cache)
-
+def _build_map_countries_payload():
+    """Build the rich map payload (slow; call through the cache wrapper)."""
     try:
         from sitrep.country_summary import (
             COUNTRY_SUMMARY_DIR,
@@ -377,13 +387,73 @@ def api_map_countries():
             }
             results.append(result)
 
-        _map_countries_cache = results
-        _map_countries_cache_time = _time.time()
-
-        return jsonify(results)
+        return results
     except Exception as exc:
         logger.error("api_map_countries error: %s", exc, exc_info=True)
-        return jsonify({"error": "Failed to load map data"}), 500
+        return None
+
+
+def _refresh_map_cache_async() -> None:
+    global _map_countries_cache, _map_countries_cache_time, _map_refreshing
+    try:
+        results = _build_map_countries_payload()
+        if results:
+            _map_countries_cache = results
+            _map_countries_cache_time = _time.time()
+            _save_map_cache(results)
+    finally:
+        with _map_refresh_lock:
+            _map_refreshing = False
+
+
+def _start_map_refresh() -> None:
+    global _map_refreshing
+    with _map_refresh_lock:
+        if _map_refreshing:
+            return
+        _map_refreshing = True
+    threading.Thread(target=_refresh_map_cache_async, daemon=True).start()
+
+
+@public_bp.route("/map/countries")
+def api_map_countries():
+    """Public map data: cached, single-flight refresh, stale-while-revalidate.
+
+    - fresh (< TTL): return immediately
+    - stale: return stale immediately and refresh in the background
+    - cold: one request builds; concurrent requests get 503 Retry-After
+    """
+    global _map_countries_cache, _map_countries_cache_time
+    now = _time.time()
+    if _map_countries_cache is not None and (now - _map_countries_cache_time) < _MAP_CACHE_TTL:
+        return jsonify(_map_countries_cache)
+    if _map_countries_cache is not None:
+        _start_map_refresh()
+        return jsonify(_map_countries_cache)
+
+    if not _map_build_lock.acquire(timeout=15):
+        return (
+            jsonify(
+                {
+                    "error": "Map data is warming up. Please retry shortly.",
+                    "retry_after": 30,
+                    "code": "ERR-capacity",
+                }
+            ),
+            503,
+        )
+    try:
+        if _map_countries_cache is not None:
+            return jsonify(_map_countries_cache)
+        results = _build_map_countries_payload()
+        if results is None:
+            return jsonify({"error": "Failed to load map data"}), 500
+        _map_countries_cache = results
+        _map_countries_cache_time = _time.time()
+        _save_map_cache(results)
+        return jsonify(results)
+    finally:
+        _map_build_lock.release()
 
 
 @public_bp.route("/public/countries")

@@ -491,3 +491,44 @@ body .nav {
 .msg.user .msg-body a { color: rgba(255,255,255,.85); }
 .msg-body hr    { border: none; border-top: 1px solid var(--border-light); margin: 12px 0; }
 .msg-body blockquote { border-left: 3px solid var(--blue); padding-left: 16px; color: var(--text-secondary); margin: 10px 0; font-style: italic; }
+
+/* ── Observability dashboard (admin) ─────────────────────────────────────── */
+.obs-status {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px;
+}
+.obs-status-ok        { background: rgba(34,197,94,.12);  color: #15803d; }
+.obs-status-error     { background: rgba(239,68,68,.12);  color: #b91c1c; }
+.obs-status-empty     { background: rgba(245,158,11,.14); color: #b45309; }
+.obs-status-cancelled { background: rgba(100,116,139,.14); color: #475569; }
+
+/* ── Observability: chat eval controls ───────────────────────────────────── */
+.obs-eval-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
+.obs-eval-controls .admin-hint { margin: 0; }
+#obs-eval-status.running { color: #b45309; font-weight: 600; }
+#obs-eval-status.done    { color: #15803d; font-weight: 600; }
+#obs-eval-status.error   { color: #b91c1c; font-weight: 600; }
+
+/* ── Observability: human calibration card ───────────────────────────────── */
+.obs-cal-card { border: 1px solid var(--border, #e2e8f0); border-radius: var(--radius, 10px); padding: 14px; margin: 10px 0; background: var(--surface, #fff); }
+.obs-cal-meta { font-size: 11px; color: var(--text-muted, #64748b); margin-bottom: 6px; }
+.obs-cal-question { font-weight: 600; margin-bottom: 8px; }
+.obs-cal-answer { white-space: pre-wrap; font-size: 13px; line-height: 1.55; max-height: 260px; overflow: auto; padding: 8px 10px; background: var(--bg, #f8fafc); border-radius: 8px; }
+.obs-cal-evidence { margin: 8px 0; font-size: 12px; }
+.obs-cal-evidence pre { white-space: pre-wrap; max-height: 160px; overflow: auto; background: var(--bg, #f8fafc); padding: 8px; border-radius: 8px; }
+.obs-cal-buttons { display: flex; gap: 6px; margin: 10px 0; }
+.obs-cal-buttons .btn.active { background: var(--primary, #0EA5E9); color: #fff; border-color: var(--primary, #0EA5E9); }
+#obs-cal-notes { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; }
+.obs-cal-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+#obs-cal-reveal.good { color: #15803d; font-weight: 600; }
+#obs-cal-reveal.bad { color: #b45309; font-weight: 600; }
+
+/* ── Error monitoring badges ─────────────────────────────────────────────── */
+.err-kind { display:inline-block; padding:1px 7px; border-radius:999px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; background:rgba(100,116,139,.14); color:#475569; }
+.err-kind.err-backend { background:rgba(239,68,68,.12); color:#b91c1c; }
+.err-kind.err-frontend { background:rgba(245,158,11,.14); color:#b45309; }
+.err-kind.err-tool { background:rgba(14,165,233,.12); color:#0369a1; }
+.err-kind.err-llm, .err-kind.err-sse { background:rgba(168,85,247,.12); color:#7e22ce; }
+.err-kind.err-job { background:rgba(34,197,94,.12); color:#15803d; }
+.err-kind.err-canary { background:rgba(20,184,166,.12); color:#0f766e; }
+.err-sample { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

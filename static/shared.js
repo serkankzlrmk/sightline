@@ -15,7 +15,17 @@ async function api(url, opts = {}) {
   // Merge existing headers if provided (keep Content-Type etc)
   const tok = typeof getIdToken === 'function' ? getIdToken() : '';
   if (tok) opts.headers['Authorization'] = 'Bearer ' + tok;
-  let res = await fetch(url, opts);
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    if (typeof reportClientError === 'function') {
+      reportClientError({ kind: 'network', message: err && err.message ? err.message : 'Network request failed' });
+    }
+    throw err;
+  }
+  const requestId = res.headers.get('X-Request-ID');
+  if (requestId) window.__lastRequestId = requestId;
 
   // 401 = token expired → refresh and retry once
   if (res.status === 401 && typeof auth !== 'undefined' && auth.currentUser) {
