@@ -53,6 +53,9 @@ Operational notes:
   turn's tool output (deployed in `4e3babc`).
 - A numeric grounding check now flags percentages/unit-bearing figures that are absent
   from tool evidence and appends a verification note (deployed in `fa6ad03`).
+- The Pakistan question was re-run after both guards: the new answer carried four
+  citation links grounded in tool output and no URL-removal/numeric warning. The judge
+  call for the retry returned an empty verdict, so it is not included in the scores.
 
 ## 3. Retrieval evaluation — pending labels
 
@@ -153,6 +156,9 @@ Operational notes:
   turn's tool output (deployed in `4e3babc`).
 - A numeric grounding check now flags percentages/unit-bearing figures that are absent
   from tool evidence and appends a verification note (deployed in `fa6ad03`).
+- The Pakistan question was re-run after both guards: the new answer carried four
+  citation links grounded in tool output and no URL-removal/numeric warning. The judge
+  call for the retry returned an empty verdict, so it is not included in the scores.
 
 ## 3. Retrieval evaluation — pending labels
 
