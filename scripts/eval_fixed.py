@@ -89,10 +89,13 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=180)
     ap.add_argument("--sleep", type=float, default=1.0)
     ap.add_argument("--max", type=int, default=0, help="limit questions (0 = all)")
+    ap.add_argument("--offset", type=int, default=0, help="skip the first N questions")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     questions = json.loads(Path(args.questions).read_text(encoding="utf-8"))
+    if args.offset:
+        questions = questions[args.offset :]
     if args.max:
         questions = questions[: args.max]
     if args.dry_run:

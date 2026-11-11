@@ -149,6 +149,25 @@ CREATE TABLE IF NOT EXISTS calibration_runs (
     created_at   REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_obs_calib_created ON calibration_runs(created_at);
+
+CREATE TABLE IF NOT EXISTS retrieval_candidates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    query_id    TEXT NOT NULL,
+    query       TEXT NOT NULL DEFAULT '',
+    country     TEXT NOT NULL DEFAULT '',
+    report_id   TEXT NOT NULL,
+    title       TEXT NOT NULL DEFAULT '',
+    date        TEXT NOT NULL DEFAULT '',
+    url         TEXT NOT NULL DEFAULT '',
+    relevant    INTEGER,
+    labeled_at  REAL,
+    labeled_by  TEXT NOT NULL DEFAULT '',
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  REAL NOT NULL,
+    UNIQUE(query_id, report_id)
+);
+CREATE INDEX IF NOT EXISTS idx_obs_retcand_query ON retrieval_candidates(query_id, position);
+CREATE INDEX IF NOT EXISTS idx_obs_retcand_label ON retrieval_candidates(relevant);
 """
 
 _init_lock = threading.Lock()
@@ -1237,6 +1256,150 @@ def health() -> dict:
     except Exception:
         info["mcp"] = {}
     return info
+
+
+# ── Retrieval golden-set labeling (admin UI) ────────────────────────────────
+
+
+def seed_retrieval_candidates(rows: list[dict]) -> int:
+    """Upsert retrieval candidates (metadata only; labels are preserved)."""
+    if not rows:
+        return 0
+    _ensure_schema()
+    now = time.time()
+    written = 0
+    with closing(_connect(db_path())) as conn:
+        positions: dict[str, int] = {}
+        for row in rows:
+            query_id = str(row.get("query_id") or "")
+            report_id = str(row.get("report_id") or "")
+            if not query_id or not report_id:
+                continue
+            pos = positions.get(query_id, 0)
+            positions[query_id] = pos + 1
+            conn.execute(
+                """
+                INSERT INTO retrieval_candidates
+                    (query_id, query, country, report_id, title, date, url, position, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(query_id, report_id) DO UPDATE SET
+                    query=excluded.query, country=excluded.country, title=excluded.title,
+                    date=excluded.date, url=excluded.url, position=excluded.position
+                """,
+                (
+                    query_id,
+                    str(row.get("query") or ""),
+                    str(row.get("country") or ""),
+                    report_id,
+                    str(row.get("title") or "")[:400],
+                    str(row.get("date") or "")[:32],
+                    str(row.get("url") or ""),
+                    pos,
+                    now,
+                ),
+            )
+            written += 1
+        conn.commit()
+    return written
+
+
+def retrieval_progress() -> dict:
+    """Progress for retrieval relevance labeling."""
+    _ensure_schema()
+    with closing(_connect(db_path())) as conn:
+        total_q = conn.execute("SELECT COUNT(DISTINCT query_id) AS n FROM retrieval_candidates").fetchone()["n"]
+        labeled_q = conn.execute(
+            "SELECT COUNT(*) AS n FROM (SELECT query_id FROM retrieval_candidates "
+            "GROUP BY query_id HAVING SUM(CASE WHEN relevant IS NULL THEN 1 ELSE 0 END)=0)"
+        ).fetchone()["n"]
+        total_c = conn.execute("SELECT COUNT(*) AS n FROM retrieval_candidates").fetchone()["n"]
+        labeled_c = conn.execute(
+            "SELECT COUNT(*) AS n FROM retrieval_candidates WHERE relevant IS NOT NULL"
+        ).fetchone()["n"]
+        relevant = conn.execute("SELECT COUNT(*) AS n FROM retrieval_candidates WHERE relevant=1").fetchone()["n"]
+    return {
+        "queries": int(total_q or 0),
+        "labeled_queries": int(labeled_q or 0),
+        "candidates": int(total_c or 0),
+        "labeled_candidates": int(labeled_c or 0),
+        "relevant": int(relevant or 0),
+    }
+
+
+def retrieval_next_query() -> dict | None:
+    """Return the first query with any unlabeled candidate, with candidates."""
+    _ensure_schema()
+    with closing(_connect(db_path())) as conn:
+        row = conn.execute(
+            "SELECT query_id FROM retrieval_candidates GROUP BY query_id "
+            "HAVING SUM(CASE WHEN relevant IS NULL THEN 1 ELSE 0 END) > 0 "
+            "ORDER BY MIN(position), query_id LIMIT 1"
+        ).fetchone()
+        if not row:
+            return None
+        qid = row["query_id"]
+        rows = conn.execute(
+            "SELECT id, query_id, query, country, report_id, title, date, url, relevant, position "
+            "FROM retrieval_candidates WHERE query_id=? ORDER BY position, id",
+            (qid,),
+        ).fetchall()
+    items = [dict(r) for r in rows]
+    return {
+        "query_id": qid,
+        "query": items[0]["query"],
+        "country": items[0]["country"],
+        "candidates": items,
+        "progress": retrieval_progress(),
+    }
+
+
+def save_retrieval_labels(query_id: str, relevant_report_ids: list[str], rater: str = "admin") -> int:
+    """Lock one query's candidate labels: 1 for supplied ids, 0 for the rest."""
+    qid = str(query_id or "")
+    if not qid:
+        return 0
+    _ensure_schema()
+    now = time.time()
+    ids = [str(x) for x in (relevant_report_ids or []) if str(x)]
+    with closing(_connect(db_path())) as conn:
+        exists = conn.execute("SELECT COUNT(*) AS n FROM retrieval_candidates WHERE query_id=?", (qid,)).fetchone()["n"]
+        if not exists:
+            return 0
+        conn.execute(
+            "UPDATE retrieval_candidates SET relevant=0, labeled_at=?, labeled_by=? WHERE query_id=?",
+            (now, str(rater or "admin"), qid),
+        )
+        if ids:
+            marks = ",".join("?" * len(ids))
+            conn.execute(
+                f"UPDATE retrieval_candidates SET relevant=1, labeled_at=?, labeled_by=? "
+                f"WHERE query_id=? AND report_id IN ({marks})",
+                (now, str(rater or "admin"), qid, *ids),
+            )
+        conn.commit()
+        return len(ids)
+
+
+def retrieval_golden_set() -> list[dict]:
+    """Export labeled queries that have at least one relevant report."""
+    _ensure_schema()
+    with closing(_connect(db_path())) as conn:
+        qrows = conn.execute(
+            "SELECT query_id, query, country FROM retrieval_candidates "
+            "GROUP BY query_id HAVING SUM(CASE WHEN relevant=1 THEN 1 ELSE 0 END) > 0 "
+            "ORDER BY MIN(position), query_id"
+        ).fetchall()
+        out = []
+        for q in qrows:
+            ids = [
+                r["report_id"]
+                for r in conn.execute(
+                    "SELECT report_id FROM retrieval_candidates WHERE query_id=? AND relevant=1 ORDER BY position",
+                    (q["query_id"],),
+                ).fetchall()
+            ]
+            out.append({"query": q["query"], "relevant": ids, "country": q["country"]})
+    return out
 
 
 def prune(days: int | None = None) -> int:

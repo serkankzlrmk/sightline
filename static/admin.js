@@ -589,6 +589,125 @@ function _bindObsCalibration() {
   }
 }
 
+// ── Retrieval golden-set labeling ───────────────────────────────────────────
+const obsRetrievalState = { query: null };
+
+function _obsRetProgressText(progress) {
+  if (!progress) return '';
+  return `Queries: ${progress.labeled_queries || 0}/${progress.queries || 0} · `
+    + `Candidates: ${progress.labeled_candidates || 0}/${progress.candidates || 0} · `
+    + `Relevant: ${progress.relevant || 0}`;
+}
+
+function _renderRetrievalCards() {
+  const q = obsRetrievalState.query;
+  const card = document.getElementById('obs-ret-label-card');
+  const meta = document.getElementById('obs-ret-label-meta');
+  const queryEl = document.getElementById('obs-ret-label-query');
+  const list = document.getElementById('obs-ret-label-candidates');
+  if (!card || !list) return;
+  if (!q) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  if (meta) meta.textContent = `${q.query_id} · ${q.country || '—'} · ${q.candidates.length} candidates`;
+  if (queryEl) queryEl.textContent = q.query || '';
+  list.innerHTML = '';
+  for (const c of q.candidates) {
+    const row = document.createElement('label');
+    row.className = 'obs-ret-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = c.report_id;
+    cb.checked = Number(c.relevant) === 1;
+    const text = document.createElement('span');
+    text.className = 'obs-ret-title';
+    text.textContent = `${c.title || c.report_id} (${(c.date || '').slice(0, 10)})`;
+    row.appendChild(cb);
+    row.appendChild(text);
+    const url = String(c.url || '');
+    if (/^https?:\/\//.test(url)) {
+      const a = document.createElement('a');
+      a.className = 'obs-ret-link';
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = '↗';
+      row.appendChild(a);
+    }
+    list.appendChild(row);
+  }
+}
+
+async function loadRetrievalLabeling() {
+  const progressEl = document.getElementById('obs-ret-label-progress');
+  const resultEl = document.getElementById('obs-ret-label-result');
+  try {
+    const data = await _obsAdminFetch('/api/admin/obs/retrieval/queue');
+    if (progressEl) progressEl.textContent = _obsRetProgressText(data.progress);
+    obsRetrievalState.query = data.query || null;
+    _renderRetrievalCards();
+    if (!data.query && resultEl) resultEl.textContent = 'All retrieval queries are labeled.';
+  } catch (err) {
+    if (resultEl) resultEl.textContent = `Retrieval queue error: ${err.message}`;
+  }
+}
+
+async function saveRetrievalLabels() {
+  const q = obsRetrievalState.query;
+  const resultEl = document.getElementById('obs-ret-label-result');
+  if (!q) return;
+  const checked = [...document.querySelectorAll('#obs-ret-label-candidates input:checked')].map(x => x.value);
+  try {
+    const data = await _obsAdminFetch('/api/admin/obs/retrieval/label', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query_id: q.query_id, relevant: checked }),
+    });
+    if (resultEl) resultEl.textContent = `Saved ${q.query_id} (${data.relevant} relevant).`;
+    await loadRetrievalLabeling();
+  } catch (err) {
+    if (resultEl) resultEl.textContent = `Save error: ${err.message}`;
+  }
+}
+
+async function exportRetrievalGoldenSet() {
+  const resultEl = document.getElementById('obs-ret-label-result');
+  try {
+    const data = await _obsAdminFetch('/api/admin/obs/retrieval/export');
+    const blob = new Blob([JSON.stringify(data.golden_set, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'golden_set.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    if (resultEl) resultEl.textContent = `Exported ${data.golden_set.length} labeled queries.`;
+  } catch (err) {
+    if (resultEl) resultEl.textContent = `Export error: ${err.message}`;
+  }
+}
+
+function _bindObsRetrievalLabeling() {
+  const start = document.getElementById('obs-ret-label-start');
+  if (start && !start.dataset.bound) {
+    start.dataset.bound = '1';
+    start.addEventListener('click', loadRetrievalLabeling);
+  }
+  const save = document.getElementById('obs-ret-label-save');
+  if (save && !save.dataset.bound) {
+    save.dataset.bound = '1';
+    save.addEventListener('click', saveRetrievalLabels);
+  }
+  const exp = document.getElementById('obs-ret-label-export');
+  if (exp && !exp.dataset.bound) {
+    exp.dataset.bound = '1';
+    exp.addEventListener('click', exportRetrievalGoldenSet);
+  }
+}
+
 // ── Error monitoring dashboard ──────────────────────────────────────────────
 async function loadErrors() {
   const statusEl = document.getElementById('err-status');
@@ -757,6 +876,8 @@ async function loadObservability() {
     renderObsRetrieval(evalData.retrieval);
     _bindObsEvalButton();
     _bindObsCalibration();
+    _bindObsRetrievalLabeling();
+    loadRetrievalLabeling();
   } catch (err) {
     console.error('Observability load error:', err);
     const cards = document.getElementById('obs-kpi-cards');

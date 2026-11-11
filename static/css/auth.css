@@ -520,6 +520,11 @@ body .nav {
 .obs-cal-buttons .btn.active { background: var(--primary, #0EA5E9); color: #fff; border-color: var(--primary, #0EA5E9); }
 #obs-cal-notes { width: 100%; font-size: 12px; padding: 6px 8px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; }
 .obs-cal-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.obs-ret-label-candidates { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.obs-ret-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; background: var(--surface, #fff); }
+.obs-ret-row input { width: 16px; height: 16px; flex: 0 0 auto; }
+.obs-ret-title { flex: 1 1 auto; line-height: 1.4; }
+.obs-ret-link { flex: 0 0 auto; text-decoration: none; color: var(--primary, #0EA5E9); font-weight: 700; }
 #obs-cal-reveal.good { color: #15803d; font-weight: 600; }
 #obs-cal-reveal.bad { color: #b45309; font-weight: 600; }
 

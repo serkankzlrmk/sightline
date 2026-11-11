@@ -396,6 +396,53 @@ def api_obs_calibration_score():
         return jsonify({"error": "Failed to compute calibration"}), 500
 
 
+@obs_bp.route("/retrieval/queue", methods=["GET"])
+@require_admin
+def api_obs_retrieval_queue():
+    """Next unlabeled retrieval query with its candidate reports."""
+    try:
+        query = store.retrieval_next_query()
+        return jsonify({"query": query, "progress": store.retrieval_progress()})
+    except Exception as exc:
+        logger.error("obs retrieval queue failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load retrieval queue"}), 500
+
+
+@obs_bp.route("/retrieval/label", methods=["POST"])
+@require_admin
+def api_obs_retrieval_label():
+    """Save relevance labels for one retrieval query (1 for supplied ids, 0 for rest)."""
+    data = request.get_json(silent=True) or {}
+    query_id = str(data.get("query_id") or "")[:120]
+    relevant = data.get("relevant") or []
+    if not query_id or not isinstance(relevant, list):
+        return jsonify({"error": "query_id and relevant[] are required"}), 400
+    relevant = [str(x)[:80] for x in relevant[:200]]
+    try:
+        saved = store.save_retrieval_labels(query_id, relevant, rater=current_uid() or "admin")
+        if not saved:
+            return jsonify({"error": "Query not found"}), 404
+        _log_audit(current_uid() or "admin", "retrieval_labeled", query_id, {"relevant": len(relevant)})
+        return jsonify(
+            {"ok": True, "query_id": query_id, "relevant": len(relevant), "progress": store.retrieval_progress()}
+        )
+    except Exception as exc:
+        logger.error("obs retrieval label failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to save retrieval labels"}), 500
+
+
+@obs_bp.route("/retrieval/export", methods=["GET"])
+@require_admin
+def api_obs_retrieval_export():
+    """Export the labeled golden set in the format consumed by eval_retrieval.py."""
+    try:
+        golden = store.retrieval_golden_set()
+        return jsonify({"golden_set": golden, "progress": store.retrieval_progress()})
+    except Exception as exc:
+        logger.error("obs retrieval export failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to export golden set"}), 500
+
+
 @obs_bp.route("/prune", methods=["POST"])
 @require_admin
 def api_obs_prune():

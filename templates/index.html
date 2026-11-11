@@ -725,6 +725,23 @@
           <h4>Retrieval Eval (golden set)</h4>
           <p class="admin-hint" id="obs-retrieval-line">No retrieval runs yet. Run <code>scripts/eval_retrieval.py --gold … --apply</code>.</p>
         </div>
+        <div class="analytics-table">
+          <h4>Retrieval Golden Set (admin labeling)</h4>
+          <p class="admin-hint" id="obs-ret-label-progress">Loading labeling progress…</p>
+          <div class="obs-eval-controls">
+            <button class="btn btn-xs" id="obs-ret-label-start">Load next query</button>
+            <button class="btn btn-xs btn-secondary" id="obs-ret-label-export">Export golden set</button>
+            <span class="admin-hint" id="obs-ret-label-result"></span>
+          </div>
+          <div id="obs-ret-label-card" class="obs-cal-card" style="display:none;">
+            <div class="obs-cal-meta" id="obs-ret-label-meta"></div>
+            <div class="obs-cal-question" id="obs-ret-label-query"></div>
+            <div class="obs-ret-label-candidates" id="obs-ret-label-candidates"></div>
+            <div class="obs-cal-actions">
+              <button class="btn btn-xs" id="obs-ret-label-save">Save &amp; next query</button>
+            </div>
+          </div>
+        </div>
         <div class="analytics-charts">
           <div class="chart-container">
             <h4>Turns (14 days)</h4>
