@@ -84,6 +84,11 @@ queries. It reports two stages:
 Golden-set labels are ReliefWeb report ids and require human confirmation. The template is
 `scripts/golden_set.template.json`; empty or placeholder labels are rejected.
 
+Admin labeling UI: open `/app` → Admin → Observability → **Retrieval Golden Set**. Mark
+relevant reports per query, save & next, then **Export golden set**. Production labels are
+stored in `obs.db.retrieval_candidates`; the export matches the `eval_retrieval.py` format.
+Seed candidates once with `scripts/seed_retrieval_candidates.py --draft <draft.json>`.
+
 ## Metrics
 
 | Metric | Definition |
