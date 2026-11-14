@@ -17,6 +17,7 @@ Security notes:
   helpers and a slug→filename map; traversal is impossible by construction.
 """
 
+import calendar
 import html
 import json
 import logging
@@ -1339,6 +1340,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     html = render_template(
         "crisis_detail.html",
         page_title=title,
+        page_heading=country,
         page_description=description,
         canonical=f"{SITE_URL}/crisis/{slug}",
         site_url=SITE_URL,
@@ -1383,7 +1385,7 @@ def crisis_index():
         items.append(
             {
                 "url": f"/crisis/{c_slug}",
-                "title": f"{country} — humanitarian crisis overview",
+                "title": country,
                 "subtitle": f"{count} reports" + (" · live alert" if has_alert else ""),
                 "sort_count": count,
             }
@@ -1430,31 +1432,59 @@ def _crisis_url_for_digest(stem: str) -> str:
 
 @seo_bp.route("/digest")
 def digest_archive():
-    """Archive index of published digest dates (D3: indefinite retention)."""
+    """Archive index grouped by month; current month open, older months collapsible."""
     from sitrep.daily_digest import cached_published_dates
 
-    items = []
-    for date_str in cached_published_dates()[:90]:  # index lists recent dates
+    rows = []
+    for date_str in cached_published_dates():
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str):
+            continue
         day = load_day_safe(date_str)
         if not day:
             continue
-        items.append(
+        try:
+            month_key = date_str[:7]
+            year, month = month_key.split("-")
+            month_label = f"{calendar.month_name[int(month)]} {year}"
+            day_label = date_str[8:10].lstrip("0") or "1"
+            weekday = calendar.day_name[calendar.weekday(int(year), int(month), int(date_str[8:10]))]
+        except (ValueError, IndexError):
+            month_key, month_label, day_label, weekday = date_str[:7], date_str[:7], date_str, ""
+        rows.append(
             {
                 "url": f"/digest/{date_str}",
-                "title": f"Daily digest — {date_str}",
-                "subtitle": f"{len(day)} countries",
-                "sort_date": date_str,
+                "date": date_str,
+                "month": month_key,
+                "month_label": month_label,
+                "day": day_label,
+                "weekday": weekday,
+                "countries": len(day),
             }
         )
-    if not items:
+    if not rows:
         abort(404)
-    items.sort(key=lambda x: x["sort_date"], reverse=True)
+    rows.sort(key=lambda x: x["date"], reverse=True)
+    grouped: dict[str, dict] = {}
+    for row in rows:
+        bucket = grouped.setdefault(row["month"], {"key": row["month"], "label": row["month_label"], "entries": []})
+        bucket["entries"].append(row)
+    groups = sorted(grouped.values(), key=lambda g: g["key"], reverse=True)
+    total = len(rows)
     record_page_view("/digest", request.headers.get("User-Agent", ""))
-    return _render_list(
-        "Daily crisis digests",
-        "ACAPS-style daily humanitarian digests per crisis country, synthesized from trusted reporting.",
-        items,
-        "digest",
+    from config import GOOGLE_ANALYTICS_ID
+
+    adsense_client, adsense_slot = _active_adsense_config()
+    return render_template(
+        "seo_digest.html",
+        page_title="Daily briefings",
+        page_description="Country-level humanitarian briefings by coverage date, grouped by month.",
+        canonical=f"{SITE_URL}/digest",
+        site_url=SITE_URL,
+        groups=groups,
+        total=total,
+        analytics_id=GOOGLE_ANALYTICS_ID,
+        adsense_client=adsense_client,
+        adsense_slot=adsense_slot,
     )
 
 
@@ -1533,8 +1563,8 @@ def digest_day(date_str: str):
     items.sort(key=lambda x: x["sort_stem"])
     record_page_view(f"/digest/{date_str}", request.headers.get("User-Agent", ""))
     return _render_list(
-        f"Daily digest — {date_str}",
-        "ACAPS-style daily humanitarian digests per crisis country, synthesized from trusted sources.",
+        date_str,
+        f"Country briefings published for coverage date {date_str}.",
         items,
         f"digest/{date_str}",
     )
@@ -1561,7 +1591,14 @@ def digest_country(date_str: str, country_stem: str):
     else:
         body = _digest_detail_html(country_stem, digest, date_str)
     record_page_view(f"/digest/{date_str}/{country_stem}", request.headers.get("User-Agent", ""))
-    return _render_detail_generic(body, country_stem, date_str)
+    country_display = country_stem.replace("_", " ").strip().title()
+    return _render_detail_generic(
+        body,
+        country_stem,
+        date_str,
+        page_heading=country_display,
+        title_override=f"{country_display} · {date_str}",
+    )
 
 
 def _render_detail_generic(
@@ -1571,6 +1608,7 @@ def _render_detail_generic(
     *,
     title_override: str | None = None,
     canonical_override: str | None = None,
+    page_heading: str | None = None,
 ) -> str:
     """Digest detail wrapper on the crisis_detail template (accepts body_html).
 
@@ -1591,6 +1629,7 @@ def _render_detail_generic(
     return render_template(
         "crisis_detail.html",
         page_title=composed_title,
+        page_heading=page_heading or composed_title,
         page_description="ACAPS-style daily humanitarian digest synthesized from trusted sources.",
         canonical=canonical,
         site_url=SITE_URL,

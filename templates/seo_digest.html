@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#FFFFFF">
+  <title>{{ page_title }} - Sightline</title>
+  <meta name="description" content="{{ page_description }}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="{{ site_url }}/static/logo-signal-horizon.png">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/publications.css">
+  {% include '_analytics_head.html' %}
+  <link rel="stylesheet" href="/static/css/reader.css?v=2">
+</head>
+<body>
+  <a class="skip-link" href="#publication-content">Skip to briefings</a>
+  <header class="publication-header">
+    <div class="publication-header-inner">
+      <a class="publication-brand" href="/" aria-label="Sightline home">
+        <img src="/static/logo-signal-horizon.png" width="28" height="28" alt="">
+        <span>Sightline</span>
+      </a>
+      <nav class="publication-nav" aria-label="Public pages">
+        {% include '_publication_nav.html' %}
+      </nav>
+      <a class="publication-app-link" href="/app">Open Sightline</a>
+    </div>
+  </header>
+
+  <main class="publication-shell" id="publication-content">
+    <section class="publication-hero" aria-labelledby="publication-title">
+      <div>
+        <p class="publication-kicker">Briefing calendar</p>
+        <h1 id="publication-title">{{ page_title }}</h1>
+        <p class="publication-description">{{ page_description }}</p>
+      </div>
+      <div class="publication-count" aria-label="Published briefings">
+        <strong>{{ total }}</strong>
+        <span>Coverage dates</span>
+      </div>
+    </section>
+
+    <div class="digest-months">
+      {% for group in groups %}
+      <details class="digest-month" {% if loop.first %}open{% endif %}>
+        <summary>
+          <span>{{ group.label }}</span>
+          <span>{{ group.entries|length }} date{{ '' if group.entries|length == 1 else 's' }}</span>
+        </summary>
+        <div class="digest-date-list">
+          {% for item in group.entries %}
+          <a class="digest-date-row" href="{{ item.url }}">
+            <time datetime="{{ item.date }}">
+              <strong>{{ item.day }}</strong>
+              <span>{{ item.weekday }}</span>
+            </time>
+            <span class="digest-date-full">{{ item.date }}</span>
+            <span class="digest-date-count">{{ item.countries }} countr{{ 'y' if item.countries == 1 else 'ies' }}</span>
+            <span class="digest-date-open" aria-hidden="true">Open briefing →</span>
+          </a>
+          {% endfor %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </main>
+
+  <footer class="publication-footer">
+    <div>
+      <p><a href="/">Sightline</a> turns trusted humanitarian sources into traceable intelligence.</p>
+      <nav aria-label="Footer links">
+        <a href="/solutions/sitrep">SITREP software</a>
+        <a href="/solutions/proposal">Proposal software</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="#privacy-choices" data-privacy-choices>Privacy choices</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
