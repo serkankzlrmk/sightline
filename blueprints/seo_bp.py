@@ -1203,13 +1203,20 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     parts = []
     if gdacs:
         lis = []
-        for a in gdacs[:5]:
+        seen_alerts = set()
+        for a in gdacs[:8]:
+            title = str(a.get("title", "")).strip()
+            if title and title in seen_alerts:
+                continue
+            seen_alerts.add(title)
             level = str(a.get("alert_level", "")).lower()
             level_class = level if level in ("green", "orange", "red") else "neutral"
             level_label = _sanitize_html(str(a.get("alert_level", "Alert")))
             lis.append(
-                f'<li><span class="crisis-alert-level crisis-alert-level-{level_class}">{level_label}</span>{_sanitize_html(str(a.get("title", "")))}</li>'
+                f'<li><span class="crisis-alert-level crisis-alert-level-{level_class}">{level_label}</span>{_sanitize_html(title)}</li>'
             )
+            if len(lis) >= 5:
+                break
         parts.append(
             f'<section class="crisis-card crisis-card-wide" aria-labelledby="current-alerts"><h2 id="current-alerts">Current alerts</h2><ul>{"".join(lis)}</ul></section>'
         )
