@@ -107,6 +107,14 @@ function connectSSE(jobId, nonce) {
       if (spinner) { spinner.className = ''; spinner.textContent = status === 'done' ? '✓' : '✗'; }
 
       if (status === 'done') {
+        try {
+          if (window.sightlineTrack && !localStorage.getItem('sightline_activation_sitrep')) {
+            localStorage.setItem('sightline_activation_sitrep', '1');
+            window.sightlineTrack('activation_first_sitrep', {
+              page_path: window.location.pathname
+            });
+          }
+        } catch { /* localStorage may be unavailable */ }
         for (let i = 0; i <= sitrepState.currentStep; i++)
           if (sitrepState.stepStates[i] !== 'cached') setSitrepStepState(i, 'done');
         appendLog('─── Pipeline completed successfully ───');
