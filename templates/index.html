@@ -651,7 +651,20 @@
           <div class="analytics-cards" id="analytics-kpi-cards"></div>
 
           <div class="analytics-table">
-            <h4>Acquisition Leads</h4>
+            <div class="analytics-table-head">
+              <h4>Growth Funnel (30 days)</h4>
+              <span>First-party data · bots excluded</span>
+            </div>
+            <div class="analytics-cards" id="growth-funnel-cards">
+              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading funnel</div></div>
+            </div>
+          </div>
+
+          <div class="analytics-table">
+            <div class="analytics-table-head">
+              <h4>Acquisition Leads</h4>
+              <button type="button" class="btn btn-xs" id="export-leads-btn">Export CSV</button>
+            </div>
             <div class="analytics-cards" id="lead-kpi-cards">
               <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading leads</div></div>
             </div>

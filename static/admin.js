@@ -66,6 +66,7 @@ async function loadAnalytics() {
   loadIngestStatus();
   loadSearchConsole();
   loadAcquisitionLeads();
+  loadGrowthFunnel();
   try {
     const resp = await fetch('/api/admin/analytics', {
       headers: { 'Authorization': 'Bearer ' + tok }
@@ -158,6 +159,60 @@ async function loadIngestStatus() {
   }
 }
 window.loadIngestStatus = loadIngestStatus;
+
+async function loadGrowthFunnel() {
+  const cards = document.getElementById('growth-funnel-cards');
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!cards || !tok) return;
+  try {
+    const resp = await fetch('/api/admin/growth/funnel?days=30', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Failed to load growth funnel');
+    const data = await resp.json();
+    cards.innerHTML = [
+      { label: 'Demo views', value: data.demo_views || 0 },
+      { label: 'Leads', value: data.leads || 0 },
+      { label: 'Guest messages', value: data.guest_messages || 0 },
+      { label: 'Lead conversion', value: `${data.conversion_pct || 0}%` },
+    ].map(item => `
+      <div class="kpi-card">
+        <div class="kpi-value">${esc(item.value)}</div>
+        <div class="kpi-label">${esc(item.label)}</div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Growth funnel load error:', error);
+    cards.innerHTML = '<div class="kpi-card"><div class="kpi-value">Unavailable</div><div class="kpi-label">Growth funnel</div></div>';
+  }
+}
+
+async function exportLeads() {
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!tok) return;
+  try {
+    const resp = await fetch('/api/admin/growth/leads.csv', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Export failed');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sightline-leads.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Lead export error:', error);
+    if (typeof toast === 'function') toast('Lead export failed', 'error');
+  }
+}
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('#export-leads-btn')) exportLeads();
+});
 
 async function loadAcquisitionLeads() {
   const cards = document.getElementById('lead-kpi-cards');

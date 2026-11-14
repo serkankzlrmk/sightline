@@ -52,3 +52,24 @@ def test_lead_honeypot_is_silent(lead_env):
     r = client.post("/api/leads", json={"email": "bot@example.org", "consent": True, "website": "spam"})
     assert r.status_code == 200
     assert lead_env.count_leads() == 0
+
+
+def test_growth_funnel_and_lead_csv(lead_env):
+    import server
+
+    client = server.app.test_client()
+    client.post(
+        "/api/leads",
+        json={"email": "funnel@example.org", "consent": True, "source": "demo", "utm_source": "test"},
+    )
+    r = client.get("/api/admin/growth/funnel?days=30")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["leads"] == 1
+    assert data["sources"][0]["source"] == "demo"
+    assert "demo_views" in data and "guest_messages" in data
+
+    r = client.get("/api/admin/growth/leads.csv")
+    assert r.status_code == 200
+    assert "text/csv" in r.headers["Content-Type"]
+    assert "funnel@example.org" in r.get_data(as_text=True)

@@ -334,6 +334,17 @@ body .nav {
   background: var(--card-bg, var(--bg)); border: 1px solid var(--border, rgba(0,0,0,.06));
   border-radius: 12px; padding: 16px; min-width: 0; overflow-x: auto;
 }
+.analytics-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.analytics-table-head > span {
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+}
 .analytics-table h4 {
   font-size: 13px; color: var(--text-primary); margin-bottom: 12px; font-weight: 600;
 }

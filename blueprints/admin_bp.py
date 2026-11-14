@@ -8,12 +8,15 @@ Register in server.py with:
     app.register_blueprint(admin_bp)
 """
 
+import csv
+import io
 import json
 import logging
 import time as _time
+from datetime import UTC, datetime
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 
 from auth import _admins, current_uid, require_admin
 from blueprints.helpers import _chats_db, _log_audit, _log_event
@@ -275,6 +278,88 @@ def api_admin_growth_leads():
     except Exception as exc:
         logger.error("api_admin_growth_leads failed: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to load leads"}), 500
+
+
+@admin_bp.route("/growth/funnel", methods=["GET"])
+@require_admin
+def api_admin_growth_funnel():
+    """First-party acquisition funnel: public demo views → leads → guest chats."""
+    from growth import leads
+
+    try:
+        days = max(1, min(int(request.args.get("days", 30)), 365))
+        since = _time.time() - days * 86400
+        cutoff_date = datetime.fromtimestamp(since, tz=UTC).date().isoformat()
+        conn = _chats_db()
+        try:
+            demo_views = int(
+                conn.execute(
+                    "SELECT COALESCE(SUM(count),0) FROM page_views WHERE path = '/demo' AND date >= ?",
+                    (cutoff_date,),
+                ).fetchone()[0]
+            )
+            guest_messages = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event = 'chat_message_sent' "
+                    "AND ts >= ? AND json_extract(props, '$.role') = 'guest'",
+                    (since,),
+                ).fetchone()[0]
+            )
+            lead_events = int(
+                conn.execute("SELECT COUNT(*) FROM events WHERE event = 'lead_captured' AND ts >= ?", (since,)).fetchone()[0]
+            )
+        finally:
+            conn.close()
+        lead_count = leads.count_leads_since(since)
+        sources = leads.leads_by_source(since)
+        conversion = round((lead_count / demo_views) * 100, 1) if demo_views else 0.0
+        return jsonify(
+            {
+                "days": days,
+                "demo_views": demo_views,
+                "guest_messages": guest_messages,
+                "lead_events": lead_events,
+                "leads": lead_count,
+                "conversion_pct": conversion,
+                "sources": sources,
+            }
+        )
+    except Exception as exc:
+        logger.error("api_admin_growth_funnel failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load growth funnel"}), 500
+
+
+@admin_bp.route("/growth/leads.csv", methods=["GET"])
+@require_admin
+def api_admin_growth_leads_csv():
+    """Download consenting leads as CSV for import into an email tool."""
+    from growth import leads
+
+    try:
+        rows = leads.list_leads(limit=1000)
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["email", "name", "organization", "source", "utm_json", "consented_at"])
+        for row in rows:
+            writer.writerow(
+                [
+                    row.get("email", ""),
+                    row.get("name", ""),
+                    row.get("organization", ""),
+                    row.get("source", ""),
+                    row.get("utm_json", "{}"),
+                    datetime.fromtimestamp(float(row.get("created_at") or 0), tz=UTC).isoformat(),
+                ]
+            )
+        filename = f"sightline-leads-{datetime.now(UTC).date().isoformat()}.csv"
+        return Response(
+            out.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        logger.error("api_admin_growth_leads_csv failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to export leads"}), 500
 
 
 @admin_bp.route("/audit", methods=["GET"])

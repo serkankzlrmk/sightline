@@ -97,3 +97,18 @@ def list_leads(limit: int = 200) -> list[dict]:
 def count_leads() -> int:
     with _connection() as conn:
         return int(conn.execute("SELECT COUNT(*) AS n FROM leads").fetchone()["n"])
+
+
+def count_leads_since(since_ts: float) -> int:
+    with _connection() as conn:
+        return int(conn.execute("SELECT COUNT(*) AS n FROM leads WHERE created_at >= ?", (since_ts,)).fetchone()["n"])
+
+
+def leads_by_source(since_ts: float) -> list[dict]:
+    with _connection() as conn:
+        rows = conn.execute(
+            "SELECT CASE WHEN source = '' THEN 'site' ELSE source END AS source, COUNT(*) AS n "
+            "FROM leads WHERE created_at >= ? GROUP BY source ORDER BY n DESC",
+            (since_ts,),
+        ).fetchall()
+    return [{"source": r["source"], "count": int(r["n"])} for r in rows]
