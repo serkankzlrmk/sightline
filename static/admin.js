@@ -65,6 +65,7 @@ async function loadAnalytics() {
   if (!tok) return;
   loadIngestStatus();
   loadSearchConsole();
+  loadAcquisitionLeads();
   try {
     const resp = await fetch('/api/admin/analytics', {
       headers: { 'Authorization': 'Bearer ' + tok }
@@ -157,6 +158,46 @@ async function loadIngestStatus() {
   }
 }
 window.loadIngestStatus = loadIngestStatus;
+
+async function loadAcquisitionLeads() {
+  const cards = document.getElementById('lead-kpi-cards');
+  const body = document.querySelector('#lead-table tbody');
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!cards || !body || !tok) return;
+  try {
+    const resp = await fetch('/api/admin/growth/leads', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Failed to load leads');
+    const data = await resp.json();
+    const list = data.leads || [];
+    cards.innerHTML = [
+      { label: 'Total leads', value: data.count || 0 },
+      { label: 'Shown', value: list.length },
+      { label: 'Latest source', value: list[0] ? (list[0].source || 'site') : '—' },
+    ].map(item => `
+      <div class="kpi-card">
+        <div class="kpi-value">${esc(item.value)}</div>
+        <div class="kpi-label">${esc(item.label)}</div>
+      </div>
+    `).join('');
+    if (!list.length) {
+      body.innerHTML = '<tr><td colspan="4">No leads yet</td></tr>';
+      return;
+    }
+    body.innerHTML = list.map(lead => `
+      <tr>
+        <td>${esc(lead.email || '')}</td>
+        <td>${esc(lead.organization || '—')}</td>
+        <td>${esc(lead.source || '—')}</td>
+        <td>${esc(new Date((lead.created_at || 0) * 1000).toLocaleDateString())}</td>
+      </tr>
+    `).join('');
+  } catch (error) {
+    console.error('Lead load error:', error);
+    cards.innerHTML = '<div class="kpi-card"><div class="kpi-value">Unavailable</div><div class="kpi-label">Acquisition leads</div></div>';
+  }
+}
 
 async function loadSearchConsole() {
   const cards = document.getElementById('gsc-kpi-cards');
