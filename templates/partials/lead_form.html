@@ -1,18 +1,18 @@
 <form class="lead-form" data-lead-form data-source="{{ source|default('site') }}" data-lead-event="{{ event|default('newsletter_signup') }}">
   <input type="text" name="website" class="lead-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
   <div class="lead-form-row">
-    <label>Email
-      <input type="email" name="email" required maxlength="254" autocomplete="email" placeholder="you@organisation.org">
+    <label for="lead-email"><span class="lead-label">Email</span>
+      <input id="lead-email" type="email" name="email" required maxlength="254" autocomplete="email" placeholder="you@organisation.org">
     </label>
-    <label>Name <span>(optional)</span>
-      <input type="text" name="name" maxlength="120" autocomplete="name">
+    <label for="lead-name"><span class="lead-label">Name <span class="lead-optional">(optional)</span></span>
+      <input id="lead-name" type="text" name="name" maxlength="120" autocomplete="name">
     </label>
-    <label>Organisation <span>(optional)</span>
-      <input type="text" name="organization" maxlength="160" autocomplete="organization">
+    <label for="lead-org"><span class="lead-label">Organisation <span class="lead-optional">(optional)</span></span>
+      <input id="lead-org" type="text" name="organization" maxlength="160" autocomplete="organization">
     </label>
   </div>
-  <label class="lead-consent">
-    <input type="checkbox" name="consent" required>
+  <label class="lead-consent" for="lead-consent">
+    <input id="lead-consent" type="checkbox" name="consent" required>
     <span>I agree to receive the weekly humanitarian signal and occasional product updates. See the <a href="/privacy">privacy policy</a>.</span>
   </label>
   <button type="submit">{{ button|default('Subscribe') }}</button>

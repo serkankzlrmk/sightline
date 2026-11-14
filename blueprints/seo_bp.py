@@ -947,9 +947,6 @@ def demo_sample():
         "<p>Tell us where you work and we will send a short walkthrough plus a sample for your context.</p>"
         f"{lead_form}"
         "</section>"
-        '<p><a class="demo-workspace-link" href="/app#sitrep" '
-        'data-track-event="cta_click" data-track-name="sample_cta" data-track-location="demo">'
-        "Open the SITREP workspace</a></p>"
     )
     json_ld = {
         "@context": "https://schema.org",
@@ -1174,13 +1171,12 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         kicker_bits.append(str(entry["top_themes"][0]))
     kicker = " · ".join(kicker_bits)
     hero_extra = ""
-    if kicker:
+    if kicker and not headline:
         hero_extra += f'<p class="crisis-kicker-line">{_sanitize_html(kicker)}</p>'
     if headline:
         hero_extra += f'<p class="crisis-headline">{_sanitize_html(headline)}</p>'
-    if narrative and not digest_headline:
-        # Only show the deterministic narrative when there is no digest to
-        # replace it (the digest covers the same ground with fresh synthesis).
+    if narrative:
+        # Keep deterministic context alongside the digest headline.
         hero_extra += f'<p class="crisis-narrative">{_sanitize_html(narrative)}</p>'
     # Sections (real data only — P2; per-source failure → "Data pending" card)
     headlines = entry.get("top_themes") or []
@@ -1285,7 +1281,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     if entry.get("has_summary") and _country_slug_map().get(slug):
         rel.append(f'<li><a href="/country/{slug}">Country summary for {_sanitize_html(country)}</a></li>')
     for bs in list(_bulletin_slug_map())[:3]:
-        rel.append(f'<li><a href="/bulletin/{bs}">Weekly bulletin</a></li>')
+        rel.append(f'<li><a href="/bulletin/{bs}">Weekly bulletin {_sanitize_html(bs.upper())}</a></li>')
     if rel:
         parts.append(
             f'<section class="crisis-card crisis-card-wide" aria-labelledby="related"><h2 id="related">Related</h2><ul>{"".join(rel)}</ul></section>'
@@ -1298,6 +1294,10 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
     body_html = "".join(parts)
 
     title = f"{country} humanitarian crisis overview"
+    crisis_sub = (
+        f"Humanitarian overview for {country}, built from {count} dated reports "
+        "and the latest available HDX indicators. Figures reflect the coverage window below."
+    )
     description = (
         f"{count} humanitarian reports for {country}, with source coverage through {as_of}, "
         "plus alerts and key figures from trusted sources."
@@ -1336,6 +1336,7 @@ def _crisis_page(slug: str, allow_noindex: bool = False):
         canonical=f"{SITE_URL}/crisis/{slug}",
         site_url=SITE_URL,
         body_html=body_html,
+        crisis_sub=crisis_sub,
         hero_badges=hero_badges,
         hero_extra=hero_extra,
         map_url=map_url,

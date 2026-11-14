@@ -161,7 +161,10 @@
     hyphens: none;
   }
   .article-layout { margin-top: 28px; }
-  .demo-lead-card { padding: 16px; }
+  .demo-lead-card { width: 100%; max-width: none; padding: 16px; }
+  .publication-nav { flex-wrap: wrap; overflow: visible; white-space: normal; row-gap: 8px; }
+  .publication-nav a { white-space: nowrap; }
+  .publication-app-link { white-space: nowrap; font-size: 12px; padding-inline: 10px; }
 }
 
 .article-lede {

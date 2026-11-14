@@ -520,7 +520,7 @@
       <p class="crisis-kicker">{{ 'Daily digest' if request.path.startswith('/digest/') else 'Country briefing' }}</p>
       {{ hero_badges | safe }}
       <h1 class="crisis-title" id="crisis-title">{{ page_title }}</h1>
-      <p class="crisis-sub">Humanitarian overview with dated reports, alerts and key figures from trusted sources.</p>
+      <p class="crisis-sub">{{ crisis_sub or 'Humanitarian overview with dated reports, alerts and key figures from trusted sources.' }}</p>
       <div class="crisis-summary-block">{{ hero_extra | safe }}</div>
     </section>
     {% if adsense_client %}
