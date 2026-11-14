@@ -517,7 +517,7 @@
   </header>
   <main class="crisis-wrap" id="crisis-content">
     <section class="crisis-hero" aria-labelledby="crisis-title">
-      <p class="crisis-kicker">{{ 'Daily digest' if request.path.startswith('/digest/') else 'Country briefing' }}</p>
+      <p class="crisis-kicker">{{ 'Briefing' if request.path.startswith('/digest/') else 'Country briefing' }}</p>
       {{ hero_badges | safe }}
       <h1 class="crisis-title" id="crisis-title">{{ page_heading or page_title }}</h1>
       <p class="crisis-sub">{{ crisis_sub or 'Humanitarian overview with dated reports, alerts and key figures from trusted sources.' }}</p>

@@ -1630,7 +1630,7 @@ def _render_detail_generic(
 
     adsense_client, adsense_slot = _active_adsense_config()
     composed_title = (
-        f"Daily digest {date_str} — {country_stem.replace('_', ' ').title()}"
+        f"{country_stem.replace('_', ' ').title()} · {_human_date(date_str)}"
         if title_override is None
         else title_override
     )
