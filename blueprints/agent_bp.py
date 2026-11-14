@@ -19,7 +19,7 @@ from agent.memory import gated_recall, maybe_consolidate, remember_turn
 from agent.pricing import compute_cost
 from agent.relief_agent import TOOL_GROUP_MAP, TOOL_SERVER_MAP
 from agent.tool_resilience import looks_like_tool_error
-from auth import current_role, current_uid, require_admin, require_auth
+from auth import current_role, current_uid, optional_auth, require_admin, require_auth
 from blueprints.helpers import (
     _AGENT_BUSY_TIMEOUT,
     _chats_db,
@@ -48,6 +48,9 @@ from config import (
     CHAT_MAX_CONCURRENT,
     CHAT_MODELS,
     CUSTOM_MODELS,
+    GUEST_MAX_TOKENS,
+    GUEST_MAX_TOOL_CALLS,
+    GUEST_MODEL,
     LLM_PROVIDER,
     OLLAMA_MODEL,
     model_available_for_provider,
@@ -305,8 +308,24 @@ def api_agent_chats_delete(chat_id):
 # ─── Agent chat (SSE streaming) ──────────────────────────────────────────────
 
 
+@agent_bp.route("/guest", methods=["GET"])
+@optional_auth
+def api_agent_guest_status():
+    """Guest preview quota for the current visitor."""
+    from blueprints import guest as guest_preview
+
+    if current_uid():
+        return jsonify({"guest": False})
+    guest_id, is_new = guest_preview.get_guest_id()
+    payload = {"guest": True, **guest_preview.status(guest_id)}
+    resp = jsonify(payload)
+    if is_new:
+        guest_preview.set_guest_cookie(resp, guest_id)
+    return resp
+
+
 @agent_bp.route("/chat", methods=["POST"])
-@require_auth
+@optional_auth
 def api_agent_chat():
     import time as _time
 
@@ -320,6 +339,27 @@ def api_agent_chat():
         return jsonify({"error": "empty message"}), 400
     attachment = data.get("attachment") or None
 
+    # Guest preview: anonymous visitors get three cheap messages before sign-in.
+    from blueprints import guest as guest_preview
+
+    guest_id = None
+    guest_meta = None
+    if not uid:
+        guest_id, guest_is_new = guest_preview.get_guest_id()
+        guest_meta = guest_preview.consume(guest_id)
+        if not guest_meta.get("allowed"):
+            resp = jsonify(
+                {
+                    "error": "Guest preview limit reached. Sign in to continue.",
+                    "code": "ERR-guest-limit",
+                    "login_required": True,
+                    "guest": guest_meta,
+                }
+            )
+            return guest_preview.set_guest_cookie(resp, guest_id), 401
+        uid = f"guest-{guest_id[:12]}"
+        role = "guest"
+
     # ── Pre-flight checks (BEFORE setting busy flag) ──────────────────────
     # Do all validation that can return early here so we never leave the
     # busy flag stuck if a later step returns/throws before generate() runs.
@@ -329,17 +369,27 @@ def api_agent_chat():
     if agent_mode not in ("analyst", "me_reviewer"):
         agent_mode = "analyst"
 
-    # Model selection for chat
-    requested_model = data.get("model", "flash")
-    if requested_model in CHAT_MODELS:
-        model_key = requested_model
-        model_config = CHAT_MODELS[model_key]
-    elif requested_model in CUSTOM_MODELS:
-        model_key = requested_model
-        model_config = CUSTOM_MODELS[model_key]
+    # Model selection for chat. Guests always use the cheap preview model.
+    is_guest = role == "guest"
+    if is_guest:
+        model_key = "guest"
+        model_config = {
+            "name": "Guest preview",
+            "model": GUEST_MODEL,
+            "desc": "Limited free preview",
+            "premium": False,
+        }
     else:
-        model_key = "flash"
-        model_config = CHAT_MODELS["flash"]
+        requested_model = data.get("model", "flash")
+        if requested_model in CHAT_MODELS:
+            model_key = requested_model
+            model_config = CHAT_MODELS[model_key]
+        elif requested_model in CUSTOM_MODELS:
+            model_key = requested_model
+            model_config = CUSTOM_MODELS[model_key]
+        else:
+            model_key = "flash"
+            model_config = CHAT_MODELS["flash"]
     # Premium model check — done before busy lock so we don't lock out on 403
     if model_config["premium"] and role not in ("premium", "admin"):
         return jsonify({"error": "Premium model requires a premium account", "premium_required": True}), 403
@@ -373,7 +423,7 @@ def api_agent_chat():
             return jsonify({"error": "Agent is busy processing your previous message, please wait"}), 429
 
         # Atomic rate-limit check + increment in a single DB transaction
-        if role != "admin":
+        if role not in ("admin", "guest"):
             rate = _check_and_increment_rate_limit(uid, role)
             if not rate["allowed"]:
                 _log_event(uid, "rate_limit_hit", {"reason": "daily_limit", "limit": rate["limit"]})
@@ -423,10 +473,11 @@ def api_agent_chat():
 
             # ── Cross-chat memory recall (gated + best-effort — never breaks chat) ──
             memory_context = ""
-            try:
-                memory_context = gated_recall(uid, user_message)
-            except Exception:
-                pass
+            if not is_guest:
+                try:
+                    memory_context = gated_recall(uid, user_message)
+                except Exception:
+                    pass
 
             # Use selected model or default agent. Google can only serve Gemini
             # models, so fall back to Flash if a non-Google custom model is requested.
@@ -444,7 +495,10 @@ def api_agent_chat():
                 from agent.model import build_chat_model
                 from agent.relief_agent import build_agent
 
-                temp_llm = build_chat_model(selected_model_name)
+                temp_llm = build_chat_model(
+                    selected_model_name,
+                    max_tokens=GUEST_MAX_TOKENS if is_guest else None,
+                )
                 agent = build_agent(
                     temp_llm,
                     mode=agent_mode,
@@ -453,6 +507,8 @@ def api_agent_chat():
                     vision=model_config.get("vision", False),
                     attachment=attachment,
                     memory_context=memory_context,
+                    guest=is_guest,
+                    max_tool_calls=GUEST_MAX_TOOL_CALLS if is_guest else None,
                 )
             else:
                 logger.debug("agent path: singleton model=%s", selected_model_name)
@@ -616,29 +672,31 @@ def api_agent_chat():
                 _db_add_message(chat_id, "assistant", full_response, meta=turn_meta)
 
                 # Persist this turn to cross-chat episodic memory (best-effort)
-                try:
-                    remember_turn(uid, chat_id, user_message, full_response)
-                except Exception:
-                    pass
+                if not is_guest:
+                    try:
+                        remember_turn(uid, chat_id, user_message, full_response)
+                    except Exception:
+                        pass
 
                 # Consolidate unconsolidated turns into durable facts (best-effort)
-                try:
-                    maybe_consolidate(uid)
-                except Exception:
-                    pass
+                if not is_guest:
+                    try:
+                        maybe_consolidate(uid)
+                    except Exception:
+                        pass
 
                 # Auto-generate title with LLM after first exchange
                 conn = _chats_db()
                 row = conn.execute("SELECT title FROM chats WHERE id = ?", (chat_id,)).fetchone()
                 conn.close()
-                if row and row["title"] == "New Chat":
+                if row and row["title"] == "New Chat" and not is_guest:
                     _generate_chat_title(chat_id, user_message, full_response)
             else:
                 turn_status = "empty"
 
             signals = answer_signals(full_response)
             total_ms = int((_time.time() - turn_wall_start) * 1000)
-            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer']})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer'], 'guest': (guest_preview.status(guest_id) if is_guest else None)})}\n\n"
 
         except GeneratorExit:
             turn_status = "cancelled"
@@ -711,7 +769,7 @@ def api_agent_chat():
                 _user_agent_busy[uid] = False
             _chat_sem.release()
 
-    return Response(
+    response = Response(
         generate(),
         mimetype="text/event-stream",
         headers={
@@ -720,6 +778,9 @@ def api_agent_chat():
             "Connection": "keep-alive",
         },
     )
+    if is_guest and guest_id:
+        guest_preview.set_guest_cookie(response, guest_id)
+    return response
 
 
 @agent_bp.route("/chat/reset", methods=["POST"])

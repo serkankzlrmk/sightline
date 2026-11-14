@@ -368,6 +368,14 @@ def init_chats_db():
         CREATE INDEX IF NOT EXISTS idx_events_ts    ON events(ts);
         CREATE INDEX IF NOT EXISTS idx_events_uid   ON events(uid);
         CREATE INDEX IF NOT EXISTS idx_events_event ON events(event);
+        CREATE TABLE IF NOT EXISTS guest_usage (
+            guest_id   TEXT PRIMARY KEY,
+            messages   INTEGER NOT NULL DEFAULT 0,
+            first_at   REAL NOT NULL,
+            last_at    REAL NOT NULL,
+            ip_hash    TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_guest_usage_ip ON guest_usage(ip_hash, last_at);
         CREATE TABLE IF NOT EXISTS users (
             uid            TEXT PRIMARY KEY,
             email          TEXT NOT NULL DEFAULT '',

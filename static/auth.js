@@ -167,6 +167,7 @@ async function checkAdminStatus() {
       window.__isAdmin = !!data.is_admin;
       window.__userRole = data.role || "free";
       window.__rateLimit = data.rate_limit || null;
+      if (tok && window.updateGuestPreviewUI) window.updateGuestPreviewUI({ guest: false });
       updateRateLimitUI();
       updateVisibility();
     } catch (e) {

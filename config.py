@@ -100,6 +100,13 @@ RELEASE_SHA: str = os.getenv("RELEASE_SHA", "dev")
 
 # Max concurrent agent chat streams (thread pool is 4; leave headroom for other APIs)
 CHAT_MAX_CONCURRENT: int = int(os.getenv("CHAT_MAX_CONCURRENT", "8"))
+
+# Guest chat preview: three cheap messages before sign-in.
+GUEST_MESSAGE_LIMIT: int = int(os.getenv("GUEST_MESSAGE_LIMIT", "3"))
+GUEST_IP_DAILY_LIMIT: int = int(os.getenv("GUEST_IP_DAILY_LIMIT", "9"))
+GUEST_MODEL: str = os.getenv("GUEST_MODEL", "google/gemini-3.1-flash-lite")
+GUEST_MAX_TOKENS: int = int(os.getenv("GUEST_MAX_TOKENS", "450"))
+GUEST_MAX_TOOL_CALLS: int = int(os.getenv("GUEST_MAX_TOOL_CALLS", "2"))
 MAX_TOOL_CALLS_PER_TURN: int = int(os.getenv("MAX_TOOL_CALLS_PER_TURN", "6"))
 
 # Alert thresholds (scripts/alert_check.py)

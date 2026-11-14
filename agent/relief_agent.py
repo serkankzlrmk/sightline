@@ -433,7 +433,7 @@ _threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
 # ============================================================================
 
 
-def _build_system_prompt(use_sequential: bool = False, mode: str = "analyst", memory_context: str = "") -> str:
+def _build_system_prompt(use_sequential: bool = False, mode: str = "analyst", memory_context: str = "", guest: bool = False) -> str:
     today = _date.today().isoformat()  # e.g. "2026-04-01"
     sequential_section = ""
     if use_sequential:
@@ -459,6 +459,18 @@ You are in Deep Think mode. For complex analytical questions, use the **sequenti
 - Simple factual questions ("How many refugees in Sudan?")
 - Single-tool queries ("Latest Sudan reports")
 - Quick lookups — sequential_thinking adds latency, skip for simple questions
+"""
+    guest_section = ""
+    if guest:
+        guest_section = """
+## GUEST PREVIEW (ACTIVE — NO ACCOUNT)
+
+You are in a limited guest preview. Rules:
+- Answer concisely: at most 120 words unless the user asks for a specific list.
+- Use at most two tool calls; then answer from the evidence gathered.
+- Do not offer to create files, proposals, long reports or multi-step projects.
+- If the question needs deeper work, answer the useful part and briefly invite the user to sign in to continue.
+- Never mention token budgets, model names or internal limits.
 """
     # ── Mode-specific system prompt sections ──
     mode_intro = ""
@@ -549,6 +561,7 @@ fact with your tools before stating it, and never cite memory as a source.
 
     return f"""You are Sightline — a specialized humanitarian data analyst. You operate exclusively within the domain of humanitarian aid, disaster response, and relief operations. Your sole purpose is to search, analyze, and discuss humanitarian reports and data using your tools.
 {mode_intro}
+{guest_section}
 ## IDENTITY & BOUNDARIES (NON-NEGOTIABLE)
 
 You are NOT a general-purpose assistant. You MUST:
@@ -958,6 +971,8 @@ def build_agent(
     vision: bool = False,
     attachment: dict | None = None,
     memory_context: str = "",
+    guest: bool = False,
+    max_tool_calls: int | None = None,
 ):
     """Build a LangGraph agent for the given model / mode / role.
 
@@ -974,8 +989,10 @@ def build_agent(
     user_tools = get_tools_for_mode(mode=mode, role=role)
     llm_with_tools = model.bind_tools(user_tools)
     llm_no_tools = model.bind_tools([])
-    system_prompt = _build_system_prompt(use_sequential=use_sequential, mode=mode, memory_context=memory_context)
-    tool_budget = max(1, int(getattr(config, "MAX_TOOL_CALLS_PER_TURN", 8)))
+    system_prompt = _build_system_prompt(
+        use_sequential=use_sequential, mode=mode, memory_context=memory_context, guest=guest
+    )
+    tool_budget = max(1, int(max_tool_calls or getattr(config, "MAX_TOOL_CALLS_PER_TURN", 8)))
 
     def _llm_call(state: MessagesState):
         messages = state["messages"]

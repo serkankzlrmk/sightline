@@ -165,7 +165,8 @@ function switchTab(name) {
   // are open to anonymous visitors (public read APIs serve them).
   const tok = window.getIdToken ? window.getIdToken() : '';
   const isAuthed = !!tok;
-  const GATED_TABS = ['agent', 'db', 'admin'];
+  // Chat is open to anonymous visitors with a 3-message guest preview.
+  const GATED_TABS = ['db', 'admin'];
   if (!isAuthed && GATED_TABS.includes(name)) {
     // Open the gated tab's panel so the visitor sees where they clicked,
     // then slide in the login panel over it (backdrop locks the page).
@@ -351,6 +352,49 @@ function updateUploadBtnVisibility() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// GUEST CHAT PREVIEW
+// ═════════════════════════════════════════════════════════════════════════
+
+function updateGuestPreviewUI(data) {
+  window.__guestPreview = data || null;
+  const bar = document.getElementById('guest-preview-bar');
+  const remainingEl = document.getElementById('guest-preview-remaining');
+  const input = document.getElementById('chat-input');
+  const isGuest = !!(data && data.guest);
+  document.body.classList.toggle('guest-mode', isGuest);
+  if (!bar) return;
+  bar.hidden = !isGuest;
+  if (!isGuest) return;
+  if (remainingEl) remainingEl.textContent = String(data.remaining ?? 0);
+  const exhausted = Number(data.remaining || 0) <= 0;
+  if (input) {
+    input.disabled = exhausted;
+    input.placeholder = exhausted
+      ? 'Sign in to continue the conversation'
+      : 'Ask a short humanitarian question…';
+  }
+}
+
+async function initGuestPreview() {
+  if (typeof getIdToken === 'function' && getIdToken()) {
+    updateGuestPreviewUI({ guest: false });
+    return;
+  }
+  try {
+    const resp = await fetch('/api/agent/guest', { credentials: 'same-origin' });
+    if (!resp.ok) return;
+    updateGuestPreviewUI(await resp.json());
+  } catch { /* guest preview is optional */ }
+}
+
+document.addEventListener('click', (event) => {
+  const signin = event.target.closest('[data-action="guest-signin"]');
+  if (!signin) return;
+  event.preventDefault();
+  if (window.showLoginPanel) window.showLoginPanel();
+});
+
+// ═════════════════════════════════════════════════════════════════════════
 // DOM INIT
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -358,8 +402,9 @@ function updateUploadBtnVisibility() {
 // FREEMIUM PREVIEW — login panel controls
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Freemium preview: anonymous visitors read public content; the slide-in
-// login panel appears ONLY on gated tab clicks (Chat, Database, Admin).
+// Freemium preview: anonymous visitors read public content and can send a
+// short guest chat preview; the login panel appears on Database/Admin or when
+// the guest quota is exhausted.
 document.addEventListener('DOMContentLoaded', () => {
   // Country-aware deep links keep public crisis-page visitors in context:
   // /app?country=Sudan#crisis-map focuses the map and opens the country card;
@@ -390,6 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   openFromHash();
   window.addEventListener('hashchange', openFromHash);
+  initGuestPreview();
 });
 // Register buttons inside crisis panel (delegated — works for dynamically added elements)
 document.addEventListener('click', (e) => {

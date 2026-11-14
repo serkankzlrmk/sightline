@@ -234,6 +234,16 @@ async function sendMessage() {
       body: JSON.stringify(body),
     });
 
+    if (resp.status === 401) {
+      let guestErr = null;
+      try { guestErr = await resp.json(); } catch { /* ignore */ }
+      if (guestErr && guestErr.login_required) {
+        if (window.updateGuestPreviewUI) window.updateGuestPreviewUI(guestErr.guest || { guest: true, remaining: 0 });
+        chatState.currentAiEl.innerHTML = `<div class="rate-limit-msg"><div class="rate-limit-msg-title">Free preview complete</div><div class="rate-limit-msg-body">Sign in to keep the conversation going with full SITREP, proposal and country intelligence access.</div><button type="button" class="btn btn-sm" data-action="guest-signin">Sign in to continue</button></div>`;
+        return;
+      }
+    }
+
     if (resp.status === 429) {
       try {
         const errData = await resp.json();
@@ -309,6 +319,7 @@ async function sendMessage() {
           if (evt.turn_id && chatState.currentAiEl) {
             attachChatFeedback(chatState.currentAiEl.closest('.msg'), evt.turn_id, 0);
           }
+          if (evt.guest && window.updateGuestPreviewUI) window.updateGuestPreviewUI(evt.guest);
           renderObsFooter(evt);
           refreshObsTotals();
           if (typeof checkAdminStatus === 'function') checkAdminStatus();

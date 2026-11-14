@@ -744,3 +744,36 @@ body.auth-locked .chat-input-wrap .send-btn {
 .fb-btn:active { transform: scale(.94); }
 .fb-btn.active { opacity: 1; border-color: var(--primary, #0EA5E9); background: rgba(14,165,233,.12); }
 .fb-btn[data-rating="-1"].active { border-color: #ef4444; background: rgba(239,68,68,.10); }
+
+
+/* Guest chat preview */
+.guest-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(14,165,233,.22);
+  border-radius: 10px;
+  background: rgba(14,165,233,.06);
+  color: #475569;
+  font-size: 12px;
+}
+.guest-preview-bar strong { color: #0284C7; }
+.guest-signin-btn {
+  border: 0;
+  background: transparent;
+  color: #0284C7;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.guest-signin-btn:hover { text-decoration: underline; }
+body.guest-mode #model-selector,
+body.guest-mode #attach-btn,
+body.guest-mode .msg-feedback { display: none !important; }
+@media (max-width: 640px) {
+  .guest-preview-bar { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
