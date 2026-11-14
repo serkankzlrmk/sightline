@@ -933,11 +933,20 @@ def demo_sample():
     )
     body = (
         "<div data-public-sample hidden></div>"
+        '<div class="demo-intro">'
         '<p class="demo-kicker">Live product sample · no login</p>'
+        '<p class="article-lede">This is a real generated SITREP, not a marketing mockup. '
+        "Read the cited evidence, then request the same workflow for your own context.</p>"
+        '<ul class="demo-meta">'
+        "<li>Real dated report</li><li>Source register</li><li>No signup to read</li>"
+        "</ul>"
+        "</div>"
         f'<div class="demo-sample">{narrative}</div>'
-        "<h2>Want this for your country or operation?</h2>"
+        '<section class="demo-lead-card" aria-labelledby="demo-lead-title">'
+        '<h2 id="demo-lead-title">Want this for your country or operation?</h2>'
         "<p>Tell us where you work and we will send a short walkthrough plus a sample for your context.</p>"
         f"{lead_form}"
+        "</section>"
         '<p><a class="demo-workspace-link" href="/app#sitrep" '
         'data-track-event="cta_click" data-track-name="sample_cta" data-track-location="demo">'
         "Open the SITREP workspace</a></p>"

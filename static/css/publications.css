@@ -8,9 +8,9 @@
   --publication-border: rgba(0, 0, 0, 0.08);
   --publication-border-strong: rgba(0, 0, 0, 0.14);
   --publication-hover: rgba(0, 0, 0, 0.035);
-  --publication-primary: #E8364E;
-  --publication-primary-soft: rgba(232, 54, 78, 0.09);
-  --publication-primary-on-dark: #FF8999;
+  --publication-primary: #0EA5E9;
+  --publication-primary-soft: rgba(14, 165, 233, 0.09);
+  --publication-primary-on-dark: #7DD3FC;
   --publication-blue: #007AFF;
   --publication-blue-soft: rgba(0, 122, 255, 0.08);
   --publication-focus: rgba(0, 122, 255, 0.3);
