@@ -264,6 +264,19 @@ def api_admin_search_console():
         return jsonify({"error": "Failed to load Search Console data"}), 500
 
 
+@admin_bp.route("/growth/leads", methods=["GET"])
+@require_admin
+def api_admin_growth_leads():
+    """Recent consent-based acquisition leads (admin-only, no email sending)."""
+    from growth import leads
+
+    try:
+        return jsonify({"leads": leads.list_leads(limit=500), "count": leads.count_leads()})
+    except Exception as exc:
+        logger.error("api_admin_growth_leads failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load leads"}), 500
+
+
 @admin_bp.route("/audit", methods=["GET"])
 @require_admin
 def api_admin_audit():

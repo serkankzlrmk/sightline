@@ -48,6 +48,7 @@ export default [
       'static/proposal/proposal-guided.js',
       'static/shared.js',
       'static/error-reporter.js',
+      'static/lead-form.js',
       'static/chat/chat-core.js',
       'static/chat/chat-obs.js',
       'static/chat/chat-list.js',

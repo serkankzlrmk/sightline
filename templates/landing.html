@@ -20,6 +20,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/dist/landing.css?v={{ v }}">
+  <link rel="stylesheet" href="/static/css/lead-form.css?v=1">
+  <script defer src="/static/lead-form.js?v=1"></script>
   <link rel="icon" href="/static/logo-signal-horizon.png">
   <script type="application/ld+json">
   {
@@ -88,7 +90,9 @@
           </div>
           <h1>Turn crisis data into decisive action.</h1>
           <p>Generate cited SITREPs, donor proposals and weekly intelligence briefs from trusted humanitarian sources.</p>
-          <a href="/app" class="lp-btn lp-btn-primary lp-btn-lg" data-track-event="cta_click"
+          <a href="/demo" class="lp-btn lp-btn-primary lp-btn-lg" data-track-event="cta_click"
+             data-track-name="view_sample" data-track-location="landing_hero">See a live SITREP</a>
+          <a href="/app" class="lp-btn lp-btn-ghost lp-btn-lg" data-track-event="cta_click"
              data-track-name="login" data-track-location="landing_hero">Login</a>
         </div>
 
@@ -202,6 +206,13 @@
              data-track-event="cta_click" data-track-name="start_free" data-track-location="landing_final">Start free</a>
           <a href="/app" class="lp-btn lp-btn-ghost lp-btn-lg" data-track-event="cta_click"
              data-track-name="login" data-track-location="landing_final">Login</a>
+        </div>
+        <div class="lp-final-lead">
+          <h3>Get the weekly humanitarian signal</h3>
+          <p>One concise briefing on crisis data, SITREPs and donor workflows. No noise.</p>
+          {% set source = 'landing' %}
+          {% set event = 'newsletter_signup' %}
+          {% include 'partials/lead_form.html' %}
         </div>
         <nav class="lp-final-nav" aria-label="Primary destinations">
           <a href="/app">APP</a>

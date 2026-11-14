@@ -885,6 +885,81 @@ def sitrep_detail(slug: str):
     )
 
 
+@seo_bp.route("/demo")
+def demo_sample():
+    """Public, auth-free SITREP sample built from a real generated report."""
+    record_page_view("/demo", request.headers.get("User-Agent", ""))
+    files = _sitrep_report_files()
+    report = None
+    if files:
+        try:
+            latest = max(files, key=lambda item: (OUTPUT_REPORTS_DIR / item[0]).stat().st_mtime)
+            with open(OUTPUT_REPORTS_DIR / latest[0], encoding="utf-8") as fh:
+                report = json.load(fh)
+        except Exception:
+            report = None
+
+    if report:
+        title = _sitrep_title(report, latest[0])
+        sources = _sitrep_sources(report)
+        narrative = report.get("narrative_html") or report.get("narrative") or ""
+        narrative = _link_sitrep_citations(narrative, sources)
+        if not narrative and report.get("summary"):
+            narrative = f"<h2>Executive overview</h2><p>{_sanitize_html(report['summary'])}</p>"
+        if sources:
+            source_items = "".join(
+                (
+                    f'<li><a href="{html.escape(source["url"], quote=True)}" target="_blank" '
+                    f'rel="noopener noreferrer">{html.escape(source["title"])}</a></li>'
+                )
+                for source in sources
+            )
+            narrative += f'<h2>Source register</h2><ol class="demo-sources">{source_items}</ol>'
+        description = f"A real, dated Sightline SITREP sample: {title}."
+    else:
+        title = "See a live Sightline SITREP"
+        description = "A sample of how Sightline turns ReliefWeb and HDX data into a cited situation report."
+        narrative = (
+            "<h2>From source material to a cited SITREP</h2>"
+            "<p>Sightline ingests trusted humanitarian reports, clusters the evidence, retrieves the "
+            "relevant passages and writes a structured situation report with traceable citations.</p>"
+        )
+
+    lead_form = render_template(
+        "partials/lead_form.html",
+        source="demo",
+        event="demo_request",
+        button="Request a 15-min demo",
+    )
+    body = (
+        "<div data-public-sample hidden></div>"
+        '<p class="demo-kicker">Live product sample · no login</p>'
+        f'<div class="demo-sample">{narrative}</div>'
+        "<h2>Want this for your country or operation?</h2>"
+        "<p>Tell us where you work and we will send a short walkthrough plus a sample for your context.</p>"
+        f"{lead_form}"
+        '<p><a class="demo-workspace-link" href="/app#sitrep" '
+        'data-track-event="cta_click" data-track-name="sample_cta" data-track-location="demo">'
+        "Open the SITREP workspace</a></p>"
+    )
+    json_ld = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": title,
+        "description": description,
+        "mainEntityOfPage": f"{SITE_URL}/demo",
+        "author": {"@type": "Organization", "name": "Sightline"},
+        "publisher": {"@type": "Organization", "name": "Sightline"},
+    }
+    return _render_detail(
+        title,
+        description,
+        "demo",
+        body,
+        json_ld,
+    )
+
+
 # =============================================================================
 # ROUTES — Crisis (Programmatic per-country pages, P2 real-data gate)
 # =============================================================================
@@ -1623,6 +1698,7 @@ def _sitemap_builder() -> str:
         (f"{SITE_URL}/sitreps", today),
         (f"{SITE_URL}/countries", today),
         (f"{SITE_URL}/crisis", today),
+        (f"{SITE_URL}/demo", today),
     ]
     for slug, filename in _bulletin_slug_map().items():
         urls.append((f"{SITE_URL}/bulletin/{slug}", _lastmod(BULLETINS_DIR / filename)))

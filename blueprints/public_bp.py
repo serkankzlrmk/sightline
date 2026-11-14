@@ -13,7 +13,7 @@ import logging
 import threading
 import time as _time
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from auth import current_uid, require_admin, require_auth
 from blueprints.helpers import _db_conn, _get_chroma_adapter, _log_event
@@ -22,6 +22,55 @@ from config import OUTPUT_DIR, OUTPUT_REPORTS_DIR
 logger = logging.getLogger(__name__)
 
 public_bp = Blueprint("public", __name__, url_prefix="/api")
+
+# Lead capture is public; keep an additional per-minute guard on top of the
+# daily API budget to make form spam expensive.
+_lead_lock = threading.Lock()
+_lead_hits: dict[str, list[float]] = {}
+_LEAD_PER_MINUTE = 5
+
+
+def _lead_allowed(ip: str) -> bool:
+    now = _time.time()
+    with _lead_lock:
+        hits = [t for t in _lead_hits.get(ip, []) if now - t < 60]
+        if len(hits) >= _LEAD_PER_MINUTE:
+            _lead_hits[ip] = hits
+            return False
+        hits.append(now)
+        _lead_hits[ip] = hits
+        return True
+
+
+@public_bp.route("/leads", methods=["POST"])
+def submit_lead():
+    """Consent-based newsletter/demo lead capture (no email sent in this phase)."""
+    from growth import leads
+
+    ip = request.remote_addr or "0.0.0.0"
+    if not _lead_allowed(ip):
+        return jsonify({"error": "Too many requests"}), 429
+    data = request.get_json(silent=True) or {}
+    # Honeypot: bots fill hidden fields; respond as success without storing.
+    if str(data.get("website") or "").strip():
+        return jsonify({"ok": True})
+    utm = {
+        k: str(data.get(k) or "")[:120]
+        for k in ("utm_source", "utm_medium", "utm_campaign", "utm_content", "page")
+        if data.get(k)
+    }
+    ok = leads.add_lead(
+        data.get("email", ""),
+        name=data.get("name", ""),
+        organization=data.get("organization", ""),
+        source=data.get("source", ""),
+        utm=utm,
+        consent=bool(data.get("consent")),
+    )
+    if not ok:
+        return jsonify({"error": "A valid email and consent are required"}), 400
+    _log_event("anon", "lead_captured", {"source": str(data.get("source") or "")[:80]})
+    return jsonify({"ok": True})
 
 
 def _parse_countries(json_str):
