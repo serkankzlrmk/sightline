@@ -696,7 +696,7 @@ def api_agent_chat():
 
             signals = answer_signals(full_response)
             total_ms = int((_time.time() - turn_wall_start) * 1000)
-            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer'], 'guest': (guest_preview.status(guest_id) if is_guest else None)})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer'], 'guest': (guest_meta if is_guest else None)})}\n\n"
 
         except GeneratorExit:
             turn_status = "cancelled"
