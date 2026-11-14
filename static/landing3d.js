@@ -1241,6 +1241,8 @@
       };
       if (portalButton) portalButton.addEventListener('click', openSightlineSystem);
       if (worldTrigger) worldTrigger.addEventListener('click', openSightlineSystem);
+      var exploreButton = document.getElementById('hero-explore');
+      if (exploreButton) exploreButton.addEventListener('click', openSightlineSystem);
     }
 
     // Create progress dots
