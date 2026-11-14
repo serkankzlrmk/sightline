@@ -24,6 +24,7 @@ import logging
 import re
 import threading
 import time
+from datetime import date as _date
 from urllib.parse import urlencode
 
 import bleach
@@ -298,6 +299,14 @@ def _publication_kind(path: str) -> str:
     if path.startswith("countr"):
         return "Country intelligence"
     return "Humanitarian intelligence"
+
+
+def _human_date(value: str) -> str:
+    try:
+        day = _date.fromisoformat(str(value)[:10])
+        return f"{day.day} {calendar.month_name[day.month]} {day.year}"
+    except (ValueError, TypeError):
+        return str(value)
 
 
 def _text_excerpt(value: str, limit: int = 220) -> str:
@@ -1533,8 +1542,8 @@ def _digest_detail_html(country_stem: str, digest: dict, coverage_date: str) -> 
     return (
         '<div class="crisis-card crisis-card-wide crisis-digest">'
         '<div class="crisis-digest-head">'
-        f"<h1>Daily digest: {_sanitize_html(country)}</h1>"
-        f'<span class="crisis-digest-date">{_sanitize_html(coverage_date)}</span>'
+        "<h2>Briefing</h2>"
+        f'<span class="crisis-digest-date">{_sanitize_html(_human_date(coverage_date))}</span>'
         "</div>"
         f"{headline_html}{''.join(rows)}"
         f'<div class="crisis-digest-footer">{crisis_link}</div></div>'
@@ -1563,7 +1572,7 @@ def digest_day(date_str: str):
     items.sort(key=lambda x: x["sort_stem"])
     record_page_view(f"/digest/{date_str}", request.headers.get("User-Agent", ""))
     return _render_list(
-        date_str,
+        _human_date(date_str),
         f"Country briefings published for coverage date {date_str}.",
         items,
         f"digest/{date_str}",
@@ -1597,7 +1606,7 @@ def digest_country(date_str: str, country_stem: str):
         country_stem,
         date_str,
         page_heading=country_display,
-        title_override=f"{country_display} · {date_str}",
+        title_override=f"{country_display} · {_human_date(date_str)}",
     )
 
 
