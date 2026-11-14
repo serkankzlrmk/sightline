@@ -747,6 +747,7 @@ body.auth-locked .chat-input-wrap .send-btn {
 
 
 /* Guest chat preview */
+.guest-preview-bar[hidden] { display: none !important; }
 .guest-preview-bar {
   display: flex;
   align-items: center;
