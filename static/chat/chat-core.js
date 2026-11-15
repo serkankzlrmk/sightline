@@ -366,7 +366,14 @@ async function sendMessage() {
           if (evt.turn_id && chatState.currentAiEl) {
             attachChatFeedback(chatState.currentAiEl.closest('.msg'), evt.turn_id, 0);
           }
-          if (evt.guest && window.updateGuestPreviewUI) window.updateGuestPreviewUI(evt.guest);
+          if (evt.guest) {
+            if (window.updateGuestPreviewUI) window.updateGuestPreviewUI(evt.guest);
+            if (evt.guest.truncated || Number(evt.guest.remaining) <= 0) {
+              if (window.showGuestLimitBanner) {
+                window.showGuestLimitBanner(evt.guest.truncated ? 'truncated' : 'limit');
+              }
+            }
+          }
           renderObsFooter(evt);
           refreshObsTotals();
           if (typeof checkAdminStatus === 'function') checkAdminStatus();

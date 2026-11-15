@@ -1417,3 +1417,11 @@ body.sidebar-hidden .db-header {
     justify-content: center;
   }
 }
+
+@media (max-width: 768px) {
+  /* Country detail sheet must sit above Leaflet zoom/search controls */
+  .dash-crisis-panel,
+  .dash-crisis-panel.open {
+    z-index: 1200;
+  }
+}

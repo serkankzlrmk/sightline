@@ -147,6 +147,11 @@ function resetMapScrollPosition() {
   const main = document.querySelector('.main');
   const mapPanel = document.getElementById('panel-crisis-map');
   const mapWrap = document.getElementById('dash-map-wrap');
+  // Reset both the SPA panel and the document: mobile browsers can retain a
+  // page scroll when the map tab is re-entered from another panel.
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   [main, mapPanel, mapWrap].forEach((element) => {
     if (element) element.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   });
@@ -216,7 +221,8 @@ function switchTab(name) {
 
   // Sync mobile bottom tab bar
   document.querySelectorAll('.mobile-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === name);
+    const tabName = btn.dataset.tab === 'home' ? 'crisis-map' : btn.dataset.tab;
+    btn.classList.toggle('active', tabName === name);
   });
 
   if (name === 'crisis-map') {

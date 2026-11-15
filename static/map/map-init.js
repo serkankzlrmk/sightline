@@ -125,7 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Mobile bottom tab bar
   document.querySelectorAll('.mobile-tab[data-tab]').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    btn.addEventListener('click', () => {
+      // The mobile "Home" tab represents the crisis map panel.
+      switchTab(btn.dataset.tab === 'home' ? 'crisis-map' : btn.dataset.tab);
+    });
   });
 
   // Mobile user button (logout)
