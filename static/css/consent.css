@@ -57,3 +57,10 @@
 @media (max-width: 380px) {
   .sightline-consent__copy p { display: none; }
 }
+
+
+@media (max-width: 768px) {
+  .app-shell .sightline-consent {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  }
+}

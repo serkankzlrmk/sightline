@@ -656,3 +656,8 @@ a:focus-visible {
   .digest-date-count { grid-column: 2; }
   .digest-date-open { display: none; }
 }
+
+
+@media (max-width: 900px) {
+  .publication-ad, .crisis-ad { display: none !important; }
+}

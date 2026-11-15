@@ -191,3 +191,9 @@
   }
   .crisis-nav a { white-space: nowrap; }
 }
+
+/* Do not render empty ad frames on small screens */
+@media (max-width: 900px) {
+  .crisis-ad,
+  .publication-ad { display: none !important; }
+}

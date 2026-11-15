@@ -292,6 +292,8 @@ def _publication_section(path: str) -> str:
 
 
 def _publication_kind(path: str) -> str:
+    if path.startswith("demo"):
+        return "Live product sample"
     if path.startswith("bulletin"):
         return "Weekly bulletin"
     if path.startswith("sitrep"):
