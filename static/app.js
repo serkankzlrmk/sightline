@@ -392,6 +392,12 @@ function updateGuestPreviewUI(data) {
       ? 'Sign in to continue the conversation'
       : 'Ask a short humanitarian question…';
   }
+  // Also cover the reload case: if the quota was already exhausted before the
+  // page loaded, the user must still see the sign-in banner (not just a
+  // disabled input).
+  if (exhausted && typeof showGuestLimitBanner === 'function') {
+    showGuestLimitBanner('limit');
+  }
 }
 
 async function initGuestPreview() {
