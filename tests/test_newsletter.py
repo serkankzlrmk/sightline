@@ -33,6 +33,7 @@ def test_public_signup_and_confirm_page(nl, monkeypatch):
     import blueprints.public_bp as public_bp
 
     monkeypatch.setattr(public_bp, "_lead_allowed", lambda ip: True)
+    monkeypatch.setattr(nl, "send_welcome", lambda *a, **k: True)
     import server
 
     client = server.app.test_client()

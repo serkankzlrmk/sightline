@@ -993,6 +993,8 @@ def newsletter_confirm(token: str):
     from growth import newsletter
 
     result = newsletter.confirm(token)
+    if result:
+        newsletter.send_welcome(result.get("email", ""), result.get("token", ""), result.get("name", ""))
     record_page_view("/newsletter/confirm", request.headers.get("User-Agent", ""))
     return render_template(
         "newsletter_result.html",

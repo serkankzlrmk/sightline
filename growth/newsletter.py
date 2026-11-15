@@ -251,7 +251,7 @@ def send_confirmation(token: str, email: str, name: str = "") -> bool:
     )
 
 
-def _bulletin_content() -> tuple[str, str, str] | None:
+def _latest_bulletin() -> dict | None:
     from sitrep.weekly_bulletin import BULLETINS_DIR
 
     files = sorted(BULLETINS_DIR.glob("*_bulletin.json"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -264,13 +264,24 @@ def _bulletin_content() -> tuple[str, str, str] | None:
     label = str(data.get("week_label") or files[0].stem)
     overview = html.escape(str(data.get("global_overview") or ""))[:1200]
     slug = files[0].stem.replace("_bulletin", "")
-    url = f"{SITE_URL}/bulletin/{slug}"
-    title = f"Weekly signal · {label}"
+    return {
+        "label": label,
+        "overview": overview,
+        "url": f"{SITE_URL}/bulletin/{slug}",
+        "subject": f"Weekly signal · {label}",
+    }
+
+
+def _bulletin_content() -> tuple[str, str, str] | None:
+    data = _latest_bulletin()
+    if not data:
+        return None
+    title = data["subject"]
     body = (
-        f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{overview}</p>"
-        f"<p style='margin:0 0 18px'><a href='{url}' style='color:#0284c7;font-weight:700'>Read the full bulletin →</a></p>"
+        f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{data['overview']}</p>"
+        f"<p style='margin:0 0 18px'><a href='{data['url']}' style='color:#0284c7;font-weight:700'>Read the full bulletin →</a></p>"
     )
-    return title, _layout(title, body, "{{unsubscribe}}"), f"{title}\n{url}"
+    return title, _layout(title, body, "{{unsubscribe}}"), f"{title}\n{data['url']}"
 
 
 def _sitrep_content() -> tuple[str, str, str] | None:
@@ -294,6 +305,38 @@ def _sitrep_content() -> tuple[str, str, str] | None:
     return subject, _layout(subject, body, "{{unsubscribe}}"), f"{subject}\n{url}"
 
 
+def send_welcome(email: str, token: str, name: str = "") -> bool:
+    """Thank-you email that also carries the latest bulletin."""
+    data = _latest_bulletin()
+    unsub = f"{SITE_URL}/newsletter/unsubscribe/{token}"
+    if data:
+        title = "Welcome to the Sightline weekly signal"
+        body = (
+            "<p style='color:#475569;line-height:1.65;margin:0 0 18px'>Thanks for confirming your subscription. "
+            "Here is the latest weekly signal to get you started.</p>"
+            f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{data['overview']}</p>"
+            f"<p style='margin:0 0 18px'><a href='{data['url']}' style='color:#0284c7;font-weight:700'>Read the latest bulletin →</a></p>"
+        )
+    else:
+        title = "Welcome to the Sightline weekly signal"
+        body = (
+            "<p style='color:#475569'>Thanks for confirming your subscription. Your first signal will arrive soon.</p>"
+        )
+    return _send_email(email, title, _layout(title, body, unsub), title, unsub)
+
+
+def send_bulletin_preview(to_email: str) -> bool:
+    data = _latest_bulletin()
+    if not data:
+        return send_test(to_email)
+    unsub = f"{SITE_URL}/newsletter/unsubscribe/preview"
+    body = (
+        f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{data['overview']}</p>"
+        f"<p style='margin:0 0 18px'><a href='{data['url']}' style='color:#0284c7;font-weight:700'>Read the full bulletin →</a></p>"
+    )
+    return _send_email(to_email, data["subject"], _layout(data["subject"], body, unsub), data["subject"], unsub)
+
+
 def send_broadcast(kind: str = "bulletin") -> dict:
     """Send the latest bulletin/SITREP to confirmed subscribers (transactional)."""
     content = _bulletin_content() if kind != "sitrep" else _sitrep_content()
@@ -315,10 +358,4 @@ def send_broadcast(kind: str = "bulletin") -> dict:
 
 
 def send_test(to_email: str) -> bool:
-    title = "Sightline weekly signal — test"
-    unsub = f"{SITE_URL}/newsletter/unsubscribe/test"
-    body = (
-        "<p style='color:#475569'>Brevo is connected. Double opt-in and weekly delivery are ready.</p>"
-        "<p style='color:#94a3b8;font-size:12px'>This is a one-off test, not a newsletter.</p>"
-    )
-    return _send_email(to_email, title, _layout(title, body, unsub), title, unsub)
+    return send_bulletin_preview(to_email)
