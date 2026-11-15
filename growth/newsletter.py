@@ -251,6 +251,18 @@ def send_confirmation(token: str, email: str, name: str = "") -> bool:
     )
 
 
+def _clean_rich(value: str) -> str:
+    """Escape and lightly render the small Markdown subset used in bulletins."""
+    text = html.escape(str(value or "").strip())
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text, flags=re.S)
+    text = re.sub(r"^\s*#+\s*", "", text, flags=re.M)
+    parts = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    return "".join(
+        f"<p style='color:#475569;font-size:14px;line-height:1.65;margin:0 0 12px'>{part.replace(chr(10), ' ')}</p>"
+        for part in parts
+    )
+
+
 def _latest_bulletin() -> dict | None:
     from sitrep.weekly_bulletin import BULLETINS_DIR
 
@@ -262,26 +274,100 @@ def _latest_bulletin() -> dict | None:
     except (OSError, ValueError):
         return None
     label = str(data.get("week_label") or files[0].stem)
-    overview = html.escape(str(data.get("global_overview") or ""))[:1200]
     slug = files[0].stem.replace("_bulletin", "")
     return {
         "label": label,
-        "overview": overview,
+        "overview": str(data.get("global_overview") or ""),
         "url": f"{SITE_URL}/bulletin/{slug}",
-        "subject": f"Weekly signal · {label}",
+        "subject": "What changed in humanitarian aid this week",
+        "figures": data.get("key_figures") or [],
+        "themes": data.get("top_themes") or [],
+        "crises": data.get("crises") or [],
+        "total_reports": data.get("total_reports") or 0,
+        "countries": data.get("countries_affected") or 0,
+        "active_crises": len(data.get("crises") or []),
     }
+
+
+def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) -> tuple[str, str, str]:
+    label = html.escape(str(data.get("label") or ""))
+    subject = "You're in — what changed this week" if welcome else "What changed in humanitarian aid this week"
+    intro = (
+        "<p style='color:#0284c7;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px'>"
+        "Weekly humanitarian briefing</p>"
+        f"<p style='color:#8a8a91;font-size:12px;margin:0 0 18px'>{label}</p>"
+    )
+    if welcome:
+        intro = (
+            "<p style='color:#0284c7;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px'>"
+            "You are in</p>"
+            "<p style='color:#475569;font-size:14px;line-height:1.6;margin:0 0 18px'>Thanks for confirming your subscription. "
+            "Here is the latest weekly briefing — no noise, just what changed.</p>"
+            f"<p style='color:#8a8a91;font-size:12px;margin:0 0 18px'>{label}</p>"
+        )
+    overview = _clean_rich(data.get("overview") or "")
+    figures = data.get("figures") or []
+    figure_cells = ""
+    for item in figures[:6]:
+        figure_cells += (
+            "<td style='padding:8px 6px;vertical-align:top;width:33.33%'>"
+            f"<div style='color:#0f172a;font-size:19px;font-weight:800;letter-spacing:-.02em'>{html.escape(str(item.get('value') or '—'))}</div>"
+            f"<div style='color:#8a8a91;font-size:10px;line-height:1.3'>{html.escape(str(item.get('label') or ''))}</div>"
+            "</td>"
+        )
+    figures_html = ""
+    if figure_cells:
+        figures_html = (
+            "<div style='margin:0 0 20px;padding:12px 6px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc'>"
+            f"<table role='presentation' width='100%' cellpadding='0' cellspacing='0'>{figure_cells}</table></div>"
+        )
+    crises = data.get("crises") or []
+    severity_rank = {"high": 3, "medium": 2, "low": 1}
+    crises = sorted(
+        crises, key=lambda c: (severity_rank.get(str(c.get("severity")), 0), c.get("report_count") or 0), reverse=True
+    )[:4]
+    crisis_html = ""
+    for crisis in crises:
+        country = html.escape(str(crisis.get("country") or ""))
+        headline = html.escape(str(crisis.get("headline") or ""))
+        summary = html.escape(str(crisis.get("summary") or ""))[:360]
+        severity = str(crisis.get("severity") or "").lower()
+        color = {"high": "#dc2626", "medium": "#d97706"}.get(severity, "#0284c7")
+        crisis_html += (
+            "<div style='padding:14px 0;border-top:1px solid #e5e7eb'>"
+            f"<div style='color:{color};font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px'>{country}</div>"
+            f"<div style='color:#0f172a;font-size:15px;font-weight:750;line-height:1.3;margin-bottom:5px'>{headline}</div>"
+            f"<div style='color:#475569;font-size:12.5px;line-height:1.55'>{summary}{'…' if len(str(crisis.get('summary') or '')) > 360 else ''}</div>"
+            "</div>"
+        )
+    themes = data.get("themes") or []
+    theme_html = "".join(
+        f"<span style='display:inline-block;margin:0 4px 5px 0;padding:4px 8px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:10px'>{html.escape(str(t))}</span>"
+        for t in themes[:6]
+    )
+    cta = (
+        f"<p style='margin:20px 0 0'><a href='{html.escape(data['url'])}' "
+        "style='display:inline-block;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;"
+        "padding:11px 15px;border-radius:9px;font-size:13px'>Read the full weekly briefing →</a></p>"
+    )
+    body = (
+        f"{intro}"
+        f"<div style='font-size:15px;line-height:1.65'>{overview}</div>"
+        f"{figures_html}"
+        f"<p style='color:#8a8a91;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:0 0 2px'>Crises to watch</p>"
+        f"{crisis_html}"
+        f"{'<p style="color:#8a8a91;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:16px 0 4px">Themes</p>' + theme_html if theme_html else ''}"
+        f"{cta}"
+    )
+    text = f"{subject}\nWeek of {data.get('label')}\n\n{data.get('overview')}\n\nRead the full briefing: {data['url']}"
+    return subject, _layout(subject, body, unsubscribe_url), text
 
 
 def _bulletin_content() -> tuple[str, str, str] | None:
     data = _latest_bulletin()
     if not data:
         return None
-    title = data["subject"]
-    body = (
-        f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{data['overview']}</p>"
-        f"<p style='margin:0 0 18px'><a href='{data['url']}' style='color:#0284c7;font-weight:700'>Read the full bulletin →</a></p>"
-    )
-    return title, _layout(title, body, "{{unsubscribe}}"), f"{title}\n{data['url']}"
+    return _bulletin_email(data, "{{unsubscribe}}")
 
 
 def _sitrep_content() -> tuple[str, str, str] | None:
@@ -306,23 +392,15 @@ def _sitrep_content() -> tuple[str, str, str] | None:
 
 
 def send_welcome(email: str, token: str, name: str = "") -> bool:
-    """Thank-you email that also carries the latest bulletin."""
+    """Thank-you email that also carries the full latest bulletin."""
     data = _latest_bulletin()
     unsub = f"{SITE_URL}/newsletter/unsubscribe/{token}"
-    if data:
-        title = "Welcome to the Sightline weekly signal"
-        body = (
-            "<p style='color:#475569;line-height:1.65;margin:0 0 18px'>Thanks for confirming your subscription. "
-            "Here is the latest weekly signal to get you started.</p>"
-            f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{data['overview']}</p>"
-            f"<p style='margin:0 0 18px'><a href='{data['url']}' style='color:#0284c7;font-weight:700'>Read the latest bulletin →</a></p>"
-        )
-    else:
-        title = "Welcome to the Sightline weekly signal"
-        body = (
-            "<p style='color:#475569'>Thanks for confirming your subscription. Your first signal will arrive soon.</p>"
-        )
-    return _send_email(email, title, _layout(title, body, unsub), title, unsub)
+    if not data:
+        title = "You're in — welcome to Sightline"
+        body = "<p style='color:#475569'>Thanks for confirming your subscription. Your first briefing will arrive soon.</p>"
+        return _send_email(email, title, _layout(title, body, unsub), title, unsub)
+    subject, html_body, text_body = _bulletin_email(data, unsub, welcome=True)
+    return _send_email(email, subject, html_body, text_body, unsub)
 
 
 def send_bulletin_preview(to_email: str) -> bool:
@@ -330,11 +408,8 @@ def send_bulletin_preview(to_email: str) -> bool:
     if not data:
         return send_test(to_email)
     unsub = f"{SITE_URL}/newsletter/unsubscribe/preview"
-    body = (
-        f"<p style='color:#475569;line-height:1.65;margin:0 0 18px'>{data['overview']}</p>"
-        f"<p style='margin:0 0 18px'><a href='{data['url']}' style='color:#0284c7;font-weight:700'>Read the full bulletin →</a></p>"
-    )
-    return _send_email(to_email, data["subject"], _layout(data["subject"], body, unsub), data["subject"], unsub)
+    subject, html_body, text_body = _bulletin_email(data, unsub)
+    return _send_email(to_email, subject, html_body, text_body, unsub)
 
 
 def send_broadcast(kind: str = "bulletin") -> dict:
