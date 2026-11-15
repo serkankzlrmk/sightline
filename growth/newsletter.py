@@ -193,21 +193,23 @@ def remove_brevo_contact(email: str) -> bool:
     return status in (200, 201, 204)
 
 
-def _send_email(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
+def _send_email(to_email: str, subject: str, html_body: str, text_body: str, unsubscribe_url: str = "") -> bool:
     if not BREVO_API_KEY:
         return False
-    status, data = _brevo(
-        "POST",
-        "/smtp/email",
-        {
-            "sender": {"name": NEWSLETTER_FROM_NAME, "email": NEWSLETTER_FROM_EMAIL},
-            "replyTo": {"email": NEWSLETTER_REPLY_TO},
-            "to": [{"email": to_email}],
-            "subject": subject,
-            "htmlContent": html_body,
-            "textContent": text_body,
-        },
-    )
+    payload = {
+        "sender": {"name": NEWSLETTER_FROM_NAME, "email": NEWSLETTER_FROM_EMAIL},
+        "replyTo": {"email": NEWSLETTER_REPLY_TO},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    if unsubscribe_url:
+        payload["headers"] = {
+            "List-Unsubscribe": f"<{unsubscribe_url}>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+    status, data = _brevo("POST", "/smtp/email", payload)
     if status not in (200, 201, 202):
         logger.warning("Brevo send failed status=%s", status)
         return False
@@ -245,6 +247,7 @@ def send_confirmation(token: str, email: str, name: str = "") -> bool:
         "Confirm your Sightline subscription",
         _layout("One click to confirm", body, unsub),
         f"Confirm your Sightline subscription: {link}",
+        unsub,
     )
 
 
@@ -304,7 +307,7 @@ def send_broadcast(kind: str = "bulletin") -> dict:
         unsubscribe_url = f"{SITE_URL}/newsletter/unsubscribe/{subscriber['token']}"
         html_body = html_template.replace("{{unsubscribe}}", unsubscribe_url)
         text_body = text_template + f"\n\nUnsubscribe: {unsubscribe_url}"
-        if _send_email(subscriber["email"], subject, html_body, text_body):
+        if _send_email(subscriber["email"], subject, html_body, text_body, unsubscribe_url):
             sent += 1
         else:
             failed += 1
@@ -312,6 +315,10 @@ def send_broadcast(kind: str = "bulletin") -> dict:
 
 
 def send_test(to_email: str) -> bool:
-    title = "Sightline test email"
-    body = "<p style='color:#475569'>Brevo is connected. Double opt-in and weekly delivery are ready.</p>"
-    return _send_email(to_email, title, _layout(title, body, "{{unsubscribe}}"), title)
+    title = "Sightline weekly signal — test"
+    unsub = f"{SITE_URL}/newsletter/unsubscribe/test"
+    body = (
+        "<p style='color:#475569'>Brevo is connected. Double opt-in and weekly delivery are ready.</p>"
+        "<p style='color:#94a3b8;font-size:12px'>This is a one-off test, not a newsletter.</p>"
+    )
+    return _send_email(to_email, title, _layout(title, body, unsub), title, unsub)
