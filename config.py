@@ -567,6 +567,13 @@ GSC_ENABLED: bool = os.getenv("GSC_ENABLED", "false").lower() == "true"
 GSC_SITE_URL: str = os.getenv("GSC_SITE_URL", f"{SITE_URL.rstrip('/')}/")
 GSC_CREDENTIALS_PATH: str = os.getenv("GSC_CREDENTIALS_PATH", "").strip() or FIREBASE_SERVICE_ACCOUNT_PATH
 GSC_DB_PATH = Path(os.getenv("GSC_DB_PATH", "").strip() or str(DB_PATH.parent / "growth.db"))
+
+# Newsletter (Brevo). Secrets stay in the server environment only.
+BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "").strip()
+NEWSLETTER_FROM_EMAIL: str = os.getenv("NEWSLETTER_FROM_EMAIL", "signal@sightlinehumanitarian.com").strip()
+NEWSLETTER_FROM_NAME: str = os.getenv("NEWSLETTER_FROM_NAME", "Sightline").strip()
+NEWSLETTER_REPLY_TO: str = os.getenv("NEWSLETTER_REPLY_TO", NEWSLETTER_FROM_EMAIL).strip()
+BREVO_LIST_ID: int = int(os.getenv("BREVO_LIST_ID", "0") or "0")
 GSC_LOOKBACK_DAYS: int = int(os.getenv("GSC_LOOKBACK_DAYS", "28"))
 GSC_DATA_LAG_DAYS: int = int(os.getenv("GSC_DATA_LAG_DAYS", "3"))
 GSC_ROW_LIMIT: int = int(os.getenv("GSC_ROW_LIMIT", "1000"))

@@ -988,6 +988,47 @@ def demo_sample():
     )
 
 
+@seo_bp.route("/newsletter/confirm/<token>")
+def newsletter_confirm(token: str):
+    from growth import newsletter
+
+    result = newsletter.confirm(token)
+    record_page_view("/newsletter/confirm", request.headers.get("User-Agent", ""))
+    return render_template(
+        "newsletter_result.html",
+        page_title="Subscription confirmed" if result else "Confirmation link expired",
+        heading="You are in." if result else "This link is no longer valid.",
+        message=(
+            "Your Sightline weekly signal subscription is confirmed. "
+            "The next brief will land in your inbox."
+            if result else
+            "The confirmation link may have expired. You can request a fresh one from the site footer."
+        ),
+        result_ok=bool(result),
+        site_url=SITE_URL,
+    )
+
+
+@seo_bp.route("/newsletter/unsubscribe/<token>")
+def newsletter_unsubscribe(token: str):
+    from growth import newsletter
+
+    result = newsletter.unsubscribe(token)
+    record_page_view("/newsletter/unsubscribe", request.headers.get("User-Agent", ""))
+    return render_template(
+        "newsletter_result.html",
+        page_title="Unsubscribed" if result else "Unsubscribe link expired",
+        heading="You are unsubscribed." if result else "This link is no longer valid.",
+        message=(
+            "You will no longer receive the Sightline weekly signal. You can re-subscribe from the site footer anytime."
+            if result else
+            "The unsubscribe link may have expired."
+        ),
+        result_ok=bool(result),
+        site_url=SITE_URL,
+    )
+
+
 # =============================================================================
 # ROUTES — Crisis (Programmatic per-country pages, P2 real-data gate)
 # =============================================================================

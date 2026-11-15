@@ -73,6 +73,50 @@ def submit_lead():
     return jsonify({"ok": True})
 
 
+@public_bp.route("/newsletter/signup", methods=["POST"])
+def newsletter_signup():
+    """Create a pending subscriber and send the double opt-in email."""
+    from growth import newsletter
+
+    ip = request.remote_addr or "0.0.0.0"
+    if not _lead_allowed(ip):
+        return jsonify({"error": "Too many requests"}), 429
+    data = request.get_json(silent=True) or {}
+    if str(data.get("website") or "").strip():
+        return jsonify({"ok": True})  # honeypot
+    if not bool(data.get("consent")):
+        return jsonify({"error": "Consent is required"}), 400
+    if not newsletter.configured():
+        # Graceful pre-launch fallback: keep the lead, but do not claim an
+        # email was sent until Brevo is configured.
+        from growth import leads
+
+        ok = leads.add_lead(
+            data.get("email", ""),
+            name=data.get("name", ""),
+            source=str(data.get("source") or "landing_footer")[:80],
+            consent=True,
+        )
+        if not ok:
+            return jsonify({"error": "A valid email is required"}), 400
+        _log_event("anon", "lead_captured", {"source": "newsletter_fallback"})
+        return jsonify({"ok": True, "status": "lead_only", "confirmation_required": False})
+    result = newsletter.signup(
+        data.get("email", ""),
+        name=data.get("name", ""),
+        source=str(data.get("source") or "landing_footer")[:80],
+    )
+    if not result.get("ok"):
+        return jsonify({"error": "A valid email is required"}), 400
+    if result.get("status") == "confirmed":
+        return jsonify({"ok": True, "status": "confirmed", "confirmation_required": False})
+    sent = newsletter.send_confirmation(result["token"], result["email"], data.get("name", ""))
+    _log_event("anon", "newsletter_signup", {"source": str(data.get("source") or "")[:80], "sent": bool(sent)})
+    if not sent:
+        return jsonify({"error": "Confirmation email could not be sent. Please retry."}), 502
+    return jsonify({"ok": True, "status": "pending", "confirmation_required": True})
+
+
 def _parse_countries(json_str):
     """Parse a JSON countries string into a list."""
     try:

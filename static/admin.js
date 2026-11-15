@@ -67,6 +67,7 @@ async function loadAnalytics() {
   loadSearchConsole();
   loadAcquisitionLeads();
   loadGrowthFunnel();
+  loadNewsletter();
   try {
     const resp = await fetch('/api/admin/analytics', {
       headers: { 'Authorization': 'Bearer ' + tok }
@@ -159,6 +160,58 @@ async function loadIngestStatus() {
   }
 }
 window.loadIngestStatus = loadIngestStatus;
+
+async function loadNewsletter() {
+  const cards = document.getElementById('newsletter-kpi-cards');
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!cards || !tok) return;
+  try {
+    const resp = await fetch('/api/admin/newsletter/stats', {
+      headers: { 'Authorization': 'Bearer ' + tok }
+    });
+    if (!resp.ok) throw new Error('Failed to load newsletter stats');
+    const data = await resp.json();
+    cards.innerHTML = [
+      { label: 'Confirmed', value: data.confirmed || 0 },
+      { label: 'Pending', value: data.pending || 0 },
+      { label: 'Unsubscribed', value: data.unsubscribed || 0 },
+      { label: 'Configured', value: data.configured ? 'Yes' : 'No' },
+    ].map(item => `
+      <div class="kpi-card">
+        <div class="kpi-value">${esc(item.value)}</div>
+        <div class="kpi-label">${esc(item.label)}</div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Newsletter stats error:', error);
+    cards.innerHTML = '<div class="kpi-card"><div class="kpi-value">Unavailable</div><div class="kpi-label">Newsletter</div></div>';
+  }
+}
+
+async function sendNewsletterAction(action) {
+  const tok = window.getIdToken ? window.getIdToken() : '';
+  if (!tok) return;
+  if (action !== 'test' && !confirm('Send this email to all confirmed subscribers?')) return;
+  try {
+    const resp = await fetch(action === 'test' ? '/api/admin/newsletter/test' : '/api/admin/newsletter/send', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify(action === 'test' ? {} : { kind: action })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Newsletter action failed');
+    toast(action === 'test' ? 'Test email sent' : `Sent: ${data.sent || 0}, failed: ${data.failed || 0}`, 'success');
+    loadNewsletter();
+  } catch (error) {
+    console.error('Newsletter action error:', error);
+    toast(error.message || 'Newsletter action failed', 'error');
+  }
+}
+
+document.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-newsletter-action]');
+  if (btn) sendNewsletterAction(btn.dataset.newsletterAction);
+});
 
 async function loadGrowthFunnel() {
   const cards = document.getElementById('growth-funnel-cards');

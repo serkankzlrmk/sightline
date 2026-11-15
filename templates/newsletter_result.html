@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#FFFFFF">
+  <title>{{ page_title }} - Sightline</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" type="image/png" href="/static/logo-signal-horizon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/publications.css">
+  {% include '_analytics_head.html' %}
+  <link rel="stylesheet" href="/static/css/reader.css?v=2">
+</head>
+<body>
+  <header class="publication-header">
+    <div class="publication-header-inner">
+      <a class="publication-brand" href="/" aria-label="Sightline home">
+        <img src="/static/logo-signal-horizon.png" width="28" height="28" alt="">
+        <span>Sightline</span>
+      </a>
+      <a class="publication-app-link" href="/app">Open Sightline</a>
+    </div>
+  </header>
+  <main class="publication-shell" style="max-width:720px">
+    <section class="publication-hero" style="display:block">
+      <p class="publication-kicker">Weekly signal</p>
+      <h1>{{ heading }}</h1>
+      <p class="publication-description">{{ message }}</p>
+    </section>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="lp-btn lp-btn-primary" style="background:#0f172a;color:#fff;padding:11px 16px;border-radius:9px;text-decoration:none;font-weight:700;font-size:13px" href="/">Back to Sightline</a>
+      <a class="lp-btn lp-btn-ghost" style="border:1px solid #cbd5e1;color:#0f172a;padding:11px 16px;border-radius:9px;text-decoration:none;font-weight:700;font-size:13px" href="/demo">See a live SITREP</a>
+    </div>
+  </main>
+</body>
+</html>

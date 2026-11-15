@@ -16,7 +16,7 @@ import time as _time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, g, jsonify, request
 
 from auth import _admins, current_uid, require_admin
 from blueprints.helpers import _chats_db, _log_audit, _log_event
@@ -360,6 +360,51 @@ def api_admin_growth_leads_csv():
     except Exception as exc:
         logger.error("api_admin_growth_leads_csv failed: %s", exc, exc_info=True)
         return jsonify({"error": "Failed to export leads"}), 500
+
+
+@admin_bp.route("/newsletter/stats", methods=["GET"])
+@require_admin
+def api_admin_newsletter_stats():
+    from growth import newsletter
+
+    try:
+        data = {"configured": newsletter.configured(), **newsletter.counts(), "list_id": None}
+        return jsonify(data)
+    except Exception as exc:
+        logger.error("api_admin_newsletter_stats failed: %s", exc, exc_info=True)
+        return jsonify({"error": "Failed to load newsletter stats"}), 500
+
+
+@admin_bp.route("/newsletter/test", methods=["POST"])
+@require_admin
+def api_admin_newsletter_test():
+    from growth import newsletter
+
+    data = request.get_json(silent=True) or {}
+    to_email = str(data.get("to") or "").strip()
+    if not to_email:
+        user = getattr(g, "current_user", None) or {}
+        to_email = str(user.get("email") or "").strip()
+    if not to_email:
+        return jsonify({"error": "A test recipient email is required"}), 400
+    if not newsletter.send_test(to_email):
+        return jsonify({"error": "Brevo test email failed"}), 502
+    _log_event(current_uid(), "newsletter_test_sent", {"to": to_email})
+    return jsonify({"ok": True, "to": to_email})
+
+
+@admin_bp.route("/newsletter/send", methods=["POST"])
+@require_admin
+def api_admin_newsletter_send():
+    from growth import newsletter
+
+    data = request.get_json(silent=True) or {}
+    kind = "sitrep" if str(data.get("kind") or "") == "sitrep" else "bulletin"
+    result = newsletter.send_broadcast(kind)
+    if not result.get("ok"):
+        return jsonify({"error": result.get("error") or "Newsletter send failed"}), 400
+    _log_event(current_uid(), "newsletter_sent", {"kind": kind, "sent": result.get("sent", 0)})
+    return jsonify(result)
 
 
 @admin_bp.route("/audit", methods=["GET"])

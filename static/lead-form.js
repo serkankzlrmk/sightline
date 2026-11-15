@@ -29,7 +29,8 @@
     Object.assign(payload, utm());
     if (status) { status.textContent = 'Saving…'; status.className = 'lead-status'; }
     if (button) button.disabled = true;
-    fetch('/api/leads', {
+    var endpoint = form.dataset.endpoint || '/api/leads';
+    fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -37,7 +38,12 @@
       return resp.json().then(function (body) { return { ok: resp.ok, body: body }; });
     }).then(function (result) {
       if (!result.ok) throw new Error(result.body.error || 'Could not save');
-      if (status) { status.textContent = 'You are on the list. Thank you.'; status.className = 'lead-status ok'; }
+      if (status) {
+        status.textContent = result.body && result.body.confirmation_required
+          ? 'Check your inbox to confirm your subscription.'
+          : 'You are on the list. Thank you.';
+        status.className = 'lead-status ok';
+      }
       form.reset();
       if (window.sightlineTrack) {
         window.sightlineTrack(form.dataset.leadEvent || 'newsletter_signup', {
