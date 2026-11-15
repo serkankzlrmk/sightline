@@ -200,8 +200,9 @@ function switchTab(name) {
   currentTab = name;
   // Leaving the map must not leave a half-open country card (with its own
   // scroll offset) waiting when the user comes back.
-  if (previousTab === 'crisis-map' && name !== 'crisis-map' && typeof closeCrisisPanel === 'function') {
-    closeCrisisPanel();
+  if (previousTab === 'crisis-map' && name !== 'crisis-map') {
+    if (typeof window.saveWorldMapView === 'function') window.saveWorldMapView();
+    if (typeof closeCrisisPanel === 'function') closeCrisisPanel();
   }
   const allTabs = TAB_NAMES;
   const sidebar = document.getElementById('sidebar-nav');
@@ -263,6 +264,11 @@ function switchTab(name) {
     resetMapScrollPosition();
     // Build and measure Leaflet only after its panel is visible.
     initWorldMap();
+    // The panel may have been 0×0 while another tab was active; restore the
+    // user's last view after Leaflet recalculates its size.
+    setTimeout(() => {
+      if (typeof window.restoreWorldMapView === 'function') window.restoreWorldMapView();
+    }, 120);
     loadDashboard();
   }
 

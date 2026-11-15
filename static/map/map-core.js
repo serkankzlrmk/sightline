@@ -10,6 +10,27 @@ function isWorldMapVisible(container = document.getElementById('world-map')) {
   return rect.width >= 100 && rect.height >= 100;
 }
 
+function saveWorldMapView() {
+  if (!leafletMap || !isWorldMapVisible()) return;
+  try {
+    const center = leafletMap.getCenter();
+    window.__savedMapView = { lat: center.lat, lng: center.lng, zoom: leafletMap.getZoom() };
+  } catch { /* map not ready */ }
+}
+
+window.saveWorldMapView = saveWorldMapView;
+
+function restoreWorldMapView() {
+  const view = window.__savedMapView;
+  if (!leafletMap || !view || !isWorldMapVisible()) return;
+  try {
+    // Keep the exact user location/zoom after the panel gets its real size.
+    leafletMap.setView([view.lat, view.lng], view.zoom, { animate: false });
+  } catch { /* map not ready */ }
+}
+
+window.restoreWorldMapView = restoreWorldMapView;
+
 function scheduleWorldMapResize() {
   if (!leafletMap || !isWorldMapVisible()) return;
   if (leafletResizeFrame) cancelAnimationFrame(leafletResizeFrame);
@@ -17,6 +38,7 @@ function scheduleWorldMapResize() {
     leafletResizeFrame = 0;
     if (leafletMap && isWorldMapVisible()) {
       leafletMap.invalidateSize({ animate: false, pan: false });
+      restoreWorldMapView();
     }
   });
 }
@@ -55,6 +77,7 @@ function initWorldMap() {
   if (leafletMap) {
     updateMapMarkers();
     scheduleWorldMapResize();
+    setTimeout(restoreWorldMapView, 80);
     return;
   }
 
