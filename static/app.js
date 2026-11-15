@@ -196,7 +196,13 @@ function switchTab(name) {
     }
   } catch (e) { /* Measurement must never break navigation. */ }
 
+  const previousTab = currentTab;
   currentTab = name;
+  // Leaving the map must not leave a half-open country card (with its own
+  // scroll offset) waiting when the user comes back.
+  if (previousTab === 'crisis-map' && name !== 'crisis-map' && typeof closeCrisisPanel === 'function') {
+    closeCrisisPanel();
+  }
   const allTabs = TAB_NAMES;
   const sidebar = document.getElementById('sidebar-nav');
   const main = document.querySelector('.main');

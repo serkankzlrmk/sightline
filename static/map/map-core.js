@@ -248,6 +248,7 @@ function openCountryCard(crisis) {
   const fullData = mapCountries[country] || {};
 
   countryEl.textContent = country;
+  bodyEl.scrollTop = 0;
 
   // Show loading state
   bodyEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Loading country intelligence...</div>';

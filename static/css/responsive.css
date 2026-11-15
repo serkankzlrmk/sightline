@@ -1425,3 +1425,65 @@ body.sidebar-hidden .db-header {
     z-index: 1200;
   }
 }
+
+
+/* Clean, self-aligning country search (no absolute label/padding hacks) */
+.map-search-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.map-search-shell > .relative { padding-top: 0; }
+.map-search-label {
+  position: static;
+  margin: 0 0 0 14px;
+  left: auto;
+  top: auto;
+}
+.map-search-field {
+  position: relative;
+  width: 100%;
+}
+.map-search-field .map-search-icon {
+  position: absolute !important;
+  left: 14px !important;
+  top: 50% !important;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transform: translateY(-50%) !important;
+  pointer-events: none;
+}
+#map-search-input {
+  width: 100% !important;
+  min-height: 44px;
+  padding-left: 40px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface-raised) !important;
+  box-shadow: var(--shadow-glass) !important;
+}
+#map-search-input:focus {
+  width: 100% !important;
+  border-color: rgba(var(--primary-rgb), .45) !important;
+  box-shadow: var(--shadow-glass), var(--shadow-focus-red) !important;
+}
+.map-search-label {
+  margin-bottom: 2px !important;
+  line-height: 1.1 !important;
+}
+
+@media (max-width: 768px) {
+  #panel-crisis-map {
+    height: 100dvh;
+    min-height: 100dvh;
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+  #panel-crisis-map .dash-map-wrap {
+    height: 100%;
+  }
+}
