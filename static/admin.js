@@ -22,7 +22,7 @@ async function loadAdminUsers() {
       const roleClass = u.role === 'admin' ? 'role-admin' : u.role === 'premium' ? 'role-premium' : 'role-free';
       return `<tr>
         <td>${esc(u.email || u.uid)}</td>
-        <td>${esc(u.displayName || '—')}</td>
+        <td>${esc(u.displayName || '…')}</td>
         <td><span class="admin-role-badge ${roleClass}">${u.role}</span></td>
         <td class="admin-actions">
           ${u.role !== 'free' ? `<button class="btn btn-xs" data-action="set-role" data-uid="${esc(u.uid)}" data-role="free">Free</button>` : ''}
@@ -115,10 +115,10 @@ async function loadAnalytics() {
       tbody.innerHTML = data.recent_users.map(u => {
         const roleClass = u.role === 'admin' ? 'role-admin' : u.role === 'premium' ? 'role-premium' : 'role-free';
         return `<tr>
-          <td>${esc(u.email || '—')}</td>
+          <td>${esc(u.email || '…')}</td>
           <td><span class="admin-role-badge ${roleClass}">${u.role}</span></td>
-          <td>${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : '—'}</td>
-          <td>${u.last_seen ? new Date(u.last_seen * 1000).toLocaleDateString() : '—'}</td>
+          <td>${u.created_at ? new Date(u.created_at * 1000).toLocaleDateString() : '…'}</td>
+          <td>${u.last_seen ? new Date(u.last_seen * 1000).toLocaleDateString() : '…'}</td>
         </tr>`;
       }).join('');
     }
@@ -143,11 +143,11 @@ async function loadIngestStatus() {
     const age = database.age_days == null ? 'Unknown' : `${database.age_days}d`;
     container.innerHTML = [
       { label: 'Source freshness', value: database.status || 'unknown' },
-      { label: 'Coverage through', value: database.latest_report_date || '—' },
+      { label: 'Coverage through', value: database.latest_report_date || '…' },
       { label: 'Source lag', value: age },
       { label: 'Reports available', value: database.report_count || 0 },
       { label: 'Last ingest run', value: lastRun.status || 'unknown' },
-      { label: 'Ingest target', value: lastRun.target_date || '—' },
+      { label: 'Ingest target', value: lastRun.target_date || '…' },
     ].map(item => `
       <div class="kpi-card">
         <div class="kpi-value">${esc(item.value)}</div>
@@ -282,7 +282,7 @@ async function loadAcquisitionLeads() {
     cards.innerHTML = [
       { label: 'Total leads', value: data.count || 0 },
       { label: 'Shown', value: list.length },
-      { label: 'Latest source', value: list[0] ? (list[0].source || 'site') : '—' },
+      { label: 'Latest source', value: list[0] ? (list[0].source || 'site') : '…' },
     ].map(item => `
       <div class="kpi-card">
         <div class="kpi-value">${esc(item.value)}</div>
@@ -296,8 +296,8 @@ async function loadAcquisitionLeads() {
     body.innerHTML = list.map(lead => `
       <tr>
         <td>${esc(lead.email || '')}</td>
-        <td>${esc(lead.organization || '—')}</td>
-        <td>${esc(lead.source || '—')}</td>
+        <td>${esc(lead.organization || '…')}</td>
+        <td>${esc(lead.source || '…')}</td>
         <td>${esc(new Date((lead.created_at || 0) * 1000).toLocaleDateString())}</td>
       </tr>
     `).join('');
@@ -333,8 +333,8 @@ async function loadSearchConsole() {
       { label: 'Search impressions', value: integer.format(snapshot.impressions || 0) },
       { label: 'Search CTR', value: `${decimal.format((snapshot.ctr || 0) * 100)}%` },
       { label: 'Average position', value: decimal.format(snapshot.position || 0) },
-      { label: 'Coverage start', value: snapshot.start_date || '—' },
-      { label: 'Coverage end', value: snapshot.end_date || '—' },
+      { label: 'Coverage start', value: snapshot.start_date || '…' },
+      { label: 'Coverage end', value: snapshot.end_date || '…' },
     ].map(item => `
       <div class="kpi-card">
         <div class="kpi-value">${esc(item.value)}</div>
@@ -371,11 +371,11 @@ function _obsPct(value) {
 }
 
 function _obsFmtTime(epochSeconds) {
-  if (!epochSeconds) return '—';
+  if (!epochSeconds) return '…';
   try {
     return new Date(epochSeconds * 1000).toLocaleString();
   } catch {
-    return '—';
+    return '…';
   }
 }
 
@@ -405,7 +405,7 @@ function renderObsHealth(health, summary) {
   if (!el) return;
   const mcp = health.mcp || {};
   const mcpText = mcp.ready ? `MCP ready · ${mcp.tool_count || 0} tools` : 'MCP not ready yet';
-  el.textContent = `Telemetry DB: ${health.db_path || '—'} · ${summary.turns || 0} turns stored · ${mcpText}`;
+  el.textContent = `Telemetry DB: ${health.db_path || '…'} · ${summary.turns || 0} turns stored · ${mcpText}`;
 }
 
 function renderObsTools(tools) {
@@ -417,7 +417,7 @@ function renderObsTools(tools) {
   }
   tbody.innerHTML = tools.slice(0, 40).map(t => `<tr>
     <td>${esc(t.tool)}</td>
-    <td>${esc(t.group || '—')}${t.server && t.server !== 'native' ? ` / ${esc(t.server)}` : ''}</td>
+    <td>${esc(t.group || '…')}${t.server && t.server !== 'native' ? ` / ${esc(t.server)}` : ''}</td>
     <td>${t.calls}</td>
     <td>${_obsPct(t.error_rate)}</td>
     <td>${t.p95_ms}</td>
@@ -452,7 +452,7 @@ function renderObsTurns(turns) {
   }
   tbody.innerHTML = turns.map(t => `<tr>
     <td>${esc(_obsFmtTime(t.started_at))}</td>
-    <td>${esc(t.model_key || '—')}</td>
+    <td>${esc(t.model_key || '…')}</td>
     <td><span class="obs-status obs-status-${esc(t.status)}">${esc(t.status)}</span></td>
     <td>${t.latency_ms || 0} ms</td>
     <td>${t.tools_count || 0}</td>
@@ -472,7 +472,7 @@ function renderObsCalibration(data) {
   }
   el.textContent = `Judge-human calibration: QWK ${Number(latest.qwk || 0).toFixed(3)} `
     + `· Spearman ${Number(latest.spearman || 0).toFixed(3)} · MAE ${Number(latest.mae || 0).toFixed(2)} `
-    + `· n=${latest.n} · judge ${latest.judge_model || '—'}`;
+    + `· n=${latest.n} · judge ${latest.judge_model || '…'}`;
 }
 
 function renderObsEval(data) {
@@ -482,7 +482,7 @@ function renderObsEval(data) {
   const summary = (data && data.summary) || {};
   const fb = (data && data.feedback) || {};
   const items = [
-    { label: 'Avg judge score', value: summary.avg != null ? `${summary.avg}/5` : '—' },
+    { label: 'Avg judge score', value: summary.avg != null ? `${summary.avg}/5` : '…' },
     { label: 'Scored turns', value: summary.count || 0 },
     { label: 'Low scores (<3)', value: summary.low_count || 0 },
     { label: 'Low-score rate', value: _obsPct(summary.low_rate) },
@@ -500,9 +500,9 @@ function renderObsEval(data) {
   const rows = (data && data.recent) || [];
   tbody.innerHTML = rows.length ? rows.map(r => `<tr>
     <td>${esc(_obsFmtTime(r.created_at))}</td>
-    <td>${esc(r.judge_model || '—')}</td>
+    <td>${esc(r.judge_model || '…')}</td>
     <td>${Number(r.score || 0).toFixed(2)}</td>
-    <td>${esc((r.issues || []).join('; ') || '—')}</td>
+    <td>${esc((r.issues || []).join('; ') || '…')}</td>
     <td><code>${esc(r.turn_id)}</code></td>
   </tr>`).join('') : '<tr><td colspan="5">No judged turns yet — run an evaluation.</td></tr>';
 }
@@ -551,7 +551,7 @@ async function runObsEval() {
       if (job.status === 'done') {
         const report = job.report || {};
         status.className = 'done';
-        status.textContent = `Done: ${report.scored || 0}/${report.sampled || 0} scored · avg ${report.avg ?? '—'} · ${report.dry_run ? 'dry run' : 'saved'}`;
+        status.textContent = `Done: ${report.scored || 0}/${report.sampled || 0} scored · avg ${report.avg ?? '…'} · ${report.dry_run ? 'dry run' : 'saved'}`;
         break;
       }
       if (job.status === 'error') throw new Error(job.error || 'eval failed');
@@ -708,7 +708,7 @@ async function computeCalibration() {
     }
     const line = document.getElementById('obs-calibration-line');
     if (line) {
-      line.textContent = `Judge-human calibration: QWK ${Number(m.qwk || 0).toFixed(3)} · Spearman ${Number(m.spearman || 0).toFixed(3)} · MAE ${Number(m.mae || 0).toFixed(2)} · n=${m.n} · judge ${data.judge_model || '—'}`;
+      line.textContent = `Judge-human calibration: QWK ${Number(m.qwk || 0).toFixed(3)} · Spearman ${Number(m.spearman || 0).toFixed(3)} · MAE ${Number(m.mae || 0).toFixed(2)} · n=${m.n} · judge ${data.judge_model || '…'}`;
     }
   } catch (err) {
     if (resultEl) resultEl.textContent = `Calibration error: ${err.message}`;
@@ -760,7 +760,7 @@ function _renderRetrievalCards() {
     return;
   }
   card.style.display = '';
-  if (meta) meta.textContent = `${q.query_id} · ${q.country || '—'} · ${q.candidates.length} candidates`;
+  if (meta) meta.textContent = `${q.query_id} · ${q.country || '…'} · ${q.candidates.length} candidates`;
   if (queryEl) queryEl.textContent = q.query || '';
   list.innerHTML = '';
   for (const c of q.candidates) {
@@ -914,7 +914,7 @@ function renderErrorGroups(groups) {
   }
   tbody.innerHTML = groups.map(g => `<tr>
     <td>${_errKindBadge(g.kind)}</td>
-    <td><code>${esc(g.route || '—')}</code></td>
+    <td><code>${esc(g.route || '…')}</code></td>
     <td>${g.count || 0}</td>
     <td>${g.users || 0}</td>
     <td>${esc(_obsFmtTime(g.first_ts))}</td>
@@ -937,9 +937,9 @@ function renderErrorRecent(events) {
   tbody.innerHTML = events.map(ev => `<tr>
     <td>${esc(_obsFmtTime(ev.ts))}</td>
     <td>${_errKindBadge(ev.kind)}</td>
-    <td><code>${esc(ev.route || '—')}</code></td>
-    <td>${ev.status || '—'}</td>
-    <td><code>${esc(ev.request_id || '—')}</code></td>
+    <td><code>${esc(ev.route || '…')}</code></td>
+    <td>${ev.status || '…'}</td>
+    <td><code>${esc(ev.request_id || '…')}</code></td>
     <td class="err-sample">${esc((ev.message || '').slice(0, 140))}</td>
   </tr>`).join('');
 }

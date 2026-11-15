@@ -189,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const customSelect = document.getElementById('custom-model-select');
     const customWrap = document.getElementById('model-custom');
     if (customSelect) {
-      customSelect.innerHTML = '<option value="">— Select model —</option>' +
+      customSelect.innerHTML = '<option value="">Select model...</option>' +
         Object.keys(CUSTOM_MODELS).map(k =>
           '<option value="' + k + '">' + CUSTOM_MODELS[k].name + '</option>'
         ).join('');

@@ -39,7 +39,7 @@ async function reloadReports() {
           bd.textContent =
             `${(sd.report_count || 0).toLocaleString()} reports and ` +
             `${(sd.chunk_count || 0).toLocaleString()} data chunks ` +
-            `from ReliefWeb, HDX and GDACS — sign in for full search and filters.`;
+            `from ReliefWeb, HDX and GDACS. Sign in for full search and filters.`;
         } catch {
           bd.textContent = 'Sign in for full search, filters and report browsing.';
         }
@@ -83,8 +83,8 @@ async function loadRecentReports() {
       return;
     }
     container.innerHTML = reports.slice(0, 10).map(rep => {
-      const date = rep.date || '—';
-      const country = rep.primary_country || '—';
+      const date = rep.date || '…';
+      const country = rep.primary_country || '…';
       const title = rep.title || 'Untitled';
       const url = rep.url || '';
       const urlAttr = url ? `data-url="${escHtml(url)}"` : '';
@@ -190,7 +190,7 @@ function renderTable() {
       : '';
     const pdfBadge = r.has_pdf
       ? '<span class="badge b-green">PDF</span>'
-      : '<span class="badge b-gray">—</span>';
+      : '<span class="badge b-gray">…</span>';
 
     return `<tr class="db-report-row animate-fade-in-up" data-report-id="${r.report_id}" style="animation-delay: ${index * 15}ms;">
       <td class="id-cell">${r.report_id}</td>
@@ -212,18 +212,18 @@ async function openDbReport(id) {
     const r = await res.json();
     dbState.currentReportTitle = r.title || '';
 
-    document.getElementById('m-title').textContent = r.title || '—';
+    document.getElementById('m-title').textContent = r.title || '…';
     document.getElementById('m-id').textContent = r.report_id;
-    document.getElementById('m-date').textContent = r.date || '—';
-    document.getElementById('m-countries').textContent = (r.all_countries || []).join(', ') || '—';
-    document.getElementById('m-source').textContent = r.source || '—';
-    document.getElementById('m-format').textContent = r.format_type || '—';
+    document.getElementById('m-date').textContent = r.date || '…';
+    document.getElementById('m-countries').textContent = (r.all_countries || []).join(', ') || '…';
+    document.getElementById('m-source').textContent = r.source || '…';
+    document.getElementById('m-format').textContent = r.format_type || '…';
     document.getElementById('m-pdf').textContent = r.has_pdf ? `Available (${r.pdf_pages} pages)` : 'None';
     document.getElementById('m-chunks').textContent = r.has_content ? `Available (${r.total_chunks} chunks)` : 'None';
 
     let themes = r.themes_list || [];
     if (!themes.length) { try { themes = JSON.parse(r.themes || '[]'); } catch { } }
-    document.getElementById('m-themes').textContent = themes.join(', ') || '—';
+    document.getElementById('m-themes').textContent = themes.join(', ') || '…';
     document.getElementById('m-link').href = r.url || '#';
 
     const chunks = r.chunks_preview || [];

@@ -260,7 +260,9 @@ def send_confirmation(token: str, email: str, name: str = "") -> bool:
 
 def _clean_rich(value: str) -> str:
     """Escape and lightly render the small Markdown subset used in bulletins."""
-    text = html.escape(str(value or "").strip())
+    text = str(value or "").strip().replace(" — ", ", ").replace(" – ", ", ")
+    text = text.replace("—", ", ").replace("–", "-")
+    text = html.escape(text)
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text, flags=re.S)
     text = re.sub(r"^\s*#+\s*", "", text, flags=re.M)
     parts = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
@@ -298,7 +300,7 @@ def _latest_bulletin() -> dict | None:
 
 def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) -> tuple[str, str, str]:
     label = html.escape(str(data.get("label") or ""))
-    subject = "You're in — what changed this week" if welcome else "What changed in humanitarian aid this week"
+    subject = "You're in. Here is what changed this week" if welcome else "What changed in humanitarian aid this week"
     intro = (
         "<p style='color:#0284c7;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px'>"
         "Weekly humanitarian briefing</p>"
@@ -309,7 +311,7 @@ def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) 
             "<p style='color:#0284c7;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px'>"
             "You are in</p>"
             "<p style='color:#475569;font-size:14px;line-height:1.6;margin:0 0 18px'>Thanks for confirming your subscription. "
-            "Here is the latest weekly briefing — no noise, just what changed.</p>"
+            "Here is the latest weekly briefing. No noise, just what changed.</p>"
             f"<p style='color:#8a8a91;font-size:12px;margin:0 0 18px'>{label}</p>"
         )
     overview = _clean_rich(data.get("overview") or "")
@@ -318,7 +320,7 @@ def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) 
     for item in figures[:6]:
         figure_cells += (
             "<td style='padding:8px 6px;vertical-align:top;width:33.33%'>"
-            f"<div style='color:#0f172a;font-size:19px;font-weight:800;letter-spacing:-.02em'>{html.escape(str(item.get('value') or '—'))}</div>"
+            f"<div style='color:#0f172a;font-size:19px;font-weight:800;letter-spacing:-.02em'>{html.escape(str(item.get('value') or 'n/a'))}</div>"
             f"<div style='color:#8a8a91;font-size:10px;line-height:1.3'>{html.escape(str(item.get('label') or ''))}</div>"
             "</td>"
         )
@@ -362,7 +364,7 @@ def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) 
         "<div style='margin:26px 0 0;padding:16px;border-radius:12px;background:#0f172a;color:#ffffff'>"
         "<div style='color:#7dd3fc;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px'>Sightline workspace</div>"
         "<div style='font-size:17px;font-weight:750;line-height:1.2;margin-bottom:6px'>Put this brief to work.</div>"
-        "<p style='color:#cbd5e1;font-size:12px;line-height:1.5;margin:0 0 12px'>Ask a follow-up, generate a cited SITREP, or start a donor proposal. The guest chat is free — no account needed for the first three messages.</p>"
+        "<p style='color:#cbd5e1;font-size:12px;line-height:1.5;margin:0 0 12px'>Ask a follow-up, generate a cited SITREP, or start a donor proposal. The guest chat is free. No account needed for the first three messages.</p>"
         f"<a href='{html.escape(app_url, quote=True)}' style='display:inline-block;background:#7dd3fc;color:#082f49;text-decoration:none;font-weight:800;padding:9px 13px;border-radius:8px;font-size:12px'>Open Sightline →</a>"
         "</div>"
     )
@@ -412,7 +414,7 @@ def send_welcome(email: str, token: str, name: str = "") -> bool:
     data = _latest_bulletin()
     unsub = f"{SITE_URL}/newsletter/unsubscribe/{token}"
     if not data:
-        title = "You're in — welcome to Sightline"
+        title = "You're in. Welcome to Sightline"
         body = "<p style='color:#475569'>Thanks for confirming your subscription. Your first briefing will arrive soon.</p>"
         return _send_email(email, title, _layout(title, body, unsub), title, unsub)
     subject, html_body, text_body = _bulletin_email(data, unsub, welcome=True)

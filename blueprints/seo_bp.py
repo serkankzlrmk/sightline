@@ -604,7 +604,7 @@ def bulletin_list():
             "url": f"/bulletin/{_slugify_bulletin_filename(b['filename'])}",
             "title": b.get("week_label") or b["filename"],
             "eyebrow": "Weekly bulletin",
-            "subtitle": f"{b.get('week_start', '')} — {b.get('week_end', '')}",
+            "subtitle": f"{b.get('week_start', '')} to {b.get('week_end', '')}",
             "summary": (
                 f"A sourced weekly briefing covering "
                 f"{_count_label(b.get('countries_affected', 0), 'country', 'countries')} "
@@ -832,12 +832,12 @@ def country_detail(slug: str):
     json_ld = {
         "@context": "https://schema.org",
         "@type": "Dataset",
-        "name": f"{country} — Humanitarian Intelligence Summary",
+        "name": f"{country}: Humanitarian Intelligence Summary",
         "description": f"Aggregated humanitarian indicators for {country}",
         "url": f"{SITE_URL}/country/{slug}",
     }
     return _render_detail(
-        f"{country} — Country Intelligence",
+        f"{country}: Country Intelligence",
         f"Humanitarian situation summary for {country}: severity, reports, themes.",
         f"country/{slug}",
         "".join(sections),
@@ -1458,7 +1458,7 @@ def crisis_index():
     items.sort(key=lambda x: x["sort_count"], reverse=True)
     record_page_view("/crisis", request.headers.get("User-Agent", ""))
     return _render_list(
-        "Crisis overviews — humanitarian country pages",
+        "Crisis overviews: humanitarian country pages",
         "Per-country humanitarian overviews with dated reports, alerts and key figures from trusted sources.",
         items,
         "crisis",
@@ -1957,7 +1957,7 @@ def _llms_txt_builder() -> str:
             slug = _crisis_slug(country)
             count = int(c.get("report_count") or 0)
             lines.append(
-                f"- [{country}: humanitarian crisis overview]({SITE_URL}/crisis/{slug}) — {count} tracked reports"
+                f"- [{country}: humanitarian crisis overview]({SITE_URL}/crisis/{slug}), {count} tracked reports"
             )
         lines += [""]
 
@@ -1968,7 +1968,7 @@ def _llms_txt_builder() -> str:
         weeks = sorted(d.name for d in dives_root.iterdir() if re.fullmatch(r"\d{4}-W\d{2}", d.name))
         if weeks:
             latest_dive_week = weeks[-1]
-            lines += [f"## Weekly deep dives — {latest_dive_week}", ""]
+            lines += [f"## Weekly deep dives: {latest_dive_week}", ""]
             for dive_path in sorted((dives_root / latest_dive_week).glob("*.json")):
                 if dive_path.name == "status.json":
                     continue
@@ -1996,7 +1996,7 @@ def _llms_txt_builder() -> str:
         "## Country intelligence summaries",
         "",
         "Per-country weekly summaries with severity rating, top sources, and key HDX indicators live under",
-        f"`{SITE_URL}/country/<country-slug>` — see [the countries overview]({SITE_URL}/countries) for the full list.",
+        f"`{SITE_URL}/country/<country-slug>`: see [the countries overview]({SITE_URL}/countries) for the full list.",
         "",
         "## Daily digests",
         "",

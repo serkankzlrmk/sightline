@@ -43,7 +43,7 @@
     <div class="auth-card-inner">
       <img src="/static/logo-signal-horizon.png" alt="Sightline" class="auth-logo">
       <h1>Sightline</h1>
-      <p class="auth-subtitle">Create your own — sign in to unlock AI chat, database, and your personal SITREP &amp; proposal workspace</p>
+      <p class="auth-subtitle">Create your own account and sign in to unlock AI chat, database, and your personal SITREP &amp; proposal workspace</p>
       <div class="auth-card-features">
         <div class="auth-card-feature">
           <div class="auth-card-feature-icon" style="background:rgba(37,99,235,.08);color:#2563eb;">
@@ -194,7 +194,7 @@
       <div class="map-context-shell" aria-label="Map overview">
         <div class="map-context-kicker">Global crisis monitor</div>
         <div class="map-context-title">Humanitarian situation overview</div>
-        <div class="map-context-meta"><span id="map-visible-count">—</span> monitored countries <span class="map-context-divider"></span> <span id="map-alert-count">—</span> active alerts</div>
+        <div class="map-context-meta"><span id="map-visible-count">…</span> monitored countries <span class="map-context-divider"></span> <span id="map-alert-count">…</span> active alerts</div>
       </div>
 
       <div class="map-filter-shell" aria-label="Map filters">
@@ -301,11 +301,11 @@
       <div class="stats-row" id="stats-row">
         <div class="stat-card stat-blue">
           <span class="stat-card-label">Reports</span>
-          <span class="stat-card-value" id="s-reports">—</span>
+          <span class="stat-card-value" id="s-reports">…</span>
         </div>
         <div class="stat-card stat-green">
           <span class="stat-card-label">Chunks</span>
-          <span class="stat-card-value" id="s-chunks">—</span>
+          <span class="stat-card-value" id="s-chunks">…</span>
         </div>
         <div class="stats-actions">
           <button class="btn btn-secondary btn-with-icon" id="btn-upload-pdf" style="display:none"><svg class="icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span>Upload PDF</span></button>
@@ -444,11 +444,11 @@
                 </button>
                 <button class="model-option model-option-premium model-option-deep" data-model="deep_think">
                   <div class="model-option-name">Deep Think <svg class="lock-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-                  <div class="model-option-desc">Deep analysis + sequential reasoning — Premium</div>
+                  <div class="model-option-desc">Deep analysis + sequential reasoning (Premium)</div>
                 </button>
                 <button class="model-option model-option-premium model-option-vision" data-model="vision">
                   <div class="model-option-name">Vision <svg class="lock-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-                  <div class="model-option-desc">Image + document analysis — Premium</div>
+                  <div class="model-option-desc">Image + document analysis (Premium)</div>
                 </button>
                 <div class="model-menu-divider"></div>
                 <div class="model-custom" id="model-custom">
@@ -478,7 +478,7 @@
           <div class="obs-section-label">Data sources</div>
           <div class="obs-sources" id="obs-sources"><div class="obs-hint">Loading…</div></div>
           <div class="obs-section-label">Active model</div>
-          <div class="obs-model" id="obs-model">—</div>
+          <div class="obs-model" id="obs-model">…</div>
         </div>
         <div class="obs-trace" id="obs-trace"></div>
       </div>
@@ -629,14 +629,14 @@
           <div class="analytics-table">
             <h4>Data Pipeline</h4>
             <div class="analytics-cards" id="ingest-status-cards">
-              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading freshness</div></div>
+              <div class="kpi-card"><div class="kpi-value">…</div><div class="kpi-label">Loading freshness</div></div>
             </div>
           </div>
 
           <div class="analytics-table">
             <h4>Google Search Console</h4>
             <div class="analytics-cards" id="gsc-kpi-cards">
-              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading search performance</div></div>
+              <div class="kpi-card"><div class="kpi-value">…</div><div class="kpi-label">Loading search performance</div></div>
             </div>
             <div class="analytics-charts">
               <div class="chart-container">
@@ -665,7 +665,7 @@
               <span>First-party data · bots excluded</span>
             </div>
             <div class="analytics-cards" id="growth-funnel-cards">
-              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading funnel</div></div>
+              <div class="kpi-card"><div class="kpi-value">…</div><div class="kpi-label">Loading funnel</div></div>
             </div>
           </div>
 
@@ -675,7 +675,7 @@
               <button type="button" class="btn btn-xs" id="export-leads-btn">Export CSV</button>
             </div>
             <div class="analytics-cards" id="lead-kpi-cards">
-              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading leads</div></div>
+              <div class="kpi-card"><div class="kpi-value">…</div><div class="kpi-label">Loading leads</div></div>
             </div>
             <table id="lead-table">
               <thead><tr><th>Email</th><th>Organisation</th><th>Source</th><th>Captured</th></tr></thead>
@@ -689,7 +689,7 @@
               <span>Double opt-in · weekly signal</span>
             </div>
             <div class="analytics-cards" id="newsletter-kpi-cards">
-              <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Loading subscribers</div></div>
+              <div class="kpi-card"><div class="kpi-value">…</div><div class="kpi-label">Loading subscribers</div></div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
               <button type="button" class="btn btn-xs" data-newsletter-action="test">Send test email</button>
@@ -911,7 +911,7 @@
     <div class="sitrep-modal-body">
       <div class="modal-source-link">
         <a id="sitrep-modal-source-link" href="#" target="_blank" rel="noopener noreferrer">
-          <span id="sitrep-modal-title">—</span>
+          <span id="sitrep-modal-title">…</span>
           <span class="modal-link-icon">↗</span>
         </a>
       </div>
@@ -997,7 +997,7 @@
           <div class="form-group">
             <label>Language *</label>
             <select class="fi" id="up-language" required>
-              <option value="">— Select —</option>
+              <option value="">Select...</option>
               <option value="en">English</option>
               <option value="tr">Turkish</option>
               <option value="ar">Arabic</option>

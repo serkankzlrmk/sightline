@@ -416,7 +416,7 @@ function renderCountryCard(bodyEl, data, color, sevLabels, isAuthed) {
     html += `<div class="country-card-section"><div class="country-card-section-title">Active Alerts</div>`;
     data.gdacs_alerts.forEach(a => {
       const alertColor = a.alert_level === 'Red' ? '#ef4444' : a.alert_level === 'Orange' ? '#f59e0b' : '#22c55e';
-      html += `<div class="country-card-alert"><span class="country-card-alert-badge" style="background:${alertColor}1a;color:${alertColor};">${esc(a.alert_level || '')}</span> ${esc(a.event_type || '')} — ${esc(a.title || '')}</div>`;
+      html += `<div class="country-card-alert"><span class="country-card-alert-badge" style="background:${alertColor}1a;color:${alertColor};">${esc(a.alert_level || '')}</span> ${esc(a.event_type || '')}: ${esc(a.title || '')}</div>`;
     });
     html += `</div>`;
   }

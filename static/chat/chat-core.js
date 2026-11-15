@@ -137,7 +137,7 @@ async function submitChatFeedback(btn) {
       return;
     }
     setChatFeedbackState(wrap, rating);
-    toast(rating > 0 ? 'Thanks — marked as helpful' : 'Thanks — feedback saved', 'success', 2000);
+    toast(rating > 0 ? 'Thanks. Marked as helpful' : 'Thanks. Feedback saved', 'success', 2000);
   } catch {
     toast('Feedback could not be saved', 'error');
   }
@@ -359,7 +359,7 @@ async function sendMessage() {
         } else if (evt.type === 'done') {
           // Drop any tool indicator that never got a matching tool_done
           chatDiv.querySelectorAll('.tool-ind.pending').forEach(e => e.remove());
-          if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '<span class="msg-placeholder">—</span>';
+          if (!chatState.currentAiText) chatState.currentAiEl.innerHTML = '<span class="msg-placeholder">…</span>';
           const footer = renderTeleFooter(evt);
           if (footer) chatState.currentAiEl.insertAdjacentHTML('beforeend', footer);
           // 👍/👎 on the just-finished answer (turn_id comes from the SSE done event)
