@@ -281,7 +281,7 @@ def _latest_bulletin() -> dict | None:
     except (OSError, ValueError):
         return None
     label = str(data.get("week_label") or files[0].stem)
-    slug = files[0].stem.replace("_bulletin", "")
+    slug = files[0].stem.replace("_bulletin", "").lower()
     return {
         "label": label,
         "overview": str(data.get("global_overview") or ""),
@@ -357,6 +357,15 @@ def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) 
         "style='display:inline-block;background:#0f172a;color:#fff;text-decoration:none;font-weight:700;"
         "padding:11px 15px;border-radius:9px;font-size:13px'>Read the full weekly briefing →</a></p>"
     )
+    app_url = f"{SITE_URL}/app?utm_source=newsletter&utm_medium=email&utm_campaign=weekly"
+    promo = (
+        "<div style='margin:26px 0 0;padding:16px;border-radius:12px;background:#0f172a;color:#ffffff'>"
+        "<div style='color:#7dd3fc;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px'>Sightline workspace</div>"
+        "<div style='font-size:17px;font-weight:750;line-height:1.2;margin-bottom:6px'>Put this brief to work.</div>"
+        "<p style='color:#cbd5e1;font-size:12px;line-height:1.5;margin:0 0 12px'>Ask a follow-up, generate a cited SITREP, or start a donor proposal. The guest chat is free — no account needed for the first three messages.</p>"
+        f"<a href='{html.escape(app_url, quote=True)}' style='display:inline-block;background:#7dd3fc;color:#082f49;text-decoration:none;font-weight:800;padding:9px 13px;border-radius:8px;font-size:12px'>Open Sightline →</a>"
+        "</div>"
+    )
     body = (
         f"{intro}"
         f"<div style='font-size:15px;line-height:1.65'>{overview}</div>"
@@ -364,9 +373,9 @@ def _bulletin_email(data: dict, unsubscribe_url: str, *, welcome: bool = False) 
         f"<p style='color:#8a8a91;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:0 0 2px'>Crises to watch</p>"
         f"{crisis_html}"
         f"{'<p style="color:#8a8a91;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin:16px 0 4px">Themes</p>' + theme_html if theme_html else ''}"
-        f"{cta}"
+        f"{cta}{promo}"
     )
-    text = f"{subject}\nWeek of {data.get('label')}\n\n{data.get('overview')}\n\nRead the full briefing: {data['url']}"
+    text = f"{subject}\n{data.get('label')}\n\n{data.get('overview')}\n\nRead the full briefing: {data['url']}\n\nTry Sightline: {app_url}"
     return subject, _layout(subject, body, unsubscribe_url), text
 
 

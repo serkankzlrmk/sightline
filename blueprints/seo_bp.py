@@ -704,6 +704,8 @@ def bulletin_detail(slug: str):
 
     def _render() -> str:
         filename = _bulletin_slug_map().get(slug)
+        if not filename and slug != slug.lower() and _bulletin_slug_map().get(slug.lower()):
+            return redirect(f"/bulletin/{slug.lower()}")
         if not filename:
             abort(404)
         bulletin = get_bulletin(filename)
