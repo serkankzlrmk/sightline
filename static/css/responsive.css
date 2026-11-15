@@ -1369,3 +1369,18 @@ body.sidebar-hidden .db-header {
     top: 184px !important;
   }
 }
+
+
+@media (max-width: 768px) {
+  .mobile-tab-bar {
+    min-height: 68px;
+    padding-top: 5px;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-tab {
+    padding: 2px 1px;
+  }
+  .mobile-tab span {
+    line-height: 1.1;
+  }
+}
