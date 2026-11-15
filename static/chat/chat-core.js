@@ -425,3 +425,6 @@ function lockChatInput() {
   chatInput.placeholder = 'Daily limit reached';
   document.querySelectorAll('.quick-prompt-btn').forEach(b => b.disabled = true);
 }
+
+// Allow the guest-status bootstrap to refresh the fallback welcome screen.
+window.getWelcomeHTML = getWelcomeHTML;

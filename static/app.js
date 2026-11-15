@@ -366,6 +366,16 @@ function updateGuestPreviewUI(data) {
   bar.hidden = !isGuest;
   if (!isGuest) return;
   if (remainingEl) remainingEl.textContent = String(data.remaining ?? 0);
+  // The server-rendered welcome is a fallback. Once we know this is an
+  // anonymous guest, replace it with the trial-prompt welcome (if the visitor
+  // has not started a conversation yet).
+  const chatDiv = document.getElementById('chat-messages');
+  const chatMain = chatDiv ? chatDiv.closest('.chat-main') : null;
+  if (chatDiv && chatMain && chatMain.classList.contains('welcome-mode') &&
+      !chatDiv.querySelector('.msg.user') && !chatDiv.querySelector('.guest-welcome') &&
+      typeof window.getWelcomeHTML === 'function') {
+    chatDiv.innerHTML = window.getWelcomeHTML();
+  }
   const exhausted = Number(data.remaining || 0) <= 0;
   if (input) {
     input.disabled = exhausted;
