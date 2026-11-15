@@ -1225,6 +1225,7 @@
     var spDotsContainer = document.getElementById('sp-dots');
     var scrollContainer = document.getElementById('scroll-container');
     var scrollProgress = document.querySelector('.scroll-progress');
+    var mobileLanding = window.matchMedia('(max-width: 900px)').matches;
     var worldTrigger = document.getElementById('hero-world-trigger');
 
     portalButton = document.getElementById('hero-portal');
@@ -1263,6 +1264,9 @@
       entries.forEach(function(entry) {
         if (entry.isIntersecting && entry.intersectionRatio > 0.25) {
           var section = parseInt(entry.target.dataset.section);
+          // Compact mobile sections overlap in the viewport; keep the hero
+          // active at the top instead of letting section 1 steal it.
+          if (mobileLanding && scrollContainer && scrollContainer.scrollTop < 40) section = 0;
           if (section !== currentSection) {
             activateSection(section, sections, dots);
           }

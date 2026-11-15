@@ -179,3 +179,15 @@
 @media (max-width: 680px) {
   .article-lede { text-align: left; }
 }
+
+/* Public crisis header: wrap instead of clipping on narrow screens */
+@media (max-width: 680px) {
+  .crisis-nav {
+    flex-wrap: wrap;
+    overflow: visible;
+    white-space: normal;
+    row-gap: 7px;
+    padding-bottom: 11px;
+  }
+  .crisis-nav a { white-space: nowrap; }
+}

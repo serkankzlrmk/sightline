@@ -637,3 +637,9 @@ body .nav {
   }
   .guest-limit-banner.visible { transform: translateY(0); }
 }
+
+@media (max-width: 640px) {
+  .guest-limit-banner {
+    bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  }
+}

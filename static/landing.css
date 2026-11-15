@@ -1245,3 +1245,92 @@ body.hero-light .lp-hero-copy .lp-btn-ghost:hover {
   .lp-newsletter-row { grid-template-columns: 1fr; }
   .lp-newsletter-row button { width: 100%; }
 }
+
+/* ── Mobile layout pass: no floating dead space, no overlaps ── */
+@media (max-width: 900px) {
+  .hero-world-trigger { display: none; }
+  .hero-portal {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    width: min(100%, 420px);
+    margin-top: 26px;
+    transform: none;
+  }
+  .hero-portal:hover,
+  .hero-portal:active {
+    transform: translateY(-2px);
+  }
+  .lp-section:not(.lp-hero-section):not(.lp-final-section) {
+    align-items: flex-start;
+    padding-top: 104px;
+    padding-bottom: 84px;
+  }
+  .lp-section:not(.lp-hero-section):not(.lp-final-section) .lp-section-inner {
+    margin-top: 0;
+  }
+  .lp-final-inner { padding-top: 112px; }
+}
+@media (max-width: 600px) {
+  .lp-hero-shell { padding-bottom: 40px; }
+  .lp-hero-actions { margin-bottom: 0; }
+  .hero-portal { min-height: 66px; padding: 8px 9px 8px 10px; }
+  .hero-portal-copy strong { font-size: 15px; }
+  .hero-portal-copy span { font-size: 9.5px; }
+  .lp-section:not(.lp-hero-section):not(.lp-final-section) {
+    padding-top: 88px;
+    padding-bottom: 72px;
+  }
+  .lp-final-inner { padding-top: 84px; }
+  .lp-final-section h2 { margin-bottom: 12px; }
+  .lp-final-section p { margin-bottom: 20px; }
+  .lp-final-actions { gap: 8px; }
+  .lp-footer-grid { margin-top: 30px; padding-top: 22px; }
+  .lp-footer-links { gap: 14px 18px; }
+  .lp-newsletter { padding: 14px; }
+}
+
+
+/* Mobile: shorter stacked sections, no dead full-screen gaps between copy */
+@media (max-width: 900px) {
+  #scroll-container { scroll-snap-type: none; }
+  .lp-section:not(.lp-hero-section):not(.lp-final-section) {
+    min-height: auto;
+  }
+  .lp-final-section {
+    min-height: auto;
+    padding-top: 0;
+  }
+}
+
+/* Mobile hero: remove the redundant floating portal and dead viewport gap */
+@media (max-width: 600px) {
+  .hero-portal { display: none !important; }
+  .lp-section.lp-hero-section {
+    height: 100svh;
+    min-height: 100svh;
+  }
+  .lp-hero-shell {
+    min-height: 100svh;
+    padding-bottom: 56px;
+  }
+  .lp-hero-copy { margin-top: 0; }
+}
+
+
+/* Mobile: stacked sections are always visible; no observer-driven blank panels */
+@media (max-width: 900px) {
+  #scroll-container { scroll-snap-type: none; }
+  .lp-section {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .lp-hero-shell { align-items: center; }
+}
+
+@media (max-width: 600px) {
+  .lp-hero-shell { align-content: center; }
+}
