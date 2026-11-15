@@ -219,7 +219,14 @@ def _send_email(to_email: str, subject: str, html_body: str, text_body: str, uns
 def _layout(title: str, body: str, unsubscribe_url: str) -> str:
     return f"""<!doctype html><html><body style="margin:0;background:#f5f5f7;font-family:-apple-system,Segoe UI,sans-serif;color:#1d1d1f">
 <div style="max-width:560px;margin:0 auto;padding:28px 20px">
-  <div style="font-size:20px;font-weight:800;letter-spacing:-.03em">Sightline</div>
+  <div style="display:flex;align-items:center;gap:9px">
+    <img src="{SITE_URL}/static/logo-signal-horizon.png" width="28" height="28" alt="Sightline"
+         style="display:block;width:28px;height:28px;border-radius:6px;object-fit:contain">
+    <div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.03em;line-height:1">Sightline</div>
+      <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#8a8a91;margin-top:4px">Humanitarian intelligence</div>
+    </div>
+  </div>
   <div style="margin-top:18px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px">
     <h1 style="font-size:24px;line-height:1.2;margin:0 0 14px">{html.escape(title)}</h1>
     {body}
