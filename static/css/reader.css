@@ -197,3 +197,13 @@
   .crisis-ad,
   .publication-ad { display: none !important; }
 }
+
+
+/* Compact mobile detail pages: less vertical dead space, tighter cards */
+@media (max-width: 680px) {
+  .publication-card,
+  .publication-card-featured { min-height: 0; }
+  .article-body h2 { margin-top: 34px; }
+  .article-body h3 { margin-top: 26px; }
+  .article-body p { line-height: 1.7; }
+}

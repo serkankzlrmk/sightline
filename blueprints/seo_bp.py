@@ -241,7 +241,15 @@ def _active_adsense_config() -> tuple[str, str]:
     return GOOGLE_ADSENSE_CLIENT, GOOGLE_ADSENSE_SLOT_ID
 
 
-def _render_detail(title: str, description: str, path: str, body_html: str, json_ld: dict) -> str:
+def _render_detail(
+    title: str,
+    description: str,
+    path: str,
+    body_html: str,
+    json_ld: dict,
+    *,
+    page_heading: str | None = None,
+) -> str:
     from config import GOOGLE_ANALYTICS_ID
 
     adsense_client, adsense_slot = _active_adsense_config()
@@ -249,6 +257,7 @@ def _render_detail(title: str, description: str, path: str, body_html: str, json
     return render_template(
         "seo_detail.html",
         page_title=title,
+        page_heading=page_heading or title,
         page_description=description,
         canonical=f"{SITE_URL}/{path}",
         site_url=SITE_URL,
@@ -751,7 +760,7 @@ def bulletin_detail(slug: str):
         }
         return _render_detail(
             title,
-            f"Weekly humanitarian bulletin: {trimmed.get('week_label') or title}.",
+            "Weekly humanitarian analysis, crisis signals and priority developments.",
             f"bulletin/{slug}",
             "".join(sections),
             json_ld,
@@ -831,6 +840,7 @@ def country_detail(slug: str):
         f"country/{slug}",
         "".join(sections),
         json_ld,
+        page_heading=country,
     )
 
 
@@ -890,7 +900,7 @@ def sitrep_detail(slug: str):
     json_ld = {k: v for k, v in json_ld.items() if v is not None}
     return _render_detail(
         title,
-        f"Humanitarian situation report: {title}.",
+        "Evidence-led situation report with traceable sources and operational findings.",
         f"sitrep/{slug}",
         sections,
         json_ld,
