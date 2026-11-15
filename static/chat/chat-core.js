@@ -14,7 +14,52 @@ const QUICK_PROMPTS = [
   { label: "Displacement Trends", text: "Summarize displacement trends in the Middle East", cat: "kb" },
 ];
 
+const GUEST_PROMPTS = [
+  {
+    label: "Sudan snapshot",
+    desc: "A cited one-paragraph situation overview",
+    text: "Give me a short, cited humanitarian snapshot of Sudan.",
+    icon: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>'
+  },
+  {
+    label: "Latest reports",
+    desc: "Three recent humanitarian headlines",
+    text: "What are the latest humanitarian reports? Give me three headlines.",
+    icon: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v5h4M9 12h7M9 16h7"/></svg>'
+  },
+  {
+    label: "Displacement",
+    desc: "A short trend summary in three bullets",
+    text: "Summarize displacement trends in the Middle East in three bullets.",
+    icon: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>'
+  },
+];
+
+function isGuestView() {
+  if (window.__guestPreview && window.__guestPreview.guest) return true;
+  return !(typeof getIdToken === 'function' && getIdToken());
+}
+
+function getGuestWelcomeHTML() {
+  return `<div class="chat-center">
+  <div class="guest-welcome">
+    <p class="guest-welcome-kicker">Try before you sign up</p>
+    <h2>Ask a short question.<br>See what Sightline can do.</h2>
+    <p class="guest-welcome-desc">Three free messages, answered with sources. No account needed.</p>
+    <div class="guest-trial-grid">
+      ${GUEST_PROMPTS.map(p => `<button type="button" class="guest-trial-card" data-action="quick-prompt" data-text="${esc(p.text.replace(/"/g, '&quot;'))}">
+        <span class="guest-trial-icon">${p.icon}</span>
+        <span class="guest-trial-copy"><strong>${esc(p.label)}</strong><small>${esc(p.desc)}</small></span>
+        <span class="guest-trial-arrow" aria-hidden="true">→</span>
+      </button>`).join('')}
+    </div>
+    <p class="guest-welcome-note">Answers are concise in the preview. Sign in anytime for the full workspace.</p>
+  </div>
+</div>`;
+}
+
 function getWelcomeHTML() {
+  if (isGuestView()) return getGuestWelcomeHTML();
   return `<div class="chat-center">
   <div class="quick-prompts">
     <div class="quick-prompts-title">Try asking:</div>
@@ -25,6 +70,20 @@ function getWelcomeHTML() {
     Chat history
   </button>
 </div>`;
+}
+
+function appendGuestContinuation(el, guest) {
+  if (!el || el.querySelector('.guest-continue')) return;
+  const card = document.createElement('div');
+  card.className = 'guest-continue';
+  const shortened = !!(guest && guest.truncated);
+  card.innerHTML = `
+    <div class="guest-continue-kicker">${shortened ? 'Preview answer paused' : 'Free preview complete'}</div>
+    <p>${shortened
+      ? 'This answer was shortened in the free preview. Sign in to get the full cited response and continue the conversation.'
+      : 'You have used your three free messages. Sign in to continue with full SITREP, proposal and country intelligence access.'}</p>
+    <button type="button" class="guest-continue-btn" data-action="guest-signin">Continue with an account →</button>`;
+  el.appendChild(card);
 }
 
 function addMsg(role, html, opts) {

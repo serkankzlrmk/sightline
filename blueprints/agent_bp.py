@@ -466,6 +466,8 @@ def api_agent_chat():
         latency_ms = 0
         turn_status = "error"
         turn_error = ""
+        last_finish_reason = ""
+        last_out_tokens = 0
         try:
             # Save user message to DB and load full history
             _db_add_message(chat_id, "user", user_message)
@@ -552,6 +554,10 @@ def api_agent_chat():
 
                     # Per-turn token accounting — usage_metadata arrives on the
                     # final chunk of each LLM call (requires stream_usage=True).
+                    rm = getattr(chunk, "response_metadata", None) or {}
+                    _finish = rm.get("finish_reason") or rm.get("stop_reason")
+                    if _finish:
+                        last_finish_reason = str(_finish)
                     um = getattr(chunk, "usage_metadata", None)
                     if um:
                         _in = 0
@@ -561,6 +567,7 @@ def api_agent_chat():
                             _out = int(um.get("output_tokens") or um.get("completion_tokens") or 0)
                             usage_in += _in
                             usage_out += _out
+                            last_out_tokens = _out
                             iterations += 1
                         except (TypeError, ValueError):
                             pass
@@ -696,7 +703,13 @@ def api_agent_chat():
 
             signals = answer_signals(full_response)
             total_ms = int((_time.time() - turn_wall_start) * 1000)
-            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer'], 'guest': (guest_meta if is_guest else None)})}\n\n"
+            guest_done = dict(guest_meta) if guest_meta else None
+            if is_guest and guest_done is not None:
+                reason = last_finish_reason.lower()
+                guest_done["truncated"] = reason in ("max_tokens", "length") or (
+                    last_out_tokens > 0 and last_out_tokens >= max(1, GUEST_MAX_TOKENS - 5)
+                )
+            yield f"data: {json.dumps({'type': 'done', 'turn_id': turn_id, 'tools': [{'tool': t['tool'], 'group': t.get('group', 'Other'), 'server': t.get('server', 'native'), 'status': t['status'], 'error_class': t.get('error_class', ''), 'summary': t['summary'], 'duration_ms': t['duration_ms']} for t in tools_used], 'sources': sources, 'usage': {'in': usage_in, 'out': usage_out}, 'cost': cost, 'iterations': iterations, 'latency_ms': latency_ms, 'total_ms': total_ms, 'model': model_config.get('name', model_key), 'citations': signals['citations'], 'no_answer': signals['no_answer'], 'guest': guest_done})}\n\n"
 
         except GeneratorExit:
             turn_status = "cancelled"
