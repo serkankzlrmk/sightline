@@ -364,7 +364,10 @@ function updateGuestPreviewUI(data) {
   document.body.classList.toggle('guest-mode', isGuest);
   if (!bar) return;
   bar.hidden = !isGuest;
-  if (!isGuest) return;
+  if (!isGuest) {
+    if (typeof hideGuestLimitBanner === 'function') hideGuestLimitBanner();
+    return;
+  }
   if (remainingEl) remainingEl.textContent = String(data.remaining ?? 0);
   // The server-rendered welcome is a fallback. Once we know this is an
   // anonymous guest, replace it with the trial-prompt welcome (if the visitor
@@ -397,10 +400,46 @@ async function initGuestPreview() {
   } catch { /* guest preview is optional */ }
 }
 
+function showGuestLimitBanner(kind) {
+  const el = document.getElementById('guest-limit-banner');
+  if (!el) return;
+  try {
+    if (sessionStorage.getItem('sightline_guest_banner_dismissed') === '1') return;
+  } catch { /* ignore */ }
+  const paused = kind === 'truncated';
+  const kicker = document.getElementById('guest-limit-kicker');
+  const title = document.getElementById('guest-limit-title');
+  const copy = document.getElementById('guest-limit-copy');
+  if (kicker) kicker.textContent = paused ? 'Preview answer paused' : 'Free preview complete';
+  if (title) title.textContent = paused ? 'Read the full answer' : 'Keep the conversation going';
+  if (copy) copy.textContent = paused
+    ? 'Sign in to unlock the complete cited response and continue where the preview stopped.'
+    : 'Sign in for full cited answers, SITREPs, proposals and country intelligence.';
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('visible'));
+}
+
+function hideGuestLimitBanner() {
+  const el = document.getElementById('guest-limit-banner');
+  if (!el) return;
+  el.classList.remove('visible');
+  setTimeout(() => { el.hidden = true; }, 220);
+}
+
+window.showGuestLimitBanner = showGuestLimitBanner;
+window.hideGuestLimitBanner = hideGuestLimitBanner;
+
 document.addEventListener('click', (event) => {
+  const close = event.target.closest('#guest-limit-close');
+  if (close) {
+    hideGuestLimitBanner();
+    try { sessionStorage.setItem('sightline_guest_banner_dismissed', '1'); } catch { /* ignore */ }
+    return;
+  }
   const signin = event.target.closest('[data-action="guest-signin"]');
   if (!signin) return;
   event.preventDefault();
+  hideGuestLimitBanner();
   if (window.showLoginPanel) window.showLoginPanel();
 });
 

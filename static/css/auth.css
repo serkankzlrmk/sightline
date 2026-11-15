@@ -548,3 +548,92 @@ body .nav {
 .err-kind.err-job { background:rgba(34,197,94,.12); color:#15803d; }
 .err-kind.err-canary { background:rgba(20,184,166,.12); color:#0f766e; }
 .err-sample { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Guest preview side banner (non-blocking) ── */
+.guest-limit-banner[hidden] { display: none !important; }
+.guest-limit-banner {
+  position: fixed;
+  top: 96px;
+  right: 22px;
+  z-index: 9000;
+  width: min(340px, calc(100vw - 28px));
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  opacity: 0;
+  transform: translateX(calc(100% + 32px));
+  transition: transform 0.24s ease, opacity 0.24s ease;
+  pointer-events: auto;
+}
+.guest-limit-banner.visible { opacity: 1; transform: translateX(0); }
+.guest-limit-close {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.guest-limit-close:hover { background: #f1f5f9; color: #475569; }
+.guest-limit-kicker {
+  margin: 0 32px 6px 0;
+  color: #0284c7;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.guest-limit-banner h3 {
+  margin: 0 0 6px;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+.guest-limit-banner p:not(.guest-limit-kicker) {
+  margin: 0 0 13px;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.guest-limit-cta {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 8px 13px;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  border-radius: 9px;
+  background: #0ea5e9;
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.guest-limit-cta:hover { background: #0284c7; }
+@media (max-width: 640px) {
+  .guest-limit-banner {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    transform: translateY(calc(100% + 24px));
+  }
+  .guest-limit-banner.visible { transform: translateY(0); }
+}

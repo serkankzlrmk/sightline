@@ -72,19 +72,6 @@ function getWelcomeHTML() {
 </div>`;
 }
 
-function appendGuestContinuation(el, guest) {
-  if (!el || el.querySelector('.guest-continue')) return;
-  const card = document.createElement('div');
-  card.className = 'guest-continue';
-  const shortened = !!(guest && guest.truncated);
-  card.innerHTML = `
-    <div class="guest-continue-kicker">${shortened ? 'Preview answer paused' : 'Free preview complete'}</div>
-    <p>${shortened
-      ? 'This answer was shortened in the free preview. Sign in to get the full cited response and continue the conversation.'
-      : 'You have used your three free messages. Sign in to continue with full SITREP, proposal and country intelligence access.'}</p>
-    <button type="button" class="guest-continue-btn" data-action="guest-signin">Continue with an account →</button>`;
-  el.appendChild(card);
-}
 
 function addMsg(role, html, opts) {
   // Ensure chat-center container exists inside chat-messages
@@ -298,7 +285,8 @@ async function sendMessage() {
       try { guestErr = await resp.json(); } catch { /* ignore */ }
       if (guestErr && guestErr.login_required) {
         if (window.updateGuestPreviewUI) window.updateGuestPreviewUI(guestErr.guest || { guest: true, remaining: 0 });
-        chatState.currentAiEl.innerHTML = `<div class="rate-limit-msg"><div class="rate-limit-msg-title">Free preview complete</div><div class="rate-limit-msg-body">Sign in to keep the conversation going with full SITREP, proposal and country intelligence access.</div><button type="button" class="btn btn-sm" data-action="guest-signin">Sign in to continue</button></div>`;
+        if (chatState.currentAiEl) chatState.currentAiEl.innerHTML = '';
+        if (window.showGuestLimitBanner) window.showGuestLimitBanner('limit');
         return;
       }
     }
