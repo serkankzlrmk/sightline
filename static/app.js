@@ -266,6 +266,11 @@ function switchTab(name) {
     loadDashboard();
   }
 
+  // Banner belongs to Chat only; close it when moving to any other panel.
+  if (name !== 'agent' && typeof hideGuestLimitBanner === 'function') {
+    hideGuestLimitBanner();
+  }
+
   // Chat-only guest paywall: do not cover the map or other panels.
   if (name === 'agent' && window.__guestPreview && window.__guestPreview.guest) {
     const remaining = Number(window.__guestPreview.remaining);
