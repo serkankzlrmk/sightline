@@ -265,6 +265,14 @@ function switchTab(name) {
     initWorldMap();
     loadDashboard();
   }
+
+  // Chat-only guest paywall: do not cover the map or other panels.
+  if (name === 'agent' && window.__guestPreview && window.__guestPreview.guest) {
+    const remaining = Number(window.__guestPreview.remaining);
+    if (remaining <= 0 && typeof showGuestLimitBanner === 'function') {
+      showGuestLimitBanner('limit');
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -401,7 +409,7 @@ function updateGuestPreviewUI(data) {
   // Also cover the reload case: if the quota was already exhausted before the
   // page loaded, the user must still see the sign-in banner (not just a
   // disabled input).
-  if (exhausted && typeof showGuestLimitBanner === 'function') {
+  if (exhausted && currentTab === 'agent' && typeof showGuestLimitBanner === 'function') {
     showGuestLimitBanner('limit');
   }
 }
