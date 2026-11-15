@@ -306,7 +306,9 @@ def api_admin_growth_funnel():
                 ).fetchone()[0]
             )
             lead_events = int(
-                conn.execute("SELECT COUNT(*) FROM events WHERE event = 'lead_captured' AND ts >= ?", (since,)).fetchone()[0]
+                conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event = 'lead_captured' AND ts >= ?", (since,)
+                ).fetchone()[0]
             )
         finally:
             conn.close()

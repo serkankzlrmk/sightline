@@ -433,7 +433,9 @@ _threading2.Thread(target=_register_mcp_tools_when_ready, daemon=True).start()
 # ============================================================================
 
 
-def _build_system_prompt(use_sequential: bool = False, mode: str = "analyst", memory_context: str = "", guest: bool = False) -> str:
+def _build_system_prompt(
+    use_sequential: bool = False, mode: str = "analyst", memory_context: str = "", guest: bool = False
+) -> str:
     today = _date.today().isoformat()  # e.g. "2026-04-01"
     sequential_section = ""
     if use_sequential:

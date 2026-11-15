@@ -4,6 +4,7 @@
 Designed for a Monday cron inside the app container:
   0 9 * * 1 docker exec sightline python scripts/send_weekly_bulletin.py
 """
+
 import json
 import sys
 

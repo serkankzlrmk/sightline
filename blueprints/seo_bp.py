@@ -999,10 +999,9 @@ def newsletter_confirm(token: str):
         page_title="Subscription confirmed" if result else "Confirmation link expired",
         heading="You are in." if result else "This link is no longer valid.",
         message=(
-            "Your Sightline weekly signal subscription is confirmed. "
-            "The next brief will land in your inbox."
-            if result else
-            "The confirmation link may have expired. You can request a fresh one from the site footer."
+            "Your Sightline weekly signal subscription is confirmed. The next brief will land in your inbox."
+            if result
+            else "The confirmation link may have expired. You can request a fresh one from the site footer."
         ),
         result_ok=bool(result),
         site_url=SITE_URL,
@@ -1021,8 +1020,8 @@ def newsletter_unsubscribe(token: str):
         heading="You are unsubscribed." if result else "This link is no longer valid.",
         message=(
             "You will no longer receive the Sightline weekly signal. You can re-subscribe from the site footer anytime."
-            if result else
-            "The unsubscribe link may have expired."
+            if result
+            else "The unsubscribe link may have expired."
         ),
         result_ok=bool(result),
         site_url=SITE_URL,
