@@ -428,6 +428,7 @@ function showGuestLimitBanner(kind) {
     ? 'Sign in to unlock the complete cited response and continue where the preview stopped.'
     : 'Sign in for full cited answers, SITREPs, proposals and country intelligence.';
   el.hidden = false;
+  document.body.classList.add('guest-limit-open');
   requestAnimationFrame(() => el.classList.add('visible'));
 }
 
@@ -435,6 +436,7 @@ function hideGuestLimitBanner() {
   const el = document.getElementById('guest-limit-banner');
   if (!el) return;
   el.classList.remove('visible');
+  document.body.classList.remove('guest-limit-open');
   setTimeout(() => { el.hidden = true; }, 220);
 }
 

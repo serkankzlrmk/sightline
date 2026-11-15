@@ -929,3 +929,9 @@ body.guest-mode .msg-feedback { display: none !important; }
   }
   .guest-signin-btn { font-size: 11px; }
 }
+
+
+@media (max-width: 640px) {
+  /* The bottom sheet carries the only action; hide the disabled input behind it. */
+  body.guest-limit-open .chat-footer { visibility: hidden; opacity: 0; pointer-events: none; }
+}
