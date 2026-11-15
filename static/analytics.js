@@ -82,7 +82,7 @@
     banner.innerHTML =
       '<div class="sightline-consent__copy">' +
         '<strong>Help us improve Sightline</strong>' +
-        '<p>Optional analytics show us which public information is useful. We do not load Google Analytics until you accept.</p>' +
+        '<p>Optional analytics help us improve the public pages. No tracking until you accept.</p>' +
         '<a href="/privacy">Privacy policy</a>' +
       '</div>' +
       '<div class="sightline-consent__actions">' +

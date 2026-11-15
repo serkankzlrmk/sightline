@@ -38,7 +38,22 @@
 .sightline-consent__actions button:focus-visible { outline: 3px solid #f8fafc; outline-offset: 2px; }
 
 @media (max-width: 640px) {
-  .sightline-consent { right: 10px; bottom: 10px; left: 10px; align-items: stretch; flex-direction: column; gap: 14px; }
-  .sightline-consent__actions { width: 100%; }
-  .sightline-consent__actions button { flex: 1; }
+  .sightline-consent {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .sightline-consent__copy strong { margin-bottom: 2px; font-size: 13px; }
+  .sightline-consent__copy p { margin: 0; font-size: 11px; line-height: 1.4; }
+  .sightline-consent__copy a { font-size: 11px; }
+  .sightline-consent__actions { width: 100%; gap: 6px; }
+  .sightline-consent__actions button { flex: 1; min-height: 34px; padding: 6px 10px; font-size: 12px; }
+}
+@media (max-width: 380px) {
+  .sightline-consent__copy p { display: none; }
 }
