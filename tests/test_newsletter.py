@@ -50,8 +50,8 @@ def test_public_signup_and_confirm_page(nl, monkeypatch):
 
 
 def test_signup_requires_consent(nl, monkeypatch):
-    import server
     import blueprints.public_bp as public_bp
+    import server
 
     monkeypatch.setattr(public_bp, "_lead_allowed", lambda ip: True)
 
